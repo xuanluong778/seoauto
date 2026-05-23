@@ -78,21 +78,32 @@ def build_thumbnail_prompt(*, title: str, primary_keyword: str) -> str:
     )
 
 
-def _save_image_bytes(data: bytes, *, stem: str = "ai-thumb") -> str:
-    ext = ".png"
-    if data[:3] == b"\xff\xd8\xff":
-        ext = ".jpg"
-    elif data[:8] == b"\x89PNG\r\n\x1a\n":
-        ext = ".png"
-    elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        ext = ".webp"
-    safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", stem).strip("-").lower() or "ai-thumb"
-    target_dir = Path("static") / "uploads" / "content-ai"
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target_name = f"{safe_stem}-{uuid4().hex[:10]}{ext}"
-    target_file = target_dir / target_name
-    target_file.write_bytes(data)
-    return f"/static/uploads/content-ai/{target_name}"
+def _save_image_bytes(
+    data: bytes,
+    *,
+    stem: str = "ai-thumb",
+    filename: str | None = None,
+    output_format: str | None = None,
+    target_width: int | None = None,
+    target_height: int | None = None,
+) -> str:
+    from app.services.content_ai_image_output import build_seo_image_filename, save_content_ai_image
+
+    if filename:
+        name = filename
+    else:
+        safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", stem).strip("-").lower() or "ai-thumb"
+        fmt = output_format or "png"
+        name = build_seo_image_filename(safe_stem, output_format=fmt)
+        if not filename and "-" not in Path(name).stem:
+            name = f"{Path(name).stem}-{uuid4().hex[:8]}{Path(name).suffix}"
+    return save_content_ai_image(
+        data,
+        filename=name,
+        output_format=output_format,
+        width=target_width,
+        height=target_height,
+    )
 
 
 def openai_size_for_aspect_ratio(aspect_ratio: str, *, model: str = "") -> str:
@@ -198,6 +209,10 @@ def generate_openai_image_variants(
     size: str | None = None,
     custom_width: int | None = None,
     custom_height: int | None = None,
+    output_format: str | None = None,
+    target_width: int | None = None,
+    target_height: int | None = None,
+    filename_stems: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Generate 1..N images (one API call per prompt for reliable variation).
@@ -208,11 +223,25 @@ def generate_openai_image_variants(
         raise ValueError(
             "Thiếu OPENAI_API_KEY trong env.local. Thêm khóa API để dùng AI Visual Content Studio."
         )
+    from app.services.content_ai_image_output import (
+        normalize_output_format,
+        parse_size_preset,
+        validate_dimensions,
+    )
+
     model = _getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
     aspect_label = str(aspect_ratio or "16:9")
+    out_w = out_h = None
+    if target_width and target_height:
+        out_w, out_h = validate_dimensions(target_width, target_height)
+    preset_dims = parse_size_preset(aspect_ratio)
+    if preset_dims and out_w is None:
+        out_w, out_h = preset_dims
     if custom_width and custom_height:
         api_size, aspect_label = openai_size_from_custom(custom_width, custom_height, model=model)
         req_size = api_size
+        if out_w is None:
+            out_w, out_h = validate_dimensions(custom_width, custom_height)
     elif size:
         req_size = str(size).strip()
     else:
@@ -229,9 +258,33 @@ def generate_openai_image_variants(
         except Exception as exc:
             raise ValueError(f"Model ảnh lỗi (biến thể {i + 1}): {exc}") from exc
         safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", stem).strip("-").lower() or "studio"
-        url = _save_image_bytes(blobs[0], stem=f"{safe_stem}-v{i + 1}")
+        fn = None
+        if filename_stems and i < len(filename_stems):
+            fn = str(filename_stems[i] or "").strip() or None
+        fmt = normalize_output_format(output_format) if output_format else None
+        url = _save_image_bytes(
+            blobs[0],
+            stem=f"{safe_stem}-v{i + 1}",
+            filename=fn,
+            output_format=fmt,
+            target_width=out_w,
+            target_height=out_h,
+        )
+        out_fmt = fmt or "png"
+        mime = {"png": "image/png", "jpeg": "image/jpeg", "webp": "image/webp"}.get(out_fmt, "image/png")
         results.append(
-            {"url": url, "prompt": p, "index": i, "size": req_size, "aspect_label": aspect_label, "model": model}
+            {
+                "url": url,
+                "prompt": p,
+                "index": i,
+                "size": req_size,
+                "aspect_label": aspect_label,
+                "model": model,
+                "output_format": out_fmt,
+                "mime_type": mime,
+                "width": out_w,
+                "height": out_h,
+            }
         )
     if not results:
         raise ValueError("Không tạo được ảnh preview — kiểm tra prompt và OPENAI_IMAGE_MODEL.")

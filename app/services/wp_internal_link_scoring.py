@@ -347,3 +347,224 @@ def compute_relevance_score(
             "context": round(ctx_pts, 1),
         },
     }
+
+
+def _slug_terms_from_url(url: str) -> set[str]:
+    try:
+        slug = (urlparse(str(url or "").strip()).path or "").strip("/").split("/")[-1]
+    except Exception:
+        slug = ""
+    return {w for w in re.findall(r"[a-zA-Z0-9à-ỹÀ-Ỹ]{3,}", slug.replace("-", " ").lower()) if w not in _WEAK_TITLE_WORDS}
+
+
+def paragraph_link_relevance_score(
+    paragraph_text: str,
+    *,
+    job: dict[str, Any],
+    article_primary_keyword: str = "",
+    article_secondary_keywords: str = "",
+    section_heading: str = "",
+) -> int:
+    """
+    Điểm 0–100: mức phù hợp giữa một đoạn <p> và một job internal link.
+    """
+    para = _fold_vi(paragraph_text)
+    if len(para) < 40:
+        return 0
+
+    title = str(job.get("title") or "").strip()
+    anchor = str(job.get("anchor_text") or "").strip()
+    url = str(job.get("target_url") or job.get("link") or "").strip()
+    fk = str(job.get("focus_keyword") or "").strip()
+
+    blob = _fold_vi(f"{title} {anchor} {fk}")
+    topic = _topic_tokens(
+        f"{article_primary_keyword} {article_secondary_keywords} {title} {anchor} {fk}"
+    )
+    slug_terms = _slug_terms_from_url(url)
+
+    score = 0
+    for t in topic:
+        if t in para:
+            score += 8
+    for t in slug_terms:
+        if t in para:
+            score += 6
+    if anchor and _fold_vi(anchor) in para:
+        score += 35
+    if title and len(title) >= 8 and _fold_vi(title[:60]) in para:
+        score += 25
+    if fk and _fold_vi(fk) in para:
+        score += 12
+    if article_primary_keyword and _fold_vi(article_primary_keyword) in blob and _fold_vi(article_primary_keyword) in para:
+        score += 5
+
+    h2 = _fold_vi(section_heading)
+    if h2:
+        h2_hits = sum(1 for t in topic if t in h2)
+        score += min(15, h2_hits * 5)
+
+    rel = compute_relevance_score(
+        post={
+            "title": title,
+            "link": url,
+            "slug": url.split("/")[-1] if url else "",
+            "focus_keyword": fk,
+        },
+        article_primary_keyword=article_primary_keyword,
+        article_secondary_keywords=article_secondary_keywords,
+        content_plain=paragraph_text[:1200],
+        topic_tokens=topic,
+    )
+    score += int(rel.get("relevance_score") or 0) // 5
+
+    return max(0, min(100, score))
+
+
+def assign_links_to_paragraphs(
+    jobs: list[dict[str, Any]],
+    paragraphs: list[dict[str, Any]],
+    *,
+    min_para_gap: int = 2,
+    article_primary_keyword: str = "",
+    article_secondary_keywords: str = "",
+) -> list[dict[str, Any]]:
+    """
+    Gán mỗi job vào một paragraph (tối đa 1 link/đoạn), rải đều theo vị trí trong bài.
+    Trả về danh sách placement: job + paragraph_id + position + relevance_score.
+    """
+    if not jobs or not paragraphs:
+        return []
+
+    n_paras = len(paragraphs)
+    n_jobs = len(jobs)
+    if n_jobs == 1:
+        ideals = [n_paras // 2]
+    else:
+        ideals = [int(round(i * (n_paras - 1) / max(1, n_jobs - 1))) for i in range(n_jobs)]
+
+    scored_pairs: list[tuple[int, int, int, dict, dict]] = []
+    for ji, job in enumerate(jobs):
+        for para in paragraphs:
+            rel = paragraph_link_relevance_score(
+                str(para.get("text") or ""),
+                job=job,
+                article_primary_keyword=article_primary_keyword,
+                article_secondary_keywords=article_secondary_keywords,
+                section_heading=str(para.get("section_heading") or ""),
+            )
+            if rel < 8:
+                continue
+            pos = int(para.get("position") or 0)
+            spread_penalty = abs(pos - ideals[min(ji, len(ideals) - 1)]) * 4
+            scored_pairs.append((rel - spread_penalty, rel, pos, job, para))
+
+    scored_pairs.sort(key=lambda x: (-x[0], -x[1], x[2]))
+
+    assigned_para_ids: set[int] = set()
+    assigned_positions: list[int] = []
+    assigned_sections: set[str] = set()
+    placements: list[dict[str, Any]] = []
+
+    # Ưu tiên job theo relevance tổng thể (cao trước)
+    job_order = sorted(
+        range(len(jobs)),
+        key=lambda i: max(
+            (
+                paragraph_link_relevance_score(
+                    str(p.get("text") or ""),
+                    job=jobs[i],
+                    article_primary_keyword=article_primary_keyword,
+                    article_secondary_keywords=article_secondary_keywords,
+                    section_heading=str(p.get("section_heading") or ""),
+                )
+                for p in paragraphs
+            ),
+            default=0,
+        ),
+        reverse=True,
+    )
+
+    for ji in job_order:
+        job = jobs[ji]
+        ideal = ideals[min(len(placements), len(ideals) - 1)]
+        best: tuple[int, dict] | None = None
+        for para in paragraphs:
+            pid = int(para.get("paragraph_id") or 0)
+            if pid in assigned_para_ids:
+                continue
+            pos = int(para.get("position") or 0)
+            if any(abs(pos - ap) < min_para_gap for ap in assigned_positions):
+                continue
+            rel = paragraph_link_relevance_score(
+                str(para.get("text") or ""),
+                job=job,
+                article_primary_keyword=article_primary_keyword,
+                article_secondary_keywords=article_secondary_keywords,
+                section_heading=str(para.get("section_heading") or ""),
+            )
+            if rel < 8:
+                continue
+            spread_bonus = max(0, 18 - abs(pos - ideal) * 3)
+            sec_h = _fold_vi(str(para.get("section_heading") or ""))[:80]
+            section_penalty = 22 if sec_h and sec_h in assigned_sections else 0
+            total = rel + spread_bonus - section_penalty
+            if best is None or total > best[0]:
+                best = (total, para)
+        if best is None:
+            for para in paragraphs:
+                pid = int(para.get("paragraph_id") or 0)
+                if pid in assigned_para_ids:
+                    continue
+                pos = int(para.get("position") or 0)
+                if any(abs(pos - ap) < 1 for ap in assigned_positions):
+                    continue
+                rel = paragraph_link_relevance_score(
+                    str(para.get("text") or ""),
+                    job=job,
+                    article_primary_keyword=article_primary_keyword,
+                    article_secondary_keywords=article_secondary_keywords,
+                    section_heading=str(para.get("section_heading") or ""),
+                )
+                if rel < 8:
+                    continue
+                spread_bonus = max(0, 12 - abs(pos - ideal) * 2)
+                sec_h = _fold_vi(str(para.get("section_heading") or ""))[:80]
+                section_penalty = 18 if sec_h and sec_h in assigned_sections else 0
+                total = rel + spread_bonus - section_penalty
+                if best is None or total > best[0]:
+                    best = (total, para)
+        if best is None:
+            continue
+        para = best[1]
+        pid = int(para.get("paragraph_id") or 0)
+        pos = int(para.get("position") or 0)
+        assigned_para_ids.add(pid)
+        assigned_positions.append(pos)
+        sec_h = _fold_vi(str(para.get("section_heading") or ""))[:80]
+        if sec_h:
+            assigned_sections.add(sec_h)
+        anchor_inline = bool(
+            job.get("anchor_text")
+            and _fold_vi(str(job.get("anchor_text") or "")) in _fold_vi(str(para.get("text") or ""))
+        )
+        placements.append(
+            {
+                "job": job,
+                "paragraph_id": pid,
+                "position": pos,
+                "relevance_score": paragraph_link_relevance_score(
+                    str(para.get("text") or ""),
+                    job=job,
+                    article_primary_keyword=article_primary_keyword,
+                    article_secondary_keywords=article_secondary_keywords,
+                    section_heading=str(para.get("section_heading") or ""),
+                ),
+                "anchor_inline": anchor_inline,
+                "section_heading": str(para.get("section_heading") or ""),
+                "paragraph_snippet": str(para.get("text") or "")[:220],
+            }
+        )
+
+    placements.sort(key=lambda x: int(x.get("position") or 0))
+    return placements

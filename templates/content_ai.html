@@ -89,9 +89,6 @@
             pointer-events: none;
         }
         .top-fixed-bar .top-fixed-inner,
-        .top-fixed-bar .content-ai-nav,
-        .top-fixed-bar .content-ai-nav a,
-        .top-fixed-bar .content-ai-nav button,
         .top-fixed-bar input,
         .top-fixed-bar .btn {
             pointer-events: auto;
@@ -1507,71 +1504,6 @@
             bottom: 12px;
             pointer-events: auto;
         }
-        .content-ai-nav {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            margin: 14px 0 0;
-            padding-top: 14px;
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
-            flex: 1;
-            min-height: 0;
-        }
-        .top-fixed-bar .content-ai-nav {
-            margin-top: 16px;
-            padding-top: 16px;
-        }
-        .content-ai-nav a,
-        .content-ai-nav button {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            width: 100%;
-            text-align: left;
-            padding: 10px 12px;
-            border-radius: 10px;
-            border: 1px solid transparent;
-            background: transparent;
-            color: #cbd5e1;
-            font-size: 0.88rem;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-            font-family: inherit;
-        }
-        .content-ai-nav a:hover,
-        .content-ai-nav button:hover {
-            background: rgba(255, 255, 255, 0.06);
-            color: #f1f5f9;
-        }
-        .content-ai-nav-item.active {
-            background: rgba(16, 185, 129, 0.16);
-            border-color: rgba(16, 185, 129, 0.42);
-            color: #10b981 !important;
-        }
-        .content-ai-nav-item.active svg {
-            stroke: #10b981;
-        }
-        .content-ai-nav svg {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-            stroke: #94a3b8;
-            fill: none;
-            stroke-width: 1.7;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-        }
-        .content-ai-nav .nav-badge-new {
-            margin-left: auto;
-            font-size: 0.6rem;
-            font-weight: 800;
-            padding: 2px 6px;
-            border-radius: 6px;
-            background: linear-gradient(135deg, #f59e0b, #ea580c);
-            color: #0f172a;
-            letter-spacing: 0.04em;
-        }
         .bulk-write-panel h2 {
             margin: 0 0 8px;
             font-size: 1.15rem;
@@ -2049,12 +1981,54 @@
             padding: 24px;
         }
         .studio-lightbox.open { display: flex; }
+        .studio-lightbox-stage {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            max-width: 96vw;
+            max-height: 90vh;
+        }
         .studio-lightbox img {
             max-width: min(96vw, 1400px);
             max-height: 90vh;
             object-fit: contain;
+            transition: transform 0.15s ease;
+            cursor: zoom-in;
             border-radius: 8px;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+        }
+        .studio-lightbox img.is-zoomed {
+            transform: scale(1.35);
+            cursor: zoom-out;
+        }
+        .studio-lightbox-nav {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10002;
+            border: none;
+            background: rgba(15, 23, 42, 0.75);
+            color: #f8fafc;
+            width: 44px;
+            height: 44px;
+            border-radius: 999px;
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
+        .studio-lightbox-nav:hover { background: rgba(30, 41, 59, 0.92); }
+        .studio-lightbox-nav.prev { left: 16px; }
+        .studio-lightbox-nav.next { right: 16px; }
+        .studio-lightbox-counter {
+            position: fixed;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #e2e8f0;
+            font-size: 0.82rem;
+            background: rgba(15, 23, 42, 0.7);
+            padding: 4px 10px;
+            border-radius: 8px;
         }
         .studio-lightbox-close {
             position: fixed;
@@ -2327,6 +2301,25 @@
             padding: 20px;
         }
         #thamKhaoAppendModal.modal.open { display: flex; }
+        #publishGateModal.modal.open { display: flex; align-items: center; justify-content: center; }
+        #publishGateModal .modal-card { max-width: 560px; width: 100%; }
+        .publish-gate-score {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin: 8px 0 12px;
+            font-weight: 800;
+        }
+        .publish-gate-score .pgs-num { font-size: 1.5rem; color: #93c5fd; }
+        .publish-gate-score.sev-pass .pgs-num { color: #4ade80; }
+        .publish-gate-score.sev-warn .pgs-num { color: #fbbf24; }
+        .publish-gate-score.sev-blocker .pgs-num { color: #f87171; }
+        .publish-gate-lists { font-size: 0.78rem; max-height: 220px; overflow-y: auto; }
+        .publish-gate-lists h4 { margin: 8px 0 4px; font-size: 0.72rem; color: #cbd5e1; }
+        .publish-gate-lists ul { margin: 0; padding-left: 18px; color: var(--muted); }
+        .publish-gate-lists .pg-blockers { color: #fca5a5; }
+        .publish-gate-lists .pg-warnings { color: #fde68a; }
+        .publish-gate-lists .pg-required { color: #fdba74; }
         #thamKhaoAppendModal .modal-card {
             max-width: 520px;
             width: 100%;
@@ -2441,26 +2434,6 @@
             text-transform: uppercase;
             letter-spacing: 0.04em;
         }
-        .internal-link-test-checklist {
-            margin: 10px 0 12px;
-            padding: 10px 12px;
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            background: rgba(2, 6, 23, 0.25);
-            font-size: 0.78rem;
-        }
-        .internal-link-test-checklist summary {
-            cursor: pointer;
-            font-weight: 800;
-            color: #cbd5e1;
-        }
-        .internal-link-test-checklist ol {
-            margin: 8px 0 0 18px;
-            padding: 0;
-            color: #94a3b8;
-            line-height: 1.45;
-        }
-        .internal-link-test-checklist li { margin-bottom: 4px; }
         .il-verify-warn {
             margin-top: 8px;
             padding: 8px 10px;
@@ -2618,6 +2591,181 @@
             border-bottom: 1px solid rgba(255,255,255,0.08);
         }
         .publish-checklist-list li:last-child { border-bottom: 0; }
+        .content-score-panel {
+            margin: 10px 0 4px;
+            padding: 12px 14px;
+            border: 1px solid rgba(96, 165, 250, 0.45);
+            border-radius: 10px;
+            background: rgba(59, 130, 246, 0.08);
+        }
+        .content-score-panel .csh {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .content-score-panel .csh-title {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #93c5fd;
+        }
+        .content-score-ring {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            font-weight: 800;
+        }
+        .content-score-ring .cs-num {
+            font-size: 1.6rem;
+            color: #bfdbfe;
+            line-height: 1;
+        }
+        .content-score-ring .cs-grade {
+            font-size: 0.95rem;
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.12);
+            color: #e2e8f0;
+        }
+        .content-score-ring.cs-high .cs-num { color: #4ade80; }
+        .content-score-ring.cs-mid .cs-num { color: #fbbf24; }
+        .content-score-ring.cs-low .cs-num { color: #f87171; }
+        .content-score-section {
+            margin-top: 8px;
+            font-size: 0.72rem;
+        }
+        .content-score-section h4 {
+            margin: 0 0 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #cbd5e1;
+        }
+        .content-score-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .content-score-list li {
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            color: var(--muted);
+        }
+        .content-score-list li:last-child { border-bottom: 0; }
+        .content-score-list.cs-missing li { color: #fca5a5; }
+        .content-score-list.cs-warn li { color: #fde68a; }
+        .content-score-list.cs-suggest li { color: #a5f3fc; }
+        .content-score-pillars {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .content-score-pillar {
+            font-size: 0.65rem;
+            padding: 4px 6px;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .content-score-pillar .csp-label { color: #94a3b8; display: block; }
+        .content-score-pillar .csp-val { font-weight: 700; color: #e2e8f0; }
+        .content-brief-panel {
+            margin: 10px 0 12px;
+            padding: 12px 14px;
+            border: 1px solid rgba(167, 139, 250, 0.4);
+            border-radius: 10px;
+            background: rgba(139, 92, 246, 0.08);
+        }
+        .content-brief-panel .cbh {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .content-brief-panel .cbh-title {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #c4b5fd;
+        }
+        .content-brief-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+            font-size: 0.72rem;
+        }
+        .content-brief-grid .cbb {
+            padding: 6px 8px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.18);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .content-brief-grid .cbb-k { color: #94a3b8; font-size: 0.65rem; display: block; }
+        .content-brief-grid .cbb-v { color: #e2e8f0; font-weight: 600; }
+        .content-brief-section { margin-top: 8px; font-size: 0.72rem; }
+        .content-brief-section h4 { margin: 0 0 4px; font-size: 0.7rem; color: #cbd5e1; }
+        .content-brief-section ul { margin: 0; padding-left: 18px; color: var(--muted); }
+        .content-brief-outline {
+            margin-top: 8px;
+            max-height: 160px;
+            overflow: auto;
+            font-size: 0.68rem;
+            white-space: pre-wrap;
+            color: #cbd5e1;
+            background: rgba(0,0,0,0.2);
+            padding: 8px;
+            border-radius: 8px;
+        }
+        .content-gap-panel {
+            margin: 10px 0 4px;
+            padding: 12px 14px;
+            border: 1px solid rgba(251, 191, 36, 0.45);
+            border-radius: 10px;
+            background: rgba(245, 158, 11, 0.08);
+        }
+        .content-gap-panel .cgh {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .content-gap-panel .cgh-title {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #fcd34d;
+        }
+        .content-gap-ring {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            font-weight: 800;
+        }
+        .content-gap-ring .cg-num { font-size: 1.45rem; line-height: 1; }
+        .content-gap-ring.sev-good .cg-num { color: #4ade80; }
+        .content-gap-ring.sev-warning .cg-num { color: #fbbf24; }
+        .content-gap-ring.sev-poor .cg-num { color: #f87171; }
+        .content-gap-section { margin-top: 8px; font-size: 0.72rem; }
+        .content-gap-section h4 {
+            margin: 0 0 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #cbd5e1;
+        }
+        .content-gap-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .content-gap-list li {
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            color: var(--muted);
+        }
+        .content-gap-list li:last-child { border-bottom: 0; }
+        .content-gap-list.cg-missing li { color: #fca5a5; }
+        .content-gap-list.cg-suggest li { color: #a5f3fc; }
         .pcl-badge {
             flex-shrink: 0;
             min-width: 62px;
@@ -2710,6 +2858,7 @@
         .history-row { display: grid; grid-template-columns: 220px 1fr auto; gap: 8px; align-items: center; }
         .history-preview { margin-top: 8px; min-height: 68px; max-height: 140px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px; color: #dbeafe; font-size: 0.82rem; background: rgba(2,6,23,0.2); white-space: pre-wrap; }
         .msg { margin-top: 8px; font-size: 0.9rem; color: var(--muted); }
+        .msg:empty { display: none; margin: 0; padding: 0; }
         .inline-progress { margin-top: 10px; display:none; gap: 10px; align-items:center; }
         .inline-progress.show { display:flex; }
         .inline-progress .bar { flex:1; height: 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); overflow:hidden; }
@@ -2792,10 +2941,16 @@
             opacity: 1 !important;
             visibility: visible !important;
         }
-        .preview-shell .tox-tinymce,
-        .preview-shell .tox,
-        .tox-tinymce {
-            display: none !important;
+        /* Chỉ ẩn TinyMCE trôi ngoài preview — giữ editor trong .preview-shell */
+        body > .tox-tinymce-aux,
+        body > .tox:not(.preview-shell .tox) {
+            z-index: 10050;
+        }
+        .preview-shell .tox-tinymce {
+            display: flex !important;
+            flex-direction: column;
+            width: 100% !important;
+            min-height: 520px;
         }
         #contentRender {
             display: none;
@@ -2805,6 +2960,167 @@
             border: 1px solid rgba(15,23,42,0.12);
             border-radius: 8px;
             padding: 12px;
+        }
+        #contentRender.is-editor-visible {
+            display: block !important;
+        }
+        #contentRender.is-editor-visible:empty::before {
+            content: "Nội dung bài viết hiển thị tại đây — chọn dự án bên trái hoặc tạo content mới.";
+            color: #94a3b8;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .content-editor-block {
+            margin-top: 12px;
+            margin-bottom: 10px;
+        }
+        .content-editor-block .field-head label {
+            font-weight: 700;
+            color: #e2e8f0;
+        }
+        .web-image-panel {
+            margin-top: 10px;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(2, 6, 23, 0.22);
+        }
+        .web-image-panel summary {
+            cursor: pointer;
+            font-weight: 800;
+            color: #e2e8f0;
+            list-style: none;
+        }
+        .web-image-panel summary::-webkit-details-marker { display: none; }
+        .web-image-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        @media (min-width: 900px) {
+            .web-image-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
+        .web-image-grid label {
+            display: block;
+            font-size: 0.72rem;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .web-image-grid select,
+        .web-image-grid input[type="number"],
+        .web-image-grid input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .web-image-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .web-image-card {
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 10px;
+            overflow: hidden;
+            background: rgba(15,23,42,0.35);
+        }
+        .web-image-card img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            cursor: zoom-in;
+            display: block;
+        }
+        .web-image-card-btns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 6px;
+        }
+        .web-image-card-btns .mini-btn {
+            font-size: 0.65rem;
+            padding: 3px 6px;
+        }
+        .web-image-custom-size {
+            display: none;
+            grid-column: 1 / -1;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .web-image-custom-size.visible { display: grid; }
+        .content-editor-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .content-expand-lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 12050;
+            background: rgba(2, 6, 23, 0.92);
+            flex-direction: column;
+            padding: 52px 20px 20px;
+            box-sizing: border-box;
+        }
+        .content-expand-lightbox.open {
+            display: flex;
+        }
+        .content-expand-lightbox-title {
+            color: #e2e8f0;
+            font-weight: 800;
+            font-size: 0.95rem;
+            margin: 0 0 10px 4px;
+            flex-shrink: 0;
+        }
+        .content-expand-lightbox-body {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            background: #ffffff;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+        }
+        .content-expand-render {
+            display: block !important;
+            min-height: 100%;
+            max-height: none;
+            height: auto;
+            margin: 0;
+            border: none;
+            border-radius: 12px;
+            padding: 20px 24px 28px;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 1rem;
+            line-height: 1.65;
+            outline: none;
+        }
+        .content-expand-render:empty::before {
+            content: "Chưa có nội dung — soạn hoặc tải dự án.";
+            color: #94a3b8;
+        }
+        .content-expand-close {
+            position: fixed;
+            top: 14px;
+            right: 18px;
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            color: #fff;
+            font-size: 1.65rem;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 12051;
+        }
+        .content-expand-close:hover {
+            background: rgba(255, 255, 255, 0.32);
         }
         .content-render h1, .content-render h2, .content-render h3 { color: #0f172a; }
         .content-render figure.editor-image {
@@ -2925,25 +3241,6 @@
                     </div>
                 </div>
             </div>
-            <nav class="content-ai-nav" aria-label="Tính năng Content AI">
-                <a href="/report" class="content-ai-nav-item">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V9.5z"/></svg>
-                            Dashboard
-                        </a>
-                        <a href="#contentAiProjectSitesPanel" class="content-ai-nav-item" id="linkNavProjects">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
-                            Project
-                        </a>
-                        <a href="/schema" class="content-ai-nav-item">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5zM4 15a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4z"/></svg>
-                            Extensions
-                            <span class="nav-badge-new">New</span>
-                        </a>
-                        <a href="/tool" class="content-ai-nav-item">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10.25 8.75L15.5 12l-5.25 3.25v-6.5z"/></svg>
-                            Tutorials
-                        </a>
-</nav>
         </aside>
     <nav class="content-ai-main-tabs" aria-label="Chế độ viết bài" id="contentAiMainTabs">
         <button type="button" class="content-ai-main-tab active" id="tabMainSingle">Viết 1 bài</button>
@@ -3050,6 +3347,40 @@
         <input id="secondaryKeywords" type="text" />
         <div class="hint" id="hint-secondary_keywords"></div>
         <div class="hint" id="hint-detected-intent">Intent debug: -</div>
+        <div class="content-brief-bar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0;">
+            <button type="button" class="btn secondary" id="btnCreateContentBrief">Tạo Content Brief</button>
+            <button type="button" class="btn secondary" id="btnApplyBriefOutline" style="display:none;">Áp dụng Brief vào Outline</button>
+            <span class="hint" id="hint-content-brief" style="margin:0;"></span>
+        </div>
+        <div class="content-brief-panel" id="contentBriefPanel" style="display:none;" aria-live="polite">
+            <div class="cbh">
+                <span class="cbh-title">SEO Content Brief</span>
+                <span class="hint" id="contentBriefMode" style="margin:0;"></span>
+            </div>
+            <div class="content-brief-grid" id="contentBriefGrid"></div>
+            <div class="content-brief-section" id="contentBriefEntitiesWrap" style="display:none;">
+                <h4>Entity / từ khóa semantic</h4>
+                <ul id="contentBriefEntities"></ul>
+            </div>
+            <div class="content-brief-section" id="contentBriefFaqWrap" style="display:none;">
+                <h4>FAQ gợi ý</h4>
+                <ul id="contentBriefFaq"></ul>
+            </div>
+            <div class="content-brief-section" id="contentBriefLinksWrap" style="display:none;">
+                <h4>Kế hoạch internal link</h4>
+                <ul id="contentBriefLinks"></ul>
+            </div>
+            <div class="content-brief-section" id="contentBriefEeatWrap" style="display:none;">
+                <h4>E-E-A-T &amp; CTA</h4>
+                <ul id="contentBriefEeat"></ul>
+            </div>
+            <div class="content-brief-section" id="contentBriefWarnWrap" style="display:none;">
+                <h4>Lưu ý</h4>
+                <ul id="contentBriefWarnings"></ul>
+            </div>
+            <h4 style="margin:8px 0 4px; font-size:0.7rem; color:#cbd5e1;">Outline đề xuất</h4>
+            <pre class="content-brief-outline" id="contentBriefOutline"></pre>
+        </div>
         <div class="field-head"><label for="targetWordCount">Số từ content (mặc định 1000)</label></div>
         <input id="targetWordCount" type="number" inputmode="numeric" min="200" step="50" value="1000" />
         <div class="hint" id="hint-target_word_count">Nhập số từ mục tiêu để AI viết content theo độ dài bạn muốn.</div>
@@ -3078,7 +3409,7 @@
         <div class="field-head"><label for="tags">Tags (optional, comma separated)</label><button type="button" class="ai-btn" data-field="tags">Gợi ý AI</button></div>
         <input id="tags" type="text" />
         <div class="hint" id="hint-tags"></div>
-        <div class="field-head"><label for="singleWpCategoryId">Danh mục WordPress khi đăng</label></div>
+        <div class="field-head"><label for="singleWpCategoryId">Danh mục website khi đăng</label></div>
         <div class="row" style="align-items: flex-end; gap: 10px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 200px;">
                 <select id="singleWpCategoryId">
@@ -3087,7 +3418,7 @@
             </div>
             <button class="btn secondary" type="button" id="btnSingleLoadWpCategories">Tải danh mục</button>
         </div>
-        <div class="hint" id="hint-singleWpCategory">Nhập Target website trùng site đã lưu (Thêm site đăng bài), rồi bấm Tải danh mục — gắn category khi publish.</div>
+        <div class="hint" id="hint-singleWpCategory">Danh mục lưu theo Target website — tải một lần, các lần sau dùng bản đã lưu (bấm «Tải lại» để cập nhật).</div>
         <!-- Content editor moved into Preview content block -->
         <div class="field-head"><label for="scheduledAt">Hẹn giờ đăng bản nháp</label></div>
         <input id="scheduledAt" type="datetime-local" />
@@ -3106,24 +3437,13 @@
             <div class="bar"><div class="fill" id="inlineProgressFill"></div></div>
             <div class="pct" id="inlineProgressPct">0%</div>
         </div>
-        <label for="publishLog">Publish log</label>
-        <textarea id="publishLog" readonly style="min-height:120px;"></textarea>
-        <div class="accordion" id="outputAccordion">
-            <div class="accordion-head" id="btnToggleOutput" role="button" aria-controls="outputAccordionBody" aria-expanded="false" tabindex="0">
-                <div class="accordion-title">Xem Output</div>
-                <div class="chev" id="outputChev">▾</div>
-            </div>
-            <div class="accordion-body" id="outputAccordionBody">
-                <div class="field-head">
-                    <label for="output">Output</label>
-                    <select id="outputFormat" style="width:auto; min-width: 160px;">
-                        <option value="text">Chữ thường (mặc định)</option>
-                        <option value="json">JSON</option>
-                    </select>
-                </div>
-                <textarea id="output" readonly></textarea>
-            </div>
-        </div>
+        <!-- Publish log / Output: ẩn UI, giữ field cho draft & đăng bài -->
+        <textarea id="publishLog" class="content-ai-aux-hidden" hidden readonly aria-hidden="true" tabindex="-1"></textarea>
+        <select id="outputFormat" class="content-ai-aux-hidden" hidden aria-hidden="true" tabindex="-1">
+            <option value="text">Chữ thường (mặc định)</option>
+            <option value="json">JSON</option>
+        </select>
+        <textarea id="output" class="content-ai-aux-hidden" hidden readonly aria-hidden="true" tabindex="-1"></textarea>
 
         <div class="preview-shell" id="previewShell">
             <p class="stats-bar-title">Thống kê nội dung <span>· cập nhật tự động khi bạn sửa editor</span></p>
@@ -3137,6 +3457,8 @@
             <div class="preview-head">
                 <div class="preview-title">Preview content</div>
                 <div class="preview-tools">
+                    <button type="button" class="mini-btn" id="btnContentScore">Chấm điểm SEO</button>
+                    <button type="button" class="mini-btn" id="btnContentGap">Phân tích Content Gap</button>
                     <button type="button" class="mini-btn" id="btnFindInternalLinks">Tìm bài liên quan</button>
                     <button type="button" class="mini-btn" id="btnApplyInternalLinks">Đi internal link</button>
                     <button type="button" class="mini-btn content-ai-aux-hidden" id="btnDownloadScreamingFrog" disabled>Tải file Screaming Frog</button>
@@ -3184,6 +3506,55 @@
                         <button class="btn secondary" type="button" id="btnUploadImage">Tải ảnh lên</button>
                         <button class="btn secondary" type="button" id="btnAutoInsertImages" title="Tìm ảnh theo từ khóa và chèn vào content">🖼 Tự động chèn ảnh</button>
                     </div>
+                    <details class="web-image-panel" id="webImagePanel">
+                        <summary>Tìm ảnh Google / Web và chèn vào bài</summary>
+                        <div class="hint" style="margin-top:8px;">Ưu tiên Google CSE, lỗi thì fallback Bing/Web. Chọn kích thước trước khi chèn — ALT tự sinh theo ngữ cảnh.</div>
+                        <div class="web-image-grid">
+                            <div>
+                                <label for="webImageQueryMode">Tìm theo</label>
+                                <select id="webImageQueryMode"></select>
+                            </div>
+                            <div id="webImageCustomQueryWrap" style="grid-column: 1 / -1; display:none;">
+                                <label for="webImageCustomQuery">Từ khóa tùy chỉnh</label>
+                                <input id="webImageCustomQuery" type="text" placeholder="VD: sửa laptop tại nhà quận 7" />
+                            </div>
+                            <div id="webImageH2Wrap">
+                                <label for="webImageH2">Mục H2 (chèn sau H2)</label>
+                                <select id="webImageH2"></select>
+                            </div>
+                            <div>
+                                <label for="webImageSizePreset">Kích thước</label>
+                                <select id="webImageSizePreset"></select>
+                            </div>
+                            <div class="web-image-custom-size" id="webImageCustomSizeWrap">
+                                <div>
+                                    <label for="webImageCustomWidth">Rộng (px)</label>
+                                    <input id="webImageCustomWidth" type="number" min="100" max="2048" value="800" />
+                                </div>
+                                <div>
+                                    <label for="webImageCustomHeight">Cao (px)</label>
+                                    <input id="webImageCustomHeight" type="number" min="100" max="2048" value="400" />
+                                </div>
+                            </div>
+                            <div>
+                                <label for="webImageFormat">Định dạng lưu</label>
+                                <select id="webImageFormat"></select>
+                            </div>
+                            <div>
+                                <label for="webImageNum">Số ảnh</label>
+                                <input id="webImageNum" type="number" min="4" max="20" value="12" />
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                            <button type="button" class="btn" id="btnWebImageSearch">Tìm ảnh</button>
+                            <span class="hint" id="hint-web-images" style="margin:0; flex:1;"></span>
+                        </div>
+                        <div class="web-image-gallery" id="webImageGallery" aria-live="polite"></div>
+                        <div id="googleImageResults" class="web-image-gallery" style="display:none;" aria-hidden="true"></div>
+                        <input id="googleImageQuery" type="hidden" />
+                        <button type="button" id="btnGoogleImageSearch" class="content-ai-aux-hidden" hidden></button>
+                        <input id="googleImageNum" type="hidden" />
+                    </details>
                     <details class="visual-studio-panel" id="visualStudioPanel">
                         <summary>Tạo ảnh AI chuyên nghiệp</summary>
                         <div class="hint" style="margin-top:8px;">Tạo 2–4 ảnh preview (OpenAI). Chọn nhiều H2, tùy chỉnh kích thước px — bấm ảnh để xem lớn.</div>
@@ -3195,6 +3566,10 @@
                             <div>
                                 <label for="studioStylePreset">Style preset</label>
                                 <select id="studioStylePreset"></select>
+                            </div>
+                            <div>
+                                <label for="studioOutputFormat">Định dạng ảnh</label>
+                                <select id="studioOutputFormat"></select>
                             </div>
                             <div>
                                 <label for="studioAspectRatio">Tỷ lệ / kích thước</label>
@@ -3246,25 +3621,7 @@
                     <div class="hint" id="hint-image"></div>
                     <div id="uploadList" class="upload-list"></div>
                     <div class="history-panel" id="internalLinkPanel" style="margin-top:10px;">
-                        <div class="field-head">
-                            <label>Internal link — bài đích &amp; anchor trong content</label>
-                        </div>
                         <div class="hint" id="hint-internal-links"></div>
-                        <details class="internal-link-test-checklist" id="internalLinkTestChecklist">
-                            <summary>Checklist test Internal Link trên giao diện</summary>
-                            <ol>
-                                <li>Nhập Target website (https://) + từ khóa chính + có nội dung HTML trong editor.</li>
-                                <li>Bấm «Tìm bài liên quan» — bảng có cột điểm (0–100), loại trang (money/service/pillar/blog).</li>
-                                <li>Anchor mặc định = <strong>suggested_anchor</strong> (ngắn, tự nhiên); không dùng «xem thêm», «tại đây».</li>
-                                <li>Bài đích có điểm ≥ 60 nên ưu tiên; money/service/pillar lên đầu khi cùng điểm.</li>
-                                <li>Tick 2–3 dòng → «Đi link» (LLM tắt): link rải theo từng mục H2, không dồn sát, không trong FAQ.</li>
-                                <li>Thiếu cụm anchor trong bài → popup «Tham khảo thêm» → xác nhận → chèn append.</li>
-                                <li>Bật «Dùng LLM»: nếu LLM lỗi vẫn fallback rule-based (inline/append).</li>
-                                <li>Cùng URL không chèn 2 lần; mỗi đoạn tối đa 1 link; không link về slug/URL bài đang soạn.</li>
-                                <li>Sau chèn: xem hint verify (nếu có cảnh báo) + bảng kết quả + Tải Screaming Frog TSV.</li>
-                                <li>F5 trang — danh sách bài liên quan vẫn khôi phục từ trình duyệt.</li>
-                            </ol>
-                        </details>
                         <div id="ilVerifyHint" class="il-verify-warn" style="display:none;" aria-live="polite"></div>
                         <div id="internalLinkCandidates" class="upload-list"></div>
                         <div id="customLinkPanel" class="custom-link-panel">
@@ -3294,14 +3651,88 @@
                                 <div class="field-head" style="margin-top:4px;">
                                     <label>Thư viện Custom Link</label>
                                 </div>
-                                <div class="hint" id="hint-custom-link-library">Thư viện theo từng dự án / Target website — không dùng chung giữa các dự án khác.</div>
                                 <div id="customLinkLibraryList" class="custom-link-library-list"></div>
                             </div>
                             <div id="internalLinkApplyResults" class="internal-apply-results" style="display:none;"></div>
                         </div>
                     </div>
-                    <div class="content-render" id="contentRender" aria-label="Content editor" contenteditable="true"></div>
-                    <textarea id="content" style="display:none;"></textarea>
+                    <div class="content-score-panel" id="contentScorePanel" style="display:none;" aria-live="polite">
+                        <div class="csh">
+                            <span class="csh-title">Điểm SEO (read-only)</span>
+                            <div class="content-score-ring" id="contentScoreRing">
+                                <span class="cs-num" id="contentScoreNum">0</span>
+                                <span class="cs-grade" id="contentScoreGrade">—</span>
+                            </div>
+                            <span class="hint" id="contentScoreMeta" style="margin:0; font-size:0.68rem;"></span>
+                        </div>
+                        <div class="content-score-pillars" id="contentScorePillars"></div>
+                        <div class="content-score-section" id="contentScoreMissingWrap" style="display:none;">
+                            <h4>Cần sửa</h4>
+                            <ul class="content-score-list cs-missing" id="contentScoreMissingList"></ul>
+                        </div>
+                        <div class="content-score-section" id="contentScoreWarnWrap" style="display:none;">
+                            <h4>Cần xem</h4>
+                            <ul class="content-score-list cs-warn" id="contentScoreWarnList"></ul>
+                        </div>
+                        <div class="content-score-section" id="contentScoreSuggestWrap" style="display:none;">
+                            <h4>Gợi ý tối ưu</h4>
+                            <ul class="content-score-list cs-suggest" id="contentScoreSuggestList"></ul>
+                        </div>
+                    </div>
+                    <div class="content-gap-panel" id="contentGapPanel" style="display:none;" aria-live="polite">
+                        <div class="cgh">
+                            <span class="cgh-title">Content Gap (read-only)</span>
+                            <div class="content-gap-ring" id="contentGapRing">
+                                <span class="cg-num" id="contentGapScoreNum">0</span>
+                                <span class="hint" id="contentGapSeverity" style="margin:0;"></span>
+                            </div>
+                            <span class="hint" id="contentGapMeta" style="margin:0; font-size:0.68rem;"></span>
+                        </div>
+                        <div class="content-gap-section" id="contentGapSectionsWrap" style="display:none;">
+                            <h4>Section còn thiếu</h4>
+                            <ul class="content-gap-list cg-missing" id="contentGapSectionsList"></ul>
+                        </div>
+                        <div class="content-gap-section" id="contentGapEntitiesWrap" style="display:none;">
+                            <h4>Entity / từ khóa còn thiếu</h4>
+                            <ul class="content-gap-list cg-missing" id="contentGapEntitiesList"></ul>
+                        </div>
+                        <div class="content-gap-section" id="contentGapFaqWrap" style="display:none;">
+                            <h4>FAQ còn thiếu</h4>
+                            <ul class="content-gap-list cg-missing" id="contentGapFaqList"></ul>
+                        </div>
+                        <div class="content-gap-section" id="contentGapLinksWrap" style="display:none;">
+                            <h4>Internal link còn thiếu</h4>
+                            <ul class="content-gap-list cg-missing" id="contentGapLinksList"></ul>
+                        </div>
+                        <div class="content-gap-section" id="contentGapCtaWrap" style="display:none;">
+                            <h4>CTA còn thiếu</h4>
+                            <ul class="content-gap-list cg-missing" id="contentGapCtaList"></ul>
+                        </div>
+                        <div class="content-gap-section" id="contentGapThinWrap" style="display:none;">
+                            <h4>Section quá mỏng</h4>
+                            <ul class="content-gap-list" id="contentGapThinList"></ul>
+                        </div>
+                        <div class="content-gap-section" id="contentGapSuggestWrap" style="display:none;">
+                            <h4>Gợi ý cải thiện</h4>
+                            <ul class="content-gap-list cg-suggest" id="contentGapSuggestList"></ul>
+                        </div>
+                        <div class="content-gap-section" id="contentGapOutlineAddWrap" style="display:none;">
+                            <h4>Bổ sung outline đề xuất</h4>
+                            <ul class="content-gap-list cg-suggest" id="contentGapOutlineAddList"></ul>
+                        </div>
+                        <div class="content-gap-section" id="contentGapBlocksWrap" style="display:none;">
+                            <h4>Content block đề xuất</h4>
+                            <ul class="content-gap-list cg-suggest" id="contentGapBlocksList"></ul>
+                        </div>
+                    </div>
+                    <div class="content-editor-block" id="contentEditorBlock">
+                        <div class="field-head content-editor-head" style="margin-top:4px;">
+                            <label for="contentRender">Nội dung bài viết</label>
+                            <button type="button" class="mini-btn" id="btnContentExpand" title="Xem và sửa full màn hình">⛶ Phóng to</button>
+                        </div>
+                        <div class="content-render" id="contentRender" aria-label="Content editor" contenteditable="true"></div>
+                        <textarea id="content" style="display:none;"></textarea>
+                    </div>
                     <div class="publish-checklist-panel" id="publishChecklistPanel" style="display:none;" aria-live="polite">
                         <div class="pch">Checklist SEO <span>— hệ thống tự kiểm tra, không hiển thị trong bài đăng</span></div>
                         <ul class="publish-checklist-list" id="publishChecklistList"></ul>
@@ -3362,6 +3793,30 @@
 
     </div>
 </div>
+<div id="publishGateBackdrop" class="modal-backdrop"></div>
+<div id="publishGateModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="publishGateTitle">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div>
+                <div class="modal-title" id="publishGateTitle">Kiểm tra trước khi publish</div>
+                <div class="hint" id="publishGateSubtitle" style="margin-top:6px;"></div>
+            </div>
+            <button type="button" class="modal-close-x" id="publishGateClose" title="Đóng">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="publish-gate-score" id="publishGateScoreRing">
+                <span class="pgs-num" id="publishGateScoreNum">0</span>
+                <span id="publishGateGrade">—</span>
+                <span class="hint" id="publishGateSeverity" style="margin:0;"></span>
+            </div>
+            <div class="publish-gate-lists" id="publishGateLists"></div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn secondary" id="publishGateBack">Quay lại tối ưu</button>
+            <button type="button" class="btn" id="publishGateForce">Vẫn publish</button>
+        </div>
+    </div>
+</div>
 <div id="cropBackdrop" class="modal-backdrop"></div>
 <div id="thamKhaoAppendModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="thamKhaoAppendTitle">
     <div class="modal-card">
@@ -3381,9 +3836,21 @@
         </div>
     </div>
 </div>
+<div id="contentExpandLightbox" class="content-expand-lightbox" aria-hidden="true" role="dialog" aria-label="Nội dung bài viết phóng to">
+    <button type="button" class="content-expand-close" id="contentExpandClose" title="Đóng (Esc)" aria-label="Đóng">×</button>
+    <div class="content-expand-lightbox-title">Nội dung bài viết</div>
+    <div class="content-expand-lightbox-body">
+        <div class="content-render content-expand-render" id="contentExpandRender" contenteditable="true" aria-label="Soạn nội dung phóng to"></div>
+    </div>
+</div>
 <div id="studioLightbox" class="studio-lightbox" aria-hidden="true" role="dialog" aria-label="Xem ảnh lớn">
     <button type="button" class="studio-lightbox-close" id="studioLightboxClose" title="Đóng" aria-label="Đóng">×</button>
-    <img id="studioLightboxImg" src="" alt="Ảnh preview" />
+    <button type="button" class="studio-lightbox-nav prev" id="studioLightboxPrev" title="Ảnh trước" aria-label="Ảnh trước">‹</button>
+    <button type="button" class="studio-lightbox-nav next" id="studioLightboxNext" title="Ảnh sau" aria-label="Ảnh sau">›</button>
+    <div class="studio-lightbox-stage">
+        <img id="studioLightboxImg" src="" alt="Ảnh preview" />
+    </div>
+    <span class="studio-lightbox-counter" id="studioLightboxCounter" aria-live="polite"></span>
 </div>
 <div id="cropModal" class="modal" aria-hidden="true">
     <div class="modal-card">
@@ -3902,8 +4369,14 @@
         if (!sel) return;
         const site = String(byId("targetWebsite")?.value || "").trim();
         const sk = _getWpCategoriesSiteKey(site);
+        if (sk) _hydrateWpCategoriesFromCache(sk);
         const cached = sk ? _bulkWpCategoriesBySiteKey[sk] : null;
         fillBulkCategorySelectEl(sel, cached || [], savedId);
+        _syncWpCategoryLoadButtonLabel(site);
+        const hint = byId("hint-singleWpCategory");
+        if (hint && cached && cached.length) {
+            hint.textContent = `Đã nạp ${cached.length} danh mục đã lưu cho site này.`;
+        }
     };
     let allProjects = [];
     /** Site từ Cài đặt → Xuất bản (server), đồng bộ gợi ý / danh sách kết nối */
@@ -4309,6 +4782,446 @@
         clearTimeout(_publishChecklistTimer);
         _publishChecklistTimer = setTimeout(() => void refreshPublishChecklist(), 1200);
     };
+
+    const contentScorePanel = byId("contentScorePanel");
+    const contentScoreNum = byId("contentScoreNum");
+    const contentScoreGrade = byId("contentScoreGrade");
+    const contentScoreRing = byId("contentScoreRing");
+    const contentScoreMeta = byId("contentScoreMeta");
+    const contentScorePillars = byId("contentScorePillars");
+    const contentScoreMissingWrap = byId("contentScoreMissingWrap");
+    const contentScoreMissingList = byId("contentScoreMissingList");
+    const contentScoreWarnWrap = byId("contentScoreWarnWrap");
+    const contentScoreWarnList = byId("contentScoreWarnList");
+    const contentScoreSuggestWrap = byId("contentScoreSuggestWrap");
+    const contentScoreSuggestList = byId("contentScoreSuggestList");
+    const btnContentScore = byId("btnContentScore");
+    const _contentScorePillarLabels = {
+        search_intent: "Search intent",
+        title_meta_slug: "Title / Meta / Slug",
+        heading_structure: "Heading",
+        keyword_semantic: "Từ khóa",
+        content_depth: "Độ sâu",
+        eeat_helpful: "E-E-A-T",
+        internal_link: "Internal link",
+        image_alt: "Ảnh / Alt",
+        readability: "Dễ đọc",
+        cta: "CTA",
+    };
+    const _escScoreHtml = (s) => String(s || "").replace(/</g, "&lt;");
+    const collectPlannedInternalLinks = () => {
+        const out = [];
+        if (!internalLinkCandidates) return out;
+        internalLinkCandidates.querySelectorAll("tr[data-idx]").forEach((tr) => {
+            const cb = tr.querySelector("input.internal-link-cb");
+            if (cb && !cb.checked) return;
+            const urlEl = tr.querySelector(".internal-target-url");
+            const anchorInp = tr.querySelector(".internal-link-anchor-input");
+            const url = urlEl ? String(urlEl.textContent || "").trim() : "";
+            const anchor_text = anchorInp ? String(anchorInp.value || "").trim() : "";
+            if (url) out.push({ url, anchor_text });
+        });
+        return out;
+    };
+    const renderContentScore = (data) => {
+        if (!contentScorePanel) return;
+        const score = Number(data && data.total_score);
+        const grade = String((data && data.grade) || "—");
+        if (!Number.isFinite(score)) {
+            contentScorePanel.style.display = "none";
+            return;
+        }
+        if (contentScoreNum) contentScoreNum.textContent = String(score);
+        if (contentScoreGrade) contentScoreGrade.textContent = grade;
+        if (contentScoreRing) {
+            contentScoreRing.classList.remove("cs-high", "cs-mid", "cs-low");
+            if (score >= 75) contentScoreRing.classList.add("cs-high");
+            else if (score >= 50) contentScoreRing.classList.add("cs-mid");
+            else contentScoreRing.classList.add("cs-low");
+        }
+        const wc = data && data.word_count != null ? Number(data.word_count) : null;
+        const mode = String((data && data.scoring_mode) || "rule_based");
+        if (contentScoreMeta) {
+            const parts = [];
+            if (Number.isFinite(wc)) parts.push(`~${wc} từ`);
+            parts.push(mode === "rule_based" ? "rule-based" : mode);
+            contentScoreMeta.textContent = parts.join(" · ");
+        }
+        if (contentScorePillars && data && data.detail_scores) {
+            const ds = data.detail_scores;
+            contentScorePillars.innerHTML = Object.keys(_contentScorePillarLabels)
+                .map((key) => {
+                    const row = ds[key] || {};
+                    const sc = Number(row.score);
+                    const st = String(row.status || "");
+                    const label = _contentScorePillarLabels[key] || key;
+                    const val = Number.isFinite(sc) ? `${sc}/100` : "—";
+                    return (
+                        `<div class="content-score-pillar" title="${_escScoreHtml(key)}">` +
+                        `<span class="csp-label">${_escScoreHtml(label)}</span>` +
+                        `<span class="csp-val">${_escScoreHtml(val)} ${st ? "· " + _escScoreHtml(st) : ""}</span></div>`
+                    );
+                })
+                .join("");
+        }
+        const fillList = (wrap, listEl, items) => {
+            if (!wrap || !listEl) return;
+            const arr = Array.isArray(items) ? items.filter(Boolean) : [];
+            if (!arr.length) {
+                wrap.style.display = "none";
+                listEl.innerHTML = "";
+                return;
+            }
+            wrap.style.display = "block";
+            listEl.innerHTML = arr.map((t) => `<li>${_escScoreHtml(t)}</li>`).join("");
+        };
+        fillList(contentScoreMissingWrap, contentScoreMissingList, data && data.missing_items);
+        fillList(contentScoreWarnWrap, contentScoreWarnList, data && data.warning_items);
+        fillList(contentScoreSuggestWrap, contentScoreSuggestList, data && data.suggestions);
+        contentScorePanel.style.display = "block";
+    };
+    const refreshContentScore = async () => {
+        if (!contentScorePanel) return;
+        const title = (byId("title") && byId("title").value || "").trim();
+        const slug = (byId("slug") && byId("slug").value || "").trim();
+        const meta = (byId("meta") && byId("meta").value || "").trim();
+        const pk = (byId("primaryKeyword") && byId("primaryKeyword").value || "").trim();
+        const sk = (byId("secondaryKeywords") && byId("secondaryKeywords").value || "").trim();
+        const html_content = String(getContentValue() || "");
+        const target_website = normalizeTargetBase(String(byId("targetWebsite") && byId("targetWebsite").value || "").trim());
+        const internal_links = collectPlannedInternalLinks();
+        try {
+            const res = await fetch(`/content-ai/score?ts=${Date.now()}`, {
+                method: "POST",
+                headers: authJsonHeaders(),
+                body: JSON.stringify({
+                    title,
+                    slug,
+                    meta_description: meta,
+                    primary_keyword: pk,
+                    secondary_keywords: sk,
+                    html_content,
+                    target_word_count: parseTargetWordCount(),
+                    target_website,
+                    internal_links: internal_links.length ? internal_links : null,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = (data && data.detail) || "Chấm điểm thất bại.";
+                setHint("content", typeof msg === "string" ? msg : JSON.stringify(msg));
+                return;
+            }
+            renderContentScore(data);
+            setHint("content", `Điểm SEO: ${data.total_score}/100 (${data.grade}) — chỉ gợi ý, không chặn publish.`);
+        } catch (e) {
+            setHint("content", "Lỗi kết nối khi chấm điểm SEO.");
+        }
+    };
+    if (btnContentScore) {
+        btnContentScore.addEventListener("click", async (ev) => {
+            ev.preventDefault();
+            const old = btnContentScore.textContent;
+            btnContentScore.disabled = true;
+            btnContentScore.textContent = "Đang chấm...";
+            try {
+                await refreshContentScore();
+            } finally {
+                btnContentScore.disabled = false;
+                btnContentScore.textContent = old;
+            }
+        });
+    }
+
+    const contentBriefPanel = byId("contentBriefPanel");
+    const contentBriefGrid = byId("contentBriefGrid");
+    const contentBriefOutline = byId("contentBriefOutline");
+    const contentBriefMode = byId("contentBriefMode");
+    const btnCreateContentBrief = byId("btnCreateContentBrief");
+    const btnApplyBriefOutline = byId("btnApplyBriefOutline");
+    const collectInternalLinkCandidatesForBrief = () => {
+        const fromTable = collectPlannedInternalLinks();
+        if (fromTable.length) return fromTable;
+        return (_internalCandidates || [])
+            .slice(0, 8)
+            .map((it) => ({
+                url: String(it.link || it.url || "").trim(),
+                title: String(it.title || "").trim(),
+                anchor_text: String(it.suggested_anchor || it.anchor_text || "").trim(),
+            }))
+            .filter((x) => x.url);
+    };
+    const renderContentBrief = (brief) => {
+        if (!contentBriefPanel) return;
+        if (!brief || typeof brief !== "object") {
+            contentBriefPanel.style.display = "none";
+            return;
+        }
+        const cells = [
+            ["Search intent", brief.search_intent],
+            ["Loại bài", brief.content_type],
+            ["Đối tượng", brief.target_audience],
+            ["Mục tiêu", brief.content_goal],
+            ["Góc viết (angle)", brief.angle],
+            ["Số từ đề xuất", brief.recommended_word_count],
+            ["Title gợi ý", brief.suggested_title],
+            ["Meta gợi ý", brief.suggested_meta_description],
+        ];
+        if (contentBriefGrid) {
+            contentBriefGrid.innerHTML = cells
+                .map(
+                    ([k, v]) =>
+                        `<div class="cbb"><span class="cbb-k">${_escScoreHtml(k)}</span>` +
+                        `<span class="cbb-v">${_escScoreHtml(String(v || "—"))}</span></div>`
+                )
+                .join("");
+        }
+        const fillUl = (wrapId, listId, items) => {
+            const wrap = byId(wrapId);
+            const list = byId(listId);
+            if (!wrap || !list) return;
+            const arr = Array.isArray(items) ? items.filter(Boolean) : [];
+            if (!arr.length) {
+                wrap.style.display = "none";
+                list.innerHTML = "";
+                return;
+            }
+            wrap.style.display = "block";
+            list.innerHTML = arr
+                .map((t) => {
+                    if (typeof t === "object" && t && t.url) {
+                        return (
+                            `<li>${_escScoreHtml(t.anchor_suggestion || "")} → ` +
+                            `<code>${_escScoreHtml(t.url)}</code> (${_escScoreHtml(t.placement_hint || "")})</li>`
+                        );
+                    }
+                    return `<li>${_escScoreHtml(String(t))}</li>`;
+                })
+                .join("");
+        };
+        fillUl("contentBriefEntitiesWrap", "contentBriefEntities", brief.required_entities);
+        fillUl("contentBriefFaqWrap", "contentBriefFaq", brief.faq_questions);
+        fillUl("contentBriefLinksWrap", "contentBriefLinks", brief.internal_link_plan);
+        const eeatCta = []
+            .concat(brief.eeat_suggestions || [])
+            .concat((brief.cta_suggestions || []).map((c) => `CTA: ${c}`));
+        fillUl("contentBriefEeatWrap", "contentBriefEeat", eeatCta);
+        fillUl("contentBriefWarnWrap", "contentBriefWarnings", brief.warnings);
+        if (contentBriefOutline) contentBriefOutline.textContent = String(brief.outline || "");
+        if (contentBriefMode) {
+            const mode = String(brief.brief_mode || "rule_based");
+            const kb = brief.knowledge_used ? " · KB" : "";
+            contentBriefMode.textContent = `${mode}${kb}`;
+        }
+        contentBriefPanel.style.display = "block";
+        if (btnApplyBriefOutline) btnApplyBriefOutline.style.display = "inline-block";
+    };
+    const refreshContentBrief = async () => {
+        const pk = (byId("primaryKeyword") && byId("primaryKeyword").value || "").trim();
+        if (!pk) {
+            setHint("content-brief", "Nhập từ khóa chính trước khi tạo Brief.");
+            return null;
+        }
+        const internal_link_candidates = collectInternalLinkCandidatesForBrief();
+        const res = await fetch(`/content-ai/brief?ts=${Date.now()}`, {
+            method: "POST",
+            headers: authJsonHeaders(),
+            body: JSON.stringify({
+                primary_keyword: pk,
+                secondary_keywords: (byId("secondaryKeywords") && byId("secondaryKeywords").value || "").trim(),
+                title: (byId("title") && byId("title").value || "").trim(),
+                target_website: normalizeTargetBase(String(byId("targetWebsite") && byId("targetWebsite").value || "").trim()),
+                target_word_count: parseTargetWordCount(),
+                competitor_url: (byId("competitorUrl") && byId("competitorUrl").value || "").trim(),
+                brand_name: "",
+                content_type: "",
+                category: (byId("tags") && byId("tags").value || "").trim(),
+                tags: (byId("tags") && byId("tags").value || "").trim(),
+                existing_outline: (byId("outlineContent") && byId("outlineContent").value || "").trim(),
+                internal_link_candidates: internal_link_candidates.length ? internal_link_candidates : null,
+            }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const detail = data && data.detail;
+            const errMsg =
+                typeof detail === "string"
+                    ? detail
+                    : detail && detail.message
+                      ? detail.message
+                      : "Tạo Content Brief thất bại.";
+            throw new Error(errMsg);
+        }
+        if (data.search_intent_raw) setDetectedIntentDebug(data.search_intent_raw);
+        return data;
+    };
+    if (btnCreateContentBrief) {
+        btnCreateContentBrief.addEventListener("click", async (ev) => {
+            ev.preventDefault();
+            const old = btnCreateContentBrief.textContent;
+            btnCreateContentBrief.disabled = true;
+            btnCreateContentBrief.textContent = "Đang tạo Brief...";
+            try {
+                const brief = await refreshContentBrief();
+                if (brief) {
+                    _contentAiBrief = brief;
+                    renderContentBrief(brief);
+                    setHint("content-brief", "Đã tạo Brief — dùng khi «Tạo content» (nếu có LLM).");
+                    scheduleSaveFormState();
+                }
+            } catch (e) {
+                setHint("content-brief", String((e && e.message) || e));
+            } finally {
+                btnCreateContentBrief.disabled = false;
+                btnCreateContentBrief.textContent = old;
+            }
+        });
+    }
+    if (btnApplyBriefOutline) {
+        btnApplyBriefOutline.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            if (!_contentAiBrief || !_contentAiBrief.outline) {
+                setHint("content-brief", "Chưa có outline trong Brief.");
+                return;
+            }
+            const oc = byId("outlineContent");
+            if (oc) {
+                oc.value = String(_contentAiBrief.outline || "");
+                autoGrowOutline();
+            }
+            if (!byId("title").value.trim() && _contentAiBrief.suggested_title) {
+                byId("title").value = String(_contentAiBrief.suggested_title);
+            }
+            if (!byId("meta").value.trim() && _contentAiBrief.suggested_meta_description) {
+                byId("meta").value = String(_contentAiBrief.suggested_meta_description);
+            }
+            if (_contentAiBrief.recommended_word_count && byId("targetWordCount")) {
+                byId("targetWordCount").value = String(_contentAiBrief.recommended_word_count);
+            }
+            setHint("content-brief", "Đã áp dụng outline/title/meta từ Brief.");
+            scheduleSaveFormState();
+        });
+    }
+
+    const contentGapPanel = byId("contentGapPanel");
+    const contentGapScoreNum = byId("contentGapScoreNum");
+    const contentGapRing = byId("contentGapRing");
+    const contentGapSeverity = byId("contentGapSeverity");
+    const contentGapMeta = byId("contentGapMeta");
+    const btnContentGap = byId("btnContentGap");
+    const _cgSeverityLabels = { good: "Tốt", warning: "Cần bổ sung", poor: "Thiếu nhiều" };
+    const renderContentGap = (data) => {
+        if (!contentGapPanel) return;
+        const score = Number(data && data.gap_score);
+        if (!Number.isFinite(score)) {
+            contentGapPanel.style.display = "none";
+            return;
+        }
+        const sev = String((data && data.severity) || "warning");
+        if (contentGapScoreNum) contentGapScoreNum.textContent = String(score);
+        if (contentGapRing) {
+            contentGapRing.classList.remove("sev-good", "sev-warning", "sev-poor");
+            contentGapRing.classList.add(
+                sev === "good" ? "sev-good" : sev === "poor" ? "sev-poor" : "sev-warning"
+            );
+        }
+        if (contentGapSeverity) {
+            contentGapSeverity.textContent = `/100 · ${_cgSeverityLabels[sev] || sev}`;
+        }
+        if (contentGapMeta) {
+            const parts = [];
+            if (data.word_count != null) parts.push(`~${data.word_count} từ trong bài`);
+            if (data.brief_used) parts.push("có Brief");
+            parts.push(data.analysis_mode || "rule_based");
+            contentGapMeta.textContent = parts.join(" · ");
+        }
+        const fillGapList = (wrapId, listId, items, missingStyle) => {
+            const wrap = byId(wrapId);
+            const list = byId(listId);
+            if (!wrap || !list) return;
+            const arr = Array.isArray(items) ? items.filter(Boolean) : [];
+            if (!arr.length) {
+                wrap.style.display = "none";
+                list.innerHTML = "";
+                return;
+            }
+            wrap.style.display = "block";
+            list.className = "content-gap-list" + (missingStyle ? " cg-missing" : " cg-suggest");
+            list.innerHTML = arr.map((t) => `<li>${_escScoreHtml(String(t))}</li>`).join("");
+        };
+        fillGapList("contentGapSectionsWrap", "contentGapSectionsList", data.missing_sections, true);
+        fillGapList("contentGapEntitiesWrap", "contentGapEntitiesList", data.missing_entities, true);
+        fillGapList("contentGapFaqWrap", "contentGapFaqList", data.missing_faq, true);
+        fillGapList("contentGapLinksWrap", "contentGapLinksList", data.missing_internal_links, true);
+        fillGapList("contentGapCtaWrap", "contentGapCtaList", data.missing_cta, true);
+        fillGapList("contentGapThinWrap", "contentGapThinList", data.thin_sections, false);
+        const suggestions = []
+            .concat(data.improvement_suggestions || [])
+            .concat(data.generic_sections || []);
+        fillGapList("contentGapSuggestWrap", "contentGapSuggestList", suggestions, false);
+        fillGapList(
+            "contentGapOutlineAddWrap",
+            "contentGapOutlineAddList",
+            data.suggested_outline_additions,
+            false
+        );
+        fillGapList("contentGapBlocksWrap", "contentGapBlocksList", data.suggested_content_blocks, false);
+        contentGapPanel.style.display = "block";
+    };
+    const refreshContentGap = async () => {
+        const html_content = String(getContentValue() || "");
+        const pk = (byId("primaryKeyword") && byId("primaryKeyword").value || "").trim();
+        const internal_links = collectInternalLinkCandidatesForBrief();
+        const res = await fetch(`/content-ai/content-gap?ts=${Date.now()}`, {
+            method: "POST",
+            headers: authJsonHeaders(),
+            body: JSON.stringify({
+                title: (byId("title") && byId("title").value || "").trim(),
+                primary_keyword: pk,
+                secondary_keywords: (byId("secondaryKeywords") && byId("secondaryKeywords").value || "").trim(),
+                html_content,
+                target_word_count: parseTargetWordCount(),
+                content_brief: _contentAiBrief || null,
+                competitor_outline: _competitorOutlineCache || "",
+                internal_links: internal_links.length ? internal_links : null,
+                target_website: normalizeTargetBase(String(byId("targetWebsite") && byId("targetWebsite").value || "").trim()),
+            }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const detail = data && data.detail;
+            const errMsg =
+                typeof detail === "string"
+                    ? detail
+                    : detail && detail.message
+                      ? detail.message
+                      : "Phân tích Content Gap thất bại.";
+            throw new Error(errMsg);
+        }
+        return data;
+    };
+    if (btnContentGap) {
+        btnContentGap.addEventListener("click", async (ev) => {
+            ev.preventDefault();
+            const old = btnContentGap.textContent;
+            btnContentGap.disabled = true;
+            btnContentGap.textContent = "Đang phân tích...";
+            try {
+                const data = await refreshContentGap();
+                renderContentGap(data);
+                setHint(
+                    "content",
+                    `Content Gap: ${data.gap_score}/100 (${_cgSeverityLabels[data.severity] || data.severity}) — chỉ gợi ý, không sửa HTML.`
+                );
+            } catch (e) {
+                setHint("content", String((e && e.message) || e));
+            } finally {
+                btnContentGap.disabled = false;
+                btnContentGap.textContent = old;
+            }
+        });
+    }
+
     const syncPreviewFallback = () => {
         try {
             const cr = byId("contentRender");
@@ -4318,7 +5231,7 @@
             const ed = getEditorInstance();
             if (!ed) {
                 cr.innerHTML = srcHtml;
-                // Luôn hiển thị contenteditable khi không dùng TinyMCE (tránh ẩn editor khi bài rỗng → thống kê không cập nhận được).
+                cr.classList.add("is-editor-visible");
                 cr.style.display = "block";
                 return;
             }
@@ -4328,8 +5241,10 @@
             const tinyHtmlLen = String(ed.getContent({ format: "html" }) || "").trim().length;
             if (srcTextLen > 80 && tinyHtmlLen === 0 && (!bodyVisible || tinyTextLen < 20)) {
                 cr.innerHTML = srcHtml;
+                cr.classList.add("is-editor-visible");
                 cr.style.display = "block";
             } else {
+                cr.classList.remove("is-editor-visible");
                 cr.style.display = "none";
             }
         } catch (_) {}
@@ -4351,6 +5266,37 @@
         syncPreviewFallback();
         schedulePublishChecklist();
     };
+    const openContentExpandLightbox = () => {
+        const box = byId("contentExpandLightbox");
+        const expand = byId("contentExpandRender");
+        if (!box || !expand) return;
+        expand.innerHTML = getContentValue();
+        box.classList.add("open");
+        box.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        window.setTimeout(() => {
+            try {
+                expand.focus();
+            } catch (_) {}
+        }, 40);
+    };
+    const closeContentExpandLightbox = (saveChanges) => {
+        const box = byId("contentExpandLightbox");
+        const expand = byId("contentExpandRender");
+        if (!box) return;
+        if (saveChanges !== false && expand) {
+            setContentValue(expand.innerHTML);
+            try {
+                refreshPreview();
+            } catch (_) {}
+            try {
+                saveFormState();
+            } catch (_) {}
+        }
+        box.classList.remove("open");
+        box.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+    };
     const refreshEditorModeUi = () => {
         const cr = byId("contentRender");
         const ta = byId("content");
@@ -4371,6 +5317,7 @@
         } else {
             // No TinyMCE: edit directly on contenteditable box.
             ta.style.display = "none";
+            cr.classList.add("is-editor-visible");
             cr.style.display = "block";
         }
         if (btnModeVisual) btnModeVisual.classList.toggle("active", visual);
@@ -4495,6 +5442,8 @@
         const n = parseInt(digits || "1000", 10);
         return Number.isFinite(n) ? Math.max(200, Math.min(n, 20000)) : 1000;
     };
+    let _contentAiBrief = null;
+    let _competitorOutlineCache = "";
     const buildContext = () => ({
         title: byId("title").value.trim(),
         target_website: normalizeTargetBase(byId("targetWebsite").value.trim()),
@@ -4509,6 +5458,7 @@
         scheduled_at: byId("scheduledAt").value || "",
         featured_image: uploadedImages[0] || "",
         gallery_images: uploadedImages.slice(),
+        content_brief: _contentAiBrief || null,
     });
     const normalizeKeywordSlug = (value) => {
         const map = { "đ": "d", "Đ": "D" };
@@ -6371,12 +7321,13 @@
         return finalValue;
     };
     const appendPublishLog = (line) => {
+        if (!publishLog) return;
         const ts = new Date().toLocaleTimeString("vi-VN");
         const old = publishLog.value ? `${publishLog.value}\n` : "";
         publishLog.value = `${old}[${ts}] ${line}`;
     };
     const setPublishLogLines = (lines) => {
-        if (!Array.isArray(lines) || !lines.length) return;
+        if (!publishLog || !Array.isArray(lines) || !lines.length) return;
         publishLog.value = lines.join("\n");
     };
     const ensureDraftPayloadForPublish = async () => {
@@ -6490,6 +7441,7 @@
         secondaryKeywords: byId("secondaryKeywords").value,
         targetWordCount: (byId("targetWordCount") && byId("targetWordCount").value) || "1000",
         competitorUrl: byId("competitorUrl").value,
+        competitorOutline: _competitorOutlineCache,
         replaceFrom: byId("replaceFrom").value,
         replaceTo: byId("replaceTo").value,
         outlineContent: byId("outlineContent").value,
@@ -6497,14 +7449,16 @@
         tags: byId("tags").value,
         content: getContentValue(),
         scheduledAt: byId("scheduledAt").value,
-        publishLog: publishLog.value,
-        output: out.value,
+        publishLog: publishLog ? publishLog.value : "",
+        output: out ? out.value : "",
         outputFormat: getOutputFormat(),
         uploadedImages: uploadedImages.slice(),
         activeProjectId,
         singleWpCategoryId: byId("singleWpCategoryId") ? byId("singleWpCategoryId").value : "",
         internalCandidates: slimInternalCandidatesForStorage(_internalCandidates),
         internalCandidateAnchors: collectInternalCandidateAnchors(),
+        contentAiBrief: _contentAiBrief,
+        competitorOutline: _competitorOutlineCache,
     });
     let _saveFormStateTimer = null;
     const flushSaveFormState = () => {
@@ -6533,6 +7487,7 @@
             byId("secondaryKeywords").value = s.secondaryKeywords || "";
             if (byId("targetWordCount")) byId("targetWordCount").value = String(s.targetWordCount || "1000");
             byId("competitorUrl").value = s.competitorUrl || "";
+            _competitorOutlineCache = String(s.competitorOutline || "").trim();
             byId("replaceFrom").value = s.replaceFrom || "";
             byId("replaceTo").value = s.replaceTo || "";
             byId("outlineContent").value = s.outlineContent || "";
@@ -6541,8 +7496,8 @@
             setContentValue(s.content || "");
             byId("scheduledAt").value = s.scheduledAt || "";
             byId("wpUrl").value = "";
-            publishLog.value = s.publishLog || "";
-            out.value = s.output || "";
+            if (publishLog) publishLog.value = s.publishLog || "";
+            if (out) out.value = s.output || "";
             if (outputFormat) outputFormat.value = (s.outputFormat === "json") ? "json" : "text";
             uploadedImages.length = 0;
             for (const u of (s.uploadedImages || [])) {
@@ -6567,6 +7522,10 @@
                             ? s.internalCandidateAnchors
                             : {},
                 };
+            }
+            if (s.contentAiBrief && typeof s.contentAiBrief === "object") {
+                _contentAiBrief = s.contentAiBrief;
+                renderContentBrief(_contentAiBrief);
             }
             return true;
         } catch (_) {
@@ -7298,7 +8257,7 @@
             if (!res.ok) throw new Error((data && data.detail) ? data.detail : "Load project failed");
             activeProjectId = projectId;
             applyProjectToForm(data);
-            msg.textContent = "Đã tải đúng dữ liệu dự án.";
+            if (msg) msg.textContent = "";
             // re-render current page to keep highlight in sync
             renderProjects();
         } catch (e) {
@@ -7738,6 +8697,7 @@
     let studioPreviews = [];
     let studioSelectedIndex = 0;
     let studioCatalogCache = null;
+    let studioLightboxIndex = 0;
 
     const extractH2ForStudio = () => {
         const html = String(getContentValue() || "");
@@ -7843,15 +8803,57 @@
         fillStudioSelect("studioStylePreset", cat.style_presets || [], "id", "label_vi");
         fillStudioSelect("studioAspectRatio", cat.aspect_ratios || [], "id", "label_vi");
         fillStudioSelect("studioBrandTone", cat.brand_tones || [], "id", "label_vi");
+        fillStudioSelect("studioOutputFormat", cat.output_formats || [
+            { id: "webp", label_vi: "WEBP" },
+            { id: "png", label_vi: "PNG" },
+            { id: "jpeg", label_vi: "JPEG / JPG" },
+        ], "id", "label_vi");
+        const fmtEl = byId("studioOutputFormat");
+        if (fmtEl && !fmtEl.value) fmtEl.value = "webp";
         toggleStudioCustomSize();
         refreshStudioH2Select();
     };
 
-    const openStudioLightbox = (url) => {
+    const getStudioOutputFormat = () => {
+        const el = byId("studioOutputFormat");
+        const v = (el && el.value) || "webp";
+        return String(v).toLowerCase() === "jpg" ? "jpeg" : String(v).toLowerCase();
+    };
+
+    const getStudioTargetDimensions = () => {
+        const arEl = byId("studioAspectRatio");
+        const aspectRatio = (arEl && arEl.value) || "16:9";
+        if (aspectRatio === "custom") {
+            const cw = parseInt(byId("studioCustomWidth")?.value || "800", 10);
+            const ch = parseInt(byId("studioCustomHeight")?.value || "400", 10);
+            return { width: cw, height: ch, size_preset: "" };
+        }
+        const m = /^(\d{3,4})x(\d{3,4})$/i.exec(aspectRatio);
+        if (m) {
+            return {
+                width: parseInt(m[1], 10),
+                height: parseInt(m[2], 10),
+                size_preset: aspectRatio.toLowerCase(),
+            };
+        }
+        return { width: null, height: null, size_preset: "" };
+    };
+
+    const openStudioLightbox = (urlOrIndex) => {
         const box = byId("studioLightbox");
         const img = byId("studioLightboxImg");
-        if (!box || !img || !url) return;
-        img.src = url;
+        const counter = byId("studioLightboxCounter");
+        if (!box || !img || !studioPreviews.length) return;
+        let idx = typeof urlOrIndex === "number" ? urlOrIndex : studioPreviews.findIndex((p) => p.url === urlOrIndex);
+        if (idx < 0) idx = 0;
+        studioLightboxIndex = idx;
+        const p = studioPreviews[idx] || {};
+        img.src = p.url || "";
+        img.alt = p.alt || "Preview";
+        img.classList.remove("is-zoomed");
+        if (counter) {
+            counter.textContent = `${idx + 1} / ${studioPreviews.length}`;
+        }
         box.classList.add("open");
         box.setAttribute("aria-hidden", "false");
     };
@@ -7861,7 +8863,17 @@
         if (!box) return;
         box.classList.remove("open");
         box.setAttribute("aria-hidden", "true");
-        if (img) img.src = "";
+        if (img) {
+            img.src = "";
+            img.classList.remove("is-zoomed");
+        }
+    };
+    const stepStudioLightbox = (delta) => {
+        if (!studioPreviews.length) return;
+        let next = studioLightboxIndex + delta;
+        if (next < 0) next = studioPreviews.length - 1;
+        if (next >= studioPreviews.length) next = 0;
+        openStudioLightbox(next);
     };
 
     const setStudioHint = (text) => {
@@ -7877,6 +8889,7 @@
         const custom = aspectRatio === "custom";
         const cw = parseInt(byId("studioCustomWidth")?.value || "800", 10);
         const ch = parseInt(byId("studioCustomHeight")?.value || "400", 10);
+        const dims = getStudioTargetDimensions();
         const base = {
             project_id: activeProjectId || null,
             title: draft.title || "",
@@ -7897,11 +8910,24 @@
             aspect_ratio: aspectRatio,
             custom_width: custom ? Math.max(256, Math.min(cw, 2048)) : null,
             custom_height: custom ? Math.max(256, Math.min(ch, 2048)) : null,
+            output_format: getStudioOutputFormat(),
+            size_preset: dims.size_preset || "",
+            target_width: dims.width,
+            target_height: dims.height,
             count: Math.max(2, Math.min(4, parseInt(byId("studioImageCount")?.value || "3", 10) || 3)),
             include_text: !!(studioIncludeText && studioIncludeText.checked),
             text_hint: (byId("studioTextHint") && byId("studioTextHint").value.trim()) || "",
         };
         return { ...base, ...overrides };
+    };
+
+    const studioBuildInsertExtras = () => {
+        const dims = getStudioTargetDimensions();
+        return {
+            output_format: getStudioOutputFormat(),
+            target_width: dims.width,
+            target_height: dims.height,
+        };
     };
 
     const renderStudioGallery = () => {
@@ -7919,8 +8945,15 @@
             img.title = "Bấm để xem ảnh lớn";
             img.addEventListener("click", (ev) => {
                 ev.stopPropagation();
-                openStudioLightbox(p.url);
+                openStudioLightbox(idx);
             });
+            if (p.alt) {
+                const altCap = document.createElement("div");
+                altCap.className = "hint";
+                altCap.style.cssText = "padding:2px 6px 0;margin:0;font-size:0.62rem;line-height:1.2;color:#94a3b8;";
+                altCap.textContent = p.alt.length > 56 ? p.alt.slice(0, 54) + "…" : p.alt;
+                card.appendChild(altCap);
+            }
             card.appendChild(img);
             if (p.section_heading) {
                 const cap = document.createElement("div");
@@ -7948,7 +8981,9 @@
             };
             btns.appendChild(mk("Chọn", () => {}));
             btns.appendChild(mk("Chèn bài", () => studioInsertSelected(p, "inline")));
+            btns.appendChild(mk("Cuối bài", () => studioInsertSelected(p, "append")));
             btns.appendChild(mk("Featured", () => studioInsertSelected(p, "featured")));
+            btns.appendChild(mk("Tải", () => studioDownloadPreview(p)));
             btns.appendChild(mk("Tạo lại", () => studioRegenerateOne(idx)));
             btns.appendChild(mk("Crop", () => {
                 if (typeof openCropModal === "function") openCropModal(p.url);
@@ -7961,6 +8996,17 @@
             });
             studioGallery.appendChild(card);
         });
+    };
+
+    const studioDownloadPreview = (preview) => {
+        if (!preview || !preview.url) return;
+        const a = document.createElement("a");
+        a.href = preview.url;
+        a.download = preview.filename || `studio-preview${preview.url.slice(preview.url.lastIndexOf("."))}`;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
     };
 
     const studioInsertSelected = async (preview, mode) => {
@@ -7987,6 +9033,7 @@
                     section_heading: insertH2,
                     h2_index: insertIdx,
                     alt: preview.alt || "",
+                    ...studioBuildInsertExtras(),
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -7994,6 +9041,7 @@
                 const d = data.detail;
                 throw new Error(typeof d === "string" ? d : "Chèn ảnh thất bại");
             }
+            if (data.url && preview) preview.url = data.url;
             if (data.content) setContentValue(data.content);
             if (data.featured_image) {
                 if (!uploadedImages.includes(data.featured_image)) uploadedImages.unshift(data.featured_image);
@@ -8012,7 +9060,19 @@
             }
             try { refreshPreview(); } catch (_) {}
             saveFormState();
-            setStudioHint(data.ok ? (mode === "featured" ? "Đã đặt ảnh đại diện." : "Đã chèn ảnh vào bài.") : "Xong.");
+            const pl = data.placement || {};
+            const place = pl.placement
+                ? ` (${pl.placement}${pl.placement_reason ? ": " + pl.placement_reason : ""})`
+                : "";
+            setStudioHint(
+                data.ok
+                    ? (mode === "featured"
+                        ? "Đã đặt ảnh đại diện."
+                        : mode === "append"
+                            ? "Đã chèn ảnh cuối bài."
+                            : "Đã chèn ảnh vào bài." + place)
+                    : "Xong."
+            );
             setHint("image", mode === "featured" ? "Featured từ AI Studio." : "Đã chèn ảnh từ AI Studio.");
         } catch (e) {
             setStudioHint(String(e.message || e));
@@ -8124,10 +9184,33 @@
     }
     const studioLightboxClose = byId("studioLightboxClose");
     const studioLightbox = byId("studioLightbox");
+    const studioLightboxPrev = byId("studioLightboxPrev");
+    const studioLightboxNext = byId("studioLightboxNext");
+    const studioLightboxImg = byId("studioLightboxImg");
     if (studioLightboxClose) {
         studioLightboxClose.addEventListener("click", (e) => {
             e.preventDefault();
             closeStudioLightbox();
+        });
+    }
+    if (studioLightboxPrev) {
+        studioLightboxPrev.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            stepStudioLightbox(-1);
+        });
+    }
+    if (studioLightboxNext) {
+        studioLightboxNext.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            stepStudioLightbox(1);
+        });
+    }
+    if (studioLightboxImg) {
+        studioLightboxImg.addEventListener("click", (e) => {
+            e.stopPropagation();
+            studioLightboxImg.classList.toggle("is-zoomed");
         });
     }
     if (studioLightbox) {
@@ -8136,9 +9219,21 @@
         });
     }
     document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && studioLightbox && studioLightbox.classList.contains("open")) {
-            closeStudioLightbox();
+        const contentLb = byId("contentExpandLightbox");
+        if (e.key === "Escape") {
+            if (contentLb && contentLb.classList.contains("open")) {
+                e.preventDefault();
+                closeContentExpandLightbox(true);
+                return;
+            }
+            if (studioLightbox && studioLightbox.classList.contains("open")) {
+                closeStudioLightbox();
+                return;
+            }
         }
+        if (!studioLightbox || !studioLightbox.classList.contains("open")) return;
+        if (e.key === "ArrowLeft") stepStudioLightbox(-1);
+        if (e.key === "ArrowRight") stepStudioLightbox(1);
     });
     const btnStudioGenerate = byId("btnStudioGenerate");
     if (btnStudioGenerate) {
@@ -9059,6 +10154,52 @@
     const BULK_JOB_STORAGE_KEY = () => userStorageKey("content_ai_bulk_job_id_v1");
     const BULK_STATE_KEY = () => userStorageKey("content_ai_bulk_state_v1");
     const _bulkWpCategoriesBySiteKey = Object.create(null);
+    const WP_CATEGORIES_CACHE_KEY = () => userStorageKey("content_ai_wp_categories_cache_v1");
+    const _readWpCategoriesCache = (sk) => {
+        if (!sk) return null;
+        try {
+            const raw = localStorage.getItem(WP_CATEGORIES_CACHE_KEY());
+            const all = raw ? JSON.parse(raw) : {};
+            const row = all && typeof all === "object" ? all[sk] : null;
+            if (!row || !Array.isArray(row.items) || !row.items.length) return null;
+            return {
+                items: row.items,
+                message: String(row.message || ""),
+                fetchedAt: Number(row.fetchedAt) || 0,
+            };
+        } catch (_) {
+            return null;
+        }
+    };
+    const _writeWpCategoriesCache = (sk, items, message) => {
+        if (!sk || !Array.isArray(items) || !items.length) return;
+        try {
+            const raw = localStorage.getItem(WP_CATEGORIES_CACHE_KEY());
+            const all = raw && typeof JSON.parse(raw) === "object" ? JSON.parse(raw) : {};
+            all[sk] = { items, message: String(message || ""), fetchedAt: Date.now() };
+            localStorage.setItem(WP_CATEGORIES_CACHE_KEY(), JSON.stringify(all));
+        } catch (_) {}
+    };
+    const _hydrateWpCategoriesFromCache = (sk) => {
+        if (!sk) return null;
+        if (_bulkWpCategoriesBySiteKey[sk] && _bulkWpCategoriesBySiteKey[sk].length) {
+            return { items: _bulkWpCategoriesBySiteKey[sk], fromMemory: true };
+        }
+        const row = _readWpCategoriesCache(sk);
+        if (!row) return null;
+        _bulkWpCategoriesBySiteKey[sk] = row.items;
+        return row;
+    };
+    const _syncWpCategoryLoadButtonLabel = (siteUrlRaw) => {
+        const btn = byId("btnSingleLoadWpCategories");
+        if (!btn) return;
+        const sk = _getWpCategoriesSiteKey(siteUrlRaw);
+        const has = !!(sk && (_readWpCategoriesCache(sk) || (_bulkWpCategoriesBySiteKey[sk] || []).length));
+        btn.textContent = has ? "Tải lại danh mục" : "Tải danh mục";
+        btn.title = has
+            ? "Cập nhật danh mục từ website (đã có bản lưu trong trình duyệt)"
+            : "Tải danh mục từ website và lưu để dùng lần sau";
+    };
     const _getWpCategoriesSiteKey = (siteUrlRaw) => {
         let site = siteUrlRaw != null ? String(siteUrlRaw).trim() : "";
         if (!site) {
@@ -9124,11 +10265,30 @@
         }
         return cred;
     };
-    const loadWpCategoriesForSite = async ({ siteUrlRaw, selectEl, hintEl, savedId = "" }) => {
+    const loadWpCategoriesForSite = async ({
+        siteUrlRaw,
+        selectEl,
+        hintEl,
+        savedId = "",
+        forceNetwork = false,
+    }) => {
         const site = String(siteUrlRaw ?? "").trim();
         if (!site) {
             if (hintEl) hintEl.textContent = "Nhập Target website trước.";
             return false;
+        }
+        const sk = _getWpCategoriesSiteKey(site);
+        if (!sk) return false;
+        if (!forceNetwork) {
+            const cached = _hydrateWpCategoriesFromCache(sk);
+            if (cached && cached.items && cached.items.length) {
+                fillBulkCategorySelectEl(selectEl, cached.items, savedId);
+                if (hintEl) {
+                    hintEl.textContent = `Đã dùng ${cached.items.length} danh mục đã lưu (không gọi API).`;
+                }
+                _syncWpCategoryLoadButtonLabel(site);
+                return true;
+            }
         }
         const cred = await resolveWpCredentialsForBulk(site);
         if (!cred.username || !cred.app_password) {
@@ -9137,8 +10297,6 @@
             if (hintEl) hintEl.textContent = msg;
             return false;
         }
-        const sk = _getWpCategoriesSiteKey(site);
-        if (!sk) return false;
         if (hintEl) hintEl.textContent = "Đang tải danh mục…";
         try {
             const body = {
@@ -9175,8 +10333,13 @@
                 return false;
             }
             _bulkWpCategoriesBySiteKey[sk] = data.items || [];
+            _writeWpCategoriesCache(sk, _bulkWpCategoriesBySiteKey[sk], data.message || "");
             fillBulkCategorySelectEl(selectEl, _bulkWpCategoriesBySiteKey[sk], savedId);
-            if (hintEl) hintEl.textContent = data.message || `Đã tải ${(data.items || []).length} danh mục.`;
+            if (hintEl) {
+                hintEl.textContent =
+                    data.message || `Đã tải và lưu ${(_bulkWpCategoriesBySiteKey[sk] || []).length} danh mục.`;
+            }
+            _syncWpCategoryLoadButtonLabel(site);
             return true;
         } catch (e) {
             if (hintEl) hintEl.textContent = String((e && e.message) || e);
@@ -9195,7 +10358,7 @@
         });
         if (ok) scheduleSaveBulkState();
     };
-    const loadSingleWpCategories = async () => {
+    const loadSingleWpCategories = async (forceNetwork = false) => {
         const site = String(byId("targetWebsite")?.value || "").trim();
         const sel = byId("singleWpCategoryId");
         const hint = byId("hint-singleWpCategory");
@@ -9208,6 +10371,7 @@
             selectEl: sel,
             hintEl: hint,
             savedId: saved,
+            forceNetwork,
         });
         if (ok) {
             syncSingleWpCategoryFromSelect();
@@ -9664,7 +10828,7 @@
             catHead.className = "field-head";
             catHead.style.marginTop = "12px";
             const catLb = document.createElement("label");
-            catLb.textContent = "Danh mục WordPress khi đăng";
+            catLb.textContent = "Danh mục website khi đăng";
             catHead.appendChild(catLb);
             const catRow = document.createElement("div");
             catRow.className = "row";
@@ -9677,21 +10841,41 @@
             const catSel = document.createElement("select");
             catSel.dataset.field = "wp_category_id";
             const skCat = _getBulkWpCategoriesSiteKey();
+            if (skCat) _hydrateWpCategoriesFromCache(skCat);
             const cachedCat = skCat ? _bulkWpCategoriesBySiteKey[skCat] : null;
             fillBulkCategorySelectEl(catSel, cachedCat || [], row.wp_category_id || "");
             const btnLoadCat = document.createElement("button");
             btnLoadCat.type = "button";
             btnLoadCat.className = "btn secondary";
-            btnLoadCat.textContent = "Tải danh mục";
+            btnLoadCat.textContent =
+                skCat && _readWpCategoriesCache(skCat) ? "Tải lại danh mục" : "Tải danh mục";
             const catHint = document.createElement("div");
             catHint.className = "hint";
             catHint.style.marginTop = "6px";
-            catHint.textContent =
-                "Nhập Target website trùng site đã lưu (Thêm site đăng bài), rồi bấm Tải danh mục — gắn category khi publish.";
+            catHint.textContent = cachedCat && cachedCat.length
+                ? `Đã nạp ${cachedCat.length} danh mục đã lưu.`
+                : "Tải một lần — lần sau dùng danh mục đã lưu theo Target website.";
             btnLoadCat.addEventListener("click", () => {
                 btnLoadCat.disabled = true;
-                void loadBulkWpCategoriesForRow(row.id, catSel, catHint).finally(() => {
+                const skNow = _getBulkWpCategoriesSiteKey();
+                const forceNet = btnLoadCat.textContent.includes("lại");
+                void (async () => {
+                    const tw = byId("bulkTargetWebsite");
+                    const site = tw ? tw.value.trim() : "";
+                    const r = _findBulkRow(row.id);
+                    const ok = await loadWpCategoriesForSite({
+                        siteUrlRaw: site,
+                        selectEl: catSel,
+                        hintEl: catHint,
+                        savedId: r ? r.wp_category_id : "",
+                        forceNetwork: forceNet,
+                    });
+                    if (ok) scheduleSaveBulkState();
+                })().finally(() => {
                     btnLoadCat.disabled = false;
+                    const skAfter = _getBulkWpCategoriesSiteKey();
+                    btnLoadCat.textContent =
+                        skAfter && _readWpCategoriesCache(skAfter) ? "Tải lại danh mục" : "Tải danh mục";
                 });
             });
             catWrap.appendChild(catSel);
@@ -10059,8 +11243,8 @@
         try {
             setOutputAccordionOpen(false);
         } catch (_) {}
-        publishLog.value = "";
-        out.value = "";
+        if (publishLog) publishLog.value = "";
+        if (out) out.value = "";
         uploadedImages.length = 0;
         activeProjectId = "";
         renderUploadList();
@@ -10764,6 +11948,11 @@
     });
     byId("targetWebsite").addEventListener("change", () => {
         rememberTargetWebsite(byId("targetWebsite").value);
+        const wpcSaved =
+            (_draftWpCategoryIds && _draftWpCategoryIds[0]) ||
+            String(byId("singleWpCategoryId")?.value || "").trim() ||
+            "";
+        fillSingleWpCategorySelect(wpcSaved);
     });
     toggleAiAvailability();
     syncSlugFromPrimary();
@@ -10808,7 +11997,12 @@
     purgeLegacySharedStorage();
     allProjects = [];
     settingsPublishingSitesFlat = [];
-    refreshProjects(!restored);
+    refreshProjects(!restored).then(() => {
+        if (activeProjectId) {
+            return loadProject(activeProjectId);
+        }
+        return undefined;
+    }).catch(() => {});
     try { schedulePublishChecklist(); } catch (_) {}
     void fetchSettingsPublishingSites().then(() => {
         renderTargetHistory();
@@ -10888,8 +12082,9 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error((data && data.detail) ? data.detail : "Không lấy được outline đối thủ.");
+            _competitorOutlineCache = String(data.outline || "").trim();
             const current = byId("outlineContent").value.trim();
-            byId("outlineContent").value = (data.outline || "").trim();
+            byId("outlineContent").value = _competitorOutlineCache;
             autoGrowOutline();
             setHint("competitor", `Đã lấy ${data.count || 0} heading từ bài đối thủ.`);
             if (!current && data.outline) {
@@ -10908,37 +12103,283 @@
         }
     });
 
-    const runGoogleImageSearch = async () => {
-        const q = (googleImageQuery ? googleImageQuery.value : "").trim() || byId("primaryKeyword").value.trim();
-        if (!q) {
-            setHint("google-images", "Vui lòng nhập từ khóa để tìm ảnh.");
+    const webImageGallery = byId("webImageGallery");
+    const btnWebImageSearch = byId("btnWebImageSearch");
+    let webImageCatalogCache = null;
+    let webImageSearchItems = [];
+
+    const setWebImageHint = (text) => {
+        const h = byId("hint-web-images");
+        if (h) h.textContent = text || "";
+        try { setHint("web-images", text || ""); } catch (_) {}
+    };
+
+    const fillWebImageSelect = (elId, items, valueKey, labelKey) => {
+        const el = byId(elId);
+        if (!el || !Array.isArray(items)) return;
+        el.innerHTML = "";
+        items.forEach((it) => {
+            const opt = document.createElement("option");
+            opt.value = it[valueKey] || it.id || "";
+            opt.textContent = it[labelKey] || it.label_vi || opt.value;
+            el.appendChild(opt);
+        });
+    };
+
+    const refreshWebImageH2Select = () => {
+        const sel = byId("webImageH2");
+        if (!sel) return;
+        const h2s = extractH2ForStudio();
+        sel.innerHTML = "";
+        if (!h2s.length) {
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.textContent = "(Chưa có H2 trong bài)";
+            sel.appendChild(opt);
             return;
         }
-        const num = parseInt((googleImageNum && googleImageNum.value) ? googleImageNum.value : "8", 10) || 8;
-        setHint("google-images", "Đang tìm ảnh Google...");
-        if (btnGoogleImageSearch) btnGoogleImageSearch.disabled = true;
+        h2s.forEach((h, i) => {
+            const opt = document.createElement("option");
+            opt.value = String(i);
+            opt.textContent = h;
+            opt.dataset.heading = h;
+            sel.appendChild(opt);
+        });
+    };
+
+    const toggleWebImageCustomSize = () => {
+        const preset = byId("webImageSizePreset");
+        const wrap = byId("webImageCustomSizeWrap");
+        if (wrap && preset) wrap.classList.toggle("visible", preset.value === "custom");
+    };
+
+    const toggleWebImageQueryModeUi = () => {
+        const mode = (byId("webImageQueryMode") && byId("webImageQueryMode").value) || "keyword";
+        const cq = byId("webImageCustomQueryWrap");
+        const h2w = byId("webImageH2Wrap");
+        if (cq) cq.style.display = mode === "custom" ? "block" : "none";
+        if (h2w) h2w.style.display = mode === "h2" ? "block" : "none";
+    };
+
+    const initWebImagePanel = async () => {
+        if (!webImageCatalogCache) {
+            try {
+                const res = await apiFetch("/content-ai/web-images/catalog?ts=" + Date.now());
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) webImageCatalogCache = data;
+            } catch (_) {}
+        }
+        const cat = webImageCatalogCache || {};
+        fillWebImageSelect("webImageQueryMode", cat.query_modes || [], "id", "label_vi");
+        fillWebImageSelect("webImageSizePreset", [{ id: "custom", label_vi: "Tùy chỉnh (px)" }, ...(cat.size_presets || [])], "id", "label_vi");
+        fillWebImageSelect("webImageFormat", cat.output_formats || [], "id", "label_vi");
+        const fmtEl = byId("webImageFormat");
+        if (fmtEl && !fmtEl.value) fmtEl.value = "webp";
+        toggleWebImageCustomSize();
+        toggleWebImageQueryModeUi();
+        refreshWebImageH2Select();
+    };
+
+    const getWebImageInsertPayload = (item, mode) => {
+        const draft = buildDraftPayload();
+        const h2Sel = byId("webImageH2");
+        let sectionHeading = "";
+        let h2Index = null;
+        if (h2Sel && h2Sel.selectedOptions && h2Sel.selectedOptions[0]) {
+            sectionHeading = h2Sel.selectedOptions[0].dataset.heading || h2Sel.selectedOptions[0].textContent || "";
+            const idx = parseInt(h2Sel.value, 10);
+            if (Number.isFinite(idx)) h2Index = idx;
+        }
+        const preset = (byId("webImageSizePreset") && byId("webImageSizePreset").value) || "";
+        const custom = preset === "custom";
+        const cw = parseInt(byId("webImageCustomWidth")?.value || "800", 10);
+        const ch = parseInt(byId("webImageCustomHeight")?.value || "400", 10);
+        return {
+            url: item.link,
+            mode: mode || "inline",
+            project_id: activeProjectId || null,
+            content_html: draft.content || "",
+            outline_content: draft.outline_content || "",
+            title: draft.title || "",
+            primary_keyword: draft.primary_keyword || "",
+            section_heading: sectionHeading,
+            h2_index: h2Index,
+            size_preset: custom ? "" : preset,
+            target_width: custom ? Math.max(100, Math.min(cw, 2048)) : null,
+            target_height: custom ? Math.max(100, Math.min(ch, 2048)) : null,
+            output_format: (byId("webImageFormat") && byId("webImageFormat").value) || "webp",
+            download_to_server: true,
+        };
+    };
+
+    const renderWebImageGallery = () => {
+        if (!webImageGallery) return;
+        webImageGallery.innerHTML = "";
+        if (!webImageSearchItems.length) return;
+        webImageSearchItems.forEach((it, idx) => {
+            const card = document.createElement("div");
+            card.className = "web-image-card";
+            const img = document.createElement("img");
+            img.src = it.thumbnail || it.link;
+            img.alt = it.title || "";
+            img.loading = "lazy";
+            img.title = "Bấm xem lớn";
+            img.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                if (typeof openStudioLightbox === "function") openStudioLightbox(it.link || it.thumbnail);
+            });
+            const btns = document.createElement("div");
+            btns.className = "web-image-card-btns";
+            const mk = (label, mode) => {
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "mini-btn";
+                b.textContent = label;
+                b.addEventListener("click", async (ev) => {
+                    ev.preventDefault();
+                    await webImageInsertSelected(it, mode, b);
+                });
+                return b;
+            };
+            btns.appendChild(mk("Chèn", "inline"));
+            btns.appendChild(mk("Cuối bài", "append"));
+            card.appendChild(img);
+            card.appendChild(btns);
+            webImageGallery.appendChild(card);
+        });
+    };
+
+    const webImageInsertSelected = async (item, mode, btn) => {
+        const draft = buildDraftPayload();
+        const pk = (draft.primary_keyword || byId("primaryKeyword").value || "").trim();
+        const hasCtx = pk || (draft.title || "").trim() || (getWebImageInsertPayload(item, mode).section_heading || "").trim();
+        if (!hasCtx) {
+            setWebImageHint("Cần từ khóa, tiêu đề hoặc H2 để sinh ALT/chèn ảnh.");
+            return;
+        }
+        if (btn) btn.disabled = true;
+        setWebImageHint(mode === "append" ? "Đang chèn cuối bài…" : "Đang tải và chèn ảnh…");
         try {
-            const res = await fetch(`/content-ai/google-images/search?q=${encodeURIComponent(q)}&num=${encodeURIComponent(String(num))}&ts=${Date.now()}`);
+            const res = await fetch("/content-ai/web-images/insert?ts=" + Date.now(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(getWebImageInsertPayload(item, mode)),
+            });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error((data && data.detail) ? data.detail : "Tìm ảnh thất bại (kiểm tra GOOGLE_API_KEY + GOOGLE_CSE_ID).");
-            renderGoogleImageResults(data.items || []);
-            setHint("google-images", `Đã tìm thấy ${(data.items || []).length} ảnh.`);
+            if (!res.ok) {
+                const d = data.detail;
+                throw new Error(typeof d === "string" ? d : "Chèn ảnh thất bại");
+            }
+            if (data.content) setContentValue(data.content);
+            if (data.url) {
+                if (!uploadedImages.includes(data.url)) uploadedImages.push(data.url);
+                renderUploadList();
+            }
+            if (data.project && activeProjectId) applyProjectToForm(data.project);
+            try { refreshPreview(); } catch (_) {}
+            saveFormState();
+            const pl = data.placement || {};
+            setWebImageHint(
+                data.ok
+                    ? `Đã chèn ảnh${pl.placement ? " (" + pl.placement + ")" : ""}.`
+                    : "Xong."
+            );
         } catch (e) {
-            setHint("google-images", String(e.message || e));
+            setWebImageHint(String(e.message || e));
         } finally {
-            if (btnGoogleImageSearch) btnGoogleImageSearch.disabled = false;
+            if (btn) btn.disabled = false;
         }
     };
 
+    const runWebImageSearch = async () => {
+        const draft = buildDraftPayload();
+        const mode = (byId("webImageQueryMode") && byId("webImageQueryMode").value) || "keyword";
+        const pk = draft.primary_keyword || "";
+        const ttl = (draft.title || "").trim();
+        const customQ = (byId("webImageCustomQuery") && byId("webImageCustomQuery").value.trim()) || "";
+        const h2SelEarly = byId("webImageH2");
+        let h2Early = "";
+        if (h2SelEarly && h2SelEarly.selectedOptions && h2SelEarly.selectedOptions[0]) {
+            h2Early = (h2SelEarly.selectedOptions[0].dataset.heading || "").trim();
+        }
+        const searchOk =
+            (mode === "custom" && customQ) ||
+            (mode === "title" && ttl) ||
+            (mode === "h2" && (h2Early || pk || ttl)) ||
+            (mode === "keyword" && pk) ||
+            (!mode && pk);
+        if (!searchOk) {
+            setWebImageHint("Cần từ khóa, tiêu đề, H2 hoặc từ khóa tùy chỉnh để tìm ảnh.");
+            return;
+        }
+        const num = Math.max(4, Math.min(20, parseInt(byId("webImageNum")?.value || "12", 10) || 12));
+        if (btnWebImageSearch) btnWebImageSearch.disabled = true;
+        setWebImageHint("Đang tìm ảnh (Google CSE → fallback Web)…");
+        try {
+            const h2Sel = byId("webImageH2");
+            let h2Heading = "";
+            if (h2Sel && h2Sel.selectedOptions && h2Sel.selectedOptions[0]) {
+                h2Heading = h2Sel.selectedOptions[0].dataset.heading || "";
+            }
+            const res = await fetch("/content-ai/web-images/search?ts=" + Date.now(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query_mode: mode,
+                    primary_keyword: pk,
+                    title: draft.title || "",
+                    h2_heading: h2Heading,
+                    custom_query: (byId("webImageCustomQuery") && byId("webImageCustomQuery").value.trim()) || "",
+                    num,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const d = data.detail;
+                throw new Error(typeof d === "string" ? d : "Tìm ảnh thất bại");
+            }
+            webImageSearchItems = Array.isArray(data.items) ? data.items : [];
+            renderWebImageGallery();
+            const srcLabel = data.source === "google_cse_image" ? "Google CSE" : (data.source || "Web");
+            setWebImageHint(`Tìm thấy ${webImageSearchItems.length} ảnh (${srcLabel}) — «${data.query || ""}».`);
+            const panel = byId("webImagePanel");
+            if (panel) panel.open = true;
+        } catch (e) {
+            setWebImageHint(String(e.message || e));
+        } finally {
+            if (btnWebImageSearch) btnWebImageSearch.disabled = false;
+        }
+    };
+
+    const runGoogleImageSearch = () => runWebImageSearch();
+
+    if (btnWebImageSearch) {
+        btnWebImageSearch.addEventListener("click", (e) => {
+            e.preventDefault();
+            runWebImageSearch();
+        });
+    }
     if (btnGoogleImageSearch) btnGoogleImageSearch.addEventListener("click", runGoogleImageSearch);
-    if (googleImageQuery) {
-        googleImageQuery.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                runGoogleImageSearch();
+    const webImagePanel = byId("webImagePanel");
+    if (webImagePanel) {
+        webImagePanel.addEventListener("toggle", () => {
+            if (webImagePanel.open) {
+                initWebImagePanel();
+                refreshWebImageH2Select();
             }
         });
     }
+    const webImageSizePreset = byId("webImageSizePreset");
+    if (webImageSizePreset) webImageSizePreset.addEventListener("change", toggleWebImageCustomSize);
+    const webImageQueryMode = byId("webImageQueryMode");
+    if (webImageQueryMode) webImageQueryMode.addEventListener("change", toggleWebImageQueryModeUi);
+    initWebImagePanel();
+    document.addEventListener("input", (ev) => {
+        if (!ev.target) return;
+        if (ev.target.id === "contentRender" || ev.target.id === "outlineContent") {
+            refreshWebImageH2Select();
+        }
+    });
 
     btnReplaceAll.addEventListener("click", () => {
         const from = byId("replaceFrom").value.trim();
@@ -11168,10 +12609,15 @@
     const btnSingleLoadWpCategories = byId("btnSingleLoadWpCategories");
     const singleWpCategoryIdEl = byId("singleWpCategoryId");
     if (btnSingleLoadWpCategories) {
+        _syncWpCategoryLoadButtonLabel(String(byId("targetWebsite")?.value || ""));
         btnSingleLoadWpCategories.addEventListener("click", () => {
             btnSingleLoadWpCategories.disabled = true;
-            void loadSingleWpCategories().finally(() => {
+            const site = String(byId("targetWebsite")?.value || "").trim();
+            const sk = _getWpCategoriesSiteKey(site);
+            const isReload = !!(sk && _readWpCategoriesCache(sk));
+            void loadSingleWpCategories(isReload).finally(() => {
                 btnSingleLoadWpCategories.disabled = false;
+                _syncWpCategoryLoadButtonLabel(site);
             });
         });
     }
@@ -11229,8 +12675,156 @@
         });
     }
 
-    btnPublish.addEventListener("click", async () => {
-        if (btnPublish.disabled) return;
+    const publishGateBackdrop = byId("publishGateBackdrop");
+    const publishGateModal = byId("publishGateModal");
+    const publishGateLists = byId("publishGateLists");
+    const publishGateScoreNum = byId("publishGateScoreNum");
+    const publishGateGrade = byId("publishGateGrade");
+    const publishGateScoreRing = byId("publishGateScoreRing");
+    const publishGateSeverity = byId("publishGateSeverity");
+    const publishGateSubtitle = byId("publishGateSubtitle");
+    const publishGateBack = byId("publishGateBack");
+    const publishGateForce = byId("publishGateForce");
+    const publishGateClose = byId("publishGateClose");
+    let _publishGateProceed = null;
+
+    const closePublishGateModal = () => {
+        if (publishGateBackdrop) publishGateBackdrop.classList.remove("open");
+        if (publishGateModal) {
+            publishGateModal.classList.remove("open");
+            publishGateModal.setAttribute("aria-hidden", "true");
+        }
+        _publishGateProceed = null;
+    };
+    const renderPublishGateLists = (gate) => {
+        if (!publishGateLists) return;
+        const sections = [
+            { key: "blockers", title: "Chặn publish (blocker)", cls: "pg-blockers" },
+            { key: "required_fixes", title: "Bắt buộc sửa", cls: "pg-required" },
+            { key: "warnings", title: "Cảnh báo", cls: "pg-warnings" },
+            { key: "optional_fixes", title: "Nên tối ưu thêm", cls: "" },
+            { key: "suggestions", title: "Gợi ý", cls: "" },
+        ];
+        let html = "";
+        for (const sec of sections) {
+            const arr = Array.isArray(gate && gate[sec.key]) ? gate[sec.key].filter(Boolean) : [];
+            if (!arr.length) continue;
+            html += `<h4 class="${sec.cls}">${_escScoreHtml(sec.title)}</h4><ul class="${sec.cls}">`;
+            html += arr.map((t) => `<li>${_escScoreHtml(t)}</li>`).join("");
+            html += "</ul>";
+        }
+        publishGateLists.innerHTML = html || "<p class=\"hint\">Không có chi tiết bổ sung.</p>";
+    };
+    const openPublishGateModal = (gate, onProceed) => {
+        _publishGateProceed = typeof onProceed === "function" ? onProceed : null;
+        const sev = String((gate && gate.severity) || "warning");
+        const score = Number(gate && gate.total_score);
+        const grade = String((gate && gate.grade) || "—");
+        if (publishGateScoreNum) publishGateScoreNum.textContent = Number.isFinite(score) ? String(score) : "—";
+        if (publishGateGrade) publishGateGrade.textContent = `/100 · ${grade}`;
+        if (publishGateScoreRing) {
+            publishGateScoreRing.classList.remove("sev-pass", "sev-warn", "sev-blocker");
+            publishGateScoreRing.classList.add(
+                sev === "pass" ? "sev-pass" : sev === "blocker" ? "sev-blocker" : "sev-warn"
+            );
+        }
+        const sevLabels = { pass: "Đạt", warning: "Cảnh báo", blocker: "Blocker" };
+        if (publishGateSeverity) publishGateSeverity.textContent = sevLabels[sev] || sev;
+        if (publishGateSubtitle) {
+            publishGateSubtitle.textContent =
+                sev === "pass"
+                    ? "Bài đạt ngưỡng chất lượng — có thể publish."
+                    : "Bài chưa đạt đủ tiêu chí — bạn vẫn có thể «Vẫn publish» (soft gate).";
+        }
+        renderPublishGateLists(gate);
+        if (publishGateBackdrop) publishGateBackdrop.classList.add("open");
+        if (publishGateModal) {
+            publishGateModal.classList.add("open");
+            publishGateModal.setAttribute("aria-hidden", "false");
+        }
+    };
+    const runPublishGateCheck = async (publishTarget) => {
+        const title = (byId("title") && byId("title").value || "").trim();
+        const slug = (byId("slug") && byId("slug").value || "").trim();
+        const meta = (byId("meta") && byId("meta").value || "").trim();
+        const pk = (byId("primaryKeyword") && byId("primaryKeyword").value || "").trim();
+        const sk = (byId("secondaryKeywords") && byId("secondaryKeywords").value || "").trim();
+        const html_content = String(getContentValue() || "");
+        const target_website = normalizeTargetBase(String(byId("targetWebsite") && byId("targetWebsite").value || "").trim());
+        const internal_links = collectPlannedInternalLinks();
+        const featured = (uploadedImages && uploadedImages[0]) || "";
+        const res = await fetch(`/content-ai/publish-gate?ts=${Date.now()}`, {
+            method: "POST",
+            headers: authJsonHeaders(),
+            body: JSON.stringify({
+                title,
+                slug,
+                meta_description: meta,
+                primary_keyword: pk,
+                secondary_keywords: sk,
+                html_content,
+                target_word_count: parseTargetWordCount(),
+                target_website,
+                internal_links: internal_links.length ? internal_links : null,
+                publish_target: publishTarget || "wordpress",
+                featured_image_url: featured,
+            }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const detail = data && data.detail;
+            const msgErr =
+                typeof detail === "string"
+                    ? detail
+                    : detail && detail.message
+                      ? detail.message
+                      : "Publish gate thất bại — không tự động publish.";
+            throw new Error(msgErr);
+        }
+        return data;
+    };
+    const withPublishGate = async (publishTarget, publishFn) => {
+        let gate;
+        try {
+            gate = await runPublishGateCheck(publishTarget);
+        } catch (e) {
+            const errMsg = String((e && e.message) || e);
+            msg.textContent = errMsg;
+            appendPublishLog(`Publish gate lỗi: ${errMsg}`);
+            setHint("content", errMsg);
+            return;
+        }
+        if (gate && gate.can_publish) {
+            await publishFn();
+            return;
+        }
+        openPublishGateModal(gate, publishFn);
+    };
+    if (publishGateBack) {
+        publishGateBack.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            closePublishGateModal();
+        });
+    }
+    if (publishGateClose) {
+        publishGateClose.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            closePublishGateModal();
+        });
+    }
+    if (publishGateBackdrop) {
+        publishGateBackdrop.addEventListener("click", () => closePublishGateModal());
+    }
+    if (publishGateForce) {
+        publishGateForce.addEventListener("click", async (ev) => {
+            ev.preventDefault();
+            const fn = _publishGateProceed;
+            closePublishGateModal();
+            if (fn) await fn();
+        });
+    }
+
+    const executeWpPublishDraft = async (publishMode) => {
         const cred = resolveWpPublishCredentials();
         const wpUrl = cred.wpUrl;
         const wpUsername = cred.username;
@@ -11240,34 +12834,43 @@
         const title = byId("title").value.trim();
         const content = getContentValue().trim();
         if (!wpUrl || !primaryKeyword || !title || !content) {
-            msg.textContent = "Vui lòng nhập URL WordPress, từ khóa, tiêu đề và nội dung.";
+            const m = "Vui lòng nhập URL WordPress, từ khóa, tiêu đề và nội dung.";
+            msg.textContent = m;
+            appendPublishLog(m);
             return;
         }
         if (!wpUsername || !wpAppPassword) {
-            msg.textContent = "Chưa có username/app password cho site này — bấm Edit (hoặc Thêm site đăng bài) để lưu.";
+            const m = "Chưa có username/app password cho site này — bấm Edit (hoặc Thêm site đăng bài) để lưu.";
+            msg.textContent = m;
+            appendPublishLog(m);
             return;
         }
-        publishLog.value = "";
-        appendPublishLog("Bắt đầu publish draft lên WordPress...");
-        msg.textContent = "Đang đăng bản nháp lên WordPress...";
-        const oldPublishText = btnPublish.textContent;
-        btnPublish.disabled = true;
-        btnPublish.classList.add("loading");
-        btnPublish.textContent = "Đang đăng bản nháp...";
+        const isPublish = publishMode === "publish";
+        if (publishLog) publishLog.value = "";
+        appendPublishLog(
+            isPublish ? "Bắt đầu publish (đăng bài) lên WordPress..." : "Bắt đầu publish draft lên WordPress..."
+        );
+        msg.textContent = isPublish ? "Đang đăng bài lên WordPress..." : "Đang đăng bản nháp lên WordPress...";
+        const btn = isPublish ? btnPublishNow : btnPublish;
+        const oldPublishText = btn ? btn.textContent : "";
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add("loading");
+            btn.textContent = isPublish ? "Đang đăng bài..." : "Đang đăng bản nháp...";
+        }
         try {
-            // Always generate a draft payload JSON (hidden, even if Output is collapsed)
             const draftPayload = await ensureDraftPayloadForPublish();
             appendPublishLog("Đã có draft payload.");
             const res = await fetch("/content-ai/publish-draft", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: authJsonHeaders(),
                 body: JSON.stringify({
                     wp_url: wpUrl,
                     username: wpUsername,
                     app_password: wpAppPassword,
                     seo_plugin: wpSeoPlugin,
                     primary_keyword: primaryKeyword,
-                    publish_mode: "draft",
+                    publish_mode: publishMode,
                     draft_payload: draftPayload,
                 }),
             });
@@ -11281,11 +12884,13 @@
                 } else {
                     appendPublishLog(JSON.stringify(detail || data));
                 }
-                throw new Error((detail && detail.message) ? detail.message : "Publish draft thất bại.");
+                throw new Error((detail && detail.message) ? detail.message : "Publish thất bại.");
             }
             if (Array.isArray(data.logs)) setPublishLogLines(data.logs);
             appendPublishLog(`Thành công: post_id=${data.post_id || ""}, status=${data.status || ""}`);
-            msg.textContent = "Đăng bản nháp thành công lên WordPress.";
+            msg.textContent = isPublish
+                ? "Đăng bài thành công lên WordPress."
+                : "Đăng bản nháp thành công lên WordPress.";
             rememberTargetWebsite(byId("targetWebsite").value);
             rememberWpUrl(wpUrl);
             rememberWpUser(wpUsername);
@@ -11294,57 +12899,23 @@
             msg.textContent = String(e.message || e);
             appendPublishLog(`Lỗi: ${String(e.message || e)}`);
         } finally {
-            btnPublish.disabled = false;
-            btnPublish.classList.remove("loading");
-            btnPublish.textContent = oldPublishText;
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove("loading");
+                btn.textContent = oldPublishText;
+            }
         }
+    };
+
+    btnPublish.addEventListener("click", async () => {
+        if (btnPublish.disabled) return;
+        await withPublishGate("wordpress", () => executeWpPublishDraft("draft"));
     });
 
     if (btnPublishNow) {
         btnPublishNow.addEventListener("click", async () => {
-            const cred = resolveWpPublishCredentials();
-            const wpUrl = cred.wpUrl;
-            const wpUsername = cred.username;
-            const wpAppPassword = cred.app_password;
-            const wpSeoPlugin = cred.seo_plugin;
-            const primaryKeyword = byId("primaryKeyword").value.trim();
-            const title = byId("title").value.trim();
-            const content = getContentValue().trim();
-            if (!wpUrl || !primaryKeyword || !title || !content) {
-                appendPublishLog("Thiếu WP URL hoặc keyword/title/content.");
-                return;
-            }
-            if (!wpUsername || !wpAppPassword) {
-                appendPublishLog("Chưa có username/app password — lưu site qua Edit / Thêm site đăng bài.");
-                return;
-            }
-            const ok = window.confirm("Đăng bài ngay (Publish)? Nếu có hẹn giờ tương lai, hệ thống sẽ schedule.");
-            if (!ok) return;
-            try {
-                btnPublishNow.disabled = true;
-                appendPublishLog("Đang đăng bài (publish)...");
-                const draftPayload = await ensureDraftPayloadForPublish();
-                const res = await fetch("/content-ai/publish-draft", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        wp_url: wpUrl,
-                        username: wpUsername,
-                        app_password: wpAppPassword,
-                        seo_plugin: wpSeoPlugin,
-                        primary_keyword: primaryKeyword,
-                        publish_mode: "publish",
-                        draft_payload: draftPayload,
-                    }),
-                });
-                const d = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error((d && (d.detail?.message || d.detail || d.message)) ? JSON.stringify(d.detail || d.message) : "Publish failed");
-                appendPublishLog(`OK: status=${d.status || "—"} link=${d.link || "—"}`);
-            } catch (e) {
-                appendPublishLog(`Lỗi đăng bài: ${String((e && e.message) || e)}`);
-            } finally {
-                btnPublishNow.disabled = false;
-            }
+            if (btnPublishNow.disabled) return;
+            await withPublishGate("wordpress", () => executeWpPublishDraft("publish"));
         });
     }
 
@@ -11578,12 +13149,6 @@
     const renderCustomLinkLibrary = () => {
         if (!customLinkLibraryList) return;
         const scope = getCustomLinkLibraryScope();
-        const hintLib = byId("hint-custom-link-library");
-        if (hintLib) {
-            hintLib.textContent = scope.ok
-                ? `Thư viện riêng cho ${scope.type === "project" ? "dự án" : "site"} «${scope.label}» — không hiện link của dự án/site khác.`
-                : "Mở một dự án hoặc nhập Target website để lưu / xem thư viện custom link.";
-        }
         if (btnSaveCustomToLibrary) {
             btnSaveCustomToLibrary.disabled = !scope.ok;
             btnSaveCustomToLibrary.title = scope.ok
@@ -11592,14 +13157,7 @@
         }
         const lib = loadCustomLinkLibrary();
         customLinkLibraryList.innerHTML = "";
-        if (!scope.ok) {
-            customLinkLibraryList.innerHTML =
-                "<div class=\"hint\">Chưa gắn dự án hoặc Target website. Mở dự án (ví dụ backlinkbrand) rồi mới lưu link money page cho đúng bài.</div>";
-            return;
-        }
-        if (!lib.length) {
-            customLinkLibraryList.innerHTML =
-                "<div class=\"hint\">Thêm custom link rồi bấm «Lưu dòng đã chọn vào thư viện».</div>";
+        if (!scope.ok || !lib.length) {
             return;
         }
         lib.forEach((it, idx) => {
@@ -11814,7 +13372,7 @@
         const hintIl = byId("hint-internal-links");
         if (hintIl) {
             hintIl.textContent = arr.length
-                ? "Tick chọn dòng → bấm «Đi link» ở cột phải để chèn lần lượt (loading tròn → ✓ khi xong)."
+                ? "Tick chọn dòng (hoặc «Chọn tất cả») → bấm «Đi link» để chèn lần lượt (loading tròn → ✓ khi xong)."
                 : "Bấm «Tìm bài liên quan» khi đã có target website.";
         }
         if (!arr.length) {
@@ -11885,7 +13443,7 @@
             setInternalLinkUseLlm(llmInp.checked);
             llmLbl.classList.toggle("is-on", llmInp.checked);
             ilHint.textContent = getInternalLinkUseLlm()
-                ? "Ưu tiên: anchor trong bài → LLM. Không tự chèn «Tham khảo thêm»."
+                ? "Bật LLM: mỗi link bọc trong 1–2 câu ngữ cảnh (không chèn link trần sát nhau)."
                 : "Ưu tiên: anchor trong bài (lần đầu). Thiếu anchor → popup «Tham khảo thêm».";
         });
         ilToolbar.appendChild(llmLbl);
@@ -11893,9 +13451,15 @@
         ilHint.className = "hint";
         ilHint.style.margin = "0";
         ilHint.textContent = getInternalLinkUseLlm()
-            ? "Ưu tiên: anchor trong bài → LLM. Không tự chèn «Tham khảo thêm»."
+            ? "Bật LLM: mỗi link bọc trong 1–2 câu ngữ cảnh (không chèn link trần sát nhau)."
             : "Ưu tiên: anchor trong bài (lần đầu). Thiếu anchor → popup «Tham khảo thêm».";
         ilToolbar.appendChild(ilHint);
+        const btnIlSelectAll = document.createElement("button");
+        btnIlSelectAll.type = "button";
+        btnIlSelectAll.className = "mini-btn";
+        btnIlSelectAll.textContent = "Chọn tất cả";
+        btnIlSelectAll.title = "Tick chọn mọi dòng gợi ý";
+        ilToolbar.appendChild(btnIlSelectAll);
         wrap.appendChild(ilToolbar);
 
         const tbl = document.createElement("table");
@@ -11904,7 +13468,12 @@
         const trh = document.createElement("tr");
         const th0 = document.createElement("th");
         th0.className = "col-cb";
-        th0.textContent = "";
+        const headerSelectAll = document.createElement("input");
+        headerSelectAll.type = "checkbox";
+        headerSelectAll.id = "internalLinkSelectAll";
+        headerSelectAll.title = "Chọn tất cả";
+        headerSelectAll.checked = false;
+        th0.appendChild(headerSelectAll);
         const th1 = document.createElement("th");
         th1.textContent = "ANCHOR / ĐIỂM";
         const th2 = document.createElement("th");
@@ -11929,6 +13498,35 @@
         thead.appendChild(trh);
         tbl.appendChild(thead);
         const tbody = document.createElement("tbody");
+        const syncInternalLinkSelectAllHeader = () => {
+            const all = tbody.querySelectorAll("input.internal-link-cb:not(:disabled)");
+            const checked = tbody.querySelectorAll("input.internal-link-cb:checked:not(:disabled)");
+            if (!all.length) {
+                headerSelectAll.checked = false;
+                headerSelectAll.indeterminate = false;
+                return;
+            }
+            headerSelectAll.checked = checked.length === all.length;
+            headerSelectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+            btnIlSelectAll.textContent =
+                checked.length === all.length && all.length ? "Bỏ chọn tất cả" : "Chọn tất cả";
+        };
+        const setAllInternalLinkRows = (on) => {
+            tbody.querySelectorAll("input.internal-link-cb:not(:disabled)").forEach((rowCb) => {
+                rowCb.checked = !!on;
+            });
+            syncInternalLinkSelectAllHeader();
+            scheduleSaveFormState();
+        };
+        headerSelectAll.addEventListener("change", () => {
+            setAllInternalLinkRows(headerSelectAll.checked);
+        });
+        btnIlSelectAll.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            const all = tbody.querySelectorAll("input.internal-link-cb:not(:disabled)");
+            const checked = tbody.querySelectorAll("input.internal-link-cb:checked:not(:disabled)");
+            setAllInternalLinkRows(checked.length !== all.length);
+        });
         arr.forEach((it, idx) => {
             const displayTitle = String(it.title || "").trim()
                 || String(it.slug || "").replace(/-/g, " ").trim()
@@ -11942,7 +13540,8 @@
             cb.type = "checkbox";
             cb.className = "internal-link-cb";
             cb.setAttribute("data-idx", String(idx));
-            cb.checked = true;
+            cb.checked = false;
+            cb.addEventListener("change", syncInternalLinkSelectAllHeader);
             td0.appendChild(cb);
             const td1 = document.createElement("td");
             td1.className = "internal-anchor-cell";
@@ -12018,6 +13617,7 @@
             tr.appendChild(td3);
             tbody.appendChild(tr);
         });
+        syncInternalLinkSelectAllHeader();
         tbl.appendChild(tbody);
         wrap.appendChild(tbl);
         internalLinkCandidates.appendChild(wrap);
@@ -12098,10 +13698,6 @@
                 const inp = document.querySelector(`input.internal-link-anchor-input[data-idx="${idx}"]`);
                 if (inp) inp.value = String(anchors[idx] ?? "");
             });
-            setHint(
-                "internal-links",
-                `Đã khôi phục ${_internalCandidates.length} bài liên quan (lưu trên trình duyệt). Tick → «Đi link» để chèn.`
-            );
         } catch (e) {
             _pendingInternalCandidatesRestore = null;
             console.error("[content-ai] restore internal candidates failed", e);
@@ -12670,8 +14266,39 @@
             syncPreviewFallback();
         });
     }
+    const btnContentExpand = byId("btnContentExpand");
+    const contentExpandClose = byId("contentExpandClose");
+    const contentExpandLightbox = byId("contentExpandLightbox");
+    const contentExpandRender = byId("contentExpandRender");
+    if (btnContentExpand) {
+        btnContentExpand.addEventListener("click", (e) => {
+            e.preventDefault();
+            openContentExpandLightbox();
+        });
+    }
+    if (contentExpandClose) {
+        contentExpandClose.addEventListener("click", (e) => {
+            e.preventDefault();
+            closeContentExpandLightbox(true);
+        });
+    }
+    if (contentExpandLightbox) {
+        contentExpandLightbox.addEventListener("click", (e) => {
+            if (e.target === contentExpandLightbox) closeContentExpandLightbox(true);
+        });
+    }
+    if (contentExpandRender) {
+        contentExpandRender.addEventListener("input", () => {
+            schedulePreview();
+            schedulePublishChecklist();
+        });
+    }
     const contentEditable = byId("contentRender");
     if (contentEditable) {
+        contentEditable.addEventListener("dblclick", (e) => {
+            if (e.target.closest("button, a, .img-action-delete")) return;
+            openContentExpandLightbox();
+        });
         contentEditable.addEventListener("mouseover", (e) => {
             const target = e.target;
             if (!(target instanceof Element)) return;

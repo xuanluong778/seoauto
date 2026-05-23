@@ -44,7 +44,9 @@ from app.services.content_ai_project_store import (
 )
 from app.services.content_ai_content_images import (
     auto_insert_images_to_project,
+    collect_allowed_urls_from_project,
     count_content_images,
+    sanitize_invalid_content_images,
     _resolve_project_content,
 )
 from app.services.content_ai_google_thumbnail import fetch_and_attach_google_thumbnail
@@ -55,6 +57,11 @@ from app.services.content_ai_image_studio import (
     studio_catalog,
 )
 from app.services.google_cse_images import import_remote_image_url
+from app.services.content_ai_web_image_insert import (
+    insert_web_image_into_content,
+    search_web_images_for_content,
+    web_image_catalog,
+)
 from app.services.web_image_search import image_search_status, search_web_images
 from app.services.content_draft_builder import build_draft_payload, detect_search_intent, suggest_content_ai_field
 from app.services.llm_content_writer import (
@@ -288,6 +295,94 @@ def content_ai_google_images_import(
         raise HTTPException(status_code=502, detail=f"Không tải được ảnh: {exc}") from exc
     name = Path(local_url).name
     return JSONResponse(content={"url": local_url, "name": name})
+
+
+@router.get("/content-ai/web-images/catalog")
+def content_ai_web_images_catalog(
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    return JSONResponse(content=web_image_catalog())
+
+
+class ContentAiWebImageSearchRequest(BaseModel):
+    query_mode: str = "keyword"
+    primary_keyword: str = ""
+    title: str = ""
+    h2_heading: str = ""
+    custom_query: str = ""
+    num: int = 12
+
+
+@router.post("/content-ai/web-images/search")
+def content_ai_web_images_search(
+    payload: ContentAiWebImageSearchRequest,
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    try:
+        out = search_web_images_for_content(
+            query_mode=payload.query_mode,
+            primary_keyword=payload.primary_keyword,
+            title=payload.title,
+            h2_heading=payload.h2_heading,
+            custom_query=payload.custom_query,
+            num=max(1, min(int(payload.num or 12), 20)),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Tìm ảnh thất bại: {exc}") from exc
+    return JSONResponse(content=out)
+
+
+class ContentAiWebImageInsertRequest(BaseModel):
+    url: str
+    mode: str = "inline"
+    project_id: str | None = None
+    content_html: str = ""
+    outline_content: str = ""
+    title: str = ""
+    primary_keyword: str = ""
+    section_heading: str = ""
+    h2_index: int | None = None
+    size_preset: str = ""
+    target_width: int | None = None
+    target_height: int | None = None
+    output_format: str = "webp"
+    download_to_server: bool = True
+    alt: str = ""
+    caption: str = ""
+
+
+@router.post("/content-ai/web-images/insert")
+def content_ai_web_images_insert(
+    payload: ContentAiWebImageInsertRequest,
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    try:
+        out = insert_web_image_into_content(
+            user_id=current_user.id,
+            remote_url=payload.url,
+            content_html=payload.content_html,
+            outline_content=payload.outline_content,
+            title=payload.title,
+            primary_keyword=payload.primary_keyword,
+            section_heading=payload.section_heading,
+            h2_index=payload.h2_index,
+            project_id=payload.project_id,
+            size_preset=payload.size_preset,
+            target_width=payload.target_width,
+            target_height=payload.target_height,
+            output_format=payload.output_format,
+            download_to_server=bool(payload.download_to_server),
+            mode=payload.mode,
+            alt=payload.alt,
+            caption=payload.caption,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Chèn ảnh thất bại: {exc}") from exc
+    return JSONResponse(content=out)
 
 
 @router.get("/content-ai/projects")
@@ -534,6 +629,13 @@ def content_ai_project_detail(
     project = get_content_ai_project(project_id, user_id=current_user.id)
     if not project:
         raise HTTPException(status_code=404, detail="Không tìm thấy dự án content.")
+    allowed = collect_allowed_urls_from_project(project)
+    raw = _resolve_project_content(project)
+    if raw:
+        cleaned, _ = sanitize_invalid_content_images(raw, allowed_urls=allowed)
+        if cleaned != raw:
+            project = dict(project)
+            project["content"] = cleaned
     return JSONResponse(content=project)
 
 
@@ -724,6 +826,10 @@ class ContentAiStudioGenerateRequest(BaseModel):
     count: int = 3
     include_text: bool = False
     text_hint: str = ""
+    output_format: str = ""
+    size_preset: str = ""
+    target_width: int | None = None
+    target_height: int | None = None
 
 
 @router.get("/content-ai/images/studio-presets")
@@ -764,6 +870,10 @@ def content_ai_images_generate_professional(
             include_text=bool(payload.include_text),
             text_hint=payload.text_hint,
             project_id=payload.project_id,
+            output_format=payload.output_format,
+            size_preset=payload.size_preset,
+            target_width=payload.target_width,
+            target_height=payload.target_height,
         )
     except ValueError as exc:
         msg = str(exc)
@@ -785,6 +895,9 @@ class ContentAiStudioInsertRequest(BaseModel):
     h2_index: int | None = None
     alt: str = ""
     caption: str = ""
+    output_format: str = ""
+    target_width: int | None = None
+    target_height: int | None = None
 
 
 @router.post("/content-ai/images/insert-selected")
@@ -806,6 +919,9 @@ def content_ai_images_insert_selected(
             h2_index=payload.h2_index,
             alt=payload.alt,
             caption=payload.caption,
+            output_format=payload.output_format,
+            target_width=payload.target_width,
+            target_height=payload.target_height,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -973,6 +1089,7 @@ class ContentSuggestRequest(BaseModel):
     secondary_keywords: str | None = None
     outline_content: str | None = None
     target_word_count: int | None = None
+    content_brief: dict[str, Any] | None = None
 
 
 class SeoArticleJsonRequest(BaseModel):
@@ -1017,6 +1134,156 @@ def content_ai_publish_checklist(
     return JSONResponse(content=data)
 
 
+class ContentScoreRequest(BaseModel):
+    title: str = ""
+    slug: str = ""
+    meta_description: str = ""
+    primary_keyword: str = ""
+    secondary_keywords: str = ""
+    html_content: str = ""
+    target_word_count: int | None = None
+    target_website: str = ""
+    internal_links: list[dict[str, Any]] | None = None
+
+
+@router.post("/content-ai/score")
+def content_ai_score(
+    payload: ContentScoreRequest,
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    """Chấm điểm SEO 0–100 (read-only, rule-based). Không sửa HTML, không chặn publish."""
+    from app.services.content_ai_score import evaluate_content_score
+
+    data = evaluate_content_score(
+        title=payload.title,
+        slug=payload.slug,
+        meta_description=payload.meta_description,
+        primary_keyword=payload.primary_keyword,
+        secondary_keywords=payload.secondary_keywords,
+        html_content=payload.html_content,
+        target_word_count=payload.target_word_count,
+        target_website=payload.target_website,
+        internal_links=payload.internal_links,
+    )
+    return JSONResponse(content=data)
+
+
+class ContentPublishGateRequest(BaseModel):
+    title: str = ""
+    slug: str = ""
+    meta_description: str = ""
+    primary_keyword: str = ""
+    secondary_keywords: str = ""
+    html_content: str = ""
+    target_word_count: int | None = None
+    target_website: str = ""
+    internal_links: list[dict[str, Any]] | None = None
+    publish_target: str = "wordpress"
+    featured_image_url: str = ""
+
+
+@router.post("/content-ai/publish-gate")
+def content_ai_publish_gate(
+    payload: ContentPublishGateRequest,
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    """Soft quality gate trước publish — trả cảnh báo/blocker, không chặn cứng trên server."""
+    from app.services.content_ai_publish_gate import evaluate_publish_gate
+
+    data = evaluate_publish_gate(
+        title=payload.title,
+        slug=payload.slug,
+        meta_description=payload.meta_description,
+        primary_keyword=payload.primary_keyword,
+        secondary_keywords=payload.secondary_keywords,
+        html_content=payload.html_content,
+        target_word_count=payload.target_word_count,
+        target_website=payload.target_website,
+        internal_links=payload.internal_links,
+        publish_target=payload.publish_target,
+        featured_image_url=payload.featured_image_url,
+    )
+    return JSONResponse(content=data)
+
+
+class ContentBriefRequest(BaseModel):
+    primary_keyword: str = ""
+    secondary_keywords: str = ""
+    title: str = ""
+    target_website: str = ""
+    target_word_count: int | None = None
+    competitor_url: str = ""
+    brand_name: str = ""
+    content_type: str = ""
+    category: str = ""
+    tags: str = ""
+    existing_outline: str = ""
+    internal_link_candidates: list[dict[str, Any]] | None = None
+
+
+@router.post("/content-ai/brief")
+def content_ai_brief(
+    payload: ContentBriefRequest,
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    """Tạo SEO Content Brief (rule-based, optional KB + competitor)."""
+    from app.services.content_ai_brief import generate_content_brief
+
+    try:
+        data = generate_content_brief(
+            primary_keyword=payload.primary_keyword,
+            secondary_keywords=payload.secondary_keywords,
+            title=payload.title,
+            target_website=payload.target_website,
+            target_word_count=payload.target_word_count,
+            competitor_url=payload.competitor_url,
+            brand_name=payload.brand_name,
+            content_type=payload.content_type,
+            category=payload.category,
+            tags=payload.tags,
+            existing_outline=payload.existing_outline,
+            internal_link_candidates=payload.internal_link_candidates,
+            user_id=current_user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(content=data)
+
+
+class ContentGapRequest(BaseModel):
+    title: str = ""
+    primary_keyword: str = ""
+    secondary_keywords: str = ""
+    html_content: str = ""
+    target_word_count: int | None = None
+    content_brief: dict[str, Any] | None = None
+    competitor_outline: str = ""
+    internal_links: list[dict[str, Any]] | None = None
+    target_website: str = ""
+
+
+@router.post("/content-ai/content-gap")
+def content_ai_content_gap(
+    payload: ContentGapRequest,
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    """Phân tích Content Gap read-only — so sánh bài với Brief/outline/đối thủ."""
+    from app.services.content_ai_content_gap import evaluate_content_gap
+
+    data = evaluate_content_gap(
+        title=payload.title,
+        primary_keyword=payload.primary_keyword,
+        secondary_keywords=payload.secondary_keywords,
+        html_content=payload.html_content,
+        target_word_count=payload.target_word_count,
+        content_brief=payload.content_brief,
+        competitor_outline=payload.competitor_outline,
+        internal_links=payload.internal_links,
+        target_website=payload.target_website,
+    )
+    return JSONResponse(content=data)
+
+
 @router.post("/content-ai/postprocess-content")
 def content_ai_postprocess_content(
     payload: ContentPostprocessRequest,
@@ -1033,6 +1300,7 @@ def content_ai_postprocess_content(
     out = postprocess_content_blockquotes(raw)
     out = strip_publish_checklist_from_html(out)
     out = enhance_tables_in_html(out)
+    out, _ = sanitize_invalid_content_images(out)
     stats = postprocess_stats(out)
     return JSONResponse(content={"content_html": out, "stats": stats})
 
@@ -1140,15 +1408,9 @@ def _normalize_site_base(raw: str) -> str:
 
 
 def _norm_url_for_compare(url: str) -> str:
-    raw = str(url or "").strip()
-    if not raw:
-        return ""
-    try:
-        p = urlparse(raw if "://" in raw else f"https://x.local/{raw.lstrip('/')}")
-        path = re.sub(r"/{2,}", "/", p.path or "/").rstrip("/")
-        return f"{(p.netloc or '').lower()}{path.lower()}"
-    except Exception:
-        return raw.lower().rstrip("/")
+    from app.services.wp_internal_link_apply import norm_url_for_compare
+
+    return norm_url_for_compare(url)
 
 
 def _fetch_wp_term_map(base: str, taxonomy: str, ids: set[int]) -> dict[int, str]:
@@ -2789,6 +3051,7 @@ def content_ai_suggest(
                 secondary_keywords=payload.secondary_keywords or "",
                 outline_content=payload.outline_content or "",
                 target_word_count=payload.target_word_count,
+                content_brief=payload.content_brief,
             )
             if requested == "content" and not str(suggestion or "").strip():
                 suggestion = _fallback_content_html_from_payload(payload)
@@ -2908,6 +3171,7 @@ def content_ai_suggest_stream(
                     secondary_keywords=payload.secondary_keywords or "",
                     outline_content=payload.outline_content or "",
                     target_word_count=payload.target_word_count,
+                    content_brief=payload.content_brief,
                 )
                 if requested == "content" and not str(generated or "").strip():
                     generated = _fallback_content_html_from_payload(payload)
