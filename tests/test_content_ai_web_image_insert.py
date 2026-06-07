@@ -31,8 +31,9 @@ def test_web_image_catalog_presets():
 
 
 def test_build_web_image_search_query_modes():
-    assert build_web_image_search_query(primary_keyword="kw") == "kw"
-    assert build_web_image_search_query(query_mode="title", title="Tiêu đề") == "Tiêu đề"
+    q_kw = build_web_image_search_query(primary_keyword="kw")
+    assert q_kw and "kw" in q_kw.lower()
+    assert build_web_image_search_query(query_mode="title", title="Tiêu đề") 
     assert build_web_image_search_query(custom_query="tùy chỉnh") == "tùy chỉnh"
     q = build_web_image_search_query(
         query_mode="h2",
@@ -72,14 +73,34 @@ def test_figure_snippet_seo_has_lazy_and_size_attrs():
 @patch("app.services.content_ai_web_image_insert.search_web_images")
 def test_search_web_images_for_content(mock_search):
     mock_search.return_value = (
-        [{"link": "https://example.com/a.jpg", "title": "A"}],
+        [
+            {"link": "https://example.com/laptop-repair.jpg", "title": "Laptop repair"},
+            {"link": "https://example.com/f1-racing.jpg", "title": "Formula 1 race car"},
+        ],
         "bing_images",
     )
-    out = search_web_images_for_content(primary_keyword="laptop", num=8)
+    out = search_web_images_for_content(primary_keyword="sửa laptop", num=8)
     assert out["ok"] is True
-    assert out["count"] == 1
+    assert out["count"] >= 1
     assert out["source"] == "bing_images"
-    mock_search.assert_called_once()
+    mock_search.assert_called()
+
+
+def test_filter_and_rank_web_images_drops_off_topic():
+    from app.services.image_relevance import filter_and_rank_web_images
+
+    items = [
+        {"link": "https://cdn.example.com/computer-repair-tech.jpg", "title": "Computer repair"},
+        {"link": "https://cdn.example.com/f1-grand-prix.jpg", "title": "Formula 1 Grand Prix"},
+    ]
+    ranked = filter_and_rank_web_images(
+        items,
+        primary_keyword="sửa máy tính quận 1",
+        limit=5,
+    )
+    links = " ".join(str(it.get("link") or "") for it in ranked)
+    assert "computer-repair" in links
+    assert "f1-grand-prix" not in links
 
 
 def test_search_web_images_for_content_requires_query():

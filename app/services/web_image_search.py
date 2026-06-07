@@ -117,14 +117,22 @@ def pexels_image_search(*, q: str, num: int = 8) -> list[dict[str, Any]]:
         return []
     out: list[dict[str, Any]] = []
     for ph in photos:
-        src = str(ph.get("src", {}).get("large") or ph.get("src", {}).get("medium") or "").strip()
-        if not src or is_blocked_image_url(src):
+        srcs = ph.get("src") or {}
+        link = str(
+            srcs.get("original")
+            or srcs.get("large2x")
+            or srcs.get("large")
+            or srcs.get("medium")
+            or ""
+        ).strip()
+        thumb = str(srcs.get("large") or srcs.get("medium") or link).strip()
+        if not link or is_blocked_image_url(link):
             continue
         out.append(
             {
-                "link": src,
+                "link": link,
                 "title": str(ph.get("alt") or "").strip(),
-                "thumbnail": str(ph.get("src", {}).get("medium") or src),
+                "thumbnail": thumb,
                 "context": "pexels.com",
             }
         )

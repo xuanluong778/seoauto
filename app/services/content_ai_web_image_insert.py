@@ -25,7 +25,14 @@ from app.services.content_ai_project_store import (
     get_content_ai_project,
     update_content_ai_project_fields,
 )
-from app.services.content_image_context import build_image_search_query_for_section
+from app.services.content_image_context import (
+    _strip_html_text,
+    build_image_search_query_for_section,
+)
+from app.services.image_relevance import (
+    build_stock_photo_english_query,
+    filter_and_rank_web_images,
+)
 from app.services.web_image_search import search_web_images
 
 
@@ -46,6 +53,14 @@ def web_image_catalog() -> dict[str, Any]:
     }
 
 
+def _article_text_snippet(*, content_html: str = "", outline_content: str = "", max_len: int = 600) -> str:
+    plain = _strip_html_text(content_html)
+    if len(plain) < 40:
+        plain = _strip_html_text(outline_content)
+    plain = re.sub(r"\s+", " ", plain).strip()
+    return plain[:max_len] if plain else ""
+
+
 def build_web_image_search_query(
     *,
     query_mode: str = "keyword",
@@ -53,6 +68,8 @@ def build_web_image_search_query(
     title: str = "",
     h2_heading: str = "",
     custom_query: str = "",
+    content_html: str = "",
+    outline_content: str = "",
 ) -> str:
     custom = str(custom_query or "").strip()
     if custom:
@@ -61,17 +78,30 @@ def build_web_image_search_query(
     pk = str(primary_keyword or "").strip()
     ttl = str(title or "").strip()
     h2 = str(h2_heading or "").strip()
+    snippet = _article_text_snippet(content_html=content_html, outline_content=outline_content)
     if mode == "title":
-        return ttl or pk
+        if ttl:
+            return build_image_search_query_for_section(
+                section_heading=ttl.split("|", 1)[0].strip(),
+                section_content=snippet,
+                main_keyword=pk or ttl,
+            )
+        return pk or ttl
     if mode == "h2":
         if h2:
             return build_image_search_query_for_section(
                 section_heading=h2,
-                section_content="",
+                section_content=snippet,
                 main_keyword=pk or ttl,
             )
         return pk or ttl
-    return pk or ttl or h2
+    if pk:
+        return build_image_search_query_for_section(
+            section_heading=h2,
+            section_content=snippet,
+            main_keyword=pk,
+        )
+    return ttl or h2
 
 
 def search_web_images_for_content(
@@ -81,6 +111,8 @@ def search_web_images_for_content(
     title: str = "",
     h2_heading: str = "",
     custom_query: str = "",
+    content_html: str = "",
+    outline_content: str = "",
     num: int = 12,
 ) -> dict[str, Any]:
     q = build_web_image_search_query(
@@ -89,18 +121,48 @@ def search_web_images_for_content(
         title=title,
         h2_heading=h2_heading,
         custom_query=custom_query,
+        content_html=content_html,
+        outline_content=outline_content,
     )
     if not q:
         raise ValueError("Cần từ khóa, tiêu đề hoặc H2 để tìm ảnh.")
     n = max(1, min(int(num or 12), 20))
-    items, source = search_web_images(q=q, num=n)
+    fetch_n = min(max(n * 3, 18), 40)
+    items, source = search_web_images(q=q, num=fetch_n)
+    ranked = filter_and_rank_web_images(
+        items,
+        primary_keyword=primary_keyword,
+        title=title,
+        h2_heading=h2_heading,
+        limit=n,
+    )
+    if len(ranked) < max(4, n // 2):
+        eng = build_stock_photo_english_query(
+            primary_keyword=primary_keyword,
+            title=title,
+            section_heading=h2_heading,
+        )
+        if eng and eng.lower() != q.lower():
+            alt_items, alt_src = search_web_images(q=eng, num=fetch_n)
+            merged_src = alt_src if alt_items else source
+            merged = filter_and_rank_web_images(
+                ranked + alt_items,
+                primary_keyword=primary_keyword,
+                title=title,
+                h2_heading=h2_heading,
+                limit=n,
+            )
+            if len(merged) > len(ranked):
+                ranked = merged
+                source = merged_src
+                q = f"{q} | {eng}"
     return {
         "ok": True,
         "query": q,
         "query_mode": query_mode,
-        "items": items,
+        "items": ranked,
         "source": source,
-        "count": len(items),
+        "count": len(ranked),
     }
 
 

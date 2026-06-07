@@ -98,7 +98,125 @@ def score_image_relevance(item: dict[str, Any], terms: list[str]) -> float:
     return score
 
 
+_OFF_TOPIC_IMAGE_RE = re.compile(
+    r"(formula\s*[_\s-]?1|\bf1\b|grand\s+prix|nascar|motorsport|"
+    r"race\s*car|racing\s+track|motorsport|football\s+stadium|"
+    r"wedding\s+ceremony|beach\s+vacation|night\s+skyline|fireworks)",
+    re.I,
+)
+
 MIN_RELEVANCE_SCORE = 14.0
+WEB_IMAGE_MIN_SCORE = MIN_RELEVANCE_SCORE * 0.55
+
+
+def _expand_relevance_terms(terms: list[str]) -> list[str]:
+    blob = " ".join(terms).lower()
+    extra: list[str] = []
+    if re.search(r"sửa|repair|máy tính|may tinh|laptop|computer|pc", blob):
+        extra.extend(["repair", "computer", "laptop", "technician", "workshop", "it"])
+    if re.search(r"seo|content|blog", blob):
+        extra.extend(["seo", "content", "marketing", "blog", "writing"])
+    out = list(terms)
+    out.extend(extra)
+    return out
+
+
+def filter_and_rank_web_images(
+    items: list[dict[str, Any]],
+    *,
+    primary_keyword: str = "",
+    title: str = "",
+    h2_heading: str = "",
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    """Lọc ảnh lệch chủ đề (đua xe, wedding…) và xếp theo điểm liên quan."""
+    terms = [
+        re.sub(r"\s+", " ", str(t or "").strip())
+        for t in (
+            primary_keyword,
+            str(title or "").split("|", 1)[0].strip() if title else "",
+            h2_heading,
+        )
+        if str(t or "").strip()
+    ]
+    terms = _expand_relevance_terms(terms)
+    n = max(1, min(int(limit or 12), 20))
+    pool: list[dict[str, Any]] = []
+    for it in items:
+        link = str(it.get("link") or "").strip()
+        if not link or is_blocked_image_url(link):
+            continue
+        blob = " ".join(
+            [
+                str(it.get("title") or ""),
+                str(it.get("link") or ""),
+                str(it.get("context") or ""),
+            ]
+        )
+        sc = score_image_relevance(it, terms)
+        if _OFF_TOPIC_IMAGE_RE.search(blob) and sc < MIN_RELEVANCE_SCORE:
+            continue
+        if sc < WEB_IMAGE_MIN_SCORE:
+            continue
+        it2 = dict(it)
+        it2["_relevance_score"] = sc
+        pool.append(it2)
+
+    if not pool:
+        for it in items:
+            link = str(it.get("link") or "").strip()
+            if not link or is_blocked_image_url(link):
+                continue
+            blob = " ".join(
+                [
+                    str(it.get("title") or ""),
+                    str(it.get("link") or ""),
+                    str(it.get("context") or ""),
+                ]
+            )
+            if _OFF_TOPIC_IMAGE_RE.search(blob):
+                continue
+            sc = score_image_relevance(it, terms)
+            it2 = dict(it)
+            it2["_relevance_score"] = sc
+            pool.append(it2)
+
+    pool.sort(key=lambda x: -float(x.get("_relevance_score") or 0))
+    out: list[dict[str, Any]] = []
+    for it in pool[:n]:
+        clean = {k: v for k, v in it.items() if not str(k).startswith("_")}
+        out.append(clean)
+    return out
+
+
+def build_stock_photo_english_query(
+    *,
+    primary_keyword: str = "",
+    title: str = "",
+    section_heading: str = "",
+) -> str:
+    """Câu truy vấn tiếng Anh cho Pexels/SerpAPI khi từ khóa VI khó khớp."""
+    blob = " ".join(
+        [
+            str(primary_keyword or ""),
+            str(title or "").split("|", 1)[0],
+            str(section_heading or ""),
+        ]
+    ).lower()
+    rules: list[tuple[str, str]] = [
+        (r"sửa.*(máy tính|may tinh|pc|computer|laptop)", "computer repair technician workshop"),
+        (r"(máy tính|may tinh|laptop|pc).*(sửa|repair)", "laptop repair service technician"),
+        (r"sửa.*(điện thoại|dien thoai|iphone|smartphone)", "smartphone repair technician"),
+        (r"(seo|content marketing|blog)", "SEO content marketing workspace"),
+        (r"(kỹ thuật|ky thuat|it support)", "IT support technician office"),
+    ]
+    for pat, eng in rules:
+        if re.search(pat, blob, re.I):
+            return eng
+    tokens = keyword_tokens(primary_keyword or title, min_len=4)
+    if tokens:
+        return " ".join(tokens[:6]) + " professional photo"
+    return ""
 
 
 def _openai_chat(*, system: str, user: str, max_tokens: int = 200) -> str:

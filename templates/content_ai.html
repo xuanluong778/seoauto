@@ -21,9 +21,12 @@
         :root {
             --navH: 76px;
             --topBarH: 64px;
-            --sideW: 250px;
+            --sideW: 160px;
+            --qtRailW: 160px;
             --fixedGap: 14px;
             --contentAiWrapPad: 20px;
+            --contentAiSideMargin: 20px;
+            --contentAiRightSidebarW: 320px;
             /* Cùng mép với top-fixed-bar (menu trái) — dưới nav-strip cố định (digiseo-nav.css) */
             --contentAiStickyTop: calc(var(--digiseo-nav-fixed-offset, 76px) + var(--contentAiWrapPad));
         }
@@ -35,8 +38,10 @@
             background: var(--bg);
             overflow-x: hidden;
             padding-top: var(--digiseo-nav-fixed-offset, 76px) !important;
-            padding-left: calc(var(--sideW) + 18px);
+            padding-left: calc(var(--contentAiSideMargin) + var(--sideW) + var(--contentAiSideMargin));
+            padding-right: calc(var(--contentAiSideMargin) + var(--contentAiRightSidebarW) + var(--contentAiSideMargin));
         }
+        body.page-content-ai .wrap { max-width: none; margin: 0; padding: var(--contentAiWrapPad) 0 40px; }
         .wrap { max-width: 1160px; margin: 0 auto; padding: 20px 16px 40px; }
         .nav > a, .nav > .nav-dd { flex-shrink: 0; white-space: nowrap; }
         .nav a { color: #c7d2fe; text-decoration: none; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.06); }
@@ -71,7 +76,7 @@
             position: fixed;
             /* align top with main content boxes (.wrap has 20px top padding) */
             top: var(--contentAiStickyTop);
-            left: 3%;
+            left: var(--contentAiSideMargin);
             bottom: 0;
             width: var(--sideW);
             z-index: 999;
@@ -100,9 +105,11 @@
         /* WP action buttons: 2 buttons on one row, Reset below */
         .wp-top-row .wp-actions { display:flex; flex-direction: column; gap: 10px; }
         .wp-top-row .wp-actions-row { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .wp-top-row .wp-actions-reset { display:block; }
-        .wp-top-row .wp-actions-reset .btn { width: 100%; }
+        .wp-top-row .wp-category-row { display:flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+        .wp-top-row .wp-category-row select { flex: 1 1 180px; min-width: 0; }
+        .wp-top-row .wp-category-row .btn { flex: 0 0 auto; min-width: 120px; }
         @media (max-width: 980px) {
+            body.page-content-ai { padding-left: 0; padding-right: 0; }
             body { padding-left: 0; }
             .top-fixed-bar {
                 position: static;
@@ -115,12 +122,33 @@
                 width: min(200px, calc(100vw - 24px));
             }
         }
-        .btn.reset-btn { margin-top: 0; background: rgba(248, 113, 113, 0.22); border: 1px solid rgba(248, 113, 113, 0.75); color: #fff; }
-        .btn.reset-btn:hover { background: rgba(248, 113, 113, 0.32); }
+        .btn.reset-btn {
+            margin-top: 0;
+            background: rgba(16, 185, 129, 0.18);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            color: #6ee7b7;
+            border-radius: 12px;
+            font-weight: 700;
+            box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25) inset;
+        }
+        .btn.reset-btn:hover {
+            background: rgba(16, 185, 129, 0.28);
+            border-color: rgba(16, 185, 129, 0.65);
+            color: #a7f3d0;
+        }
         h1 { margin: 0 0 8px; font-size: 1.6rem; }
         .sub { margin: 0 0 14px; color: var(--muted); font-size: 0.95rem; }
         .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
-        .content-shell { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; margin-top: 0; }
+        .content-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 0; }
+        @media (min-width: 981px) {
+            #contentAiSidebar.sidebar {
+                position: fixed;
+                right: var(--contentAiSideMargin);
+                top: var(--contentAiStickyTop);
+                width: var(--contentAiRightSidebarW);
+                max-height: calc(100vh - var(--contentAiStickyTop) - 18px);
+            }
+        }
         .sidebar {
             background: var(--card);
             border: 1px solid var(--line);
@@ -1499,7 +1527,7 @@
         /* Dock tài khoản / Upgrade — không bị sidebar che (z-index thấp hơn top-fixed-bar) */
         body.page-content-ai .global-user-dock-wrap {
             z-index: 1001;
-            left: 3%;
+            left: var(--contentAiSideMargin);
             width: min(200px, var(--sideW));
             bottom: 12px;
             pointer-events: auto;
@@ -1974,7 +2002,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            z-index: 12000;
+            z-index: 13100;
             background: rgba(0, 0, 0, 0.88);
             align-items: center;
             justify-content: center;
@@ -2006,7 +2034,7 @@
             position: fixed;
             top: 50%;
             transform: translateY(-50%);
-            z-index: 10002;
+            z-index: 13102;
             border: none;
             background: rgba(15, 23, 42, 0.75);
             color: #f8fafc;
@@ -2043,7 +2071,7 @@
             font-size: 1.6rem;
             line-height: 1;
             cursor: pointer;
-            z-index: 12001;
+            z-index: 13102;
         }
         .studio-lightbox-close:hover { background: rgba(255,255,255,0.28); }
         #competitorUrl { width: 550px; max-width: 100%; }
@@ -2211,6 +2239,16 @@
             line-height: 1;
         }
         .internal-suggest-table tr.il-row-applied td { background: rgba(34, 197, 94, 0.06); }
+        .internal-link-find-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .internal-link-find-bar .btn {
+            flex-shrink: 0;
+        }
         .internal-suggest-toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -2221,6 +2259,9 @@
             border-radius: 8px;
             background: rgba(2, 6, 23, 0.35);
             border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        .internal-suggest-toolbar .btn-find-related {
+            margin-right: auto;
         }
         .il-llm-switch {
             display: inline-flex;
@@ -2301,6 +2342,12 @@
             padding: 20px;
         }
         #thamKhaoAppendModal.modal.open { display: flex; }
+        #publishGateBackdrop.modal-backdrop {
+            z-index: 12100;
+        }
+        #publishGateModal.modal {
+            z-index: 12101;
+        }
         #publishGateModal.modal.open { display: flex; align-items: center; justify-content: center; }
         #publishGateModal .modal-card { max-width: 560px; width: 100%; }
         .publish-gate-score {
@@ -3024,6 +3071,7 @@
             border-radius: 10px;
             overflow: hidden;
             background: rgba(15,23,42,0.35);
+            cursor: zoom-in;
         }
         .web-image-card img {
             width: 100%;
@@ -3037,6 +3085,7 @@
             flex-wrap: wrap;
             gap: 4px;
             padding: 6px;
+            cursor: default;
         }
         .web-image-card-btns .mini-btn {
             font-size: 0.65rem;
@@ -3182,7 +3231,7 @@
             margin: 12px 0;
         }
         @media (max-width: 760px) { .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 980px) { .content-shell { grid-template-columns: 1fr; } .sidebar { position: static; max-height: none; overflow: visible; } #content-ai-projects { grid-template-rows: auto auto auto auto auto auto; overflow: visible; } .project-list { height: auto; } .connected-sites-list { max-height: none; } }
+        @media (max-width: 980px) { .content-shell { grid-template-columns: 1fr; } #contentAiSidebar.sidebar { position: static; width: auto; max-height: none; } .sidebar { position: static; max-height: none; overflow: visible; } #content-ai-projects { grid-template-rows: auto auto auto auto auto auto; overflow: visible; } .project-list { height: auto; } .connected-sites-list { max-height: none; } }
         /* On very short viewports, allow items to shrink a bit but keep pager visible */
         @media (max-height: 740px) { .project-title { -webkit-line-clamp: 1; } }
         @media (max-width: 760px) {
@@ -3217,6 +3266,520 @@
         .btn:not(.secondary):not(.reset-btn) { background: linear-gradient(135deg, #00e676 0%, #00c264 100%) !important; border-color: rgba(0,230,118,0.85) !important; color: #04140a !important; }
         .btn:not(.secondary):not(.reset-btn):hover { background: linear-gradient(135deg, #1aeb84 0%, #00d36e 100%) !important; }
         .mini-btn:hover, .ai-btn:hover { color: #00e676 !important; border-color: rgba(0,230,118,0.5) !important; }
+
+        /* —— Công cụ nhanh (sidebar trái) —— */
+        .content-ai-left-dock {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            pointer-events: auto;
+        }
+        .content-ai-sidebar-reset {
+            width: 100%;
+            margin-top: 2px;
+        }
+        .content-ai-sidebar-reset .reset-btn {
+            width: 100%;
+            height: 44px;
+            padding: 10px 12px;
+            white-space: nowrap;
+            font-size: 0.72rem;
+            letter-spacing: 0.02em;
+        }
+        .qt-rail-head {
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.2;
+            padding: 0 6px;
+        }
+        .content-ai-quick-rail {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+        .qt-rail-btn {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 12px;
+            box-sizing: border-box;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(15, 23, 42, 0.55);
+            color: #cbd5e1;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .qt-rail-btn:hover {
+            background: rgba(16, 185, 129, 0.14);
+            border-color: rgba(16, 185, 129, 0.45);
+            color: #f8fafc;
+        }
+        .qt-rail-btn svg {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .qt-rail-btn .qt-rail-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1.2;
+            text-align: left;
+            flex: 1;
+            white-space: nowrap;
+        }
+        .legacy-wp-host.visually-hidden-host {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        .legacy-wp-host.qt-mounted-in-modal {
+            position: static;
+            width: auto;
+            height: auto;
+            margin: 0;
+            overflow: visible;
+            clip: auto;
+        }
+        details.legacy-tool-panel {
+            margin-top: 8px;
+            opacity: 0.92;
+        }
+        details.legacy-tool-panel > summary {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+        #internalLinkPanel.legacy-tool-panel {
+            border: 1px dashed rgba(148, 163, 184, 0.25);
+            border-radius: 10px;
+            padding: 8px;
+        }
+
+        /* —— Modal wizard Công cụ nhanh —— */
+        .qt-wizard-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 12050;
+            background: rgba(2, 6, 23, 0.72);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .qt-wizard-backdrop.open { display: flex; }
+        .qt-wizard-modal {
+            width: min(920px, 100%);
+            max-height: min(92vh, 900px);
+            background: #0f172a;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+        }
+        .qt-wizard-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 18px 10px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .qt-wizard-head-left {
+            flex: 1;
+            min-width: 0;
+        }
+        .qt-wizard-head-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 14px;
+        }
+        .qt-wizard-head-row .qt-wizard-title {
+            flex: 0 0 auto;
+        }
+        .qt-wizard-title { font-size: 1.1rem; font-weight: 800; color: #f8fafc; margin: 0; }
+        .qt-wizard-desc { font-size: 0.8rem; color: #94a3b8; margin: 4px 0 0; }
+        .qt-wizard-desc:empty { display: none; margin: 0; }
+        .qt-wizard-modal.qt-tool-internal .qt-wizard-desc,
+        .qt-wizard-modal.qt-tool-internal #qtStep3Intro {
+            display: none !important;
+        }
+        .qt-wizard-modal.qt-tool-internal .qt-wizard-body {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+        }
+        .qt-wizard-modal.qt-tool-internal .qt-preview-box.qt-preview-article {
+            max-height: none;
+            overflow: visible;
+        }
+        /* Bước Xem trước (mọi công cụ): chỉ scroll khung modal, không scroll trong preview */
+        .qt-wizard-modal.qt-step-3 .qt-preview-box,
+        .qt-wizard-modal.qt-step-3 .qt-preview-box.qt-preview-article {
+            max-height: none;
+            overflow: visible;
+            overflow-x: hidden;
+        }
+        .qt-wizard-modal.qt-step-3 .qt-preview-article-body {
+            overflow: visible;
+            max-width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
+        }
+        .qt-wizard-modal.qt-step-3 .qt-preview-article-body img,
+        .qt-wizard-modal.qt-step-3 .qt-preview-article-body video,
+        .qt-wizard-modal.qt-step-3 .qt-preview-article-body iframe,
+        .qt-wizard-modal.qt-step-3 .qt-preview-article-body figure,
+        .qt-wizard-modal.qt-step-3 .qt-preview-article-body table {
+            max-width: 100%;
+        }
+        .qt-wizard-modal.qt-step-3 .qt-preview-article-body img {
+            height: auto;
+        }
+        .qt-wizard-modal.qt-step-3 .qt-wizard-body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .qt-wizard-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px 18px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+        }
+        .qt-step-pill {
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            color: #94a3b8;
+            background: rgba(15, 23, 42, 0.6);
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+        }
+        .qt-step-pill:hover:not(:disabled) {
+            border-color: rgba(148, 163, 184, 0.55);
+            color: #e2e8f0;
+            background: rgba(30, 41, 59, 0.85);
+        }
+        .qt-step-pill:focus-visible {
+            outline: 2px solid rgba(16, 185, 129, 0.75);
+            outline-offset: 2px;
+        }
+        .qt-step-pill.active {
+            border-color: rgba(16, 185, 129, 0.65);
+            color: #6ee7b7;
+            background: rgba(16, 185, 129, 0.12);
+        }
+        .qt-step-pill.done { color: #cbd5e1; }
+        .qt-step-pill:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .qt-wizard-body {
+            flex: 1;
+            overflow: auto;
+            padding: 14px 18px;
+            min-height: 200px;
+        }
+        .qt-step-panel { display: none; }
+        .qt-step-panel.active { display: block; }
+        .qt-article-card {
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            background: rgba(15, 23, 42, 0.5);
+            font-size: 0.85rem;
+        }
+        .qt-mount-slot {
+            min-height: 120px;
+        }
+        .qt-mount-slot details { display: block !important; }
+        .qt-mount-slot details > summary { display: none; }
+        .qt-preview-box {
+            max-height: 220px;
+            overflow: auto;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(2, 6, 23, 0.4);
+            font-size: 0.78rem;
+            color: #cbd5e1;
+        }
+        .qt-preview-box.qt-preview-article {
+            max-height: min(52vh, 480px);
+            padding: 14px 16px;
+            font-size: 0.9rem;
+            line-height: 1.65;
+            color: #e2e8f0;
+            background: rgba(15, 23, 42, 0.65);
+        }
+        .qt-preview-box.qt-preview-article h1,
+        .qt-preview-box.qt-preview-article h2,
+        .qt-preview-box.qt-preview-article h3 {
+            color: #f1f5f9;
+            margin: 1em 0 0.5em;
+        }
+        .qt-preview-box.qt-preview-article p {
+            margin: 0 0 0.85em;
+        }
+        .qt-preview-box.qt-preview-article a {
+            color: #38bdf8;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            font-weight: 600;
+        }
+        .qt-preview-box.qt-preview-article a:hover {
+            color: #7dd3fc;
+        }
+        .qt-preview-box.qt-preview-article figure {
+            margin: 12px 0;
+        }
+        .qt-preview-legend {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            margin: 0 0 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .qt-internal-anchor-toolbar {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: center;
+            gap: 8px 10px;
+            flex: 1 1 260px;
+            min-width: 0;
+            max-width: 100%;
+            margin: 0;
+            padding: 6px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            background: rgba(15, 23, 42, 0.75);
+        }
+        .qt-wizard-modal:not(.qt-tool-internal) .qt-internal-anchor-toolbar,
+        .qt-wizard-modal.qt-tool-internal:not(.qt-step-3) .qt-internal-anchor-toolbar {
+            display: none !important;
+        }
+        .qt-internal-anchor-toolbar[hidden] { display: none !important; }
+        .qt-anchor-toolbar-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+        .qt-internal-anchor-select {
+            flex: 1 1 180px;
+            min-width: 120px;
+            height: 36px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(2, 6, 23, 0.85);
+            color: #e2e8f0;
+            font-size: 0.85rem;
+            font-family: inherit;
+        }
+        .qt-internal-anchor-select:focus {
+            outline: none;
+            border-color: rgba(56, 189, 248, 0.65);
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+        .qt-preview-article-body a.qt-anchor-flash {
+            outline: 2px solid #38bdf8;
+            outline-offset: 2px;
+            background: rgba(56, 189, 248, 0.22);
+            border-radius: 3px;
+            scroll-margin: 48px;
+        }
+        .qt-status {
+            display: block;
+            font-size: 0.78rem;
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+        }
+        .qt-status:empty { display: none; }
+        .qt-status.is-processing { color: #93c5fd; border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.1); }
+        .qt-status.is-success { color: #86efac; border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.1); }
+        .qt-status.is-error { color: #fca5a5; border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.1); }
+        .qt-status.is-config { color: #fde68a; border-color: rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); }
+        .qt-wizard-foot {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 18px 16px;
+            border-top: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .qt-wizard-foot .qt-foot-spacer { flex: 1; }
+        /* —— Hướng dẫn Content AI (5 bước, 1 cột) —— */
+        .qt-wizard-modal.qt-tool-guide {
+            width: min(760px, calc(100vw - 32px));
+            min-height: min(520px, calc(100dvh - 48px));
+            max-height: calc(100dvh - 32px);
+            height: auto;
+            overflow: hidden;
+        }
+        .qt-wizard-modal.qt-tool-guide .qt-wizard-desc {
+            display: block;
+            font-size: 0.88rem;
+            margin-top: 6px;
+        }
+        .qt-wizard-modal.qt-tool-guide .qt-wizard-head {
+            padding: 18px 24px 14px;
+            flex-shrink: 0;
+        }
+        .qt-wizard-modal.qt-tool-guide .qt-wizard-title {
+            font-size: 1.22rem;
+        }
+        .qt-wizard-modal.qt-tool-guide .qt-wizard-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+            padding: 10px 24px 22px;
+        }
+        .qt-wizard-modal.qt-tool-guide .qt-wizard-steps,
+        .qt-wizard-modal.qt-tool-guide .qt-wizard-foot,
+        .qt-wizard-modal.qt-tool-guide .qt-step-panel,
+        .qt-wizard-modal.qt-tool-guide #qtStatus {
+            display: none !important;
+        }
+        .qt-guide-panel {
+            display: none;
+            padding: 0;
+            overflow: hidden;
+        }
+        .qt-wizard-modal.qt-tool-guide .qt-guide-panel {
+            display: block;
+        }
+        .qt-guide-intro {
+            margin: 0 0 14px;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            color: #cbd5e1;
+        }
+        .qt-guide-steps {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .qt-guide-step {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(15, 23, 42, 0.45);
+        }
+        .qt-guide-step > div {
+            flex: 1;
+            min-width: 0;
+            line-height: 1.5;
+        }
+        .qt-guide-num {
+            flex-shrink: 0;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #04140a;
+            background: linear-gradient(135deg, #00e676 0%, #00c264 100%);
+            box-shadow: 0 2px 10px rgba(0, 230, 118, 0.28);
+        }
+        .qt-guide-step h3 {
+            display: inline;
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+        .qt-guide-step h3::after {
+            content: " — ";
+            font-weight: 500;
+            color: #64748b;
+        }
+        .qt-guide-step p {
+            display: inline;
+            margin: 0;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            color: #94a3b8;
+        }
+        .qt-guide-step strong {
+            color: #e2e8f0;
+            font-weight: 600;
+        }
+        @media (max-height: 760px) {
+            .qt-wizard-modal.qt-tool-guide {
+                min-height: 0;
+            }
+            .qt-wizard-modal.qt-tool-guide .qt-wizard-head {
+                padding: 12px 18px 10px;
+            }
+            .qt-wizard-modal.qt-tool-guide .qt-wizard-title {
+                font-size: 1.05rem;
+            }
+            .qt-guide-intro { margin-bottom: 10px; font-size: 0.82rem; }
+            .qt-guide-steps { gap: 7px; }
+            .qt-guide-step { padding: 10px 14px; gap: 12px; }
+            .qt-guide-num { width: 32px; height: 32px; font-size: 0.92rem; }
+            .qt-guide-step h3 { font-size: 0.88rem; }
+            .qt-guide-step p { font-size: 0.82rem; }
+        }
+        @media (max-width: 980px) {
+            :root { --sideW: 100%; }
+            .content-ai-quick-rail {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .qt-rail-btn { width: auto; min-width: 120px; flex: 1 1 140px; }
+            .top-fixed-bar {
+                position: static;
+                width: auto;
+                padding-bottom: 8px;
+            }
+        }
     </style>
 </head>
 <body class="page-content-ai">
@@ -3224,19 +3787,59 @@
     {% include "partials/digiseo_top_nav.html" %}
     <div class="content-shell">
     <div>
-        <aside class="top-fixed-bar" id="topFixedBar" aria-label="WordPress publish bar">
-            <div class="top-fixed-inner">
-                <div class="wp-top-row">
-                    <input id="wpUrl" type="text" placeholder="https://your-wordpress-site.com" list="wpUrlHistory" autocomplete="off" />
-                    <datalist id="wpUrlHistory"></datalist>
-                    <datalist id="wpUserHistory"></datalist>
-                    <div class="wp-actions">
-                        <div class="wp-actions-row">
-                            <button class="btn secondary" type="button" id="btnPublishNow">Đăng bài</button>
-                            <button class="btn" type="button" id="btnPublish">Đăng bản nháp</button>
-                        </div>
-                        <div class="wp-actions-reset">
-                            <button class="btn reset-btn" type="button" id="btnResetForm">Làm mới</button>
+        <aside class="top-fixed-bar" id="topFixedBar" aria-label="Công cụ nhanh Content AI">
+            <div class="content-ai-left-dock">
+                <div class="qt-rail-head">Công cụ nhanh</div>
+                <nav class="content-ai-quick-rail" id="contentAiQuickRail" aria-label="Công cụ nhanh">
+                    <button type="button" class="qt-rail-btn" data-qt-tool="guide" title="Hướng dẫn tạo bài Content AI">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9h6M10 13h6M10 17h4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                        <span class="qt-rail-label">Hướng dẫn</span>
+                    </button>
+                    <button type="button" class="qt-rail-btn" data-qt-tool="studio" title="Tạo ảnh AI">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5.5-5.5L6 20"/></svg>
+                        <span class="qt-rail-label">Ảnh AI</span>
+                    </button>
+                    <button type="button" class="qt-rail-btn" data-qt-tool="webimage" title="Tìm ảnh Google/Web">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><rect x="4" y="4" width="6" height="6" rx="1"/></svg>
+                        <span class="qt-rail-label">Tìm ảnh</span>
+                    </button>
+                    <button type="button" class="qt-rail-btn" data-qt-tool="internal" title="Đi Internal Link">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 1 7.07 0l1.41 1.41a5 5 0 0 1-7.07 7.07l-1.06-1.06"/><path d="M14 11a5 5 0 0 1-7.07 0L5.52 9.59a5 5 0 0 1 7.07-7.07L13.65 3.58"/></svg>
+                        <span class="qt-rail-label">Internal Link</span>
+                    </button>
+                    <button type="button" class="qt-rail-btn" data-qt-tool="score" title="Chấm điểm SEO">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.8l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8L12 3z"/></svg>
+                        <span class="qt-rail-label">Chấm SEO</span>
+                    </button>
+                    <button type="button" class="qt-rail-btn" data-qt-tool="publish" title="Đăng bài lên website">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10l5-5 5 5"/><path d="M5 20h14"/></svg>
+                        <span class="qt-rail-label">Đăng Bài</span>
+                    </button>
+                </nav>
+                <div class="content-ai-sidebar-reset">
+                    <button class="btn reset-btn" type="button" id="btnResetForm" title="Làm mới form tab đang mở">Làm mới</button>
+                </div>
+                <div class="legacy-wp-host visually-hidden-host" id="legacyWpHost" aria-hidden="true">
+                    <div class="top-fixed-inner" id="topFixedInner">
+                        <div class="wp-top-row">
+                            <label for="wpUrl" class="hint" style="display:block;margin-bottom:4px;">Địa chỉ website WordPress</label>
+                            <input id="wpUrl" type="text" placeholder="https://your-wordpress-site.com" list="wpUrlHistory" autocomplete="off" />
+                            <datalist id="wpUrlHistory"></datalist>
+                            <datalist id="wpUserHistory"></datalist>
+                            <label for="singleWpCategoryId" class="hint" style="display:block;margin-bottom:4px;">Danh mục khi đăng</label>
+                            <div class="wp-category-row">
+                                <select id="singleWpCategoryId">
+                                    <option value="">-- Chọn danh mục --</option>
+                                </select>
+                                <button class="btn secondary" type="button" id="btnSingleLoadWpCategories">Tải danh mục</button>
+                            </div>
+                            <div class="hint" id="hint-singleWpCategory">Chọn danh mục WordPress — bấm «Tải danh mục» lần đầu, lần sau dùng bản đã lưu.</div>
+                            <div class="wp-actions">
+                                <div class="wp-actions-row">
+                                    <button class="btn secondary" type="button" id="btnPublishNow">Đăng bài</button>
+                                    <button class="btn" type="button" id="btnPublish">Đăng bản nháp</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3409,16 +4012,7 @@
         <div class="field-head"><label for="tags">Tags (optional, comma separated)</label><button type="button" class="ai-btn" data-field="tags">Gợi ý AI</button></div>
         <input id="tags" type="text" />
         <div class="hint" id="hint-tags"></div>
-        <div class="field-head"><label for="singleWpCategoryId">Danh mục website khi đăng</label></div>
-        <div class="row" style="align-items: flex-end; gap: 10px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 200px;">
-                <select id="singleWpCategoryId">
-                    <option value="">-- Chọn danh mục --</option>
-                </select>
-            </div>
-            <button class="btn secondary" type="button" id="btnSingleLoadWpCategories">Tải danh mục</button>
-        </div>
-        <div class="hint" id="hint-singleWpCategory">Danh mục lưu theo Target website — tải một lần, các lần sau dùng bản đã lưu (bấm «Tải lại» để cập nhật).</div>
+        <!-- Danh mục WP: chọn trong Công cụ nhanh → Đăng Bài (bước Cấu hình) -->
         <!-- Content editor moved into Preview content block -->
         <div class="field-head"><label for="scheduledAt">Hẹn giờ đăng bản nháp</label></div>
         <input id="scheduledAt" type="datetime-local" />
@@ -3506,8 +4100,8 @@
                         <button class="btn secondary" type="button" id="btnUploadImage">Tải ảnh lên</button>
                         <button class="btn secondary" type="button" id="btnAutoInsertImages" title="Tìm ảnh theo từ khóa và chèn vào content">🖼 Tự động chèn ảnh</button>
                     </div>
-                    <details class="web-image-panel" id="webImagePanel">
-                        <summary>Tìm ảnh Google / Web và chèn vào bài</summary>
+                    <details class="web-image-panel legacy-tool-panel" id="webImagePanel">
+                        <summary>Tìm ảnh Google / Web (panel cũ — dùng Công cụ nhanh)</summary>
                         <div class="hint" style="margin-top:8px;">Ưu tiên Google CSE, lỗi thì fallback Bing/Web. Chọn kích thước trước khi chèn — ALT tự sinh theo ngữ cảnh.</div>
                         <div class="web-image-grid">
                             <div>
@@ -3555,8 +4149,8 @@
                         <button type="button" id="btnGoogleImageSearch" class="content-ai-aux-hidden" hidden></button>
                         <input id="googleImageNum" type="hidden" />
                     </details>
-                    <details class="visual-studio-panel" id="visualStudioPanel">
-                        <summary>Tạo ảnh AI chuyên nghiệp</summary>
+                    <details class="visual-studio-panel legacy-tool-panel" id="visualStudioPanel">
+                        <summary>Tạo ảnh AI (panel cũ — dùng Công cụ nhanh)</summary>
                         <div class="hint" style="margin-top:8px;">Tạo 2–4 ảnh preview (OpenAI). Chọn nhiều H2, tùy chỉnh kích thước px — bấm ảnh để xem lớn.</div>
                         <div class="visual-studio-grid">
                             <div>
@@ -3620,7 +4214,11 @@
                     </details>
                     <div class="hint" id="hint-image"></div>
                     <div id="uploadList" class="upload-list"></div>
-                    <div class="history-panel" id="internalLinkPanel" style="margin-top:10px;">
+                    <div class="history-panel legacy-tool-panel" id="internalLinkPanel" style="margin-top:10px;">
+                        <div class="internal-link-find-bar">
+                            <button type="button" class="btn" id="btnFindInternalLinksConfig">Tìm bài liên quan</button>
+                            <span class="hint" style="margin:0;">Quét bài trên website để gợi ý anchor phù hợp.</span>
+                        </div>
                         <div class="hint" id="hint-internal-links"></div>
                         <div id="ilVerifyHint" class="il-verify-warn" style="display:none;" aria-live="polite"></div>
                         <div id="internalLinkCandidates" class="upload-list"></div>
@@ -3791,6 +4389,93 @@
         </div>
     </aside>
 
+    </div>
+</div>
+<div id="qtWizardBackdrop" class="qt-wizard-backdrop" aria-hidden="true">
+    <div class="qt-wizard-modal" id="qtWizardModal" role="dialog" aria-modal="true" aria-labelledby="qtWizardTitle">
+        <div class="qt-wizard-head">
+            <div class="qt-wizard-head-left">
+                <div class="qt-wizard-head-row">
+                    <h2 class="qt-wizard-title" id="qtWizardTitle">Công cụ</h2>
+                    <div class="qt-internal-anchor-toolbar" id="qtInternalAnchorToolbar" hidden>
+                        <label for="qtInternalAnchorSelect" class="qt-anchor-toolbar-label">Anchor text</label>
+                        <select id="qtInternalAnchorSelect" class="qt-internal-anchor-select" aria-label="Chọn anchor text để xem vị trí chèn link">
+                            <option value="">— Chọn anchor text —</option>
+                        </select>
+                    </div>
+                </div>
+                <p class="qt-wizard-desc" id="qtWizardDesc"></p>
+            </div>
+            <button type="button" class="modal-close-x" id="qtWizardClose" title="Đóng" aria-label="Đóng">×</button>
+        </div>
+        <div class="qt-wizard-steps" id="qtWizardSteps" role="tablist" aria-label="Các bước"></div>
+        <div class="qt-wizard-body">
+            <div class="qt-step-panel active" data-qt-step="1" id="qtStepPanel1">
+                <p class="hint" id="qtStep1Hint">Chọn bài viết để làm việc.</p>
+                <div class="qt-article-card" id="qtArticleCard"></div>
+                <select id="qtArticlePick" style="display:none;width:100%;margin-top:10px;" aria-label="Chọn bài trong bulk"></select>
+            </div>
+            <div class="qt-step-panel" data-qt-step="2" id="qtStepPanel2">
+                <div class="qt-mount-slot" id="qtMountSlot"></div>
+            </div>
+            <div class="qt-step-panel" data-qt-step="3" id="qtStepPanel3">
+                <p class="hint" id="qtStep3Intro"></p>
+                <div class="qt-preview-box" id="qtPreviewBox"></div>
+                <div id="qtPreviewExtra"></div>
+            </div>
+            <div class="qt-step-panel" data-qt-step="4" id="qtStepPanel4">
+                <p class="hint" id="qtStep4Intro">Xác nhận và áp dụng thay đổi vào bài.</p>
+                <div id="qtApplyArea"></div>
+            </div>
+            <span class="qt-status" id="qtStatus" role="status" aria-live="polite"></span>
+            <div class="qt-guide-panel" id="qtGuidePanel" hidden>
+                <p class="qt-guide-intro">Tab <strong>Viết 1 bài</strong> — 5 bước. Sidebar dùng từ bước 4.</p>
+                <ol class="qt-guide-steps">
+                    <li class="qt-guide-step">
+                        <span class="qt-guide-num" aria-hidden="true">1</span>
+                        <div>
+                            <h3>Chuẩn bị thông tin</h3>
+                            <p>Nhập <strong>Target website</strong> và <strong>Từ khóa chính</strong>. Tuỳ chọn: từ khóa phụ, link đối thủ, số từ.</p>
+                        </div>
+                    </li>
+                    <li class="qt-guide-step">
+                        <span class="qt-guide-num" aria-hidden="true">2</span>
+                        <div>
+                            <h3>Tạo Content Brief</h3>
+                            <p>Bấm <strong>Tạo Content Brief</strong> → xem intent, outline, FAQ. Bấm <strong>Áp dụng Brief vào Outline</strong> nếu cần.</p>
+                        </div>
+                    </li>
+                    <li class="qt-guide-step">
+                        <span class="qt-guide-num" aria-hidden="true">3</span>
+                        <div>
+                            <h3>Viết bài bằng AI</h3>
+                            <p>Bấm <strong>Tạo content</strong> — AI sinh bài HTML, title, meta, slug. Chỉnh trong editor Preview.</p>
+                        </div>
+                    </li>
+                    <li class="qt-guide-step">
+                        <span class="qt-guide-num" aria-hidden="true">4</span>
+                        <div>
+                            <h3>Tối ưu &amp; minh hoạ</h3>
+                            <p><strong>Chấm SEO</strong>, <strong>Content Gap</strong> trong Preview. Sidebar: <strong>Tìm ảnh</strong>, <strong>Ảnh AI</strong>, <strong>Internal Link</strong>.</p>
+                        </div>
+                    </li>
+                    <li class="qt-guide-step">
+                        <span class="qt-guide-num" aria-hidden="true">5</span>
+                        <div>
+                            <h3>Lưu &amp; đăng bài</h3>
+                            <p><strong>Tạo Draft</strong> hoặc <strong>Đăng Bài</strong> (sidebar). Dự án lưu ở panel phải — mở lại chỉnh tiếp khi cần.</p>
+                        </div>
+                    </li>
+                </ol>
+            </div>
+        </div>
+        <div class="qt-wizard-foot">
+            <button type="button" class="btn secondary" id="qtBtnPrev">Quay lại</button>
+            <span class="qt-foot-spacer"></span>
+            <button type="button" class="btn secondary" id="qtBtnCancel">Hủy</button>
+            <button type="button" class="btn" id="qtBtnNext">Tiếp</button>
+            <button type="button" class="btn" id="qtBtnApply" hidden>Áp dụng</button>
+        </div>
     </div>
 </div>
 <div id="publishGateBackdrop" class="modal-backdrop"></div>
@@ -4351,12 +5036,16 @@
     const btnProjectNext = byId("btnProjectNext");
     const projectPageInfo = byId("projectPageInfo");
     const projectPageButtons = byId("projectPageButtons");
-    const aiButtons = document.querySelectorAll(".ai-btn");
     let lastSuggestedTitle = "";
     const uploadedImages = [];
     let activeProjectId = "";
     /** WP category term IDs gắn với draft khi publish (từ dự án bulk hoặc draft JSON). */
     let _draftWpCategoryIds = null;
+    const resolvePublishCategorySiteUrl = () => {
+        const wp = String(byId("wpUrl")?.value || "").trim();
+        if (wp) return wp;
+        return String(byId("targetWebsite")?.value || "").trim();
+    };
     const syncSingleWpCategoryFromSelect = () => {
         const sel = byId("singleWpCategoryId");
         if (!sel) return;
@@ -4367,7 +5056,7 @@
     const fillSingleWpCategorySelect = (savedId) => {
         const sel = byId("singleWpCategoryId");
         if (!sel) return;
-        const site = String(byId("targetWebsite")?.value || "").trim();
+        const site = resolvePublishCategorySiteUrl();
         const sk = _getWpCategoriesSiteKey(site);
         if (sk) _hydrateWpCategoriesFromCache(sk);
         const cached = sk ? _bulkWpCategoriesBySiteKey[sk] : null;
@@ -4377,6 +5066,20 @@
         if (hint && cached && cached.length) {
             hint.textContent = `Đã nạp ${cached.length} danh mục đã lưu cho site này.`;
         }
+    };
+    const qtRefreshPublishConfig = () => {
+        const wpEl = byId("wpUrl");
+        const twEl = byId("targetWebsite");
+        if (wpEl && twEl && !String(wpEl.value || "").trim()) {
+            const tw = String(twEl.value || "").trim();
+            if (tw) wpEl.value = tw;
+        }
+        const saved =
+            (_draftWpCategoryIds && _draftWpCategoryIds[0]) ||
+            String(byId("singleWpCategoryId")?.value || "").trim() ||
+            "";
+        fillSingleWpCategorySelect(saved);
+        _syncWpCategoryLoadButtonLabel(resolvePublishCategorySiteUrl());
     };
     let allProjects = [];
     /** Site từ Cài đặt → Xuất bản (server), đồng bộ gợi ý / danh sách kết nối */
@@ -4391,6 +5094,10 @@
     const FORM_STATE_KEY = () => userStorageKey("content_ai_form_state_v1");
     let _internalCandidates = [];
     let _pendingInternalCandidatesRestore = null;
+    let _pendingWebImageSearchRestore = null;
+    let webImageSearchItems = [];
+    let webImageLastQuery = "";
+    let webImageLastSource = "";
     const collectInternalCandidateAnchors = () => {
         const out = {};
         document.querySelectorAll("input.internal-link-anchor-input[data-idx]").forEach((inp) => {
@@ -4400,6 +5107,74 @@
             if (v) out[idx] = v;
         });
         return out;
+    };
+    const collectInternalCandidateChecked = () =>
+        Array.from(document.querySelectorAll("input.internal-link-cb:checked"))
+            .map((el) => Number(el.getAttribute("data-idx")))
+            .filter((n) => Number.isFinite(n));
+    const syncInternalLinkSelectAllUi = () => {
+        if (!internalLinkCandidates) return;
+        const tbody = internalLinkCandidates.querySelector("tbody");
+        const headerSelectAll = internalLinkCandidates.querySelector("#internalLinkSelectAll");
+        const btnIlSelectAll = internalLinkCandidates.querySelector("#btnIlSelectAll");
+        if (!tbody || !headerSelectAll) return;
+        const all = tbody.querySelectorAll("input.internal-link-cb:not(:disabled)");
+        const checked = tbody.querySelectorAll("input.internal-link-cb:checked:not(:disabled)");
+        if (!all.length) {
+            headerSelectAll.checked = false;
+            headerSelectAll.indeterminate = false;
+            if (btnIlSelectAll) btnIlSelectAll.textContent = "Chọn tất cả";
+            return;
+        }
+        headerSelectAll.checked = checked.length === all.length;
+        headerSelectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+        if (btnIlSelectAll) {
+            btnIlSelectAll.textContent =
+                checked.length === all.length && all.length ? "Bỏ chọn tất cả" : "Chọn tất cả";
+        }
+    };
+    const applyInternalCandidatesUiState = (anchors, checked) => {
+        const anchorMap = anchors && typeof anchors === "object" ? anchors : {};
+        const checkedList = Array.isArray(checked) ? checked : [];
+        Object.keys(anchorMap).forEach((idx) => {
+            const inp = document.querySelector(`input.internal-link-anchor-input[data-idx="${idx}"]`);
+            if (inp) inp.value = String(anchorMap[idx] ?? "");
+        });
+        document.querySelectorAll("input.internal-link-cb").forEach((cb) => {
+            cb.checked = false;
+        });
+        checkedList.forEach((idx) => {
+            const cb = document.querySelector(`input.internal-link-cb[data-idx="${String(idx)}"]`);
+            if (cb && !cb.disabled) cb.checked = true;
+        });
+        syncInternalLinkSelectAllUi();
+    };
+    const applyInternalCandidatesUiStateFromFormStorage = () => {
+        try {
+            const raw = localStorage.getItem(FORM_STATE_KEY());
+            if (!raw) return;
+            const s = JSON.parse(raw);
+            if (!s || typeof s !== "object") return;
+            applyInternalCandidatesUiState(
+                s.internalCandidateAnchors || {},
+                Array.isArray(s.internalCandidateChecked) ? s.internalCandidateChecked : [],
+            );
+        } catch (_) {}
+    };
+    let _qtInternalPreviewTimer = null;
+    let _qtInternalPreviewAbort = null;
+    let _qtInternalPreviewGen = 0;
+    const scheduleInternalLinkPreviewRefresh = () => {
+        if (_qtTool !== "internal" || _qtStep !== 3) return;
+        if (_qtInternalPreviewTimer) window.clearTimeout(_qtInternalPreviewTimer);
+        _qtInternalPreviewTimer = window.setTimeout(() => {
+            _qtInternalPreviewTimer = null;
+            void buildInternalLinkQtPreview();
+        }, 500);
+    };
+    const notifyInternalLinkConfigChanged = () => {
+        scheduleSaveFormState();
+        scheduleInternalLinkPreviewRefresh();
     };
     const INTERNAL_LINK_USE_LLM_KEY = "contentAiInternalLinkUseLlm";
     const getInternalLinkUseLlm = () => {
@@ -5222,32 +5997,82 @@
         });
     }
 
+    const _htmlHasEditorSubstance = (html) => {
+        const h = String(html || "").trim();
+        if (!h) return false;
+        if (h.length > 40) return true;
+        return /<img\b|<figure\b|<h[1-6]\b|<p\b|<ul\b|<ol\b|<table\b/i.test(h);
+    };
     const syncPreviewFallback = () => {
         try {
             const cr = byId("contentRender");
             if (!cr) return;
-            const srcHtml = decodeHtmlEntitiesDeep(String(getContentValue() || ""));
-            const srcTextLen = _stripText(srcHtml).length;
+            const ta = byId("content");
+            let srcHtml = ta && String(ta.value || "").trim()
+                ? decodeHtmlEntitiesDeep(String(ta.value || ""))
+                : "";
+            if (!_htmlHasEditorSubstance(srcHtml)) {
+                srcHtml = decodeHtmlEntitiesDeep(String(getContentValue() || ""));
+            }
+            const hasSubstance = _htmlHasEditorSubstance(srcHtml);
             const ed = getEditorInstance();
             if (!ed) {
-                cr.innerHTML = srcHtml;
-                cr.classList.add("is-editor-visible");
-                cr.style.display = "block";
+                if (hasSubstance) cr.innerHTML = srcHtml;
+                cr.classList.toggle("is-editor-visible", hasSubstance);
+                cr.style.display = hasSubstance ? "block" : "none";
                 return;
             }
             const body = ed.getBody ? ed.getBody() : null;
             const bodyVisible = !!(body && body.offsetHeight > 80);
             const tinyTextLen = body ? String(body.innerText || "").trim().length : 0;
             const tinyHtmlLen = String(ed.getContent({ format: "html" }) || "").trim().length;
-            if (srcTextLen > 80 && tinyHtmlLen === 0 && (!bodyVisible || tinyTextLen < 20)) {
+            const tinyBroken =
+                hasSubstance &&
+                tinyHtmlLen < 40 &&
+                (!bodyVisible || tinyTextLen < 8);
+            if (tinyBroken) {
                 cr.innerHTML = srcHtml;
                 cr.classList.add("is-editor-visible");
                 cr.style.display = "block";
             } else {
                 cr.classList.remove("is-editor-visible");
                 cr.style.display = "none";
+                if (hasSubstance && tinyHtmlLen < Math.max(40, srcHtml.length * 0.35)) {
+                    try {
+                        ed.setContent(srcHtml, { format: "html" });
+                        ed.save();
+                        ed.nodeChanged();
+                    } catch (_) {}
+                }
             }
         } catch (_) {}
+    };
+    const restoreEditorAfterContentPatch = (html) => {
+        const v = decodeHtmlEntitiesDeep(String(html || ""));
+        if (!v.trim()) return;
+        setContentValue(v);
+        try {
+            refreshEditorModeUi();
+        } catch (_) {}
+        try {
+            ensureEditorVisible();
+        } catch (_) {}
+        try {
+            syncPreviewFallback();
+        } catch (_) {}
+    };
+    const applyProjectToFormAfterInsert = (project, contentHtml) => {
+        if (!project) return;
+        const merged = {
+            ...project,
+            content: String(contentHtml || project.content || "").trim() || String(project.content || ""),
+        };
+        applyProjectToForm(merged);
+        window.setTimeout(() => {
+            try {
+                restoreEditorAfterContentPatch(merged.content);
+            } catch (_) {}
+        }, 0);
     };
     const setContentValue = (html) => {
         const v = decodeHtmlEntitiesDeep(String(html || ""));
@@ -5460,6 +6285,22 @@
         gallery_images: uploadedImages.slice(),
         content_brief: _contentAiBrief || null,
     });
+    const hasSuggestKeywordSource = () => {
+        const pkEl = byId("primaryKeyword");
+        if (pkEl && pkEl.value.trim()) return true;
+        if (byId("slug") && byId("slug").value.trim()) return true;
+        if (byId("title") && byId("title").value.trim()) return true;
+        return false;
+    };
+    const buildSuggestContext = () => {
+        const ctx = buildContext();
+        if (!ctx.primary_keyword) {
+            const slug = ctx.slug;
+            if (slug) ctx.primary_keyword = slug.replace(/-/g, " ").trim();
+            else if (ctx.title) ctx.primary_keyword = ctx.title;
+        }
+        return ctx;
+    };
     const normalizeKeywordSlug = (value) => {
         const map = { "đ": "d", "Đ": "D" };
         const replaced = (value || "").replace(/[đĐ]/g, (m) => map[m] || m);
@@ -7042,13 +7883,13 @@
         el.textContent = v ? `Intent debug: ${v}` : "Intent debug: -";
     };
     const fetchSuggestion = async (field, ctx) => {
-        const res = await fetch(`/content-ai/suggest?ts=${Date.now()}`, {
+        const res = await apiFetch(`/content-ai/suggest?ts=${Date.now()}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: authJsonHeaders(),
             body: JSON.stringify({ field, ...ctx }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(fmtApiDetail(data.detail) || data.message || "Gợi ý AI thất bại.");
+        if (!res.ok) throw new Error(fmtApiDetail(data.detail) || parseApiDetail(data) || data.message || "Gợi ý AI thất bại.");
         return {
             value: (data && data.value) ? data.value : "",
             detected_intent: (data && data.detected_intent) ? data.detected_intent : "",
@@ -7090,14 +7931,14 @@
     const streamSuggestion = async (field, ctx) => {
         // fallback=true: if LLM fails (quota), backend will use deterministic generator
         const url = `/content-ai/suggest-stream?ts=${Date.now()}&delay_ms=2&fallback=true`;
-        const res = await fetch(url, {
+        const res = await apiFetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: authJsonHeaders(),
             body: JSON.stringify({ field, ...ctx }),
         });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            throw new Error(fmtApiDetail(data.detail) || data.message || `Gợi ý AI thất bại (HTTP ${res.status})`);
+            throw new Error(fmtApiDetail(data.detail) || parseApiDetail(data) || data.message || `Gợi ý AI thất bại (HTTP ${res.status})`);
         }
         const reader = res.body.getReader();
         const decoder = new TextDecoder("utf-8");
@@ -7457,8 +8298,17 @@
         singleWpCategoryId: byId("singleWpCategoryId") ? byId("singleWpCategoryId").value : "",
         internalCandidates: slimInternalCandidatesForStorage(_internalCandidates),
         internalCandidateAnchors: collectInternalCandidateAnchors(),
+        internalCandidateChecked: collectInternalCandidateChecked(),
         contentAiBrief: _contentAiBrief,
         competitorOutline: _competitorOutlineCache,
+        webImageSearchItems: (webImageSearchItems || []).map((it) => ({
+            link: it.link || "",
+            thumbnail: it.thumbnail || it.link || "",
+            title: it.title || "",
+            context: it.context || "",
+        })),
+        webImageLastQuery: webImageLastQuery || "",
+        webImageLastSource: webImageLastSource || "",
     });
     let _saveFormStateTimer = null;
     const flushSaveFormState = () => {
@@ -7521,11 +8371,20 @@
                         s.internalCandidateAnchors && typeof s.internalCandidateAnchors === "object"
                             ? s.internalCandidateAnchors
                             : {},
+                    checked: Array.isArray(s.internalCandidateChecked) ? s.internalCandidateChecked : [],
                 };
             }
             if (s.contentAiBrief && typeof s.contentAiBrief === "object") {
                 _contentAiBrief = s.contentAiBrief;
                 renderContentBrief(_contentAiBrief);
+            }
+            _pendingWebImageSearchRestore = null;
+            if (Array.isArray(s.webImageSearchItems) && s.webImageSearchItems.length) {
+                _pendingWebImageSearchRestore = {
+                    items: s.webImageSearchItems,
+                    query: String(s.webImageLastQuery || ""),
+                    source: String(s.webImageLastSource || ""),
+                };
             }
             return true;
         } catch (_) {
@@ -8698,6 +9557,14 @@
     let studioSelectedIndex = 0;
     let studioCatalogCache = null;
     let studioLightboxIndex = 0;
+    let _lightboxItems = [];
+    const normalizeLightboxItems = (items) =>
+        (Array.isArray(items) ? items : [])
+            .map((it) => ({
+                url: String((it && (it.link || it.url || it.thumbnail)) || "").trim(),
+                alt: String((it && (it.title || it.alt)) || "").trim(),
+            }))
+            .filter((x) => x.url);
 
     const extractH2ForStudio = () => {
         const html = String(getContentValue() || "");
@@ -8839,20 +9706,45 @@
         return { width: null, height: null, size_preset: "" };
     };
 
-    const openStudioLightbox = (urlOrIndex) => {
+    const openStudioLightbox = (urlOrIndex, sourceItems) => {
         const box = byId("studioLightbox");
         const img = byId("studioLightboxImg");
         const counter = byId("studioLightboxCounter");
-        if (!box || !img || !studioPreviews.length) return;
-        let idx = typeof urlOrIndex === "number" ? urlOrIndex : studioPreviews.findIndex((p) => p.url === urlOrIndex);
-        if (idx < 0) idx = 0;
+        const prevBtn = byId("studioLightboxPrev");
+        const nextBtn = byId("studioLightboxNext");
+        if (!box || !img) return;
+        let items = [];
+        if (Array.isArray(sourceItems) && sourceItems.length) {
+            items = normalizeLightboxItems(sourceItems);
+        } else if (studioPreviews.length) {
+            items = studioPreviews.map((p) => ({ url: p.url, alt: p.alt || "" })).filter((x) => x.url);
+        }
+        if (!items.length && typeof urlOrIndex === "string" && urlOrIndex.trim()) {
+            items = [{ url: urlOrIndex.trim(), alt: "Ảnh" }];
+        }
+        if (!items.length) return;
+        _lightboxItems = items;
+        let idx = 0;
+        if (typeof urlOrIndex === "number" && Number.isFinite(urlOrIndex)) {
+            idx = Math.max(0, Math.min(urlOrIndex, items.length - 1));
+        } else if (typeof urlOrIndex === "string") {
+            const u = urlOrIndex.trim();
+            const found = items.findIndex((p) => p.url === u);
+            idx = found >= 0 ? found : 0;
+        }
         studioLightboxIndex = idx;
-        const p = studioPreviews[idx] || {};
+        const p = items[idx] || {};
         img.src = p.url || "";
         img.alt = p.alt || "Preview";
         img.classList.remove("is-zoomed");
         if (counter) {
-            counter.textContent = `${idx + 1} / ${studioPreviews.length}`;
+            counter.textContent = `${idx + 1} / ${items.length}`;
+        }
+        const showNav = items.length > 1;
+        if (prevBtn) prevBtn.style.display = showNav ? "" : "none";
+        if (nextBtn) nextBtn.style.display = showNav ? "" : "none";
+        if (document.body && box.parentNode !== document.body) {
+            document.body.appendChild(box);
         }
         box.classList.add("open");
         box.setAttribute("aria-hidden", "false");
@@ -8869,11 +9761,11 @@
         }
     };
     const stepStudioLightbox = (delta) => {
-        if (!studioPreviews.length) return;
+        if (!_lightboxItems.length) return;
         let next = studioLightboxIndex + delta;
-        if (next < 0) next = studioPreviews.length - 1;
-        if (next >= studioPreviews.length) next = 0;
-        openStudioLightbox(next);
+        if (next < 0) next = _lightboxItems.length - 1;
+        if (next >= _lightboxItems.length) next = 0;
+        openStudioLightbox(next, _lightboxItems);
     };
 
     const setStudioHint = (text) => {
@@ -9042,7 +9934,7 @@
                 throw new Error(typeof d === "string" ? d : "Chèn ảnh thất bại");
             }
             if (data.url && preview) preview.url = data.url;
-            if (data.content) setContentValue(data.content);
+            const patchedHtml = String(data.content || "").trim();
             if (data.featured_image) {
                 if (!uploadedImages.includes(data.featured_image)) uploadedImages.unshift(data.featured_image);
                 renderUploadList();
@@ -9054,8 +9946,11 @@
                 });
                 renderUploadList();
             }
-            if (data.project && activeProjectId) applyProjectToForm(data.project);
-            else if (mode === "inline" && preview.url) {
+            if (data.project && activeProjectId) {
+                applyProjectToFormAfterInsert(data.project, patchedHtml);
+            } else if (patchedHtml) {
+                restoreEditorAfterContentPatch(patchedHtml);
+            } else if (mode === "inline" && preview.url) {
                 try { insertImageIntoEditor(preview.url); } catch (_) {}
             }
             try { refreshPreview(); } catch (_) {}
@@ -10359,7 +11254,7 @@
         if (ok) scheduleSaveBulkState();
     };
     const loadSingleWpCategories = async (forceNetwork = false) => {
-        const site = String(byId("targetWebsite")?.value || "").trim();
+        const site = resolvePublishCategorySiteUrl();
         const sel = byId("singleWpCategoryId");
         const hint = byId("hint-singleWpCategory");
         const saved =
@@ -11835,15 +12730,21 @@
         });
     }
     const toggleAiAvailability = () => {
-        const hasPrimary = !!byId("primaryKeyword").value.trim();
-        aiButtons.forEach((btnItem) => {
+        const pkEl = byId("primaryKeyword");
+        const hasPrimary = !!(pkEl && pkEl.value.trim());
+        const canSuggest = hasSuggestKeywordSource();
+        document.querySelectorAll(".ai-btn[data-field]").forEach((btnItem) => {
             const field = btnItem.dataset.field;
-            btnItem.disabled = field === "target_website" ? false : !hasPrimary;
+            const busy = btnItem.textContent === "Đang gợi ý...";
+            if (busy) return;
+            btnItem.disabled = field === "target_website" ? false : !canSuggest;
         });
-        if (!hasPrimary) {
-            setHint("primary_keyword", "Hãy nhập từ khóa chính trước để kích hoạt toàn bộ gợi ý AI.");
+        if (!hasPrimary && !canSuggest) {
+            setHint("primary_keyword", "Hãy nhập từ khóa chính (hoặc slug/title) trước để kích hoạt gợi ý AI.");
+        } else if (!hasPrimary && canSuggest) {
+            setHint("primary_keyword", "Chưa có từ khóa chính — gợi ý AI dùng slug hoặc title tạm thời.");
         } else {
-            setHint("primary_keyword", "Da kich hoat goi y AI theo tu khoa chinh.");
+            setHint("primary_keyword", "Đã kích hoạt gợi ý AI theo từ khóa chính.");
         }
     };
 
@@ -11867,93 +12768,116 @@
         // removed "Lịch sử gợi ý AI" panel
     };
 
-    aiButtons.forEach((button) => {
-        button.addEventListener("click", async () => {
-            const field = button.dataset.field;
-            if (!field) return;
-            const oldText = button.textContent;
-            button.textContent = "Đang gợi ý...";
-            button.disabled = true;
-            setHint(field, "");
-            try {
-                const ctx = buildContext();
-                let value = "";
-                let detectedIntent = "";
-                if (field === "title") {
-                    const current = byId("title").value.trim();
-                    for (let i = 0; i < 3; i += 1) {
-                        const nextObj = await fetchSuggestion(field, ctx);
-                        const next = nextObj.value || "";
-                        detectedIntent = nextObj.detected_intent || detectedIntent;
-                        if (next && next !== current && next !== lastSuggestedTitle) {
-                            value = next;
-                            break;
-                        }
+    const runSingleFieldAiSuggest = async (button) => {
+        const field = button.dataset.field;
+        if (!field) return;
+        if (field !== "target_website" && !hasSuggestKeywordSource()) {
+            setHint("primary_keyword", "Hãy nhập từ khóa chính, slug hoặc title trước khi gợi ý.");
+            setHint(field, "Cần từ khóa chính (hoặc slug/title) để gợi ý.");
+            return;
+        }
+        const oldText = button.textContent;
+        button.textContent = "Đang gợi ý...";
+        button.disabled = true;
+        setHint(field, "");
+        try {
+            const ctx = buildSuggestContext();
+            let value = "";
+            let detectedIntent = "";
+            if (field === "title") {
+                const current = byId("title").value.trim();
+                for (let i = 0; i < 3; i += 1) {
+                    const nextObj = await fetchSuggestion(field, ctx);
+                    const next = nextObj.value || "";
+                    detectedIntent = nextObj.detected_intent || detectedIntent;
+                    if (next && next !== current && next !== lastSuggestedTitle) {
                         value = next;
+                        break;
                     }
-                    lastSuggestedTitle = value || lastSuggestedTitle;
-                } else if (field === "slug") {
-                    value = buildStrictSlug();
-                    if (!value) {
-                        const out = await fetchSuggestion(field, ctx);
-                        value = out.value || "";
-                        detectedIntent = out.detected_intent || "";
-                    }
-                } else if (field === "target_website") {
-                    const seenTw = new Set();
-                    const mergedTw = [];
-                    const pushTw = (raw) => {
-                        const b = normalizeTargetBase(raw) || normalizeWpUrl(raw);
-                        if (!b) return;
-                        const k = b.toLowerCase();
-                        if (seenTw.has(k)) return;
-                        seenTw.add(k);
-                        mergedTw.push(b);
-                    };
-                    settingsPublishingSitesFlat.forEach((s) => pushTw(s.url));
-                    readTargetHistory().forEach(pushTw);
-                    if (mergedTw[0]) {
-                        value = mergedTw[0];
-                    } else {
-                        const out = await fetchSuggestion(field, ctx);
-                        value = out.value || "";
-                        detectedIntent = out.detected_intent || "";
-                    }
+                    value = next;
+                }
+                lastSuggestedTitle = value || lastSuggestedTitle;
+            } else if (field === "slug") {
+                value = buildStrictSlug();
+                if (!value) {
+                    const out = await fetchSuggestion(field, ctx);
+                    value = out.value || "";
+                    detectedIntent = out.detected_intent || "";
+                }
+            } else if (field === "target_website") {
+                const seenTw = new Set();
+                const mergedTw = [];
+                const pushTw = (raw) => {
+                    const b = normalizeTargetBase(raw) || normalizeWpUrl(raw);
+                    if (!b) return;
+                    const k = b.toLowerCase();
+                    if (seenTw.has(k)) return;
+                    seenTw.add(k);
+                    mergedTw.push(b);
+                };
+                settingsPublishingSitesFlat.forEach((s) => pushTw(s.url));
+                readTargetHistory().forEach(pushTw);
+                if (mergedTw[0]) {
+                    value = mergedTw[0];
                 } else {
                     const out = await fetchSuggestion(field, ctx);
                     value = out.value || "";
                     detectedIntent = out.detected_intent || "";
                 }
-                applySuggestion(field, value);
-                setDetectedIntentDebug(detectedIntent);
-                if (field === "target_website") {
-                    rememberTargetWebsite(value);
-                }
-                setHint(field, "Da cap nhat goi y AI theo tu khoa chinh.");
-            } catch (err) {
-                setHint(field, String(err.message || err));
-            } finally {
-                button.textContent = oldText;
-                button.disabled = false;
-                toggleAiAvailability();
+            } else {
+                const out = await fetchSuggestion(field, ctx);
+                value = out.value || "";
+                detectedIntent = out.detected_intent || "";
             }
+            applySuggestion(field, value);
+            setDetectedIntentDebug(detectedIntent);
+            if (field === "target_website") {
+                rememberTargetWebsite(value);
+            }
+            if (field === "primary_keyword" && value) {
+                syncSlugFromPrimary();
+            }
+            setHint(field, "Đã cập nhật gợi ý AI.");
+        } catch (err) {
+            setHint(field, String(err.message || err));
+        } finally {
+            button.textContent = oldText;
+            button.disabled = false;
+            toggleAiAvailability();
+        }
+    };
+    if (contentAiSinglePanel) {
+        contentAiSinglePanel.addEventListener("click", (ev) => {
+            const button = ev.target.closest(".ai-btn[data-field]");
+            if (!button || button.disabled) return;
+            void runSingleFieldAiSuggest(button);
         });
+    }
+    const primaryKeywordEl = byId("primaryKeyword");
+    if (primaryKeywordEl) {
+        primaryKeywordEl.addEventListener("input", () => {
+            toggleAiAvailability();
+            syncSlugFromPrimary();
+        });
+    }
+    ["title", "slug"].forEach((id) => {
+        const el = byId(id);
+        if (el) el.addEventListener("input", () => toggleAiAvailability());
     });
-    byId("primaryKeyword").addEventListener("input", () => {
-        toggleAiAvailability();
-        syncSlugFromPrimary();
-    });
-    byId("targetWebsite").addEventListener("input", () => {
-        syncSlugFromPrimary();
-    });
-    byId("targetWebsite").addEventListener("change", () => {
-        rememberTargetWebsite(byId("targetWebsite").value);
-        const wpcSaved =
-            (_draftWpCategoryIds && _draftWpCategoryIds[0]) ||
-            String(byId("singleWpCategoryId")?.value || "").trim() ||
-            "";
-        fillSingleWpCategorySelect(wpcSaved);
-    });
+    const targetWebsiteEl = byId("targetWebsite");
+    if (targetWebsiteEl) {
+        targetWebsiteEl.addEventListener("input", () => {
+            syncSlugFromPrimary();
+        });
+        targetWebsiteEl.addEventListener("change", () => {
+            rememberTargetWebsite(targetWebsiteEl.value);
+            const wpcSaved =
+                (_draftWpCategoryIds && _draftWpCategoryIds[0]) ||
+                String(byId("singleWpCategoryId")?.value || "").trim() ||
+                "";
+            fillSingleWpCategorySelect(wpcSaved);
+        });
+    }
     toggleAiAvailability();
     syncSlugFromPrimary();
     renderUploadList();
@@ -12002,7 +12926,11 @@
             return loadProject(activeProjectId);
         }
         return undefined;
-    }).catch(() => {});
+    }).then(() => {
+        void restoreQtWizardState();
+    }).catch(() => {
+        void restoreQtWizardState();
+    });
     try { schedulePublishChecklist(); } catch (_) {}
     void fetchSettingsPublishingSites().then(() => {
         renderTargetHistory();
@@ -12106,7 +13034,25 @@
     const webImageGallery = byId("webImageGallery");
     const btnWebImageSearch = byId("btnWebImageSearch");
     let webImageCatalogCache = null;
-    let webImageSearchItems = [];
+
+    const applyPendingWebImageSearchRestore = () => {
+        const pending = _pendingWebImageSearchRestore;
+        if (!pending || !Array.isArray(pending.items) || !pending.items.length) return;
+        _pendingWebImageSearchRestore = null;
+        webImageSearchItems = pending.items.slice();
+        webImageLastQuery = pending.query || "";
+        webImageLastSource = pending.source || "";
+        renderWebImageGallery();
+        const srcLabel =
+            webImageLastSource === "google_cse_image"
+                ? "Google CSE"
+                : webImageLastSource === "pexels"
+                  ? "Pexels"
+                  : webImageLastSource || "Web";
+        setWebImageHint(
+            `Tìm thấy ${webImageSearchItems.length} ảnh (${srcLabel}) — «${webImageLastQuery}».`
+        );
+    };
 
     const setWebImageHint = (text) => {
         const h = byId("hint-web-images");
@@ -12221,12 +13167,21 @@
             card.className = "web-image-card";
             const img = document.createElement("img");
             img.src = it.thumbnail || it.link;
+            img.srcset = it.link && it.thumbnail && it.link !== it.thumbnail
+                ? `${it.thumbnail} 1x, ${it.link} 2x`
+                : "";
             img.alt = it.title || "";
             img.loading = "lazy";
-            img.title = "Bấm xem lớn";
-            img.addEventListener("click", (ev) => {
+            img.title = "Bấm để xem ảnh lớn";
+            const openPreview = (ev) => {
+                ev.preventDefault();
                 ev.stopPropagation();
-                if (typeof openStudioLightbox === "function") openStudioLightbox(it.link || it.thumbnail);
+                openStudioLightbox(idx, webImageSearchItems);
+            };
+            img.addEventListener("click", openPreview);
+            card.addEventListener("click", (ev) => {
+                if (ev.target.closest(".web-image-card-btns")) return;
+                openPreview(ev);
             });
             const btns = document.createElement("div");
             btns.className = "web-image-card-btns";
@@ -12270,12 +13225,16 @@
                 const d = data.detail;
                 throw new Error(typeof d === "string" ? d : "Chèn ảnh thất bại");
             }
-            if (data.content) setContentValue(data.content);
+            const patchedHtml = String(data.content || "").trim();
             if (data.url) {
                 if (!uploadedImages.includes(data.url)) uploadedImages.push(data.url);
                 renderUploadList();
             }
-            if (data.project && activeProjectId) applyProjectToForm(data.project);
+            if (data.project && activeProjectId) {
+                applyProjectToFormAfterInsert(data.project, patchedHtml);
+            } else if (patchedHtml) {
+                restoreEditorAfterContentPatch(patchedHtml);
+            }
             try { refreshPreview(); } catch (_) {}
             saveFormState();
             const pl = data.placement || {};
@@ -12321,15 +13280,17 @@
             if (h2Sel && h2Sel.selectedOptions && h2Sel.selectedOptions[0]) {
                 h2Heading = h2Sel.selectedOptions[0].dataset.heading || "";
             }
-            const res = await fetch("/content-ai/web-images/search?ts=" + Date.now(), {
+            const res = await apiFetch("/content-ai/web-images/search?ts=" + Date.now(), {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: authJsonHeaders(),
                 body: JSON.stringify({
                     query_mode: mode,
                     primary_keyword: pk,
                     title: draft.title || "",
                     h2_heading: h2Heading,
                     custom_query: (byId("webImageCustomQuery") && byId("webImageCustomQuery").value.trim()) || "",
+                    content_html: draft.content || "",
+                    outline_content: draft.outline_content || "",
                     num,
                 }),
             });
@@ -12339,9 +13300,12 @@
                 throw new Error(typeof d === "string" ? d : "Tìm ảnh thất bại");
             }
             webImageSearchItems = Array.isArray(data.items) ? data.items : [];
+            webImageLastQuery = String(data.query || "");
+            webImageLastSource = String(data.source || "");
             renderWebImageGallery();
-            const srcLabel = data.source === "google_cse_image" ? "Google CSE" : (data.source || "Web");
+            const srcLabel = data.source === "google_cse_image" ? "Google CSE" : (data.source === "pexels" ? "Pexels" : (data.source || "Web"));
             setWebImageHint(`Tìm thấy ${webImageSearchItems.length} ảnh (${srcLabel}) — «${data.query || ""}».`);
+            saveFormState();
             const panel = byId("webImagePanel");
             if (panel) panel.open = true;
         } catch (e) {
@@ -12373,6 +13337,7 @@
     if (webImageSizePreset) webImageSizePreset.addEventListener("change", toggleWebImageCustomSize);
     const webImageQueryMode = byId("webImageQueryMode");
     if (webImageQueryMode) webImageQueryMode.addEventListener("change", toggleWebImageQueryModeUi);
+    applyPendingWebImageSearchRestore();
     initWebImagePanel();
     document.addEventListener("input", (ev) => {
         if (!ev.target) return;
@@ -12430,69 +13395,48 @@
     });
 
     btnCreateContent.addEventListener("click", async () => {
-        const primaryKeyword = byId("primaryKeyword").value.trim();
-        if (!primaryKeyword) {
-            msg.textContent = "Cần nhập từ khóa chính trước.";
+        if (!hasSuggestKeywordSource()) {
+            msg.textContent = "Cần nhập từ khóa chính (hoặc slug/title) trước.";
             return;
         }
         msg.textContent = "Đang tạo content...";
         _openGenModal();
         try {
-            const ctx = buildContext();
-            const suggestOutline = await fetch("/content-ai/suggest", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ field: "outline_content", ...ctx }),
-            });
-            const outlineData = await suggestOutline.json().catch(() => ({}));
-            if (suggestOutline.ok && outlineData.detected_intent) {
-                setDetectedIntentDebug(outlineData.detected_intent);
+            const ctx = buildSuggestContext();
+            const outlineOut = await fetchSuggestion("outline_content", ctx);
+            if (outlineOut.detected_intent) {
+                setDetectedIntentDebug(outlineOut.detected_intent);
             }
-            if (suggestOutline.ok && outlineData.value && !byId("outlineContent").value.trim()) {
-                byId("outlineContent").value = outlineData.value;
+            if (outlineOut.value && !byId("outlineContent").value.trim()) {
+                byId("outlineContent").value = outlineOut.value;
                 autoGrowOutline();
             }
 
             const generated = await streamSuggestion("content", ctx);
             if (generated) setContentValue(generated);
 
-            const suggestTitle = await fetch("/content-ai/suggest", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ field: "title", ...buildContext() }),
-            });
-            const titleData = await suggestTitle.json().catch(() => ({}));
-            if (suggestTitle.ok && titleData.detected_intent) {
-                setDetectedIntentDebug(titleData.detected_intent);
+            const titleOut = await fetchSuggestion("title", buildSuggestContext());
+            if (titleOut.detected_intent) {
+                setDetectedIntentDebug(titleOut.detected_intent);
             }
-            if (suggestTitle.ok && titleData.value) {
-                byId("title").value = _firstLine(titleData.value);
+            if (titleOut.value) {
+                byId("title").value = _firstLine(titleOut.value);
             }
 
-            const suggestMeta = await fetch("/content-ai/suggest", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ field: "meta_description", ...buildContext() }),
-            });
-            const metaData = await suggestMeta.json().catch(() => ({}));
-            if (suggestMeta.ok && metaData.detected_intent) {
-                setDetectedIntentDebug(metaData.detected_intent);
+            const metaOut = await fetchSuggestion("meta_description", buildSuggestContext());
+            if (metaOut.detected_intent) {
+                setDetectedIntentDebug(metaOut.detected_intent);
             }
-            if (suggestMeta.ok && metaData.value) {
-                byId("meta").value = _firstLine(metaData.value);
+            if (metaOut.value) {
+                byId("meta").value = _firstLine(metaOut.value);
             }
 
-            const suggestSlug = await fetch("/content-ai/suggest", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ field: "slug", ...buildContext() }),
-            });
-            const slugData = await suggestSlug.json().catch(() => ({}));
-            if (suggestSlug.ok && slugData.detected_intent) {
-                setDetectedIntentDebug(slugData.detected_intent);
+            const slugOut = await fetchSuggestion("slug", buildSuggestContext());
+            if (slugOut.detected_intent) {
+                setDetectedIntentDebug(slugOut.detected_intent);
             }
-            if (suggestSlug.ok && slugData.value) {
-                byId("slug").value = _firstLine(slugData.value);
+            if (slugOut.value) {
+                byId("slug").value = _firstLine(slugOut.value);
             }
             syncSlugFromPrimary();
 
@@ -12609,10 +13553,10 @@
     const btnSingleLoadWpCategories = byId("btnSingleLoadWpCategories");
     const singleWpCategoryIdEl = byId("singleWpCategoryId");
     if (btnSingleLoadWpCategories) {
-        _syncWpCategoryLoadButtonLabel(String(byId("targetWebsite")?.value || ""));
+        _syncWpCategoryLoadButtonLabel(resolvePublishCategorySiteUrl());
         btnSingleLoadWpCategories.addEventListener("click", () => {
             btnSingleLoadWpCategories.disabled = true;
-            const site = String(byId("targetWebsite")?.value || "").trim();
+            const site = resolvePublishCategorySiteUrl();
             const sk = _getWpCategoriesSiteKey(site);
             const isReload = !!(sk && _readWpCategoriesCache(sk));
             void loadSingleWpCategories(isReload).finally(() => {
@@ -12974,10 +13918,14 @@
         wpUrlEl.addEventListener("blur", () => {
             rememberWpUrl(wpUrlEl.value);
             fillWpCredentialsFromSavedProfile();
+            fillSingleWpCategorySelect(String(byId("singleWpCategoryId")?.value || "").trim());
+            _syncWpCategoryLoadButtonLabel(wpUrlEl.value);
         });
         wpUrlEl.addEventListener("change", () => {
             rememberWpUrl(wpUrlEl.value);
             fillWpCredentialsFromSavedProfile();
+            fillSingleWpCategorySelect(String(byId("singleWpCategoryId")?.value || "").trim());
+            _syncWpCategoryLoadButtonLabel(wpUrlEl.value);
         });
     }
 
@@ -13376,7 +14324,24 @@
                 : "Bấm «Tìm bài liên quan» khi đã có target website.";
         }
         if (!arr.length) {
-            internalLinkCandidates.innerHTML = "<div class=\"hint\">Không tìm thấy bài liên quan. Thử thêm từ khóa phụ, hoặc viết trong content các cụm liên quan chủ đề (để vừa làm seed tìm WP vừa làm anchor).</div>";
+            const empty = document.createElement("div");
+            empty.className = "internal-suggest-empty";
+            const p = document.createElement("p");
+            p.className = "hint";
+            p.style.margin = "0 0 10px";
+            p.textContent =
+                "Chưa có gợi ý — bấm «Tìm bài liên quan» để quét bài trên website (cần Target website).";
+            empty.appendChild(p);
+            const bFind = document.createElement("button");
+            bFind.type = "button";
+            bFind.className = "btn secondary";
+            bFind.textContent = "Tìm bài liên quan";
+            bFind.addEventListener("click", (ev) => {
+                ev.preventDefault();
+                runFindInternalLinks(bFind);
+            });
+            empty.appendChild(bFind);
+            internalLinkCandidates.appendChild(empty);
             return;
         }
         const artTitle = (byId("title") && String(byId("title").value || "").trim()) || "(Bài đang soạn)";
@@ -13445,6 +14410,7 @@
             ilHint.textContent = getInternalLinkUseLlm()
                 ? "Bật LLM: mỗi link bọc trong 1–2 câu ngữ cảnh (không chèn link trần sát nhau)."
                 : "Ưu tiên: anchor trong bài (lần đầu). Thiếu anchor → popup «Tham khảo thêm».";
+            notifyInternalLinkConfigChanged();
         });
         ilToolbar.appendChild(llmLbl);
         const ilHint = document.createElement("span");
@@ -13454,6 +14420,16 @@
             ? "Bật LLM: mỗi link bọc trong 1–2 câu ngữ cảnh (không chèn link trần sát nhau)."
             : "Ưu tiên: anchor trong bài (lần đầu). Thiếu anchor → popup «Tham khảo thêm».";
         ilToolbar.appendChild(ilHint);
+        const btnIlFind = document.createElement("button");
+        btnIlFind.type = "button";
+        btnIlFind.className = "btn secondary btn-find-related";
+        btnIlFind.textContent = "Tìm bài liên quan";
+        btnIlFind.title = "Quét lại bài trên website";
+        btnIlFind.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            runFindInternalLinks(btnIlFind);
+        });
+        ilToolbar.appendChild(btnIlFind);
         const btnIlSelectAll = document.createElement("button");
         btnIlSelectAll.type = "button";
         btnIlSelectAll.className = "mini-btn";
@@ -13516,7 +14492,7 @@
                 rowCb.checked = !!on;
             });
             syncInternalLinkSelectAllHeader();
-            scheduleSaveFormState();
+            notifyInternalLinkConfigChanged();
         };
         headerSelectAll.addEventListener("change", () => {
             setAllInternalLinkRows(headerSelectAll.checked);
@@ -13541,7 +14517,10 @@
             cb.className = "internal-link-cb";
             cb.setAttribute("data-idx", String(idx));
             cb.checked = false;
-            cb.addEventListener("change", syncInternalLinkSelectAllHeader);
+            cb.addEventListener("change", () => {
+                syncInternalLinkSelectAllHeader();
+                notifyInternalLinkConfigChanged();
+            });
             td0.appendChild(cb);
             const td1 = document.createElement("td");
             td1.className = "internal-anchor-cell";
@@ -13622,68 +14601,89 @@
         wrap.appendChild(tbl);
         internalLinkCandidates.appendChild(wrap);
     };
-    if (btnFindInternalLinks) {
-        btnFindInternalLinks.addEventListener("click", async (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            const siteRaw = String(byId("targetWebsite").value || "").trim();
-            const site = normalizeTargetBase(siteRaw) || siteRaw;
-            if (!site) {
-                const msg = "Thiếu Target website — nhập https://domain.com ở form phía trên hoặc chọn site đã kết nối.";
+    const runFindInternalLinks = async (triggerBtn) => {
+        const siteRaw = String(byId("targetWebsite").value || "").trim();
+        const site = normalizeTargetBase(siteRaw) || siteRaw;
+        if (!site) {
+            const msg = "Thiếu Target website — nhập https://domain.com ở form phía trên hoặc chọn site đã kết nối.";
+            setHint("content", msg);
+            setHint("internal-links", msg);
+            if (typeof qtSetStatus === "function") qtSetStatus(msg, "config");
+            return;
+        }
+        const buttons = [triggerBtn, btnFindInternalLinks, btnFindInternalLinksConfig].filter(Boolean);
+        const oldLabels = buttons.map((b) => b.textContent);
+        buttons.forEach((b) => {
+            b.disabled = true;
+            b.textContent = "Đang tìm...";
+        });
+        setHint("internal-links", "Đang tìm bài trên website…");
+        if (typeof qtSetStatus === "function") qtSetStatus("Đang tìm bài liên quan…", "processing");
+        try {
+            const res = await apiFetch(`/content-ai/wp-internal-links/candidates?ts=${Date.now()}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    target_website: site,
+                    primary_keyword: byId("primaryKeyword").value.trim(),
+                    secondary_keywords: byId("secondaryKeywords").value.trim(),
+                    content_html: getContentValue(),
+                    current_slug: byId("slug").value.trim(),
+                    current_url: _currentUrlGuess(),
+                    limit: 15,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(parseApiDetail(data) || "Không tìm được bài liên quan.");
+            }
+            _internalCandidates = Array.isArray(data.items) ? data.items : [];
+            renderInternalCandidates(_internalCandidates);
+            saveFormState();
+            const panel = byId("internalLinkPanel");
+            if (panel) {
+                try { panel.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_) {}
+            }
+            if (_internalCandidates.length) {
+                const msg = `Tìm thấy ${_internalCandidates.length} bài — chọn dòng và bấm «Đi link».`;
                 setHint("content", msg);
                 setHint("internal-links", msg);
-                return;
+                if (typeof qtSetStatus === "function") qtSetStatus(msg, "success");
+            } else {
+                const apiHint = String(data.hint || "").trim();
+                const msg = apiHint || (
+                    `Không có bài phù hợp (đã quét ${Number(data.wp_posts_fetched) || 0} URL). `
+                    + "Thử nhập từ khóa chính hoặc thêm H2 trong bài."
+                );
+                setHint("content", msg);
+                setHint("internal-links", msg);
+                if (typeof qtSetStatus === "function") qtSetStatus(msg, "config");
             }
-            const oldText = btnFindInternalLinks.textContent;
-            btnFindInternalLinks.textContent = "Đang tìm...";
-            btnFindInternalLinks.disabled = true;
-            setHint("internal-links", "Đang tìm bài trên WordPress + SERP…");
-            try {
-                const res = await apiFetch(`/content-ai/wp-internal-links/candidates?ts=${Date.now()}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        target_website: site,
-                        primary_keyword: byId("primaryKeyword").value.trim(),
-                        secondary_keywords: byId("secondaryKeywords").value.trim(),
-                        content_html: getContentValue(),
-                        current_slug: byId("slug").value.trim(),
-                        current_url: _currentUrlGuess(),
-                        limit: 15,
-                    }),
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    throw new Error(parseApiDetail(data) || "Không tìm được bài liên quan.");
-                }
-                _internalCandidates = Array.isArray(data.items) ? data.items : [];
-                renderInternalCandidates(_internalCandidates);
-                saveFormState();
-                const panel = byId("internalLinkPanel");
-                if (panel) {
-                    try { panel.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_) {}
-                }
-                if (_internalCandidates.length) {
-                    const msg = `Tìm thấy ${_internalCandidates.length} bài — anchor = từ khóa chính bài đích (sửa từng ô nếu cần).`;
-                    setHint("content", msg);
-                    setHint("internal-links", msg);
-                } else {
-                    const apiHint = String(data.hint || "").trim();
-                    const msg = apiHint || (
-                        `Không có bài phù hợp (đã quét ${Number(data.wp_posts_fetched) || 0} URL). `
-                        + "Thử nhập từ khóa chính, thêm H2 trong content, hoặc kiểm tra WP REST API công khai."
-                    );
-                    setHint("content", msg);
-                    setHint("internal-links", msg);
-                }
-            } catch (e) {
-                const errMsg = String((e && e.message) || e);
-                setHint("content", errMsg);
-                setHint("internal-links", errMsg);
-            } finally {
-                btnFindInternalLinks.textContent = oldText;
-                btnFindInternalLinks.disabled = false;
-            }
+        } catch (e) {
+            const errMsg = String((e && e.message) || e);
+            setHint("content", errMsg);
+            setHint("internal-links", errMsg);
+            if (typeof qtSetStatus === "function") qtSetStatus(errMsg, "error");
+        } finally {
+            buttons.forEach((b, i) => {
+                b.disabled = false;
+                if (oldLabels[i]) b.textContent = oldLabels[i];
+            });
+        }
+    };
+    const btnFindInternalLinksConfig = byId("btnFindInternalLinksConfig");
+    if (btnFindInternalLinks) {
+        btnFindInternalLinks.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            void runFindInternalLinks(btnFindInternalLinks);
+        });
+    }
+    if (btnFindInternalLinksConfig) {
+        btnFindInternalLinksConfig.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            void runFindInternalLinks(btnFindInternalLinksConfig);
         });
     }
     const restoreInternalCandidatesFromPending = () => {
@@ -13693,27 +14693,32 @@
             _pendingInternalCandidatesRestore = null;
             _internalCandidates = pending.items;
             renderInternalCandidates(_internalCandidates);
-            const anchors = pending.anchors && typeof pending.anchors === "object" ? pending.anchors : {};
-            Object.keys(anchors).forEach((idx) => {
-                const inp = document.querySelector(`input.internal-link-anchor-input[data-idx="${idx}"]`);
-                if (inp) inp.value = String(anchors[idx] ?? "");
-            });
+            applyInternalCandidatesUiState(
+                pending.anchors && typeof pending.anchors === "object" ? pending.anchors : {},
+                Array.isArray(pending.checked) ? pending.checked : [],
+            );
         } catch (e) {
             _pendingInternalCandidatesRestore = null;
             console.error("[content-ai] restore internal candidates failed", e);
         }
+    };
+    const ensureInternalCandidatesTable = () => {
+        if (!_internalCandidates.length || !internalLinkCandidates) return;
+        if (internalLinkCandidates.querySelector("tbody tr")) return;
+        renderInternalCandidates(_internalCandidates);
+        applyInternalCandidatesUiStateFromFormStorage();
     };
     window.setTimeout(() => restoreInternalCandidatesFromPending(), 0);
     if (internalLinkCandidates && !internalLinkCandidates.dataset.persistBound) {
         internalLinkCandidates.dataset.persistBound = "1";
         internalLinkCandidates.addEventListener("input", (e) => {
             if (e.target && e.target.classList && e.target.classList.contains("internal-link-anchor-input")) {
-                scheduleSaveFormState();
+                notifyInternalLinkConfigChanged();
             }
         });
         internalLinkCandidates.addEventListener("change", (e) => {
             if (e.target && e.target.classList && e.target.classList.contains("internal-link-cb")) {
-                scheduleSaveFormState();
+                notifyInternalLinkConfigChanged();
             }
         });
     }
@@ -14099,6 +15104,301 @@
         }
     };
 
+    const _sanitizePreviewArticleHtml = (html) => {
+        try {
+            const doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+            doc.querySelectorAll("script, style, iframe, object, embed").forEach((n) => n.remove());
+            return doc.body ? doc.body.innerHTML : String(html || "");
+        } catch (_) {
+            return String(html || "");
+        }
+    };
+
+    const qtInternalAnchorToolbar = byId("qtInternalAnchorToolbar");
+    const qtInternalAnchorSelect = byId("qtInternalAnchorSelect");
+    let _qtAnchorFlashTimer = null;
+
+    const qtHideInternalAnchorToolbar = () => {
+        if (qtInternalAnchorToolbar) qtInternalAnchorToolbar.hidden = true;
+        if (qtInternalAnchorSelect) {
+            qtInternalAnchorSelect.innerHTML = '<option value="">— Chọn anchor text —</option>';
+            qtInternalAnchorSelect.value = "";
+        }
+        window._qtInternalAnchorMap = {};
+    };
+
+    const _qtShortHrefLabel = (href) => {
+        const h = String(href || "").trim();
+        if (!h) return "";
+        try {
+            const u = new URL(h);
+            const path = (u.pathname || "/").replace(/\/+$/, "") || "/";
+            const tail = path.length > 42 ? "…" + path.slice(-40) : path;
+            return (u.hostname || "") + tail;
+        } catch (_) {
+            return h.length > 48 ? h.slice(0, 45) + "…" : h;
+        }
+    };
+
+    const qtScrollToInternalAnchor = (idx) => {
+        const body = qtPreviewBox && qtPreviewBox.querySelector(".qt-preview-article-body");
+        if (!body || idx === "" || idx == null) return;
+        const target = body.querySelector(`a[data-qt-ilink-idx="${String(idx)}"]`);
+        if (!target) return;
+        body.querySelectorAll("a.qt-anchor-flash").forEach((a) => a.classList.remove("qt-anchor-flash"));
+        target.classList.add("qt-anchor-flash");
+        if (_qtAnchorFlashTimer) window.clearTimeout(_qtAnchorFlashTimer);
+        _qtAnchorFlashTimer = window.setTimeout(() => {
+            target.classList.remove("qt-anchor-flash");
+        }, 4500);
+        try {
+            target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        } catch (_) {
+            target.scrollIntoView(true);
+        }
+        const scrollHost = qtPreviewBox && qtPreviewBox.closest(".qt-wizard-body");
+        if (scrollHost && target) {
+            const tRect = target.getBoundingClientRect();
+            const bRect = scrollHost.getBoundingClientRect();
+            if (tRect.top < bRect.top + 12 || tRect.bottom > bRect.bottom - 12) {
+                const offset = target.getBoundingClientRect().top - scrollHost.getBoundingClientRect().top;
+                scrollHost.scrollTop += offset - scrollHost.clientHeight / 3;
+            }
+        }
+    };
+
+    const setupQtInternalAnchorDropdown = (previewBody, linkResults) => {
+        if (!qtInternalAnchorSelect || !previewBody) {
+            qtHideInternalAnchorToolbar();
+            return;
+        }
+        const insertedUrls = new Set(
+            (linkResults || [])
+                .filter((r) => r && r.status === "inserted" && r.target_url)
+                .map((r) => String(r.target_url).trim().toLowerCase()),
+        );
+        const anchors = [];
+        previewBody.querySelectorAll("a[href]").forEach((a) => {
+            const href = String(a.getAttribute("href") || "").trim();
+            if (!href || href.startsWith("#") || /^javascript:/i.test(href)) return;
+            const text = String(a.textContent || "").replace(/\s+/g, " ").trim();
+            if (!text) return;
+            if (insertedUrls.size) {
+                const norm = href.toLowerCase();
+                const matchInserted = [...insertedUrls].some(
+                    (u) => norm === u || norm.startsWith(u) || u.startsWith(norm),
+                );
+                if (!matchInserted) return;
+            }
+            anchors.push({ el: a, text, href });
+        });
+        if (!anchors.length) {
+            previewBody.querySelectorAll("a[href]").forEach((a) => {
+                const href = String(a.getAttribute("href") || "").trim();
+                const text = String(a.textContent || "").replace(/\s+/g, " ").trim();
+                if (href && text && !href.startsWith("#") && !/^javascript:/i.test(href)) {
+                    anchors.push({ el: a, text, href });
+                }
+            });
+        }
+        anchors.forEach((item, i) => {
+            item.el.setAttribute("data-qt-ilink-idx", String(i));
+        });
+        window._qtInternalAnchorMap = {};
+        qtInternalAnchorSelect.innerHTML = '<option value="">— Chọn anchor text —</option>';
+        if (!anchors.length) {
+            if (qtInternalAnchorToolbar) qtInternalAnchorToolbar.hidden = true;
+            return;
+        }
+        anchors.forEach((item, i) => {
+            const key = String(i);
+            window._qtInternalAnchorMap[key] = item;
+            const opt = document.createElement("option");
+            opt.value = key;
+            const shortHref = _qtShortHrefLabel(item.href);
+            opt.textContent = shortHref ? `${item.text} → ${shortHref}` : item.text;
+            opt.title = item.href;
+            qtInternalAnchorSelect.appendChild(opt);
+        });
+        if (qtInternalAnchorToolbar) qtInternalAnchorToolbar.hidden = false;
+        qtInternalAnchorSelect.value = "";
+    };
+
+    if (qtInternalAnchorSelect && !qtInternalAnchorSelect.dataset.bound) {
+        qtInternalAnchorSelect.dataset.bound = "1";
+        qtInternalAnchorSelect.addEventListener("change", () => {
+            qtScrollToInternalAnchor(qtInternalAnchorSelect.value);
+        });
+    }
+
+    const renderQtArticleHtmlPreview = (html, meta = {}) => {
+        if (!qtPreviewBox) return;
+        const raw = String(html || "").trim();
+        qtPreviewBox.innerHTML = "";
+        if (!raw) {
+            qtPreviewBox.classList.remove("qt-preview-article");
+            qtPreviewBox.textContent =
+                meta.emptyText ||
+                "Chưa có nội dung bài — hãy viết hoặc tạo content trong «Nội dung bài viết» trước.";
+            if (!meta.setupAnchors) qtHideInternalAnchorToolbar();
+            return;
+        }
+        const safe = _sanitizePreviewArticleHtml(raw);
+        qtPreviewBox.classList.add("qt-preview-article");
+        qtPreviewBox.classList.remove("qt-preview-plain");
+        const legendText = meta.legend;
+        if (legendText) {
+            const legend = document.createElement("div");
+            legend.className = "qt-preview-legend";
+            legend.textContent = legendText;
+            qtPreviewBox.appendChild(legend);
+        }
+        const body = document.createElement("div");
+        body.className = "qt-preview-article-body";
+        body.innerHTML = safe;
+        qtPreviewBox.appendChild(body);
+        if (meta.setupAnchors) {
+            setupQtInternalAnchorDropdown(body, meta.link_results || []);
+        } else {
+            qtHideInternalAnchorToolbar();
+        }
+    };
+
+    const renderQtInternalLinkHtmlPreview = (html, meta) => {
+        const m = meta || {};
+        let legendText;
+        if (m.no_selection) {
+            legendText =
+                "Bài hiện tại — chưa chọn link ở bước Cấu hình (link có sẵn vẫn hiển thị bình thường).";
+        } else if (m.inserted != null) {
+            legendText =
+                `Xem trước sau khi chèn ${m.inserted} internal link` +
+                (m.use_llm ? " (có đoạn ngữ cảnh LLM)" : " (rule-based)") +
+                " — giống hiển thị trong bài.";
+        } else {
+            legendText = "Xem trước nội dung với link nội bộ (màu xanh, gạch chân).";
+        }
+        renderQtArticleHtmlPreview(html, {
+            legend: legendText,
+            setupAnchors: true,
+            link_results: m.link_results || [],
+        });
+    };
+
+    const fetchInternalLinkPreviewHtml = async () => {
+        const cur = getContentValue().trim();
+        if (!cur) throw new Error("Chưa có nội dung bài trong editor.");
+        const customLinks = getValidCustomLinksForApply();
+        const checked = collectWpInternalChecked();
+        if (!checked.length && !customLinks.length) {
+            return {
+                html: cur,
+                inserted: 0,
+                no_selection: true,
+                pending: [],
+                link_results: [],
+            };
+        }
+        const site = resolveTargetWebsite(customLinks);
+        if (!site) throw new Error("Thiếu Target website — nhập ở form hoặc chọn site đã kết nối.");
+        const gen = ++_qtInternalPreviewGen;
+        if (_qtInternalPreviewAbort) {
+            try {
+                _qtInternalPreviewAbort.abort();
+            } catch (_) {}
+        }
+        _qtInternalPreviewAbort = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const fetchOpts = {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                content_html: cur,
+                target_website: site,
+                selected_posts: checked,
+                custom_links: customLinks,
+                current_url: _currentUrlGuess(),
+                article_primary_keyword: byId("primaryKeyword")?.value?.trim() || "",
+                article_secondary_keywords: byId("secondaryKeywords")?.value?.trim() || "",
+                use_llm_rewrite: false,
+                preview_only: true,
+            }),
+        };
+        if (_qtInternalPreviewAbort) fetchOpts.signal = _qtInternalPreviewAbort.signal;
+        const res = await apiFetch(`/content-ai/wp-internal-links/apply?ts=${Date.now()}`, fetchOpts);
+        if (gen !== _qtInternalPreviewGen) {
+            const stale = new Error("__preview_stale__");
+            stale.code = "preview_stale";
+            throw stale;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(parseApiDetail(data) || "Không tạo được bản xem trước.");
+        }
+        const outHtml = String(data.content_html || "").trim();
+        if (!outHtml) throw new Error("Không nhận được HTML xem trước.");
+        return {
+            html: outHtml,
+            inserted: Number(data.inserted_links || 0),
+            pending: Array.isArray(data.pending_append_offers) ? data.pending_append_offers : [],
+            link_results: Array.isArray(data.link_results) ? data.link_results : [],
+            use_llm: false,
+            no_selection: false,
+            preview_only: true,
+        };
+    };
+
+    const buildInternalLinkQtPreview = async () => {
+        if (!qtPreviewBox) return;
+        if (qtStep3Intro) qtStep3Intro.textContent = "";
+        const cur = getContentValue().trim();
+        if (cur) {
+            renderQtArticleHtmlPreview(cur, {
+                legend: "Nội dung bài viết — đang mô phỏng chèn link (rule-based, không LLM)…",
+            });
+        }
+        qtSetStatus("Đang dựng bản xem trước…", "processing");
+        try {
+            const prev = await fetchInternalLinkPreviewHtml();
+            window._qtInternalPreviewHtml = prev.html;
+            renderQtInternalLinkHtmlPreview(prev.html, {
+                inserted: prev.inserted,
+                use_llm: prev.use_llm,
+                no_selection: prev.no_selection,
+                link_results: prev.link_results,
+            });
+            if (qtPreviewExtra) {
+                if (prev.pending && prev.pending.length) {
+                    qtPreviewExtra.innerHTML =
+                        `<p class="hint" style="margin-top:10px;">Có ${prev.pending.length} link cần xác nhận «Tham khảo thêm» khi bấm Áp dụng (bước 4).</p>`;
+                } else {
+                    qtPreviewExtra.innerHTML = "";
+                }
+            }
+            if (prev.no_selection) {
+                qtSetStatus("Tick chọn bài ở Cấu hình rồi mở lại Xem trước để thấy link sẽ chèn.", "config");
+            } else {
+                const skipped = (prev.link_results || []).filter((r) => r && r.status === "skipped").length;
+                let msg = `Đã xem trước — ${prev.inserted} link chèn trong bản demo (nhanh, không LLM).`;
+                if (skipped) msg += ` ${skipped} link bỏ qua.`;
+                if (getInternalLinkUseLlm()) {
+                    msg += " Bật LLM sẽ áp dụng khi bấm «Áp dụng internal link».";
+                }
+                qtSetStatus(msg, "success");
+            }
+        } catch (e) {
+            if (e && (e.name === "AbortError" || e.code === "preview_stale")) return;
+            const errMsg = String((e && e.message) || e);
+            qtSetStatus(errMsg, "error");
+            const fallback = getContentValue().trim();
+            if (fallback) {
+                renderQtInternalLinkHtmlPreview(fallback, { no_selection: true });
+            } else if (qtPreviewBox) {
+                qtPreviewBox.classList.remove("qt-preview-article");
+                qtPreviewBox.textContent = errMsg;
+            }
+        }
+    };
+
     const runApplyInternalLinks = async ({ fromCustomPanel = false, triggerBtn = null } = {}) => {
         const cur = getContentValue().trim();
         if (!cur) {
@@ -14378,7 +15678,498 @@
     });
     refreshEditorModeUi();
 
-    btnResetForm.addEventListener("click", async () => {
+    /* —— Công cụ nhanh: sidebar + modal 4 bước —— */
+    const qtWizardBackdrop = byId("qtWizardBackdrop");
+    const qtWizardModal = byId("qtWizardModal");
+    const qtWizardTitle = byId("qtWizardTitle");
+    const qtWizardDesc = byId("qtWizardDesc");
+    const qtWizardSteps = byId("qtWizardSteps");
+    const qtMountSlot = byId("qtMountSlot");
+    const qtStatus = byId("qtStatus");
+    const qtBtnPrev = byId("qtBtnPrev");
+    const qtBtnNext = byId("qtBtnNext");
+    const qtBtnApply = byId("qtBtnApply");
+    const qtBtnCancel = byId("qtBtnCancel");
+    const qtWizardClose = byId("qtWizardClose");
+    const qtArticleCard = byId("qtArticleCard");
+    const qtArticlePick = byId("qtArticlePick");
+    const qtStep1Hint = byId("qtStep1Hint");
+    const qtStep3Intro = byId("qtStep3Intro");
+    const qtStep4Intro = byId("qtStep4Intro");
+    const qtPreviewBox = byId("qtPreviewBox");
+    const qtPreviewExtra = byId("qtPreviewExtra");
+    const qtApplyArea = byId("qtApplyArea");
+    const legacyWpHost = byId("legacyWpHost");
+    const topFixedInner = byId("topFixedInner");
+    const QT_STEP_LABELS = ["Chọn bài", "Cấu hình", "Xem trước", "Áp dụng"];
+    const QT_TOOLS = {
+        guide: {
+            title: "Hướng dẫn tạo Content AI",
+            desc: "5 bước viết bài SEO từ từ khóa đến đăng WordPress.",
+            isGuide: true,
+        },
+        internal: {
+            title: "Đi Internal Link",
+            desc: "",
+            mountId: "internalLinkPanel",
+            isDetails: false,
+        },
+        studio: {
+            title: "Tạo ảnh AI",
+            desc: "Tạo ảnh minh họa chuyên nghiệp và chèn vào đúng vị trí trong bài.",
+            mountId: "visualStudioPanel",
+            isDetails: true,
+        },
+        webimage: {
+            title: "Tìm ảnh minh họa",
+            desc: "Tìm ảnh phù hợp trên web, tự gợi ý từ khóa và chèn vào bài.",
+            mountId: "webImagePanel",
+            isDetails: true,
+        },
+        score: {
+            title: "Chấm điểm SEO",
+            desc: "Đánh giá nhanh chất lượng bài — gợi ý cải thiện, không chặn đăng.",
+            mountId: "contentScorePanel",
+            isDetails: false,
+        },
+        publish: {
+            title: "Đăng Bài",
+            desc: "Kết nối site và đăng bản nháp hoặc xuất bản bài.",
+            mountId: "topFixedInner",
+            isDetails: false,
+            mountHost: "legacyWpHost",
+        },
+    };
+    let _qtTool = "";
+    let _qtStep = 1;
+    const _qtMountStack = [];
+
+    const qtSetStatus = (text, kind) => {
+        if (!qtStatus) return;
+        qtStatus.textContent = String(text || "");
+        qtStatus.className = "qt-status" + (kind ? " is-" + kind : "");
+        if (!text) qtStatus.className = "qt-status";
+    };
+    const qtIsBulkTab = () => String(_contentAiMainView || "single") === "bulk";
+    const qtGetArticleSummary = () => {
+        const pk = (byId("primaryKeyword") && byId("primaryKeyword").value.trim()) || "";
+        const ttl = (byId("title") && byId("title").value.trim()) || "";
+        return { pk, ttl, pid: String(activeProjectId || "").trim() };
+    };
+    const qtMountElement = (el, targetParent) => {
+        const mountTarget = targetParent || qtMountSlot;
+        if (!el || !mountTarget || mountTarget.contains(el)) return;
+        _qtMountStack.push({ el, parent: el.parentNode, next: el.nextSibling });
+        mountTarget.appendChild(el);
+        if (el.tagName === "DETAILS") el.open = true;
+        if (el.id === "contentScorePanel") el.style.display = "block";
+        if (legacyWpHost && el === topFixedInner && legacyWpHost) {
+            legacyWpHost.classList.add("qt-mounted-in-modal");
+            legacyWpHost.classList.remove("visually-hidden-host");
+            legacyWpHost.setAttribute("aria-hidden", "false");
+        }
+    };
+    const qtUnmountAll = () => {
+        while (_qtMountStack.length) {
+            const { el, parent, next } = _qtMountStack.pop();
+            if (!el || !parent) continue;
+            if (next) parent.insertBefore(el, next);
+            else parent.appendChild(el);
+            if (el.id === "contentScorePanel") el.style.display = "none";
+        }
+        if (legacyWpHost) {
+            legacyWpHost.classList.remove("qt-mounted-in-modal");
+            legacyWpHost.classList.add("visually-hidden-host");
+            legacyWpHost.setAttribute("aria-hidden", "true");
+        }
+    };
+    const qtRenderStepPills = () => {
+        if (!qtWizardSteps) return;
+        qtWizardSteps.innerHTML = QT_STEP_LABELS.map((lab, i) => {
+            const n = i + 1;
+            let cls = "qt-step-pill";
+            if (n === _qtStep) cls += " active";
+            else if (n < _qtStep) cls += " done";
+            const selected = n === _qtStep ? ' aria-selected="true"' : ' aria-selected="false"';
+            return (
+                `<button type="button" class="${cls}" data-qt-step="${n}" role="tab"` +
+                `${selected} id="qtTab${n}" aria-controls="qtStepPanel${n}">${n}. ${lab}</button>`
+            );
+        }).join("");
+        document.querySelectorAll(".qt-step-panel").forEach((p) => {
+            const s = parseInt(p.getAttribute("data-qt-step") || "0", 10);
+            p.classList.toggle("active", s === _qtStep);
+            p.setAttribute("role", "tabpanel");
+            p.setAttribute("aria-labelledby", `qtTab${s}`);
+        });
+        if (qtBtnPrev) qtBtnPrev.disabled = _qtStep <= 1;
+        if (qtBtnNext) qtBtnNext.hidden = _qtStep >= 4;
+        if (qtBtnApply) qtBtnApply.hidden = _qtStep < 4;
+    };
+    const qtPopulateBulkArticlePick = () => {
+        if (!qtArticlePick) return;
+        const opts = [];
+        (allProjects || []).forEach((p) => {
+            const id = String(p.id || "").trim();
+            if (!id) return;
+            const kw = String(p.primary_keyword || p.title || id).trim();
+            opts.push(`<option value="${id.replace(/"/g, "&quot;")}">${kw.slice(0, 80)}</option>`);
+        });
+        bulkKeywordRows.forEach((r) => {
+            const pid = String(r.project_id || "").trim();
+            if (!pid || opts.some((o) => o.includes(`value="${pid}"`))) return;
+            const kw = String(r.primary_keyword || r.keyword || pid).trim();
+            opts.push(`<option value="${pid.replace(/"/g, "&quot;")}">${kw.slice(0, 80)} (bulk)</option>`);
+        });
+        qtArticlePick.innerHTML = '<option value="">-- Chọn bài --</option>' + opts.join("");
+        qtArticlePick.style.display = opts.length ? "block" : "none";
+        if (activeProjectId) qtArticlePick.value = activeProjectId;
+    };
+    const qtRefreshStep1 = () => {
+        const sum = qtGetArticleSummary();
+        if (qtIsBulkTab()) {
+            if (qtStep1Hint) qtStep1Hint.textContent = "Tab viết theo từ khóa: chọn một bài trong danh sách dự án hoặc bulk trước khi tiếp tục.";
+            qtPopulateBulkArticlePick();
+            if (qtArticleCard) {
+                qtArticleCard.innerHTML = sum.pid
+                    ? `<strong>Đang chọn:</strong> ${sum.pk || sum.ttl || sum.pid}`
+                    : "<em>Chưa chọn bài — dùng danh sách bên dưới.</em>";
+            }
+        } else {
+            if (qtArticlePick) qtArticlePick.style.display = "none";
+            if (qtStep1Hint) qtStep1Hint.textContent = "Đang dùng bài trên tab «Viết 1 bài» (nội dung editor hiện tại).";
+            if (qtArticleCard) {
+                qtArticleCard.innerHTML =
+                    `<strong>Từ khóa:</strong> ${sum.pk || "—"}<br>` +
+                    `<strong>Tiêu đề:</strong> ${sum.ttl || "—"}<br>` +
+                    `<strong>Dự án:</strong> ${sum.pid || "chưa lưu"}`;
+            }
+        }
+    };
+    const qtEnsureArticle = async () => {
+        if (!qtIsBulkTab()) {
+            const cur = getContentValue().trim();
+            if (!cur && _qtTool !== "publish") {
+                qtSetStatus("Chưa có nội dung bài — hãy tạo hoặc mở một dự án trước.", "error");
+                return false;
+            }
+            return true;
+        }
+        const pid = (qtArticlePick && qtArticlePick.value) || activeProjectId;
+        if (!pid) {
+            qtSetStatus("Hãy chọn một bài trong danh sách trước.", "error");
+            return false;
+        }
+        if (pid !== activeProjectId) {
+            qtSetStatus("Đang tải bài đã chọn…", "processing");
+            await loadProject(pid);
+            qtSetStatus("", "");
+        }
+        return true;
+    };
+    const qtMountToolPanel = () => {
+        qtUnmountAll();
+        const cfg = QT_TOOLS[_qtTool];
+        if (!cfg) return;
+        let el = byId(cfg.mountId);
+        if (cfg.mountHost === "legacyWpHost" && topFixedInner) el = topFixedInner;
+        if (el) qtMountElement(el);
+    };
+    const qtBuildPreview = async () => {
+        if (!qtPreviewBox) return;
+        if (qtPreviewExtra) qtPreviewExtra.innerHTML = "";
+
+        if (_qtTool === "internal") {
+            await buildInternalLinkQtPreview();
+            return;
+        }
+
+        renderQtArticleHtmlPreview(getContentValue(), {
+            legend: "Nội dung bài viết hiện tại (từ editor «Nội dung bài viết»).",
+        });
+
+        if (_qtTool === "score") {
+            if (qtStep3Intro) qtStep3Intro.textContent = "Đang chấm điểm bài…";
+            qtSetStatus("Đang xử lý…", "processing");
+            try {
+                await refreshContentScore();
+                if (contentScorePanel) qtMountElement(contentScorePanel, qtPreviewExtra);
+                qtSetStatus("Đã chấm xong — xem chi tiết bên dưới.", "success");
+            } catch (_) {
+                qtSetStatus("Không chấm được — kiểm tra nội dung và thử lại.", "error");
+            }
+            if (qtStep3Intro) qtStep3Intro.textContent = "Kết quả chấm điểm bên dưới (chỉ gợi ý).";
+        } else if (_qtTool === "studio") {
+            if (qtStep3Intro) {
+                qtStep3Intro.textContent =
+                    "Xem nội dung bài phía trên — tạo/chèn ảnh AI ở bước Cấu hình.";
+            }
+            qtSetStatus("Tạo ảnh ở bước Cấu hình nếu gallery trống.", "config");
+        } else if (_qtTool === "webimage") {
+            if (qtStep3Intro) {
+                qtStep3Intro.textContent =
+                    "Xem nội dung bài phía trên — chọn ảnh web ở bước Cấu hình và bấm Chèn.";
+            }
+            qtSetStatus("Tìm ảnh ở bước Cấu hình nếu chưa có kết quả.", "config");
+        } else if (_qtTool === "publish") {
+            if (qtStep3Intro) {
+                qtStep3Intro.textContent =
+                    "Xem trước nội dung sẽ đăng — kiểm tra URL site ở bước Cấu hình.";
+            }
+            const wp = byId("wpUrl") && byId("wpUrl").value.trim();
+            qtSetStatus(
+                wp
+                    ? "Sẵn sàng đăng — bước Áp dụng để gửi lên WordPress."
+                    : "Nhập địa chỉ website WordPress ở bước Cấu hình.",
+                wp ? "success" : "config",
+            );
+        }
+    };
+    const qtBuildApply = () => {
+        if (!qtApplyArea) return;
+        qtApplyArea.innerHTML = "";
+        if (_qtTool === "internal") {
+            qtApplyArea.innerHTML =
+                '<p class="hint">Chọn bài/custom link ở bước Cấu hình, rồi bấm nút bên dưới.</p>';
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "btn";
+            b.textContent = "Áp dụng internal link vào bài";
+            b.addEventListener("click", () => {
+                if (btnApplyCustomInternalLinks) btnApplyCustomInternalLinks.click();
+                else if (btnApplyInternalLinks) btnApplyInternalLinks.click();
+            });
+            qtApplyArea.appendChild(b);
+            if (btnFindInternalLinks) {
+                const b2 = document.createElement("button");
+                b2.type = "button";
+                b2.className = "btn secondary";
+                b2.style.marginLeft = "8px";
+                b2.textContent = "Tìm bài liên quan trước";
+                b2.addEventListener("click", () => btnFindInternalLinks.click());
+                qtApplyArea.appendChild(b2);
+            }
+        } else if (_qtTool === "score") {
+            qtApplyArea.innerHTML = '<p class="hint">Điểm đã hiển thị ở bước Xem trước. Đóng cửa sổ khi xong.</p>';
+        } else if (_qtTool === "studio" || _qtTool === "webimage") {
+            qtApplyArea.innerHTML =
+                '<p class="hint">Chọn ảnh trong gallery (bước Cấu hình / Xem trước) và bấm «Chèn» trên từng ảnh.</p>';
+        } else if (_qtTool === "publish") {
+            qtApplyArea.innerHTML =
+                '<p class="hint">Dùng nút đăng bên dưới (cùng luồng đăng bài hiện tại).</p>';
+        }
+        if (qtStep4Intro) {
+            qtStep4Intro.textContent =
+                _qtTool === "publish"
+                    ? "Đăng bản nháp hoặc xuất bản — có thể kiểm tra checklist trước."
+                    : "Xác nhận và áp dụng vào bài đang soạn.";
+        }
+    };
+    const qtSyncToolModalClass = () => {
+        const modal = byId("qtWizardModal");
+        if (!modal) return;
+        modal.classList.remove(
+            "qt-tool-internal",
+            "qt-tool-studio",
+            "qt-tool-webimage",
+            "qt-tool-score",
+            "qt-tool-publish",
+            "qt-tool-guide",
+            "qt-step-3",
+        );
+        if (_qtTool) modal.classList.add("qt-tool-" + _qtTool);
+        if (_qtStep === 3) modal.classList.add("qt-step-3");
+    };
+    const qtGuidePanel = byId("qtGuidePanel");
+    const qtSetGuideMode = (on) => {
+        if (qtGuidePanel) qtGuidePanel.hidden = !on;
+    };
+    const QT_WIZARD_STATE_KEY = () => userStorageKey("content_ai_qt_wizard_v1");
+    const saveQtWizardState = () => {
+        try {
+            if (!qtWizardBackdrop || !qtWizardBackdrop.classList.contains("open") || !_qtTool) {
+                localStorage.removeItem(QT_WIZARD_STATE_KEY());
+                return;
+            }
+            if (_qtTool === "guide") {
+                localStorage.removeItem(QT_WIZARD_STATE_KEY());
+                return;
+            }
+            localStorage.setItem(
+                QT_WIZARD_STATE_KEY(),
+                JSON.stringify({ open: true, tool: _qtTool, step: _qtStep }),
+            );
+        } catch (_) {}
+    };
+    const clearQtWizardState = () => {
+        try {
+            localStorage.removeItem(QT_WIZARD_STATE_KEY());
+        } catch (_) {}
+    };
+    const restoreQtWizardState = async () => {
+        try {
+            const raw = localStorage.getItem(QT_WIZARD_STATE_KEY());
+            if (!raw) return;
+            const st = JSON.parse(raw);
+            if (!st || !st.open || !st.tool || !QT_TOOLS[st.tool]) return;
+            qtOpen(st.tool);
+            const step = parseInt(st.step, 10);
+            if (Number.isFinite(step) && step > 1 && step <= 4) {
+                await qtJumpToStep(step);
+            }
+            saveQtWizardState();
+        } catch (_) {
+            clearQtWizardState();
+        }
+    };
+    const qtClose = () => {
+        qtHideInternalAnchorToolbar();
+        if (_qtInternalPreviewTimer) {
+            window.clearTimeout(_qtInternalPreviewTimer);
+            _qtInternalPreviewTimer = null;
+        }
+        if (_qtInternalPreviewAbort) {
+            try {
+                _qtInternalPreviewAbort.abort();
+            } catch (_) {}
+            _qtInternalPreviewAbort = null;
+        }
+        _qtInternalPreviewGen += 1;
+        qtUnmountAll();
+        qtSetGuideMode(false);
+        if (qtWizardBackdrop) {
+            qtWizardBackdrop.classList.remove("open");
+            qtWizardBackdrop.setAttribute("aria-hidden", "true");
+        }
+        _qtTool = "";
+        _qtStep = 1;
+        qtSyncToolModalClass();
+        qtSetStatus("", "");
+        clearQtWizardState();
+    };
+    const qtOpen = (toolId) => {
+        const cfg = QT_TOOLS[toolId];
+        if (!cfg || !qtWizardBackdrop) return;
+        _qtTool = toolId;
+        _qtStep = 1;
+        if (qtWizardTitle) qtWizardTitle.textContent = cfg.title;
+        if (qtWizardDesc) qtWizardDesc.textContent = cfg.desc || "";
+        qtSyncToolModalClass();
+        if (cfg.isGuide) {
+            qtSetGuideMode(true);
+            qtSetStatus("", "");
+            qtWizardBackdrop.classList.add("open");
+            qtWizardBackdrop.setAttribute("aria-hidden", "false");
+            return;
+        }
+        qtSetGuideMode(false);
+        qtRefreshStep1();
+        qtRenderStepPills();
+        qtSetStatus("", "");
+        if (qtPreviewBox) qtPreviewBox.textContent = "";
+        if (qtApplyArea) qtApplyArea.innerHTML = "";
+        qtWizardBackdrop.classList.add("open");
+        qtWizardBackdrop.setAttribute("aria-hidden", "false");
+        try {
+            initWebImagePanel();
+        } catch (_) {}
+        try {
+            void initVisualStudio();
+        } catch (_) {}
+        saveQtWizardState();
+    };
+    const qtGoStep = async (n, { skipRender } = {}) => {
+        const prev = _qtStep;
+        const next = Math.max(1, Math.min(4, n));
+        if (next < 2 && prev >= 2) qtUnmountAll();
+        _qtStep = next;
+        qtSyncToolModalClass();
+        if (!skipRender) qtRenderStepPills();
+        if (_qtStep === 2) {
+            qtMountToolPanel();
+            if (_qtTool === "internal") {
+                ensureInternalCandidatesTable();
+                if (!_internalCandidates.length) {
+                    qtSetStatus("Bấm «Tìm bài liên quan» để lấy danh sách bài trên website.", "config");
+                }
+            }
+            if (_qtTool === "webimage") {
+                try {
+                    refreshWebImageH2Select();
+                } catch (_) {}
+            }
+            if (_qtTool === "studio") {
+                try {
+                    refreshStudioH2Select();
+                } catch (_) {}
+            }
+            if (_qtTool === "publish") {
+                try {
+                    qtRefreshPublishConfig();
+                } catch (_) {}
+            }
+        }
+        if (_qtStep === 3) await qtBuildPreview();
+        if (_qtStep === 4) qtBuildApply();
+        if (_qtStep === 1) qtRefreshStep1();
+        saveQtWizardState();
+    };
+    const qtJumpToStep = async (target) => {
+        const n = parseInt(target, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 4) return;
+        if (n === _qtStep) return;
+        qtSetStatus("", "");
+        if (n < _qtStep) {
+            await qtGoStep(n);
+            return;
+        }
+        if (n >= 2) {
+            const ok = await qtEnsureArticle();
+            if (!ok) return;
+        }
+        for (let s = _qtStep + 1; s <= n; s++) {
+            await qtGoStep(s, { skipRender: s < n });
+        }
+        qtRenderStepPills();
+    };
+    const qtOnNext = async () => {
+        if (_qtStep >= 4) return;
+        await qtJumpToStep(_qtStep + 1);
+    };
+    const qtOnPrev = () => {
+        if (_qtStep <= 1) return;
+        void qtJumpToStep(_qtStep - 1);
+    };
+    if (qtWizardSteps) {
+        qtWizardSteps.addEventListener("click", (ev) => {
+            const tab = ev.target && ev.target.closest ? ev.target.closest("[data-qt-step]") : null;
+            if (!tab || tab.disabled) return;
+            ev.preventDefault();
+            const n = parseInt(tab.getAttribute("data-qt-step") || "0", 10);
+            if (Number.isFinite(n)) void qtJumpToStep(n);
+        });
+    }
+    document.querySelectorAll(".qt-rail-btn[data-qt-tool]").forEach((btn) => {
+        btn.addEventListener("click", () => qtOpen(btn.getAttribute("data-qt-tool") || ""));
+    });
+    if (qtBtnNext) qtBtnNext.addEventListener("click", () => void qtOnNext());
+    if (qtBtnPrev) qtBtnPrev.addEventListener("click", qtOnPrev);
+    if (qtBtnCancel) qtBtnCancel.addEventListener("click", qtClose);
+    if (qtWizardClose) qtWizardClose.addEventListener("click", qtClose);
+    if (qtBtnApply) {
+        qtBtnApply.addEventListener("click", () => {
+            if (_qtTool === "internal") {
+                if (btnApplyCustomInternalLinks) btnApplyCustomInternalLinks.click();
+                else if (btnApplyInternalLinks) btnApplyInternalLinks.click();
+            } else if (_qtTool === "publish") {
+                qtSetStatus("Chọn «Đăng bản nháp» hoặc «Đăng bài» trong khung cấu hình.", "config");
+            } else {
+                qtClose();
+            }
+        });
+    }
+
+    if (btnResetForm) btnResetForm.addEventListener("click", async () => {
         const view = String(_contentAiMainView || "single");
         if (view === "projects") {
             if (msg) {

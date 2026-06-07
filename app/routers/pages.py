@@ -310,6 +310,8 @@ class ContentAiWebImageSearchRequest(BaseModel):
     title: str = ""
     h2_heading: str = ""
     custom_query: str = ""
+    content_html: str = ""
+    outline_content: str = ""
     num: int = 12
 
 
@@ -325,6 +327,8 @@ def content_ai_web_images_search(
             title=payload.title,
             h2_heading=payload.h2_heading,
             custom_query=payload.custom_query,
+            content_html=payload.content_html,
+            outline_content=payload.outline_content,
             num=max(1, min(int(payload.num or 12), 20)),
         )
     except ValueError as exc:
@@ -1379,6 +1383,7 @@ class InternalLinkApplyRequest(BaseModel):
     article_primary_keyword: str | None = None
     article_secondary_keywords: str | None = None
     use_llm_rewrite: bool | None = False  # True = LLM viết đoạn ngắn + chèn anchor (không dùng popup Tham khảo thêm)
+    preview_only: bool | None = False  # Xem trước nhanh — không LLM, không chặn khi 0 link chèn
     apply_mode: str | None = "full"  # full | append_only
     append_lead: str | None = "Tham khảo thêm:"
     confirmed_append_urls: list[str] | None = None
@@ -2842,14 +2847,18 @@ def content_ai_internal_link_apply(
             ),
         )
 
-    use_llm = True if payload.use_llm_rewrite is None else bool(payload.use_llm_rewrite)
+    preview_only = bool(payload.preview_only)
+    use_llm = False if preview_only else (
+        True if payload.use_llm_rewrite is None else bool(payload.use_llm_rewrite)
+    )
     pk_a = str(payload.article_primary_keyword or "").strip()
     sec_a = str(payload.article_secondary_keywords or "").strip()
     llm_available = False
-    try:
-        llm_available = bool(load_llm_config())
-    except Exception:
-        llm_available = False
+    if use_llm:
+        try:
+            llm_available = bool(load_llm_config())
+        except Exception:
+            llm_available = False
 
     merged = apply_merged_internal_links(
         content_html=content_html,
@@ -2865,10 +2874,11 @@ def content_ai_internal_link_apply(
         apply_mode=str(payload.apply_mode or "full"),
         append_lead=str(payload.append_lead or "Tham khảo thêm:"),
         confirmed_append_urls=payload.confirmed_append_urls,
+        preview_only=preview_only,
     )
     updates = merged.get("updates") or []
     pending = merged.get("pending_append_offers") or []
-    if not updates and not pending:
+    if not updates and not pending and not preview_only:
         detail = str(merged.get("error") or "Không chèn được internal link.")
         raise HTTPException(status_code=422, detail=detail)
     return JSONResponse(
@@ -2882,6 +2892,7 @@ def content_ai_internal_link_apply(
             "insert_mode": str(merged.get("insert_mode") or "minimal"),
             "pending_append_offers": pending,
             "verification": merged.get("verification") or {"ok": True, "issues": []},
+            "preview_only": preview_only,
         }
     )
 

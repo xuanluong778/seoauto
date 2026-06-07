@@ -1845,6 +1845,7 @@ def apply_merged_internal_links(
     apply_mode: str = "full",
     append_lead: str = "Tham khảo thêm:",
     confirmed_append_urls: list[str] | None = None,
+    preview_only: bool = False,
 ) -> dict[str, Any]:
     mode = str(apply_mode or "full").strip().lower()
     confirmed_set = {
@@ -2439,13 +2440,16 @@ def apply_merged_internal_links(
             if v:
                 verify_allowed.add(v)
 
-    verification = verify_internal_links_html(
-        str(soup),
-        jobs=jobs,
-        current_url=current_url,
-        expected_inserts=updates if updates else None,
-        allowed_urls=verify_allowed,
-    )
+    if preview_only:
+        verification: dict[str, Any] = {"ok": True, "issues": [], "preview_skipped": True}
+    else:
+        verification = verify_internal_links_html(
+            str(soup),
+            jobs=jobs,
+            current_url=current_url,
+            expected_inserts=updates if updates else None,
+            allowed_urls=verify_allowed,
+        )
 
     return {
         "content_html": str(soup),

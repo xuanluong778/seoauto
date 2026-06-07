@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.user import User
 from app.services.auth import get_current_user
-from app.queue.celery_app import celery_app
 from app.services.internal_linking.anchor_generator import generate_anchor_variations
 from app.services.internal_linking.crawler import sync_wordpress_site
 from app.services.internal_linking.embeddings import DEFAULT_MODEL, embed_chunks_for_site
@@ -76,6 +75,8 @@ def internal_links_sync(
     if not wp_site:
         raise HTTPException(status_code=400, detail="wp_site is required")
     if payload.async_mode:
+        from app.queue.celery_app import celery_app
+
         task = celery_app.send_task("internal_links.sync_site", args=[wp_site, int(payload.limit_per_type)])
         return JSONResponse(content={"ok": True, "queued": True, "task_id": task.id})
     try:
@@ -106,6 +107,8 @@ def internal_links_embed(
         raise HTTPException(status_code=400, detail="wp_site is required")
     model = (payload.model_name or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     if payload.async_mode:
+        from app.queue.celery_app import celery_app
+
         task = celery_app.send_task("internal_links.embed_site", args=[wp_site, model, bool(payload.only_missing)])
         return JSONResponse(content={"ok": True, "queued": True, "task_id": task.id, "model": model})
     try:
