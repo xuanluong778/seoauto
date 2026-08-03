@@ -1,0 +1,85 @@
+/* Shared Chatbot KB UI — Settings + Chatbot CSKH */
+
+.ckb-sync {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.ckb-sync--synced { background: rgba(52, 211, 153, 0.15); color: #6ee7b7; }
+.ckb-sync--empty { background: rgba(148, 163, 184, 0.18); color: #cbd5e1; }
+.ckb-sync--processing { background: rgba(56, 189, 248, 0.15); color: #7dd3fc; }
+.ckb-sync--error { background: rgba(248, 113, 113, 0.15); color: #fca5a5; }
+
+.ckb-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.ckb-badge--draft { background: rgba(148, 163, 184, 0.18); color: #cbd5e1; }
+.ckb-badge--active { background: rgba(52, 211, 153, 0.15); color: #6ee7b7; }
+.ckb-badge--disabled { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+
+.ckb-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.ckb-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.ckb-tree { display: flex; flex-direction: column; gap: 8px; }
+
+.ckb-node {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.ckb-node--group { border-color: rgba(99, 102, 241, 0.35); }
+.ckb-node--inactive { opacity: 0.55; }
+.ckb-node-preview { margin: 6px 0 0; font-size: 13px; color: var(--muted, #94a3b8); white-space: pre-wrap; }
+.ckb-node-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ckb-btn-sm { font-size: 12px !important; padding: 4px 10px !important; }
+
+.ckb-empty {
+    text-align: center;
+    padding: 24px 16px;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+}
+
+.ckb-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+}
+
+.ckb-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 640px) {
+    .ckb-form-grid { grid-template-columns: 1fr; }
+    .ckb-actions { flex-direction: column; }
+}

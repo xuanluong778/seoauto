@@ -1,0 +1,143 @@
+        <div class="ca-media-workspace ca-step-drawer-panel" id="contentAiMediaPanel" data-ca-modal-tabs="media">
+            <header class="ca-step-drawer-head ca-modal-header-sticky">
+                <div class="ca-step-drawer-head-text">
+                    <h2 class="ca-step-drawer-title">Ảnh minh họa</h2>
+                    <p class="ca-step-drawer-sub">Tìm, tạo và chèn ảnh vào bài viết.</p>
+                </div>
+            </header>
+
+            <nav class="ca-modal-tabs" role="tablist" aria-label="Ảnh minh họa">
+                <button type="button" class="ca-modal-tab active" role="tab" aria-selected="true" data-tab-index="0">Chọn ảnh</button>
+                <button type="button" class="ca-modal-tab" role="tab" aria-selected="false" data-tab-index="1">Tùy chỉnh</button>
+                <button type="button" class="ca-modal-tab" role="tab" aria-selected="false" data-tab-index="2">Đã chèn</button>
+                <button type="button" class="ca-modal-tab" role="tab" aria-selected="false" data-tab-index="3">Xem demo</button>
+            </nav>
+
+            <div class="ca-modal-body-scroll">
+                <div class="ca-modal-tab-panel ca-simple-section" data-tab-index="0" role="tabpanel">
+                    <div class="ca-simple-card">
+                        <div class="ca-media-source-cards ca-media-source-cards--simple" role="radiogroup" aria-label="Nguồn ảnh">
+                            <button type="button" class="ca-media-card ca-media-source-card ca-simple-card active" data-media-source="ai" aria-pressed="true">
+                                <strong>AI tạo ảnh</strong>
+                            </button>
+                            <button type="button" class="ca-media-card ca-media-source-card ca-simple-card" data-media-source="web" aria-pressed="false">
+                                <strong>Tìm ảnh web</strong>
+                            </button>
+                            <button type="button" class="ca-media-card ca-media-source-card ca-simple-card" data-media-source="upload" aria-pressed="false">
+                                <strong>Upload</strong>
+                            </button>
+                        </div>
+                        <div class="ca-media-panel ca-media-panel--ai" data-media-panel="ai">
+                            <div class="visual-studio-panel" id="visualStudioPanel">
+                                <div class="ca-media-h2-panel" id="studioH2Panel">
+                                    <label>Mục H2</label>
+                                    <div class="studio-h2-toolbar">
+                                        <button type="button" class="mini-btn" id="studioH2SelectAll">Chọn tất cả</button>
+                                        <button type="button" class="mini-btn" id="studioH2ClearAll">Bỏ chọn</button>
+                                    </div>
+                                    <div id="studioH2List" class="hint">Chưa có H2 — thêm heading H2 trong content.</div>
+                                </div>
+                                <button type="button" class="btn content-ai-aux-hidden" id="btnStudioGenerate">Tạo ảnh AI</button>
+                            </div>
+                        </div>
+                        <div class="ca-media-panel ca-media-panel--web" data-media-panel="web" hidden>
+                            <div class="ca-media-search-row">
+                                <input id="googleImageQuery" type="text" placeholder="Từ khóa ảnh (mặc định = từ khóa chính)" />
+                                <select id="googleImageNum" aria-label="Số ảnh">
+                                    <option value="6">6</option>
+                                    <option value="8" selected>8</option>
+                                    <option value="10">10</option>
+                                </select>
+                                <button class="btn secondary content-ai-aux-hidden" type="button" id="btnGoogleImageSearch">Tìm ảnh</button>
+                            </div>
+                        </div>
+                        <div class="ca-media-panel ca-media-panel--upload" data-media-panel="upload" hidden>
+                            <div class="upload-row">
+                                <input id="imageUpload" type="file" accept="image/*" multiple />
+                                <button class="btn secondary content-ai-aux-hidden" type="button" id="btnUploadImage">Tải ảnh lên</button>
+                            </div>
+                        </div>
+                        <div class="ca-simple-actions" style="margin-top:10px;">
+                            <button type="button" class="btn" id="btnMediaFindOrCreate">Tìm / Tạo ảnh</button>
+                        </div>
+                        <p class="ca-media-hint" id="hint-image">Chọn nguồn và bấm «Tìm / Tạo ảnh».</p>
+                        <p class="ca-media-hint" id="hint-google-images"></p>
+                        <span class="ca-media-hint" id="hint-visual-studio" hidden aria-live="polite"></span>
+                    </div>
+                    <div id="googleImageResults" class="ca-media-gallery-grid" role="list"></div>
+                    <div class="visual-studio-gallery ca-media-gallery-grid" id="studioGallery" aria-live="polite"></div>
+                </div>
+
+                <div class="ca-modal-tab-panel ca-simple-section" data-tab-index="1" role="tabpanel" hidden>
+                    <div class="ca-simple-card">
+                        <p class="ca-media-hint">Tự động chèn ảnh từ web và AI.</p>
+                        <button class="btn secondary" type="button" id="btnAutoInsertImages">Tự động chèn ảnh</button>
+                    </div>
+                    <div class="ca-media-panel ca-media-panel--hybrid" data-media-panel="hybrid" hidden>
+                    </div>
+                    <div class="ca-media-advanced-body ca-simple-card visual-studio-grid" id="caMediaAdvanced">
+                        <div>
+                            <label for="studioImageModel">Model ảnh AI (OpenRouter)</label>
+                            <select id="studioImageModel"></select>
+                        </div>
+                        <div>
+                            <label for="studioImageType">Loại ảnh</label>
+                            <select id="studioImageType"></select>
+                        </div>
+                        <div>
+                            <label for="studioStylePreset">Phong cách</label>
+                            <select id="studioStylePreset"></select>
+                        </div>
+                        <div>
+                            <label for="studioAspectRatio">Tỷ lệ / size</label>
+                            <select id="studioAspectRatio"></select>
+                        </div>
+                        <div>
+                            <label for="studioImageCount">Số ảnh (2–4)</label>
+                            <input id="studioImageCount" type="number" min="2" max="4" value="3" />
+                        </div>
+                        <div>
+                            <label for="studioBrandTone">Tone thương hiệu</label>
+                            <select id="studioBrandTone"></select>
+                        </div>
+                        <div class="studio-custom-size" id="studioCustomSizeWrap">
+                            <div>
+                                <label for="studioCustomWidth">Rộng (px)</label>
+                                <input id="studioCustomWidth" type="number" min="256" max="2048" value="800" />
+                            </div>
+                            <div>
+                                <label for="studioCustomHeight">Cao (px)</label>
+                                <input id="studioCustomHeight" type="number" min="256" max="2048" value="400" />
+                            </div>
+                        </div>
+                        <div style="grid-column:1/-1;">
+                            <label class="hint" style="display:inline-flex;align-items:center;gap:6px;margin:0;">
+                                <input type="checkbox" id="studioIncludeText" style="width:auto;" />
+                                Prompt chữ trên ảnh (headline / CTA)
+                            </label>
+                        </div>
+                        <div id="studioTextHintWrap" style="grid-column:1/-1;display:none;">
+                            <label for="studioTextHint">Gợi ý chữ (Google CSE / Bing dùng từ khóa ảnh)</label>
+                            <input id="studioTextHint" type="text" placeholder="VD: 5 bước SEO on-page" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ca-modal-tab-panel ca-simple-section" data-tab-index="2" role="tabpanel" hidden>
+                    <div id="mediaInsertSummary" class="ca-media-summary" hidden></div>
+                    <div id="mediaInsertedStats" class="ca-simple-card ca-il-stats" aria-live="polite">
+                        <p class="ca-il-empty" id="mediaInsertedStatsText">Chưa chèn ảnh nào.</p>
+                    </div>
+                    <div id="uploadList" class="ca-media-selected-list ca-simple-list upload-list"></div>
+                    <button type="button" class="btn secondary ca-media-undo-btn" id="btnMediaUndo" hidden>Hoàn tác chèn ảnh</button>
+                </div>
+
+                <div class="ca-modal-tab-panel ca-simple-section" data-tab-index="3" role="tabpanel" hidden>
+                    <div class="ca-simple-actions">
+                        <button type="button" class="mini-btn" id="btnRefreshMediaDemo">Làm mới demo</button>
+                    </div>
+                    <p class="ca-media-hint">Xem trước bài viết — ảnh và internal link hiển thị đúng như khi đọc bài.</p>
+                    <div id="caMediaDemoPreview" class="ca-content-demo-viewport" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>

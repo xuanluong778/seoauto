@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from io import BytesIO
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -19,7 +21,12 @@ from app.db import get_db
 from app.models.keyword_cluster_project import KeywordClusterProject
 from app.models.keyword_research_project import KeywordResearchProject
 from app.models.user import User
+from app.services.api_payload_optimizer import (
+    shape_keyword_cluster_history_response,
+    shape_keyword_research_response,
+)
 from app.services.auth import get_billing_user, get_current_user
+from app.services.rbac import normalize_role
 from app.services.user_scope import assert_job_access
 from app.services.credits import (
     consume_credits,
@@ -30,8 +37,12 @@ from app.services.credits import (
     cost_research_run,
     volume_batch_charge,
 )
+from app.services.cost_control import CostGateRequest, ExternalApiProvider, cost_gate_session
+from app.services.plan_quota_registry import feature_key_for
+from app.services.plan_quota_service import record_quota_usage
 from app.services.keyword_cluster_pipeline import build_keyword_cluster_api_response
 from app.services.keyword_export import export_cluster_flat_to_excel, export_to_excel, export_to_google_sheets
+from app.services.keyword_research_cost import KeywordResearchCostExceeded
 from app.services.keyword_research_pipeline import build_keyword_research_api_response
 from app.services.search_volume import enrich_keyword_volumes_cached
 
@@ -60,10 +71,13 @@ class ResearchRunBody(BaseModel):
     cluster_strictness: str | None = Field(default=None, max_length=16, description="strict | normal | loose")
     cluster_fetch_serp: bool | None = Field(default=None, description="Hybrid SERP fetch; None = env default")
     cluster_max_keywords: int | None = Field(default=None, description="Giới hạn KW cho clustering; server sẽ clamp an toàn")
+    max_keywords: int | None = Field(default=None, ge=20, le=2000, description="Giới hạn KW trả về sau expansion")
+    deep_analysis: bool = Field(default=False, description="Bật SERP/KD/refresh volume (tốn thêm credit)")
 
 
 class ClusterSaveBody(BaseModel):
     keywords: list[str] = Field(..., min_length=1, max_length=5000)
+    project_name: str | None = Field(default=None, max_length=255)
     fetch_serp: bool = Field(default=True)
     country: str = Field(default="vn", max_length=8)
     language: str = Field(default="vi", max_length=8)
@@ -85,10 +99,57 @@ def api_keyword_volume_batch(
     db: Session = Depends(get_db),
     billing_user: User | None = Depends(get_billing_user),
 ) -> JSONResponse:
+    from app.services.dataforseo_billing_service import (
+        DataforseoStats,
+        charge_volume_batch_credits,
+        log_dataforseo_usage,
+        preview_volume_batch_billing,
+        user_may_use_dataforseo_live,
+    )
+
     kws = [str(s).strip() for s in body.keywords if str(s).strip()]
     if not kws:
         raise HTTPException(status_code=400, detail="At least one keyword required")
-    rows = enrich_keyword_volumes_cached(kws, country=body.country, language=body.language)
+
+    stats: dict[str, Any] = {}
+    allow_live = True
+    preview = None
+    plan_slug = None
+
+    if billing_user:
+        from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
+
+        allow_live = user_may_use_dataforseo_live(db, billing_user)
+        preview = preview_volume_batch_billing(
+            db,
+            billing_user,
+            keywords=kws,
+            country=body.country,
+            language=body.language,
+        )
+        plan_slug = resolve_cau_ai_plan_slug(db, billing_user)
+        gate_req = CostGateRequest(
+            db=db,
+            user=billing_user,
+            provider=ExternalApiProvider.DATAFORSEO,
+            action="volume_batch",
+            credit_cost=int(preview.credit_cost),
+            feature_key=feature_key_for("keyword_research"),
+            quota_units=max(1, (len(kws) + 99) // 100),
+            require_paid_plan=True,
+            single_flight_key=f"volume_batch:{billing_user.id}",
+        )
+        with cost_gate_session(gate_req):
+            rows = enrich_keyword_volumes_cached(
+                kws,
+                country=body.country,
+                language=body.language,
+                allow_api=allow_live,
+                stats=stats,
+            )
+    else:
+        rows = enrich_keyword_volumes_cached(kws, country=body.country, language=body.language)
+
     out: dict[str, dict] = {}
     for r in rows or []:
         kw = str(r.get("keyword") or "").strip()
@@ -99,18 +160,28 @@ def api_keyword_volume_batch(
             "volume_source": str(r.get("volume_source") or ""),
             "confidence": float(r.get("confidence") or 0.0),
         }
-    if billing_user:
-        amt = volume_batch_charge(len(kws))
-        if amt > 0:
-            consume_credits(
-                db,
-                user_id=billing_user.id,
-                amount=amt,
-                reason="volume_batch",
-                note=f"keywords={len(kws)}",
-            )
-            db.commit()
-    return JSONResponse(content={"items": out})
+
+    charged = 0
+    if billing_user and preview is not None:
+        dfs_stats = DataforseoStats()
+        dfs_stats.merge(stats)
+        charged = charge_volume_batch_credits(db, billing_user, preview=preview, stats=dfs_stats)
+        log_dataforseo_usage(
+            db,
+            user_id=billing_user.id,
+            action="volume_batch",
+            endpoint="search_volume/live",
+            api_mode="live" if dfs_stats.api_tasks > 0 else "cache",
+            tasks_count=dfs_stats.api_tasks,
+            credit_charged=charged,
+            cache_hit=int(preview.cache_hits),
+            api_called=dfs_stats.api_tasks,
+            keyword_count=len(kws),
+            plan_slug=plan_slug,
+        )
+        db.commit()
+
+    return JSONResponse(content={"items": out, "billing": preview.to_dict() if preview else None})
 
 
 def _cluster_label(keywords: list[str]) -> str:
@@ -121,6 +192,16 @@ def _cluster_label(keywords: list[str]) -> str:
     if len(xs) > 8:
         head += " + …"
     return head[:2000]
+
+
+def _normalize_cluster_project_name(name: str | None, keyword_count: int) -> str:
+    collapsed = " ".join(str(name or "").split())
+    if collapsed:
+        return collapsed[:255]
+    from datetime import datetime
+
+    stamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+    return f"Gom nhóm {stamp}"[:255]
 
 
 @router.post("/cluster/save")
@@ -137,9 +218,11 @@ def api_cluster_save(
     if strict not in ("strict", "normal", "loose"):
         strict = "normal"
     payload = body.result if isinstance(body.result, dict) else {}
+    pname = _normalize_cluster_project_name(body.project_name, len(kws))
     row = KeywordClusterProject(
         user_id=current_user.id,
-        keywords_label=_cluster_label(kws),
+        project_name=pname,
+        keywords_label=pname,
         keywords_json=json.dumps(kws, ensure_ascii=False),
         language=(body.language or "vi").strip()[:16],
         country=(body.country or "vn").strip()[:16],
@@ -156,7 +239,7 @@ def api_cluster_save(
             consume_credits(db, user_id=billing_user.id, amount=c, reason="cluster_save", note=f"kw={len(kws)}")
     db.commit()
     db.refresh(row)
-    return JSONResponse(content={"ok": True, "project_id": row.id})
+    return JSONResponse(content={"ok": True, "project_id": row.id, "project_name": pname})
 
 
 @router.get("/cluster/history")
@@ -174,10 +257,18 @@ def api_cluster_history(
     )
     out: list[dict] = []
     for r in rows:
+        kw_count = 0
+        try:
+            kw_count = len(json.loads(r.keywords_json or "[]"))
+        except (json.JSONDecodeError, TypeError):
+            kw_count = 0
+        display_name = (r.project_name or "").strip() or f"Dự án #{r.id}"
         out.append(
             {
                 "id": r.id,
+                "project_name": display_name,
                 "keywords_label": r.keywords_label,
+                "keyword_count": kw_count,
                 "language": r.language,
                 "country": r.country,
                 "device": r.device,
@@ -193,29 +284,30 @@ def api_cluster_history(
 @router.get("/cluster/history/{project_id}")
 def api_cluster_history_item(
     project_id: int,
+    summary_only: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     r = db.get(KeywordClusterProject, project_id)
     if not r or r.user_id != current_user.id or not r.result_json:
         raise HTTPException(status_code=404, detail="Project not found")
-    return JSONResponse(
-        content={
-            "project": {
-                "id": r.id,
-                "keywords_label": r.keywords_label,
-                "language": r.language,
-                "country": r.country,
-                "device": r.device,
-                "cluster_strictness": r.cluster_strictness,
-                "fetch_serp": bool(r.fetch_serp),
-                "brand_url": r.brand_url,
-                "created_at": r.created_at.isoformat() if r.created_at else "",
-            },
-            "result": json.loads(r.result_json),
-            "keywords": json.loads(r.keywords_json) if r.keywords_json else [],
-        }
-    )
+    payload = {
+        "project": {
+            "id": r.id,
+            "project_name": (r.project_name or "").strip() or f"Dự án #{r.id}",
+            "keywords_label": r.keywords_label,
+            "language": r.language,
+            "country": r.country,
+            "device": r.device,
+            "cluster_strictness": r.cluster_strictness,
+            "fetch_serp": bool(r.fetch_serp),
+            "brand_url": r.brand_url,
+            "created_at": r.created_at.isoformat() if r.created_at else "",
+        },
+        "result": json.loads(r.result_json),
+        "keywords": json.loads(r.keywords_json) if r.keywords_json else [],
+    }
+    return JSONResponse(content=shape_keyword_cluster_history_response(payload, summary_only=summary_only))
 
 
 @router.delete("/cluster/history/{project_id}")
@@ -248,29 +340,96 @@ def api_keyword_research(
     db: Session = Depends(get_db),
     billing_user: User | None = Depends(get_billing_user),
 ) -> JSONResponse:
+    from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
+    from app.services.dataforseo_billing_service import (
+        DataforseoStats,
+        charge_research_credits,
+        log_dataforseo_usage,
+        preview_research_billing,
+        user_may_use_dataforseo_live,
+    )
+
     cfs: bool | None = None
     if cluster_fetch_serp is not None and str(cluster_fetch_serp).strip() != "":
         cfs = str(cluster_fetch_serp).lower() in ("1", "true", "yes", "on")
-    payload = build_keyword_research_api_response(
-        seed_keyword=seed_keyword,
-        domain=domain,
-        url=url,
-        engine=engine,
-        language=language,
-        country=country,
-        device=device,
-        cluster_mode=cluster_mode,
-        cluster_strictness=cluster_strictness,
-        cluster_fetch_serp=cfs,
-        cluster_max_keywords=cluster_max_keywords,
+
+    seeds = [seed_keyword.strip()]
+    allow_live = user_may_use_dataforseo_live(db, billing_user) if billing_user else True
+    preview = (
+        preview_research_billing(db, billing_user, seeds=seeds, country=country, language=language)
+        if billing_user
+        else None
     )
+
+    if billing_user and preview is not None:
+        gate_req = CostGateRequest(
+            db=db,
+            user=billing_user,
+            provider=ExternalApiProvider.DATAFORSEO,
+            action="keyword_research_get",
+            credit_cost=int(preview.credit_cost),
+            feature_key=feature_key_for("keyword_research"),
+            quota_units=1,
+            require_paid_plan=True,
+            single_flight_key=f"keyword_research_get:{billing_user.id}",
+        )
+        with cost_gate_session(gate_req):
+            stats: dict[str, Any] = {}
+            payload = build_keyword_research_api_response(
+                seed_keyword=seed_keyword,
+                domain=domain,
+                url=url,
+                engine=engine,
+                language=language,
+                country=country,
+                device=device,
+                cluster_mode=cluster_mode,
+                cluster_strictness=cluster_strictness,
+                cluster_fetch_serp=cfs,
+                cluster_max_keywords=cluster_max_keywords,
+                allow_dataforseo_live=allow_live,
+                billing_stats=stats,
+            )
+    else:
+        stats = {}
+        payload = build_keyword_research_api_response(
+            seed_keyword=seed_keyword,
+            domain=domain,
+            url=url,
+            engine=engine,
+            language=language,
+            country=country,
+            device=device,
+            cluster_mode=cluster_mode,
+            cluster_strictness=cluster_strictness,
+            cluster_fetch_serp=cfs,
+            cluster_max_keywords=cluster_max_keywords,
+            allow_dataforseo_live=allow_live,
+            billing_stats=stats,
+        )
+
     if payload.get("meta", {}).get("error"):
         return JSONResponse(status_code=400, content=payload)
-    if billing_user:
-        c = cost_research_run()
-        if c > 0:
-            consume_credits(db, user_id=billing_user.id, amount=c, reason="keyword_research_get", note=seed_keyword[:200])
-            db.commit()
+    if billing_user and preview is not None:
+        dfs_stats = DataforseoStats()
+        dfs_stats.merge(stats)
+        charged = charge_research_credits(
+            db, billing_user, preview=preview, stats=dfs_stats, seeds_count=1,
+        )
+        log_dataforseo_usage(
+            db,
+            user_id=billing_user.id,
+            action="keyword_research_get",
+            endpoint="keywords_for_keywords/live",
+            api_mode=preview.api_mode,
+            tasks_count=dfs_stats.api_tasks,
+            credit_charged=charged,
+            cache_hit=dfs_stats.cache_hits,
+            api_called=dfs_stats.api_tasks,
+            keyword_count=1,
+            plan_slug=resolve_cau_ai_plan_slug(db, billing_user),
+        )
+        db.commit()
     return JSONResponse(content=payload)
 
 
@@ -281,34 +440,97 @@ def api_keyword_research_run(
     current_user: User = Depends(get_current_user),
     billing_user: User | None = Depends(get_billing_user),
 ) -> JSONResponse:
+    from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
+    from app.services.dataforseo_billing_service import (
+        DataforseoStats,
+        charge_research_credits,
+        log_dataforseo_usage,
+        preview_research_billing,
+        user_may_use_dataforseo_live,
+    )
+
     seeds = [str(s).strip() for s in body.seeds if str(s).strip()][:50]
     if not seeds:
         raise HTTPException(status_code=400, detail="At least one keyword required")
-    payload = build_keyword_research_api_response(
-        seed_keywords=seeds,
-        domain=body.domain,
-        url=body.url,
-        engine=body.engine,
-        language=body.language,
+    charge_user = billing_user or current_user
+    allow_live = user_may_use_dataforseo_live(db, charge_user)
+    preview = preview_research_billing(
+        db,
+        charge_user,
+        seeds=seeds,
         country=body.country,
-        device=body.device,
-        cluster_mode=body.cluster_mode,
-        cluster_strictness=body.cluster_strictness,
-        cluster_fetch_serp=body.cluster_fetch_serp,
-        cluster_max_keywords=body.cluster_max_keywords,
+        language=body.language,
     )
+    credit_cost = int(preview.credit_cost)
+    gate_req = CostGateRequest(
+        db=db,
+        user=charge_user,
+        provider=ExternalApiProvider.DATAFORSEO,
+        action="keyword_research",
+        credit_cost=credit_cost,
+        feature_key=feature_key_for("keyword_research"),
+        quota_units=max(1, len(seeds)),
+        require_paid_plan=True,
+        single_flight_key=f"keyword_research:{current_user.id}",
+    )
+    stats: dict[str, Any] = {}
+    try:
+        with cost_gate_session(gate_req):
+            payload = build_keyword_research_api_response(
+                seed_keywords=seeds,
+                domain=body.domain,
+                url=body.url,
+                engine=body.engine,
+                language=body.language,
+                country=body.country,
+                device=body.device,
+                cluster_mode=body.cluster_mode,
+                cluster_strictness=body.cluster_strictness,
+                cluster_fetch_serp=body.cluster_fetch_serp,
+                cluster_max_keywords=body.cluster_max_keywords,
+                max_keywords=body.max_keywords,
+                deep_analysis=body.deep_analysis,
+                allow_dataforseo_live=allow_live,
+                billing_stats=stats,
+            )
+    except KeywordResearchCostExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "keyword_research_cost_limit",
+                "message": str(exc),
+                "cost": (exc.stats or stats),
+            },
+        ) from exc
     if payload.get("meta", {}).get("error"):
         return JSONResponse(status_code=400, content=payload)
+    charged = 0
     if billing_user:
-        c = cost_research_run()
-        if c > 0:
-            consume_credits(
-                db,
-                user_id=billing_user.id,
-                amount=c,
-                reason="keyword_research_run",
-                note=f"seeds={len(seeds)}",
-            )
+        dfs_stats = DataforseoStats()
+        dfs_stats.merge(stats)
+        charged = charge_research_credits(
+            db, billing_user, preview=preview, stats=dfs_stats, seeds_count=len(seeds),
+        )
+        record_quota_usage(
+            db,
+            billing_user.id,
+            feature_key_for("keyword_research"),
+            quantity=max(1, len(seeds)),
+            credits_used=charged,
+        )
+        log_dataforseo_usage(
+            db,
+            user_id=billing_user.id,
+            action="keyword_research",
+            endpoint="keywords_for_keywords/live",
+            api_mode=preview.api_mode,
+            tasks_count=dfs_stats.api_tasks,
+            credit_charged=charged,
+            cache_hit=dfs_stats.cache_hits,
+            api_called=dfs_stats.api_tasks,
+            keyword_count=len(seeds),
+            plan_slug=resolve_cau_ai_plan_slug(db, billing_user),
+        )
     label = " + ".join(seeds[:10])
     if len(seeds) > 10:
         label += " + …"
@@ -361,13 +583,27 @@ def api_research_history(
 @router.get("/research/history/{project_id}")
 def api_research_history_item(
     project_id: int,
+    summary_only: bool = Query(default=False),
+    keywords_page: int | None = Query(default=None, ge=1),
+    keywords_page_size: int = Query(default=100, ge=1, le=500),
+    clusters_page: int | None = Query(default=None, ge=1),
+    clusters_page_size: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     r = db.get(KeywordResearchProject, project_id)
     if not r or r.user_id != current_user.id or not r.result_json:
         raise HTTPException(status_code=404, detail="Project not found")
-    return JSONResponse(content=json.loads(r.result_json))
+    payload = json.loads(r.result_json)
+    shaped = shape_keyword_research_response(
+        payload,
+        keywords_page=keywords_page,
+        keywords_page_size=keywords_page_size,
+        clusters_page=clusters_page,
+        clusters_page_size=clusters_page_size,
+        summary_only=summary_only,
+    )
+    return JSONResponse(content=shaped)
 
 
 @router.delete("/research/history/{project_id}")
@@ -437,12 +673,35 @@ def api_keyword_research_run_async(
     seeds = [str(s).strip() for s in body.seeds if str(s).strip()][:50]
     if not seeds:
         raise HTTPException(status_code=400, detail="At least one keyword required")
-    if billing_user:
-        c = cost_research_run()
-        if c > 0:
-            consume_credits(db, user_id=billing_user.id, amount=c, reason="keyword_research_async", note=f"seeds={len(seeds)}")
-            db.commit()
-    task = run_keyword_research_task.delay(body.model_dump())
+    if not billing_user:
+        raise HTTPException(status_code=401, detail="Cần đăng nhập để chạy nghiên cứu từ khóa bất đồng bộ.")
+    from app.services.dataforseo_billing_service import preview_research_billing
+
+    preview = preview_research_billing(
+        db,
+        billing_user,
+        seeds=seeds,
+        country=body.country,
+        language=body.language,
+    )
+    gate_req = CostGateRequest(
+        db=db,
+        user=billing_user,
+        provider=ExternalApiProvider.DATAFORSEO,
+        action="keyword_research_async",
+        credit_cost=int(preview.credit_cost),
+        feature_key=feature_key_for("keyword_research"),
+        quota_units=max(1, len(seeds)),
+        require_paid_plan=True,
+        single_flight_key=f"keyword_research_async:{billing_user.id}",
+    )
+    with cost_gate_session(gate_req):
+        pass
+    owner_id = int(billing_user.id)
+    payload = body.model_dump()
+    payload["_owner_user_id"] = owner_id
+    task = run_keyword_research_task.delay(payload)
+    register_task_owner(task.id, owner_id)
     return JSONResponse(
         content={
             "task_id": task.id,
@@ -453,8 +712,13 @@ def api_keyword_research_run_async(
 
 
 @router.get("/research/task/{task_id}")
-def api_keyword_research_task_status(task_id: str) -> JSONResponse:
+def api_keyword_research_task_status(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
     """Poll Celery task result for ``/research/run/async``."""
+    role = normalize_role(current_user.role)
+    assert_task_owner(task_id, current_user.id, role=role)
     try:
         from celery.result import AsyncResult
 
@@ -475,6 +739,7 @@ async def api_keyword_cluster(
     db: Session = Depends(get_db),
     billing_user: User | None = Depends(get_billing_user),
 ) -> JSONResponse:
+    """SERP-primary clustering: merge keyword pairs with >=3 shared top-10 Google URLs."""
     body = await request.json()
     if not isinstance(body, dict):
         raise HTTPException(status_code=400, detail="JSON object required")
@@ -570,6 +835,18 @@ async def api_keyword_cluster_async(
                 note=f"kw={len(strings)}",
             )
             db.commit()
+
+    inline = os.getenv("KEYWORD_CLUSTER_INLINE", "1").lower() in ("1", "true", "yes")
+    if inline:
+        from app.services.cluster_job_runner import run_cluster_job
+
+        threading.Thread(
+            target=run_cluster_job,
+            args=(job.job_id, job_payload),
+            daemon=True,
+            name=f"cluster-{job.job_id[:8]}",
+        ).start()
+
     st0 = get_job(job.job_id)
     return JSONResponse(
         content={
@@ -757,8 +1034,13 @@ def keyword_hub_page() -> RedirectResponse:
     return RedirectResponse(url="/keywords/tools/research", status_code=302)
 
 
-@router.get("/tools/research", response_class=HTMLResponse)
-def keyword_research_page(request: Request) -> HTMLResponse:
+@router.get("/tools/research")
+def keyword_research_page(
+    request: Request,
+    tab: str | None = Query(None),
+):
+    if tab == "group":
+        return RedirectResponse(url="/keywords/tools/clustering", status_code=302)
     return templates.TemplateResponse(
         request=request,
         name="keyword_research.html",
@@ -766,6 +1048,19 @@ def keyword_research_page(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/tools/clustering", response_class=RedirectResponse)
-def keyword_clustering_page() -> RedirectResponse:
-    return RedirectResponse(url="/keywords/tools/research?tab=group", status_code=302)
+@router.get("/tools/clustering", response_class=HTMLResponse)
+def keyword_clustering_page(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request,
+        name="keyword_clustering.html",
+        context={"nav_active": "keyword_clustering", "kw_tool_active": "clustering"},
+    )
+
+
+@router.get("/tools/rank-tracking", response_class=HTMLResponse)
+def keyword_rank_tracking_page(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request,
+        name="rank_tracking.html",
+        context={"nav_active": "keyword", "kw_tool_active": "rank_tracking"},
+    )

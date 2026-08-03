@@ -1,11 +1,11 @@
 # Cursor Prompt - Production Readiness
 
-Dùng prompt này trong Cursor để kiểm tra DigiSEO trước khi deploy production.
+Dùng prompt này trong Cursor để kiểm tra Seoauto trước khi deploy production.
 
 ---
 
 ```txt
-Tôi muốn kiểm tra DigiSEO đã sẵn sàng deploy production chưa.
+Tôi muốn kiểm tra Seoauto đã sẵn sàng deploy production chưa.
 
 Bối cảnh:
 - Backend FastAPI + Uvicorn

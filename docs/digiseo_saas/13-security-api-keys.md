@@ -1,6 +1,6 @@
 # Security & API Key Management
 
-Tài liệu này mô tả nguyên tắc bảo mật API key trong DigiSEO.
+Tài liệu này mô tả nguyên tắc bảo mật API key trong Seoauto.
 
 ---
 

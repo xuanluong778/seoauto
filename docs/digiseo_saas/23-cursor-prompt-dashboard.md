@@ -1,11 +1,11 @@
 # Cursor Prompt - User Dashboard
 
-Dùng prompt này trong Cursor để tạo dashboard SaaS tổng quan cho user DigiSEO.
+Dùng prompt này trong Cursor để tạo dashboard SaaS tổng quan cho user Seoauto.
 
 ---
 
 ```txt
-Tôi muốn tạo dashboard SaaS tổng quan cho user DigiSEO.
+Tôi muốn tạo dashboard SaaS tổng quan cho user Seoauto.
 
 Bối cảnh:
 App hiện có các module Technical SEO, Content AI, Keyword Research, Schema, WordPress Publish, Credits, Trial.

@@ -11,7 +11,7 @@ Trước khi code, hãy đọc toàn bộ các file .md trong docs, đặc biệ
 - 21-cursor-prompt-saas-foundation.md
 
 Sau khi đọc xong, hãy tóm tắt:
-1. DigiSEO hiện đang là hệ thống gì
+1. Seoauto hiện đang là hệ thống gì
 2. Stack hiện tại là gì
 3. Những module nào đã có
 4. Tôi nên làm phase nào trước

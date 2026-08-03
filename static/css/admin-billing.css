@@ -1,0 +1,54 @@
+.adm-billing-toolbar { margin-bottom: 14px; }
+.adm-bill-detail-box { max-width: 720px; }
+.adm-bill-detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.adm-bill-detail-head h3 { margin: 0; }
+.adm-bill-detail-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 8px 14px;
+    font-size: 0.86rem;
+    margin-bottom: 14px;
+}
+.adm-bill-detail-grid dt { color: var(--ab-muted); margin: 0; }
+.adm-bill-detail-grid dd { margin: 0; font-weight: 600; word-break: break-word; }
+.adm-bill-sepay-list { display: grid; gap: 10px; margin-top: 10px; }
+.adm-bill-sepay-card {
+    border: 1px solid var(--ab-line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: rgba(2, 8, 20, 0.45);
+}
+.adm-bill-sepay-card summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.86rem;
+    list-style: none;
+}
+.adm-bill-sepay-card summary::-webkit-details-marker { display: none; }
+.adm-bill-raw {
+    margin-top: 8px;
+    max-height: 240px;
+    overflow: auto;
+    padding: 10px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.35);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.adm-bill-detail-actions { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ab-line); }
+.adm-bill-status-stack { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+#admBillTable td { font-size: 0.82rem; vertical-align: middle; }
+#admBillTable .adm-bill-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+
+@media (max-width: 900px) {
+    #admBillTableWrap { display: none; }
+    #admBillCards { display: grid; gap: 10px; }
+}

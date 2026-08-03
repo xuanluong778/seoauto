@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Auto — Soạn &amp; phân phối</title>
+    {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/social-auto.css?v=13">
+</head>
+<body class="page-social-auto">
+<div class="sa-wrap">
+    {% set nav_active = 'social_auto' %}
+    {% include "partials/digiseo_nav.html" %}
+
+    <header class="sa-page-head">
+        <span class="sa-demo-pill" id="saModeBadge">Social Auto</span>
+        <h1>Social Auto — Soạn &amp; phân phối đa kênh</h1>
+        <p class="sa-lead">Facebook Fanpage · WordPress · Blogger · Tumblr · Medium · Google Sites — kết nối chính thức, an toàn.</p>
+    </header>
+
+    <nav class="sa-tabs" role="tablist" aria-label="Social Auto">
+        <button type="button" class="sa-tab active" data-sa-tab="overview">Tổng quan</button>
+        <button type="button" class="sa-tab" data-sa-tab="campaigns">Chiến dịch</button>
+        <button type="button" class="sa-tab" data-sa-tab="compose">Soạn &amp; phân phối</button>
+        <button type="button" class="sa-tab" data-sa-tab="schedule">Lịch đăng</button>
+        <button type="button" class="sa-tab" data-sa-tab="results">Kết quả</button>
+        <button type="button" class="sa-tab" data-sa-tab="safety">Cài đặt an toàn</button>
+    </nav>
+
+    <!-- Tổng quan -->
+    <section class="sa-panel active" data-sa-panel="overview" role="tabpanel">
+        <div class="sa-stat-grid sa-stat-grid--6">
+            <article class="sa-stat-card"><div class="sa-stat-label">Chiến dịch</div><div class="sa-stat-value" id="saStatCampaigns">0</div></article>
+            <article class="sa-stat-card"><div class="sa-stat-label">Fanpage</div><div class="sa-stat-value sa-stat-value--ok" id="saStatPages">0</div></article>
+            <article class="sa-stat-card"><div class="sa-stat-label">Nháp</div><div class="sa-stat-value" id="saStatDrafts">0</div></article>
+            <article class="sa-stat-card"><div class="sa-stat-label">Lên lịch</div><div class="sa-stat-value" id="saStatScheduled">0</div></article>
+            <article class="sa-stat-card"><div class="sa-stat-label">Đã đăng</div><div class="sa-stat-value sa-stat-value--ok" id="saStatPublished">0</div></article>
+            <article class="sa-stat-card"><div class="sa-stat-label">Lỗi</div><div class="sa-stat-value sa-stat-value--err" id="saStatFailed">0</div></article>
+        </div>
+        <div class="sa-btn-row">
+            <button type="button" class="sa-btn sa-btn--primary" data-sa-action="new-campaign">Tạo chiến dịch</button>
+            <button type="button" class="sa-btn sa-btn--ghost" data-sa-action="goto-compose">Soạn bài mới</button>
+            <button type="button" class="sa-btn sa-btn--ghost" data-sa-action="connect-fb">Kết nối Fanpage</button>
+            <button type="button" class="sa-btn sa-btn--ghost" data-sa-action="web20-open-connect">Kết nối Web 2.0</button>
+        </div>
+        <div class="sa-card" style="margin-top:14px;">
+            <h2 class="sa-card-title">Giới hạn an toàn</h2>
+            <p class="sa-hint" id="saLimitHint">3–5 bài/ngày/Fanpage · cách nhau 2–4 giờ · không trùng 100% nội dung.</p>
+        </div>
+        <div class="sa-card"><h2 class="sa-card-title">Chiến dịch gần đây</h2><div id="saCampaignList" class="sa-mini-list"><p class="sa-empty">Chưa có chiến dịch.</p></div></div>
+        <div class="sa-card" style="margin-top:12px;">
+            <h2 class="sa-card-title">Fanpage đã kết nối</h2>
+            <div id="saFbPagesList" class="sa-channel-list"><p class="sa-empty">Chưa kết nối Fanpage.</p></div>
+        </div>
+    </section>
+
+    <!-- Chiến dịch -->
+    <section class="sa-panel" data-sa-panel="campaigns" role="tabpanel" hidden>
+        <div class="sa-campaigns-head">
+            <div>
+                <h2 class="sa-card-title">Quản lý chiến dịch</h2>
+                <p class="sa-hint">Mỗi chiến dịch gom nội dung gốc và biến thể đa kênh.</p>
+            </div>
+            <button type="button" class="sa-btn sa-btn--primary" data-sa-action="new-campaign">+ Tạo chiến dịch</button>
+        </div>
+        <div id="saCampaignsFullList" class="sa-campaign-grid"><p class="sa-empty">Chưa có chiến dịch.</p></div>
+    </section>
+
+    <!-- Soạn & phân phối (Facebook + Web 2.0) -->
+    <section class="sa-panel sa-panel--compose" data-sa-panel="compose" role="tabpanel" hidden>
+        <header class="sa-compose-header">
+            <div class="sa-compose-header__text">
+                <h2 class="sa-compose-title">Soạn &amp; phân phối</h2>
+                <p class="sa-compose-desc">Một luồng soạn bài — phân phối đồng thời lên Fanpage và các nền tảng Web 2.0.</p>
+            </div>
+            <div class="sa-compose-header__actions">
+                <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="web20-view-logs">Nhật ký</button>
+                <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="connect-fb">+ Fanpage</button>
+                <button type="button" class="sa-btn sa-btn--primary sa-btn--sm" data-sa-action="web20-open-connect">+ Web 2.0</button>
+            </div>
+        </header>
+
+        <nav class="sa-compose-stepper" id="saComposeStepper" aria-label="Quy trình soạn & phân phối">
+            <div class="sa-compose-step is-active" data-step="1"><span class="sa-compose-step__num">1</span><span class="sa-compose-step__label">Chọn chiến dịch</span></div>
+            <div class="sa-compose-step__line"></div>
+            <div class="sa-compose-step" data-step="2"><span class="sa-compose-step__num">2</span><span class="sa-compose-step__label">Soạn bài gốc</span></div>
+            <div class="sa-compose-step__line"></div>
+            <div class="sa-compose-step" data-step="3"><span class="sa-compose-step__num">3</span><span class="sa-compose-step__label">Chọn kênh</span></div>
+            <div class="sa-compose-step__line"></div>
+            <div class="sa-compose-step" data-step="4"><span class="sa-compose-step__num">4</span><span class="sa-compose-step__label">AI biến thể</span></div>
+            <div class="sa-compose-step__line"></div>
+            <div class="sa-compose-step" data-step="5"><span class="sa-compose-step__num">5</span><span class="sa-compose-step__label">Duyệt &amp; lịch</span></div>
+        </nav>
+
+        <div class="sa-compose-saas">
+            <div class="sa-compose-main">
+                <!-- Bước 1: Chiến dịch -->
+                <div class="sa-form-card sa-compose-block" data-compose-block="1">
+                    <h3 class="sa-card-title">Chiến dịch</h3>
+                    <div class="sa-field">
+                        <label for="saCampaignSelect">Chọn chiến dịch</label>
+                        <select id="saCampaignSelect"><option value="">— Chiến dịch mới —</option></select>
+                    </div>
+                    <div class="sa-field"><label for="saCampaignName">Tên chiến dịch</label><input type="text" id="saCampaignName" autocomplete="off"></div>
+                </div>
+
+                <!-- Bước 2: Bài gốc -->
+                <div class="sa-form-card sa-compose-block" data-compose-block="2">
+                    <h3 class="sa-card-title">Nội dung bài gốc</h3>
+                    <div class="sa-compose-source-grid">
+                        <div>
+                            <div class="sa-field"><label for="saTitle">Tiêu đề bài viết</label><input type="text" id="saTitle" autocomplete="off"><span class="sa-field-hint" id="saSourceTitleCount">0/500</span></div>
+                            <div class="sa-field"><label for="saSourceContent">Nội dung bài gốc</label><textarea id="saSourceContent" rows="7"></textarea></div>
+                        </div>
+                        <aside class="sa-compose-source-side">
+                            <div class="sa-field"><label for="saKeyword">Từ khóa chính</label><input type="text" id="saKeyword" autocomplete="off"></div>
+                            <div class="sa-field"><label for="saUrl">URL website chính</label><input type="url" id="saUrl" autocomplete="off"><span class="sa-field-hint">Tối đa 2–3 link/bài về site chính</span></div>
+                            <div class="sa-field">
+                                <label for="saTone">Giọng văn</label>
+                                <select id="saTone">
+                                    <option value="chuyên gia">Chuyên nghiệp</option>
+                                    <option value="thân thiện">Thân thiện</option>
+                                    <option value="bán hàng">Sales / CTA mạnh</option>
+                                </select>
+                            </div>
+                            <div class="sa-field"><label for="saCta">CTA</label><textarea id="saCta" rows="2"></textarea></div>
+                        </aside>
+                    </div>
+                </div>
+
+                <!-- Bước 3: Kênh phân phối -->
+                <div class="sa-form-card sa-compose-block" data-compose-block="3">
+                    <h3 class="sa-card-title">Kênh phân phối</h3>
+                    <p class="sa-hint">Chọn một hoặc nhiều kênh — mỗi kênh sẽ có biến thể riêng.</p>
+                    <div id="saChannelCards" class="sa-channel-cards"></div>
+                </div>
+
+                <!-- Bước 4–5: Biến thể -->
+                <div class="sa-form-card sa-compose-block" data-compose-block="4">
+                    <div class="sa-compose-generate-row">
+                        <button type="button" class="sa-btn sa-btn--primary" id="btnSaGenerate" data-sa-action="compose-generate">+ AI tạo biến thể cho các kênh đã chọn</button>
+                        <p class="sa-hint">AI viết lại nội dung phù hợp từng nền tảng — mặc định draft.</p>
+                    </div>
+                    <div id="saVariantsAccordion" class="sa-variants-accordion"><p class="sa-empty">Chọn kênh và bấm «AI tạo biến thể».</p></div>
+                </div>
+
+                <details class="sa-form-card sa-compose-recent">
+                    <summary class="sa-card-title">Bài gần đây (Web 2.0)</summary>
+                    <div id="saWeb20PostsList" class="sa-mini-list"><p class="sa-empty">Chưa có bài.</p></div>
+                </details>
+            </div>
+
+            <aside class="sa-compose-aside">
+                <div class="sa-form-card sa-compose-aside-card">
+                    <h3 class="sa-card-title">Safety Score</h3>
+                    <div class="sa-web20-gauge">
+                        <div class="sa-web20-gauge__ring" id="saComposeGaugeRing"><span id="saComposeGaugeScore">—</span></div>
+                        <p id="saComposeGaugeLabel" class="sa-web20-gauge__label">Chưa kiểm tra</p>
+                    </div>
+                    <div id="saComposeSafety" class="sa-web20-checklist" hidden></div>
+                    <div id="saSafetyInline" class="sa-safety-inline" hidden></div>
+                    <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm sa-btn--block" data-sa-action="compose-safety">Kiểm tra an toàn</button>
+                </div>
+
+                <div class="sa-form-card sa-compose-aside-card">
+                    <div class="sa-web20-preview-head">
+                        <h3 class="sa-card-title">Preview</h3>
+                        <span id="saComposePreviewChannel" class="sa-w20-badge sa-w20-badge--draft">—</span>
+                    </div>
+                    <div id="saComposePreview" class="sa-web20-preview-card"><p class="sa-empty">Chọn kênh để xem preview.</p></div>
+                    <div id="saComposePreviewTags" class="sa-web20-preview-tags"></div>
+                    <div class="sa-fb-mock" id="saFbMockPreview" hidden>
+                        <div class="sa-fb-mock-head"><span class="sa-fb-avatar">f</span><strong id="saFbMockPage">Fanpage</strong></div>
+                        <div class="sa-fb-mock-body" id="saFbMockBody"></div>
+                    </div>
+                </div>
+
+                <div id="saW20ManualPanel" class="sa-form-card sa-compose-aside-card sa-web20-manual" hidden>
+                    <h3 class="sa-card-subtitle">Google Sites — Copy thủ công</h3>
+                    <ul id="saW20Checklist" class="sa-safety-list"></ul>
+                    <div class="sa-btn-row">
+                        <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="web20-copy-html">Copy HTML</button>
+                        <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="web20-copy-plain">Copy plain</button>
+                    </div>
+                    <textarea id="saW20ManualHtml" rows="4" readonly class="sa-web20-manual-text"></textarea>
+                </div>
+
+                <div class="sa-form-card sa-compose-aside-card sa-compose-actions">
+                    <h3 class="sa-card-title">Hành động</h3>
+                    <div class="sa-field">
+                        <label for="saComposeScheduleInput">Lên lịch tự động</label>
+                        <input type="datetime-local" id="saComposeScheduleInput" autocomplete="off">
+                    </div>
+                    <button type="button" class="sa-btn sa-btn--ghost sa-btn--block" data-sa-action="compose-save">Lưu nháp tất cả</button>
+                    <button type="button" class="sa-btn sa-btn--primary sa-btn--block" data-sa-action="compose-publish">Đăng draft</button>
+                    <button type="button" class="sa-btn sa-btn--ghost sa-btn--block" data-sa-action="compose-schedule">Lên lịch đăng</button>
+                    <button type="button" class="sa-btn sa-btn--success sa-btn--block" id="saComposePublishNowBtn" data-sa-action="compose-publish-now" disabled>Đăng ngay</button>
+                    <p class="sa-hint">«Đăng ngay» cần Safety Score đạt trên từng kênh.</p>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Hidden fields — giữ tương thích API hiện tại -->
+        <div class="sa-visually-hidden" aria-hidden="true">
+            <select id="saActivePage"><option value="">— Chọn Fanpage —</option></select>
+            <input type="text" id="saFbTitle">
+            <textarea id="saFbContent"></textarea>
+            <input type="text" id="saFbHashtags">
+            <input type="text" id="saFbCta">
+            <span id="saPostStatus"></span>
+            <select id="saW20Account"><option value="">—</option></select>
+            <input type="text" id="saW20SourceTitle">
+            <textarea id="saW20SourceContent"></textarea>
+            <input type="text" id="saW20Keyword">
+            <input type="url" id="saW20MainUrl">
+            <select id="saW20Tone"><option value="chuyên gia">Chuyên nghiệp</option></select>
+            <input type="text" id="saW20Title">
+            <input type="text" id="saW20Slug">
+            <textarea id="saW20Excerpt"></textarea>
+            <input type="text" id="saW20Tags">
+            <input type="text" id="saW20Category">
+            <textarea id="saW20Html"></textarea>
+            <input type="hidden" id="saW20Status" value="draft">
+            <input type="hidden" id="saW20ScheduledAt" value="">
+            <input type="datetime-local" id="saW20ScheduleInput">
+            <div id="saW20Preview"></div>
+            <div id="saW20PreviewTags"></div>
+            <div id="saW20GaugeRing"></div>
+            <span id="saW20GaugeScore"></span>
+            <p id="saW20GaugeLabel"></p>
+            <div id="saW20Safety"></div>
+            <span id="saWeb20PreviewPlatform"></span>
+            <button type="button" id="saW20PublishBtn"></button>
+            <button type="button" id="saW20PublishNowBtn"></button>
+            <button type="button" id="saW20PublishNowBtnMobile"></button>
+            <div id="saWeb20PlatformCards"></div>
+            <div id="saWeb20Stepper"></div>
+        </div>
+
+        <div id="saWeb20LogsPanel" class="sa-form-card sa-web20-logs-panel" hidden>
+            <div class="sa-web20-logs-head">
+                <h2 class="sa-card-title">Log Web 2.0</h2>
+                <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="web20-close-logs">Đóng</button>
+            </div>
+            <div id="saWeb20Logs" class="sa-log-table-wrap"><p class="sa-empty">Chưa có log.</p></div>
+        </div>
+
+        <dialog id="saWeb20ConnectModal" class="sa-web20-modal">
+            <form method="dialog" class="sa-web20-modal__inner">
+                <header class="sa-web20-modal__head">
+                    <h2>Kết nối nền tảng Web 2.0</h2>
+                    <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="web20-close-connect">✕</button>
+                </header>
+                <div id="saWeb20PlatformPicker" class="sa-web20-platform-cards"></div>
+                <div id="saWeb20ConnectPanel" class="sa-web20-connect"></div>
+            </form>
+        </dialog>
+
+        <dialog id="saWeb20AccountsModal" class="sa-web20-modal">
+            <form method="dialog" class="sa-web20-modal__inner">
+                <header class="sa-web20-modal__head">
+                    <h2>Quản lý tài khoản Web 2.0</h2>
+                    <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="web20-close-accounts">✕</button>
+                </header>
+                <div id="saWeb20AccountsList" class="sa-mini-list"><p class="sa-empty">Chưa có tài khoản.</p></div>
+            </form>
+        </dialog>
+
+        <div class="sa-compose-mobile-bar" aria-label="Hành động nhanh">
+            <button type="button" class="sa-btn sa-btn--ghost" data-sa-action="compose-save">Lưu</button>
+            <button type="button" class="sa-btn sa-btn--primary" data-sa-action="compose-publish">Draft</button>
+            <button type="button" class="sa-btn sa-btn--success" data-sa-action="compose-publish-now" id="saComposePublishNowBtnMobile" disabled>Đăng ngay</button>
+        </div>
+    </section>
+
+    <!-- Lịch đăng (Facebook + Web 2.0) -->
+    <section class="sa-panel" data-sa-panel="schedule" role="tabpanel" hidden>
+        <div class="sa-filter-bar">
+            <label for="saScheduleFilter">Lọc kênh</label>
+            <select id="saScheduleFilter">
+                <option value="all">Tất cả kênh</option>
+                <option value="facebook">Facebook Fanpage</option>
+                <option value="wordpress_2_0">WordPress 2.0</option>
+                <option value="blogger">Blogger</option>
+                <option value="tumblr">Tumblr</option>
+                <option value="medium">Medium Beta</option>
+                <option value="google_sites_manual">Google Sites Manual</option>
+            </select>
+        </div>
+        <div class="sa-schedule-list" id="saScheduleList"><p class="sa-empty">Chưa có bài lên lịch.</p></div>
+    </section>
+
+    <!-- Kết quả (Facebook + Web 2.0) -->
+    <section class="sa-panel" data-sa-panel="results" role="tabpanel" hidden>
+        <div class="sa-filter-bar">
+            <label for="saResultsFilter">Lọc kênh</label>
+            <select id="saResultsFilter">
+                <option value="all">Tất cả kênh</option>
+                <option value="facebook">Facebook Fanpage</option>
+                <option value="wordpress_2_0">WordPress 2.0</option>
+                <option value="blogger">Blogger</option>
+                <option value="tumblr">Tumblr</option>
+                <option value="medium">Medium Beta</option>
+                <option value="google_sites_manual">Google Sites Manual</option>
+            </select>
+        </div>
+        <div class="sa-table-wrap">
+            <table class="sa-table">
+                <thead><tr><th>Tiêu đề</th><th>Kênh</th><th>Đích</th><th>Thời gian</th><th>Trạng thái</th><th>URL</th><th></th></tr></thead>
+                <tbody id="saResultsBody"><tr><td colspan="7" class="sa-empty-cell">Chưa có kết quả.</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Cài đặt an toàn -->
+    <section class="sa-panel" data-sa-panel="safety" role="tabpanel" hidden>
+        <div class="sa-safety-sections">
+            <div class="sa-card sa-safety-section">
+                <h2 class="sa-card-title">Global Safety</h2>
+                <p class="sa-hint">Chính sách chung cho mọi kênh Social Auto.</p>
+                <ul class="sa-policy-list">
+                    <li>Không auto like / share / comment / seeding</li>
+                    <li>Không đăng nội dung trùng 100% giữa các kênh</li>
+                    <li>Không đăng đồng thời nhiều Fanpage cùng lúc</li>
+                    <li>Chỉ kết nối chính thức — không tự động hóa trình duyệt</li>
+                    <li>Web 2.0 không đăng lên website chính</li>
+                </ul>
+            </div>
+
+            <div class="sa-card sa-safety-section">
+                <h2 class="sa-card-title">Facebook Safety</h2>
+                <div class="sa-field sa-field--inline">
+                    <label for="saMaxPerDay">Tối đa bài/ngày/Fanpage</label>
+                    <input type="number" id="saMaxPerDay" min="1" max="10" value="4">
+                </div>
+                <div class="sa-field sa-field--inline">
+                    <label for="saMinGap">Giờ tối thiểu giữa 2 bài</label>
+                    <input type="number" id="saMinGap" min="1" max="12" value="3">
+                </div>
+                <label class="sa-check"><input type="checkbox" id="saAutoRate" checked> Tự dừng khi rate limit</label>
+                <label class="sa-check"><input type="checkbox" id="saAutoPerm" checked> Tự dừng khi lỗi permission</label>
+                <div class="sa-btn-row">
+                    <button type="button" class="sa-btn sa-btn--primary sa-btn--sm" data-sa-action="save-safety">Lưu Facebook</button>
+                    <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="clear-pause">Bỏ tạm dừng</button>
+                </div>
+                <p class="sa-hint" id="saPauseHint" hidden></p>
+                <hr class="sa-divider">
+                <h3 class="sa-card-subtitle">Kiểm tra caption hiện tại</h3>
+                <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="run-safety">Chạy kiểm tra FB</button>
+                <ul class="sa-safety-list" id="saSafetyChecks"><li class="sa-empty">Chưa chạy kiểm tra.</li></ul>
+                <h3 class="sa-card-subtitle" style="margin-top:12px;">Nhật ký Facebook</h3>
+                <div id="saApiLogs" class="sa-log-list"><p class="sa-empty">Chưa có log.</p></div>
+            </div>
+
+            <div class="sa-card sa-safety-section">
+                <h2 class="sa-card-title">Web 2.0 Safety</h2>
+                <div class="sa-field sa-field--inline">
+                    <label for="saW20MaxPerDay">Tối đa bài/ngày/site</label>
+                    <input type="number" id="saW20MaxPerDay" min="1" max="10" value="3">
+                </div>
+                <div class="sa-field sa-field--inline">
+                    <label for="saW20DefaultStatus">Trạng thái WP mặc định</label>
+                    <select id="saW20DefaultStatus">
+                        <option value="draft">Draft</option>
+                        <option value="pending">Pending</option>
+                        <option value="private">Private</option>
+                        <option value="publish">Publish</option>
+                    </select>
+                </div>
+                <div class="sa-btn-row">
+                    <button type="button" class="sa-btn sa-btn--primary sa-btn--sm" data-sa-action="save-web20-safety">Lưu Web 2.0</button>
+                    <button type="button" class="sa-btn sa-btn--ghost sa-btn--sm" data-sa-action="web20-safety">Kiểm tra bài hiện tại</button>
+                </div>
+                <p class="sa-hint">Safety Score ≥ 70 mới cho phép «Đăng ngay» trên Web 2.0.</p>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="sa-toast" id="saToast" hidden role="status" aria-live="polite"></div>
+<script src="/static/js/social-auto.js?v=12" defer></script>
+</body>
+</html>

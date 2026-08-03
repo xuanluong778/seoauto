@@ -7,6 +7,22 @@
       "batch_size": 5,
       "max_retries": 3,
       "stuck_timeout_minutes": 30
+    },
+    "4": {
+      "theme": "dark",
+      "language": "vi",
+      "launch_on_startup": false,
+      "batch_size": 5,
+      "max_retries": 3,
+      "stuck_timeout_minutes": 30
+    },
+    "14": {
+      "theme": "dark",
+      "language": "en",
+      "launch_on_startup": false,
+      "batch_size": 5,
+      "max_retries": 3,
+      "stuck_timeout_minutes": 30
     }
   }
 }

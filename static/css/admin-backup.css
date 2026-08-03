@@ -1,0 +1,12 @@
+.adm-bk-status { margin-bottom: 1rem; }
+.adm-bk-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+.adm-bk-stat { padding: .75rem; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+.adm-bk-stat strong { display: block; font-size: .85rem; color: #9ca3af; }
+.adm-bk-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; align-items: center; }
+.adm-bk-pager { margin-top: .75rem; display: flex; gap: .5rem; align-items: center; }
+.adm-bk-msg { margin-top: 1rem; padding: .75rem; border-radius: 8px; }
+.adm-bk-msg.ok { background: rgba(34,197,94,.15); color: #86efac; }
+.adm-bk-msg.err { background: rgba(239,68,68,.15); color: #fca5a5; }
+.ab-badge.verified { background: rgba(34,197,94,.2); color: #86efac; }
+.ab-badge.failed, .ab-badge.verify_failed { background: rgba(239,68,68,.2); color: #fca5a5; }
+.ab-badge.running { background: rgba(59,130,246,.2); color: #93c5fd; }

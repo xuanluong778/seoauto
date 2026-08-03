@@ -1,6 +1,6 @@
-# DigiSEO Implementation Order
+# Seoauto Implementation Order
 
-Tài liệu này mô tả thứ tự nên làm tiếp để nâng cấp DigiSEO thành SaaS.
+Tài liệu này mô tả thứ tự nên làm tiếp để nâng cấp Seoauto thành SaaS.
 
 ---
 

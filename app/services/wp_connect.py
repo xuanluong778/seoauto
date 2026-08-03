@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import socket
@@ -175,6 +176,49 @@ def format_wp_request_error(exc: Exception, *, host: str = "") -> str:
             f"trước khi WordPress trả lời REST API.{proxy_hint}"
         )
     return f"Không kết nối được tới WordPress ({host_label}): {exc}"
+
+
+def parse_wp_response_json(resp: requests.Response) -> Any:
+    """
+    Parse WordPress REST body as JSON.
+
+    Some hosts prepend PHP notices / HTML before JSON, or append tracking
+    scripts after a valid JSON payload (e.g. «X Dynamic Data Flow»).
+    """
+    raw = resp.content or b""
+    # Strip UTF-8 BOM
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raw = raw[3:]
+    text = raw.decode(resp.encoding or "utf-8", errors="replace").strip()
+    if not text:
+        raise ValueError("empty body")
+
+    try:
+        return json.loads(text)
+    except ValueError:
+        pass
+
+    # Prefer first JSON value even when junk follows (injected scripts/HTML).
+    start_candidates = [i for i in (text.find("["), text.find("{")) if i >= 0]
+    if not start_candidates:
+        raise ValueError(f"non-json body ctype={resp.headers.get('Content-Type')!r} head={text[:120]!r}")
+    start = min(start_candidates)
+    decoder = json.JSONDecoder()
+    try:
+        obj, _end = decoder.raw_decode(text, start)
+        return obj
+    except ValueError as exc:
+        low = text.lower()
+        kind = "html"
+        if "cloudflare" in low or "cf-ray" in low:
+            kind = "cloudflare"
+        elif "just a moment" in low or "attention required" in low:
+            kind = "waf_challenge"
+        elif "<html" in low or "<!doctype" in low:
+            kind = "html"
+        raise ValueError(
+            f"{kind} body http={resp.status_code} ctype={resp.headers.get('Content-Type')!r} head={text[:120]!r}"
+        ) from exc
 
 
 def wp_get_json(

@@ -1,5 +1,5 @@
 /**
- * DigiSEO theme boot — reads digiseo_system_prefs_v1, sets data-theme on <html>.
+ * Seoauto theme boot — reads digiseo_system_prefs_v1, sets data-theme on <html>.
  * Exposes window.__digiseoApplySystemPrefs for Settings → System tab.
  */
 (function (global) {

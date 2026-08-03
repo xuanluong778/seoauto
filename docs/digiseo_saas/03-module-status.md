@@ -1,6 +1,6 @@
-# DigiSEO Module Status
+# Seoauto Module Status
 
-Tài liệu này tóm tắt trạng thái các module hiện tại trong DigiSEO.
+Tài liệu này tóm tắt trạng thái các module hiện tại trong Seoauto.
 
 ---
 
@@ -65,7 +65,7 @@ E2E test
 
 ## 4. Nhận xét tổng quan
 
-DigiSEO hiện không còn là tool demo. App đã gần mức sản phẩm nội bộ có thể dùng hằng ngày.
+Seoauto hiện không còn là tool demo. App đã gần mức sản phẩm nội bộ có thể dùng hằng ngày.
 
 Điểm cần làm tiếp không phải là thêm thật nhiều tính năng mới, mà là chuẩn hóa hệ thống thành SaaS:
 

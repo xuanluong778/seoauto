@@ -1,6 +1,6 @@
 # Production Deployment Checklist
 
-Tài liệu này mô tả checklist deploy DigiSEO lên production.
+Tài liệu này mô tả checklist deploy Seoauto lên production.
 
 ---
 

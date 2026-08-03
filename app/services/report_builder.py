@@ -427,15 +427,22 @@ def save_gsc_indexing_counts_raw(data: dict[str, Any], project_root: Path | None
     path.write_text(json.dumps(normalized, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def load_gsc_indexing_counts_config(project_root: Path | None = None) -> tuple[dict[str, int], dict[str, Any]]:
+def load_gsc_indexing_counts_config(
+    project_root: Path | None = None,
+    *,
+    user_id: int | None = None,
+) -> tuple[dict[str, int], dict[str, Any]]:
     """
-    Đọc data/gsc_indexing_counts.json: map «Lý do» GSC (tiếng Việt) → số trang.
-    Khóa bắt đầu bằng _ (ví dụ _meta) không dùng làm lý do.
+    Đọc số liệu GSC theo user (data/users/{id}/gsc_indexing_counts.json).
+    Không dùng file global khi user_id=None — tránh lộ số liệu chéo user trên /api/report.
     """
-    root = project_root or _PROJECT_ROOT
-    raw = _load_json_file(root / "data" / "gsc_indexing_counts.json")
     meta: dict[str, Any] = {}
     counts: dict[str, int] = {}
+    if user_id is None:
+        return counts, meta
+    from app.services.user_data_paths import user_gsc_indexing_counts_file
+
+    raw = _load_json_file(user_gsc_indexing_counts_file(int(user_id)))
     if not raw:
         return counts, meta
     if isinstance(raw.get("_meta"), dict):
@@ -453,9 +460,14 @@ def load_gsc_indexing_counts_config(project_root: Path | None = None) -> tuple[d
     return counts, meta
 
 
-def apply_gsc_indexing_count_overrides(raw_text: str, project_root: Path | None = None) -> str:
-    """Đồng bộ số trong ngoặc (...) sau mỗi lý do với file đồng bộ GSC (đọc tay từ báo cáo «Lý do trang không được lập chỉ mục»)."""
-    counts, _meta = load_gsc_indexing_counts_config(project_root)
+def apply_gsc_indexing_count_overrides(
+    raw_text: str,
+    project_root: Path | None = None,
+    *,
+    user_id: int | None = None,
+) -> str:
+    """Đồng bộ số trong ngoặc (...) sau mỗi lý do với file GSC per-user."""
+    counts, _meta = load_gsc_indexing_counts_config(project_root, user_id=user_id)
     if not counts:
         return raw_text
     out = raw_text
@@ -966,14 +978,15 @@ def build_seo_report_from_file(
     file_path: str,
     group_filter: str | None = None,
     status_filter: str | None = None,
+    *,
+    user_id: int | None = None,
 ) -> dict:
     path = Path(file_path)
     raw_text = path.read_text(encoding="utf-8", errors="ignore")
     if path.name.lower() == "technical-checklist-oke.txt":
         raw_text = convert_oke_prose_to_tsv(raw_text)
-    # Luôn dùng gốc dự án (thư mục chứa data/) — kể cả khi checklist nằm trong data/Technical-SEO.txt.
     project_root = _PROJECT_ROOT
-    raw_text = apply_gsc_indexing_count_overrides(raw_text, project_root=project_root)
+    raw_text = apply_gsc_indexing_count_overrides(raw_text, project_root=project_root, user_id=user_id)
     return build_seo_report_from_text(raw_text, group_filter=group_filter, status_filter=status_filter)
 
 
@@ -1005,6 +1018,102 @@ def _format_dan_chi_tiet(item: dict) -> str:
 def _task_key(group: str, task: str) -> str:
     raw = f"{group}|{task}".encode("utf-8", errors="ignore")
     return hashlib.sha1(raw).hexdigest()[:12]
+
+
+def build_audit_action_plan_rows(
+    grouped_issues: list[dict],
+    notes_map: dict[str, str] | None = None,
+    deploy_map: dict[str, str] | None = None,
+    *,
+    checklist_titles: dict[str, str] | None = None,
+    group_filter: str | None = None,
+    project_root: Path | None = None,
+) -> list[dict]:
+    """Action-plan rows từ kết quả quét Technical của user (không dùng file Technical-SEO.txt tĩnh)."""
+    notes_map = notes_map or {}
+    deploy_map = deploy_map or {}
+    titles = checklist_titles or {}
+    root = project_root or _PROJECT_ROOT
+    rows: list[dict] = []
+    rank = {"critical": 5, "high": 4, "medium": 3, "low": 2, "passed": 1}
+
+    for issue in grouped_issues:
+        if not isinstance(issue, dict):
+            continue
+        group = str(issue.get("checklist_group") or "General")
+        if group_filter and group != group_filter:
+            continue
+        issue_type = str(issue.get("type") or "").strip()
+        if not issue_type:
+            continue
+        checklist_text = titles.get(issue_type) or issue_type
+        sev = str(issue.get("severity") or "low").lower()
+        sev_lbl = SEVERITY_LABEL_VI.get(sev, sev.upper() if sev else "—")
+        urls = issue.get("urls") or []
+        if not urls and issue.get("url"):
+            urls = [str(issue.get("url"))]
+        evidence_parts = [str(issue.get("message") or "").strip()]
+        evidence_parts.extend(str(u) for u in urls[:8] if u)
+        evidence_plain = "\n".join(p for p in evidence_parts if p).strip() or "—"
+        fix_primary = str(issue.get("remediation") or issue.get("suggested_fix") or "").strip()
+        gsol = GROUP_SOLUTIONS_VI.get(group, GROUP_SOLUTIONS_VI["General"])
+        gref = GROUP_REFERENCES.get(group, GROUP_REFERENCES["General"])
+        task_key = _task_key(group, issue_type)
+        evidence_markup = evidence_plain.replace("\n", "<br>")
+        rows.append(
+            {
+                "Ưu tiên": 0,
+                "Nhóm": GROUP_DISPLAY_LABEL_VI.get(group, group),
+                "Nhóm_raw": group,
+                "CHECKLIST": checklist_text,
+                "ĐÁNH GIÁ": sev_lbl,
+                "DẪN CHỨNG CHI TIẾT": evidence_plain,
+                "DẪN CHỨNG HTML": evidence_markup,
+                "GIẢI PHÁP": fix_primary or gsol,
+                "LINK THAM KHẢO": gref,
+                "HIỆN TRẠNG": f"Quét tự động — {sev_lbl}",
+                "LINK TRIỂN KHAI": deploy_map.get(task_key, ""),
+                "NOTE": notes_map.get(task_key, ""),
+                "priority_score": rank.get(sev, 40) * 10,
+                "status_raw": "needs_fix",
+            }
+        )
+
+    sorted_rows = sorted(
+        rows,
+        key=lambda row: (
+            _group_rank(str(row.get("Nhóm_raw", "General"))),
+            -int(row.get("priority_score", 0) or 0),
+            str(row.get("CHECKLIST", "")),
+        ),
+    )
+    for idx, row in enumerate(sorted_rows, start=1):
+        row["Ưu tiên"] = idx
+    return sorted_rows
+
+
+def audit_issues_summary(grouped_issues: list[dict]) -> dict[str, int]:
+    """Tổng hợp số lỗi theo mức độ từ audit user."""
+    counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for issue in grouped_issues:
+        if not isinstance(issue, dict):
+            continue
+        sev = str(issue.get("severity") or "low").lower()
+        if sev in counts:
+            counts[sev] += 1
+        else:
+            counts["low"] += 1
+    total = len(grouped_issues)
+    return {
+        "total_items": total,
+        "needs_fix": total,
+        "good": 0,
+        "unknown": 0,
+        "critical": counts["critical"],
+        "high": counts["high"],
+        "medium": counts["medium"],
+        "low": counts["low"],
+    }
 
 
 def build_action_plan_rows(
@@ -1197,3 +1306,117 @@ def build_lean_action_plan(
             }
         )
     return lean_rows
+
+
+# —— Technical audit export (normalized_issues ↔ legacy issues) ——
+
+NORM_CATEGORY_TO_CHECKLIST_GROUP: dict[str, str] = {
+    "gsc_indexing": "GSC",
+    "onpage": "Onpage",
+    "sitemap": "Sitemap",
+    "robots": "Robots",
+    "schema": "Onpage",
+    "images": "Images",
+    "video": "Video",
+    "mobile": "Mobile",
+    "international": "International",
+    "site_speed": "Speed",
+    "https": "Security",
+    "response_code": "Security",
+    "website": "General",
+    "other": "General",
+}
+
+
+def _normalized_issue_export_type(issue: dict[str, Any]) -> str:
+    explicit = issue.get("_issue_type") or issue.get("type")
+    if explicit and str(explicit).strip():
+        return str(explicit).strip()
+    iid = str(issue.get("id") or "").strip()
+    if re.match(r"^.+_[a-f0-9]{12}$", iid):
+        return iid.rsplit("_", 1)[0]
+    if "|" in iid:
+        return iid.split("|", 1)[0]
+    return iid or "issue"
+
+
+def _issue_url_list(issue: dict[str, Any]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    u = str(issue.get("url") or "").strip()
+    if u and u not in seen:
+        seen.add(u)
+        out.append(u)
+    for key in ("urls", "affected_urls", "sample_urls"):
+        raw = issue.get(key)
+        if not isinstance(raw, list):
+            continue
+        for item in raw:
+            s = str(item or "").strip()
+            if s and s not in seen:
+                seen.add(s)
+                out.append(s)
+    return out
+
+
+def normalized_issue_to_legacy_export_row(issue: dict[str, Any]) -> dict[str, Any]:
+    """Chuyển normalized issue sang dòng legacy để group/export CSV/PDF/GSheet."""
+    cat = str(issue.get("category") or "other").lower()
+    group = NORM_CATEGORY_TO_CHECKLIST_GROUP.get(cat, "General")
+    urls = _issue_url_list(issue)
+    how_to = str(issue.get("how_to_fix") or "").strip()
+    expl = str(issue.get("why_it_matters") or issue.get("explanation") or "").strip()
+    conf = issue.get("confidence")
+    try:
+        conf_val = float(conf) if conf is not None else None
+    except (TypeError, ValueError):
+        conf_val = None
+    return {
+        "type": _normalized_issue_export_type(issue),
+        "severity": str(issue.get("severity") or "low").lower(),
+        "checklist_group": group,
+        "group": group,
+        "category": cat,
+        "message": str(issue.get("description") or issue.get("title") or "").strip(),
+        "url": urls[0] if urls else "",
+        "urls": urls,
+        "remediation": how_to,
+        "suggested_fix": how_to,
+        "explanation": expl,
+        "page_type": str(issue.get("page_type") or "").strip(),
+        "confidence": conf_val,
+        "source": issue.get("source"),
+        "priority_score": issue.get("priority_score"),
+        "gsc_clicks": issue.get("gsc_clicks"),
+        "gsc_impressions": issue.get("gsc_impressions"),
+        "gsc_ctr": issue.get("gsc_ctr"),
+        "gsc_position": issue.get("gsc_position"),
+        "gsc_index_verdict": issue.get("gsc_index_verdict"),
+        "gsc_badge": issue.get("gsc_badge"),
+    }
+
+
+def resolve_audit_issues_for_export(run: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """
+    Ưu tiên normalized_issues; fallback issues legacy.
+    Bỏ qua severity=passed và issue bị suppressed.
+    """
+    if not run or not isinstance(run, dict):
+        return []
+    norm = run.get("normalized_issues")
+    if isinstance(norm, list) and norm:
+        rows: list[dict[str, Any]] = []
+        for item in norm:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("severity") or "").lower() == "passed":
+                continue
+            rows.append(normalized_issue_to_legacy_export_row(item))
+        if rows:
+            return rows
+    legacy = run.get("issues") or []
+    return [
+        i
+        for i in legacy
+        if isinstance(i, dict) and not i.get("suppressed")
+    ]

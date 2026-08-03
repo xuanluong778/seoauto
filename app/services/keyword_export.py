@@ -11,6 +11,76 @@ from typing import Any
 
 from openpyxl import Workbook
 
+_KW_HEADERS = [
+    "keyword",
+    "canonical_keyword",
+    "intent",
+    "intent_source",
+    "raw_volume",
+    "display_volume",
+    "volume_data_source",
+    "updated_at",
+    "trend_direction",
+    "trend_pct_change",
+    "trend_data_source",
+    "difficulty_kd",
+    "kd_label",
+    "kd_data_source",
+    "word_count",
+    "cpc_avg",
+    "cpc_min",
+    "cpc_max",
+    "cpc_data_source",
+    "competition",
+    "competition_data_source",
+    "allintitle_estimate",
+    "allintitle_data_source",
+    "data_warnings",
+]
+
+
+def _row_export_values(row: dict[str, Any]) -> list[Any]:
+    sv = row.get("search_volume") or {}
+    raw_vol = row.get("raw_volume")
+    if raw_vol is None:
+        raw_vol = sv.get("raw_volume")
+    display_vol = row.get("display_volume")
+    if display_vol is None:
+        display_vol = sv.get("display_volume")
+    if display_vol is None:
+        display_vol = sv.get("avg_monthly")
+    if display_vol is None and isinstance(row.get("search_volume"), (int, float)):
+        display_vol = row.get("search_volume")
+    ds = row.get("data_source") or {}
+    trend = row.get("trend") or {}
+    warnings = row.get("data_warnings") or []
+    return [
+        str(row.get("keyword") or ""),
+        str(row.get("canonical_keyword") or (row.get("keyword") or "").lower().strip()),
+        str(row.get("intent") or "unknown"),
+        str(row.get("intent_source") or "N/A"),
+        raw_vol if raw_vol is not None else "N/A",
+        display_vol if display_vol is not None else "N/A",
+        str(ds.get("volume") or sv.get("data_source") or "N/A"),
+        str(row.get("updated_at") or sv.get("updated_at") or "N/A"),
+        str(trend.get("direction") or "unknown"),
+        trend.get("pct_change") if trend.get("pct_change") is not None else "N/A",
+        str(trend.get("data_source") or ds.get("trend") or "N/A"),
+        row.get("difficulty") if row.get("difficulty") is not None else "N/A",
+        str(row.get("kd_label") or "N/A"),
+        str(ds.get("kd") or "N/A"),
+        row.get("word_count") if row.get("word_count") is not None else "",
+        row.get("cpc_avg") if row.get("cpc_avg") is not None else "N/A",
+        row.get("cpc_min") if row.get("cpc_min") is not None else "N/A",
+        row.get("cpc_max") if row.get("cpc_max") is not None else "N/A",
+        str(ds.get("cpc") or "N/A"),
+        str(row.get("competition") or "Unknown"),
+        str(ds.get("competition") or "N/A"),
+        row.get("allintitle_estimate") if row.get("allintitle_estimate") is not None else "N/A",
+        str(ds.get("allintitle") or "N/A"),
+        ", ".join(str(w) for w in warnings) if warnings else "",
+    ]
+
 
 def export_to_excel(
     *,
@@ -18,43 +88,15 @@ def export_to_excel(
     clusters: list[dict[str, Any]],
 ) -> bytes:
     """
-    Sheet **Keywords**: keyword, intent, avg_volume, difficulty.
+    Sheet **Keywords**: full research metrics with data_source + trend.
     Sheet **Clusters**: cluster_id, main_keyword, intent, keywords (comma-separated).
     """
     wb = Workbook()
     ws_kw = wb.active
     ws_kw.title = "Keywords"
-    ws_kw.append(
-        [
-            "keyword",
-            "intent",
-            "avg_volume",
-            "difficulty",
-            "word_count",
-            "cpc_avg",
-            "cpc_min",
-            "cpc_max",
-            "competition",
-        ]
-    )
+    ws_kw.append(_KW_HEADERS)
     for row in keywords or []:
-        sv = row.get("search_volume") or {}
-        avg = sv.get("avg_monthly")
-        if avg is None and isinstance(row.get("search_volume"), (int, float)):
-            avg = row.get("search_volume")
-        ws_kw.append(
-            [
-                str(row.get("keyword") or ""),
-                str(row.get("intent") or ""),
-                avg if avg is not None else "",
-                row.get("difficulty") if row.get("difficulty") is not None else "",
-                row.get("word_count") if row.get("word_count") is not None else "",
-                row.get("cpc_avg") if row.get("cpc_avg") is not None else "",
-                row.get("cpc_min") if row.get("cpc_min") is not None else "",
-                row.get("cpc_max") if row.get("cpc_max") is not None else "",
-                str(row.get("competition") or ""),
-            ]
-        )
+        ws_kw.append(_row_export_values(row))
 
     ws_cl = wb.create_sheet("Clusters")
     ws_cl.append(["cluster_id", "main_keyword", "intent", "keywords"])
@@ -133,7 +175,7 @@ def export_to_google_sheets(
     spreadsheet_body = {
         "properties": {"title": t[:99]},
         "sheets": [
-            {"properties": {"title": "Keywords", "gridProperties": {"rowCount": 5000, "columnCount": 12}}},
+            {"properties": {"title": "Keywords", "gridProperties": {"rowCount": 5000, "columnCount": 28}}},
             {"properties": {"title": "Clusters", "gridProperties": {"rowCount": 2000, "columnCount": 6}}},
         ],
     }
@@ -141,37 +183,9 @@ def export_to_google_sheets(
     sid = created.get("spreadsheetId")
     surl = created.get("spreadsheetUrl")
 
-    kw_vals: list[list[Any]] = [
-        [
-            "keyword",
-            "intent",
-            "avg_volume",
-            "difficulty",
-            "word_count",
-            "cpc_avg",
-            "cpc_min",
-            "cpc_max",
-            "competition",
-        ]
-    ]
+    kw_vals: list[list[Any]] = [_KW_HEADERS]
     for row in keywords or []:
-        sv = row.get("search_volume") or {}
-        avg = sv.get("avg_monthly")
-        if avg is None and isinstance(row.get("search_volume"), (int, float)):
-            avg = row.get("search_volume")
-        kw_vals.append(
-            [
-                str(row.get("keyword") or ""),
-                str(row.get("intent") or ""),
-                avg if avg is not None else "",
-                row.get("difficulty") if row.get("difficulty") is not None else "",
-                row.get("word_count") if row.get("word_count") is not None else "",
-                row.get("cpc_avg") if row.get("cpc_avg") is not None else "",
-                row.get("cpc_min") if row.get("cpc_min") is not None else "",
-                row.get("cpc_max") if row.get("cpc_max") is not None else "",
-                str(row.get("competition") or ""),
-            ]
-        )
+        kw_vals.append(_row_export_values(row))
 
     cl_vals: list[list[Any]] = [["cluster_id", "main_keyword", "intent", "keywords"]]
     for c in clusters or []:
@@ -189,17 +203,12 @@ def export_to_google_sheets(
             ]
         )
 
-    service.spreadsheets().values().update(
-        spreadsheetId=sid,
-        range="Keywords!A1",
-        valueInputOption="USER_ENTERED",
-        body={"values": kw_vals},
-    ).execute()
-    service.spreadsheets().values().update(
-        spreadsheetId=sid,
-        range="Clusters!A1",
-        valueInputOption="USER_ENTERED",
-        body={"values": cl_vals},
-    ).execute()
-
-    return surl or f"https://docs.google.com/spreadsheets/d/{sid}/edit", None
+    body = {
+        "valueInputOption": "RAW",
+        "data": [
+            {"range": "Keywords!A1", "values": kw_vals},
+            {"range": "Clusters!A1", "values": cl_vals},
+        ],
+    }
+    service.spreadsheets().values().batchUpdate(spreadsheetId=sid, body=body).execute()
+    return surl, None

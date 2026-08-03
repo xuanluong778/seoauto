@@ -194,7 +194,7 @@ def parse_bulk_text_content(text: str, *, delimiter: str | None = None) -> list[
                 "custom_outline": r.get("custom_outline") or "",
                 "search_volume": 0,
                 "content_type": "",
-                "target_word_count": 1000,
+                "target_word_count": None,
                 "competitor_url": "",
             }
             for r in parse_bulk_input_text(raw)
@@ -224,7 +224,7 @@ def parse_bulk_text_content(text: str, *, delimiter: str | None = None) -> list[
             "custom_outline": r.get("custom_outline") or "",
             "search_volume": 0,
             "content_type": "",
-            "target_word_count": 1000,
+            "target_word_count": None,
             "competitor_url": "",
         }
         for r in parse_bulk_input_text(raw)

@@ -6,20 +6,32 @@ __pycache__/
 .venv/
 venv/
 env/
+.pytest_cache/
 
 # Environment files - không đưa API key/mật khẩu lên Git
 .env
 env.local
 .env.local
+env.local.*
 
 # Database local - không đưa dữ liệu user lên Git
 *.db
 *.sqlite
 *.sqlite3
+*.db.*
+*.sqlite.bak
 
-# Logs
+# Logs / runtime
 *.log
 logs/
+var/
+*.lock
+*.active_port
+
+# Local backups / scratch
+_backup_*/
+*.bak
+*.corrupt.bak.*
 
 # OS / Editor
 .DS_Store
@@ -41,3 +53,18 @@ temp/
 data/google_oauth.json
 data/*oauth*.json
 data/*token*.json
+data/api_keys.json
+data/publishing_sites.json
+data/backups/
+data/users/
+data/logs/
+data/social_auto_facebook_pages.json
+data/social_auto_web20_accounts.json
+data/social_auto_*_logs.json
+data/content_auto_update_*.json
+data/cau_seo_fix_cache.json
+data/rank_tracking_*.json
+
+*.bak.*
+*.bak.
+

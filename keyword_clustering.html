@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyword Clustering</title>
+    {% include "partials/digiseo_theme_head.html" %}
+    <style>
+        :root { --text: #eef2ff; --muted: #cbd5e1; --line: rgba(255,255,255,.22); --card: rgba(255,255,255,.12); }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; font-family: system-ui, sans-serif; color: var(--text);
+            background: linear-gradient(135deg, #050b18 0%, #0c1424 50%, #050b18 100%); }
+        /* Layout có sidebar trái giống /tool */
+        :root { --tool-sidebar-w: min(288px, 38vw); }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--tool-sidebar-w);
+            min-height: 100vh;
+            height: 100vh;
+            max-height: 100vh;
+            padding: 56px 12px 14px 14px;
+            background: rgba(15, 23, 42, 0.88);
+            border-right: 1px solid var(--line);
+            backdrop-filter: blur(12px);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            z-index: 25;
+        }
+        .sidebar-main {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            padding-bottom: 12px;
+        }
+        .sb-title { margin: 0 0 6px; font-size: 0.95rem; letter-spacing: 0.06em; text-transform: uppercase; color: #e0e7ff; }
+        .sb-hint { margin: 0 0 14px; font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
+        .sb-list { list-style: none; margin: 0; padding: 0; }
+        .sb-item { background: rgba(255,255,255,.08); border: 1px solid var(--line); border-radius: 12px; padding: 10px 10px 8px; margin-bottom: 10px; }
+        .sb-item.is-active { border-color: rgba(147, 197, 253, 0.75); box-shadow: 0 0 0 1px rgba(147, 197, 253, 0.18) inset; }
+        .sb-domain { font-weight: 700; font-size: 0.86rem; word-break: break-word; color: #fff; }
+        .sb-meta { font-size: 0.7rem; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+        .sb-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+        .sb-actions button { width: 100%; padding: 7px 6px; font-size: 0.72rem; border-radius: 8px; font-weight: 600; }
+        .sb-open { background: rgba(91,103,255,.55); border: 1px solid var(--line); color: #fff; }
+        .sb-del { background: rgba(254, 202, 202, 0.15); color: #fecaca; border: 1px solid rgba(254, 202, 202, 0.35); }
+        .sb-empty { font-size: 0.8rem; color: var(--muted); padding: 8px 4px; line-height: 1.5; }
+
+        .tool-main { margin-left: var(--tool-sidebar-w); min-width: 0; }
+        .wrap { max-width: 960px; margin: 0 auto; padding: 16px 18px 48px; }
+        /* Top nav: static/css/digiseo-nav.css */
+        .nav-dd-menu { display: none; position: absolute; left: 0; top: calc(100% + 14px); min-width: 240px; flex-direction: column; gap: 4px; padding: 8px; border-radius: 12px; border: 1px solid var(--line); background: rgba(15,23,42,.96); box-shadow: 0 12px 32px rgba(0,0,0,.35); z-index: 50; }
+        .nav-dd:hover .nav-dd-menu, .nav-dd:focus-within .nav-dd-menu { display: flex; }
+        .nav-dd-menu a { display: block; padding: 10px 12px; border-radius: 8px; border: none; }
+        .nav-dd-menu a.active { background: rgba(91,103,255,.35); }
+        h1 { font-size: 1.45rem; margin: 0 0 8px; }
+        .sub { color: var(--muted); font-size: 14px; margin: 0 0 18px; line-height: 1.45; }
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px; }
+        textarea, input, button {
+            width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+            background: rgba(15,23,42,.35); color: #fff; font-size: 14px;
+        }
+        textarea { min-height: 180px; font-family: ui-monospace, monospace; font-size: 13px; }
+        button { width: auto; margin-top: 10px; margin-right: 8px; cursor: pointer; font-weight: 600; background: rgba(91,103,255,.55); }
+        .err { color: #fecaca; font-size: 13px; margin-top: 8px; }
+        .cluster-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; background: rgba(0,0,0,.12); }
+        .cluster-card h3 { margin: 0 0 6px; font-size: 1.05rem; }
+        .pill { display: inline-block; padding: 2px 10px; margin-right: 6px; border-radius: 999px; background: rgba(255,255,255,.12); font-size: 12px; }
+        .kw-list { margin: 8px 0 0; padding-left: 1.1rem; font-size: 13px; color: var(--muted); max-height: 200px; overflow: auto; }
+        .kw-list[hidden] { display: none; }
+        .toggle { background: transparent; border: 1px dashed var(--line); font-size: 12px; margin-top: 8px; }
+        .topic-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .topic-table th, .topic-table td { border-bottom: 1px solid rgba(255,255,255,.16); padding: 8px 10px; font-size: 13px; text-align: left; vertical-align: top; }
+        .topic-table th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #e0e7ff; background: rgba(15,23,42,.25); position: sticky; top: 0; }
+        .topic-table td.mono { font-family: ui-monospace, monospace; }
+        .topic-table td.vol { text-align: right; font-variant-numeric: tabular-nums; }
+        .topic-table td.role { width: 120px; color: #cbd5e1; }
+        .topic-table td.classif { width: 140px; color: #e0e7ff; }
+        .chart-card { background: rgba(15,23,42,.35); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+        .chart-wrap { width: 100%; overflow-x: auto; }
+
+        /* Seoauto bright-green accent overrides */
+        h1 { color: #00e676 !important; }
+        .nav-dd-menu a:hover { background: rgba(0, 230, 118, 0.12) !important; color: #00e676 !important; }
+        .nav-pro-badge {
+            display: inline-block;
+            margin-left: 6px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: linear-gradient(135deg, #f59e0b, #ea580c);
+            color: #111827;
+            vertical-align: middle;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body>
+<aside class="sidebar" aria-label="Dự án keyword">
+    <div class="sidebar-main">
+        <h3 class="sb-title">Dự án keyword</h3>
+        <p class="sb-hint">Dự án được lưu tự động sau khi gom nhóm xong.</p>
+        <ul class="sb-list" id="clusterProjectList"></ul>
+    </div>
+</aside>
+<main class="tool-main">
+<div class="wrap">
+    {% include "partials/digiseo_top_nav.html" %}
+    <div id="creditBanner" style="display:none;margin-bottom:14px;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.45;"></div>
+
+    <h1>Gom nhóm từ khóa</h1>
+    <p class="sub ds-lead ds-lead--dark">Gom từ khóa thành cụm chủ đề theo ý định tìm kiếm.</p>
+
+    <div class="card">
+        <label for="kws">Danh sách từ khóa (mỗi dòng một keyword)</label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:6px 0 6px;">
+            <input id="excel" type="file" accept=".xlsx" style="width:auto;" />
+            <button type="button" id="btnExcel" class="toggle">Upload Excel (.xlsx)</button>
+            <span style="font-size:12px;color:#cbd5e1;">Hỗ trợ .xlsx</span>
+        </div>
+        <textarea id="kws" placeholder="best laptop&#10;top laptops for work&#10;laptop comparison"></textarea>
+        <div id="progress" class="card" style="padding:10px 12px; margin-top:10px; display:none;">
+            <div style="height:8px;border-radius:999px;background:rgba(255,255,255,.15);overflow:hidden;">
+                <div id="bar" style="height:100%;width:0%;background:rgba(91,103,255,.85);transition:width .2s ease;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:10px;margin-top:6px;">
+                <div id="progText" style="font-size:12px;color:#cbd5e1;">Đang gom nhóm…</div>
+                <div id="progPct" style="font-size:12px;color:#e2e8f0;font-weight:700;">0%</div>
+            </div>
+        </div>
+        <label style="margin-top:10px;"><input type="checkbox" id="fetchSerp" checked style="width:auto;margin-right:8px;">Phân tích kết quả Google</label>
+        <div style="margin-top:10px;">
+            <label for="strictness">Độ chặt gom nhóm</label>
+            <select id="strictness" style="max-width:220px;">
+                <option value="normal">Vừa phải</option>
+                <option value="strict">Chặt</option>
+                <option value="loose">Rộng</option>
+            </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px;">
+            <div>
+                <label for="country">Quốc gia</label>
+                <input id="country" type="text" value="vn" maxlength="8" placeholder="vn">
+            </div>
+            <div>
+                <label for="language">Ngôn ngữ</label>
+                <input id="language" type="text" value="vi" maxlength="8" placeholder="vi">
+            </div>
+            <div>
+                <label for="device">Thiết bị</label>
+                <select id="device">
+                    <option value="desktop">Desktop</option>
+                    <option value="mobile">Mobile</option>
+                </select>
+            </div>
+        </div>
+        <label for="brandUrl" style="margin-top:10px;">URL / domain (tuỳ chọn)</label>
+        <input id="brandUrl" type="text" placeholder="https://mysite.com">
+        <button type="button" id="btnCluster">Chạy gom nhóm</button>
+        <button type="button" id="btnReset" class="toggle">Làm mới</button>
+        <button type="button" id="btnXlsx">Export Excel</button>
+        <button type="button" id="btnSheets">Export Google Sheets</button>
+        <div id="msg" class="err"></div>
+    </div>
+
+    <div class="card" id="panel" hidden>
+        <div class="chart-card" id="topicChartCard" hidden>
+            <div class="sub" style="margin:0 0 10px;">Biểu đồ tổng volume theo topic</div>
+            <div class="chart-wrap" id="topicChartWrap"></div>
+        </div>
+        <div id="meta" class="sub" style="margin-bottom:12px;"></div>
+        <div id="clusters"></div>
+    </div>
+</div>
+<script>
+(function () {
+    var lastClusters = null;
+    var lastKeywords = null;
+    var currentProjectId = null;
+    var lastVolumeMap = {};
+
+    function getSeoToken() {
+        try { return sessionStorage.getItem("seo_token") || ""; } catch (_e) { return ""; }
+    }
+    function authHeaders(json) {
+        var h = {};
+        if (json) h["Content-Type"] = "application/json";
+        var t = getSeoToken();
+        if (t) h["Authorization"] = "Bearer " + t;
+        return h;
+    }
+    function formatApiError(data, status) {
+        if (!data) return "Không thể xử lý yêu cầu.";
+        if (Array.isArray(data.detail)) {
+            return data.detail.map(function (x) { return (x.msg || x.type || "") + (x.loc ? " (" + x.loc.join(".") + ")" : ""); }).join("; ");
+        }
+        if (data.detail && typeof data.detail === "object" && data.detail.message) {
+            var m = data.detail.message;
+            if (data.detail.balance != null && data.detail.required != null) {
+                m += " (dư: " + data.detail.balance + ", cần: " + data.detail.required + ")";
+            }
+            return m;
+        }
+        if (typeof data.detail === "string") return data.detail;
+        return "Không thể xử lý yêu cầu.";
+    }
+    async function refreshCreditsBanner() {
+        var b = document.getElementById("creditBanner");
+        if (!b) return;
+        try {
+            var cfg = await fetch("/auth/credits/config", { cache: "no-store" }).then(function (r) { return r.json(); });
+            if (!cfg || !cfg.enabled) { b.style.display = "none"; b.textContent = ""; return; }
+            var t = getSeoToken();
+            if (!t) {
+                b.style.display = "block";
+                b.style.border = "1px solid rgba(251,191,36,.9)";
+                b.style.background = "rgba(254,243,199,.95)";
+                b.style.color = "#78350f";
+                b.textContent = "Đăng nhập để sử dụng gom nhóm và tra volume.";
+                return;
+            }
+            var me = await fetch("/auth/me", { headers: { Authorization: "Bearer " + t }, cache: "no-store" }).then(function (r) { return r.json(); });
+            b.style.display = "block";
+            b.style.border = "1px solid rgba(52,211,153,.85)";
+            b.style.background = "rgba(209,250,229,.95)";
+            b.style.color = "#064e3b";
+            b.textContent = "Credit còn lại: " + String(me.credit_balance != null ? me.credit_balance : "—");
+        } catch (_e) {
+            b.style.display = "none";
+        }
+    }
+
+    function fmtVi(iso) {
+        if (!iso) return "";
+        try {
+            var d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return "";
+            return d.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+        } catch (e) { return ""; }
+    }
+
+    function setProgress(on) {
+        var p = document.getElementById("progress");
+        if (!p) return;
+        p.style.display = on ? "block" : "none";
+    }
+
+    function setPct(pct, msg) {
+        var b = document.getElementById("bar");
+        var t = document.getElementById("progText");
+        var p = document.getElementById("progPct");
+        var x = Math.max(0, Math.min(100, Number(pct) || 0));
+        if (b) b.style.width = x + "%";
+        if (p) p.textContent = Math.round(x) + "%";
+        if (t && msg) t.textContent = String(msg);
+    }
+
+    function esc(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+            return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+        });
+    }
+
+    function clearResultUi() {
+        lastClusters = null;
+        lastKeywords = null;
+        currentProjectId = null;
+        lastVolumeMap = {};
+        try { localStorage.removeItem("kw_cluster_current_project_id"); } catch (e) {}
+        var panel = document.getElementById("panel");
+        if (panel) panel.hidden = true;
+        var host = document.getElementById("clusters");
+        if (host) host.innerHTML = "";
+        var meta = document.getElementById("meta");
+        if (meta) meta.textContent = "";
+        var ch = document.getElementById("topicChartCard");
+        if (ch) ch.hidden = true;
+        var cw = document.getElementById("topicChartWrap");
+        if (cw) cw.innerHTML = "";
+    }
+
+    function setActiveProjectInSidebar(id) {
+        var ul = document.getElementById("clusterProjectList");
+        if (!ul) return;
+        Array.prototype.forEach.call(ul.querySelectorAll("li.sb-item"), function (li) {
+            li.classList.toggle("is-active", String(li.getAttribute("data-id") || "") === String(id || ""));
+        });
+    }
+
+    async function loadClusterProjectList() {
+        var ul = document.getElementById("clusterProjectList");
+        if (!ul) return;
+        try {
+            var r = await fetch("/keywords/cluster/history?limit=80", { headers: authHeaders() });
+            var rawText = await r.text();
+            var d = {};
+            if (rawText) {
+                try { d = JSON.parse(rawText); } catch (e) { d = { detail: rawText.slice(0, 200) }; }
+            }
+            if (!r.ok) {
+                if (r.status === 404) {
+                    throw new Error("Không tải được danh sách dự án. Vui lòng thử lại.");
+                }
+                throw new Error(d.detail || "Không tải được lịch sử");
+            }
+            var items = Array.isArray(d.projects) ? d.projects : [];
+            ul.innerHTML = "";
+            if (!items.length) {
+                var li0 = document.createElement("li");
+                li0.className = "sb-empty";
+                li0.textContent = "Chưa có dự án clustering. Hãy nhập keyword và bấm «Chạy clustering».";
+                ul.appendChild(li0);
+                return;
+            }
+            items.forEach(function (it) {
+                var li = document.createElement("li");
+                li.className = "sb-item";
+                li.setAttribute("data-id", it.id);
+                var t = document.createElement("div");
+                t.className = "sb-domain";
+                t.textContent = it.keywords_label || ("Project #" + it.id);
+                var m = document.createElement("div");
+                m.className = "sb-meta";
+                var metaBits = [];
+                if (it.created_at) metaBits.push(fmtVi(it.created_at));
+                if (it.keyword_count) metaBits.push(it.keyword_count + " từ khóa");
+                m.textContent = metaBits.join(" · ");
+                var actions = document.createElement("div");
+                actions.className = "sb-actions";
+                var bOpen = document.createElement("button");
+                bOpen.type = "button";
+                bOpen.className = "sb-open";
+                bOpen.textContent = "Mở";
+                bOpen.addEventListener("click", function () { openClusterProject(it.id); });
+                var bDel = document.createElement("button");
+                bDel.type = "button";
+                bDel.className = "sb-del";
+                bDel.textContent = "Xóa";
+                bDel.addEventListener("click", function () { deleteClusterProject(it.id); });
+                actions.appendChild(bOpen);
+                actions.appendChild(bDel);
+                li.appendChild(t);
+                li.appendChild(m);
+                li.appendChild(actions);
+                ul.appendChild(li);
+            });
+            if (currentProjectId) setActiveProjectInSidebar(currentProjectId);
+        } catch (e) {
+            ul.innerHTML = "";
+            var liE = document.createElement("li");
+            liE.className = "sb-empty";
+            liE.textContent = "Lỗi tải sidebar: " + String(e.message || e);
+            ul.appendChild(liE);
+        }
+    }
+
+    function fmtNum(n) {
+        var x = Number(n) || 0;
+        return x.toLocaleString("vi-VN");
+    }
+
+    async function fetchVolumesForKeywords(keywords, locale) {
+        keywords = (keywords || []).slice();
+        if (!keywords.length) return {};
+        var body = {
+            keywords: keywords,
+            country: (locale && locale.country) ? locale.country : (document.getElementById("country").value.trim() || "vn"),
+            language: (locale && locale.language) ? locale.language : (document.getElementById("language").value.trim() || "vi"),
+        };
+        var r = await fetch("/keywords/volume/batch", {
+            method: "POST",
+            headers: authHeaders(true),
+            body: JSON.stringify(body),
+        });
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(formatApiError(d, r.status) || "Không lấy được volume");
+        return (d && d.items) ? d.items : {};
+    }
+
+    function drawTopicBarChart(topics) {
+        var card = document.getElementById("topicChartCard");
+        var wrap = document.getElementById("topicChartWrap");
+        if (!card || !wrap) return;
+        wrap.innerHTML = "";
+        if (!topics || !topics.length) {
+            card.hidden = true;
+            return;
+        }
+        card.hidden = false;
+        var W = Math.max(780, topics.length * 120);
+        var H = 240, pad = { l: 52, r: 16, t: 12, b: 64 };
+        var innerW = W - pad.l - pad.r, innerH = H - pad.t - pad.b;
+        var maxVal = Math.max.apply(null, topics.map(function (t) { return t.totalVolume || 0; }).concat([1]));
+        var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+        svg.setAttribute("width", String(W));
+        svg.setAttribute("height", String(H));
+        svg.style.maxWidth = "100%";
+        var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("transform", "translate(" + pad.l + "," + pad.t + ")");
+        var bw = innerW / topics.length * 0.62;
+        topics.forEach(function (t, i) {
+            var v = t.totalVolume || 0;
+            var h = innerH * (v / maxVal);
+            var x = i * (innerW / topics.length) + (innerW / topics.length - bw) / 2;
+            var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", String(x));
+            rect.setAttribute("y", String(innerH - h));
+            rect.setAttribute("width", String(bw));
+            rect.setAttribute("height", String(Math.max(0, h)));
+            rect.setAttribute("rx", "6");
+            rect.setAttribute("fill", "rgba(91,103,255,.85)");
+            g.appendChild(rect);
+            var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            txt.setAttribute("x", String(x + bw / 2));
+            txt.setAttribute("y", String(innerH - h - 6));
+            txt.setAttribute("text-anchor", "middle");
+            txt.setAttribute("fill", "#e2e8f0");
+            txt.setAttribute("font-size", "11");
+            txt.textContent = fmtNum(v);
+            g.appendChild(txt);
+        });
+        svg.appendChild(g);
+        topics.forEach(function (t, i) {
+            var x = pad.l + i * (innerW / topics.length) + (innerW / topics.length) / 2;
+            var label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", String(x));
+            label.setAttribute("y", String(H - 10));
+            label.setAttribute("text-anchor", "middle");
+            label.setAttribute("fill", "#cbd5e1");
+            label.setAttribute("font-size", "10");
+            var s = String(t.topic || "");
+            if (s.length > 22) s = s.slice(0, 21) + "…";
+            label.textContent = s;
+            svg.appendChild(label);
+        });
+        wrap.appendChild(svg);
+    }
+
+    function renderClustersFromPayload(payload) {
+        var data = payload || {};
+        lastClusters = data.clusters || [];
+        lastVolumeMap = data.volumes || lastVolumeMap || {};
+        var meta = data.meta || {};
+        document.getElementById("meta").textContent = "Cụm: " + (meta.cluster_count || 0) +
+            (meta.truncated ? " (đã giới hạn " + meta.max_input + " từ khóa)" : "") +
+            (meta.search_volume_sum != null ? " · Tổng volume: " + fmtNum(meta.search_volume_sum) : "");
+        var host = document.getElementById("clusters");
+        host.innerHTML = "";
+        var topicsForChart = [];
+        lastClusters.forEach(function (c, idx) {
+            var kwsAll = (c.keywords || c.variations || []);
+            var mainKw = c.main_keyword || c.primary_keyword || ("Cluster " + (idx + 1));
+            var totalVol = 0;
+            kwsAll.forEach(function (k) {
+                var v = lastVolumeMap && lastVolumeMap[k] != null ? (lastVolumeMap[k] || 0) : 0;
+                totalVol += Number(v) || 0;
+            });
+            topicsForChart.push({ topic: c.main_keyword || ("Cluster " + (idx + 1)), totalVolume: totalVol });
+
+            var card = document.createElement("div");
+            card.className = "cluster-card";
+            var serp = c.serp_overlap_score != null ? c.serp_overlap_score : "—";
+            var h = document.createElement("h3");
+            h.textContent = mainKw;
+            var pills = document.createElement("div");
+            var ct = c.suggested_content_type ? "<span class=\"pill\">content: " + esc(c.suggested_content_type) + "</span>" : "";
+            var pt = c.primary_serp_page_type ? "<span class=\"pill\">Loại trang: " + esc(c.primary_serp_page_type) + "</span>" : "";
+            pills.innerHTML = "<span class=\"pill\">Ý định: " + esc(c.intent || "") + "</span>" +
+                "<span class=\"pill\">" + (c.cluster_size || (c.keywords || c.variations || []).length) + " từ khóa</span>" +
+                "<span class=\"pill\">Độ trùng: " + esc(String(serp)) + "</span>" + ct + pt;
+            var ul = document.createElement("ul");
+            ul.className = "kw-list";
+            ul.hidden = true;
+            (c.keywords || c.variations || []).forEach(function (k) {
+                var li = document.createElement("li");
+                li.textContent = k;
+                ul.appendChild(li);
+            });
+            var toggleBtn = document.createElement("button");
+            toggleBtn.type = "button";
+            toggleBtn.className = "toggle";
+            toggleBtn.textContent = "Xem tất cả keywords";
+            toggleBtn.addEventListener("click", function () {
+                ul.hidden = !ul.hidden;
+                toggleBtn.textContent = ul.hidden ? "Xem tất cả keywords" : "Thu gọn";
+            });
+            card.appendChild(h);
+            card.appendChild(pills);
+            card.appendChild(toggleBtn);
+            // bảng 3 cột: keyword (main/sub), phân loại, volume
+            var table = document.createElement("table");
+            table.className = "topic-table";
+            table.innerHTML = "<thead><tr><th>Từ khóa (chính/phụ)</th><th>Phân Loại</th><th style=\"text-align:right;\">Volume seach</th></tr></thead>";
+            var tbody = document.createElement("tbody");
+            var mainKw = c.main_keyword || c.primary_keyword || ("Cluster " + (idx + 1));
+            var intent = c.intent || "";
+            function addRow(role, kw) {
+                var tr = document.createElement("tr");
+                var tdK = document.createElement("td");
+                tdK.className = "mono";
+                tdK.textContent = (role === "main" ? "Chính: " : "Phụ: ") + kw;
+                var tdC = document.createElement("td");
+                tdC.className = "classif";
+                tdC.textContent = intent;
+                var tdV = document.createElement("td");
+                tdV.className = "vol";
+                var v = lastVolumeMap && lastVolumeMap[kw] != null ? (lastVolumeMap[kw] || 0) : 0;
+                tdV.textContent = fmtNum(v);
+                tr.appendChild(tdK);
+                tr.appendChild(tdC);
+                tr.appendChild(tdV);
+                tbody.appendChild(tr);
+            }
+            // main trước
+            if (kwsAll.indexOf(mainKw) === -1) addRow("main", mainKw);
+            else addRow("main", mainKw);
+            kwsAll.forEach(function (k) {
+                if (k === mainKw) return;
+                addRow("sub", k);
+            });
+            table.appendChild(tbody);
+
+            card.appendChild(table);
+            card.appendChild(ul);
+            host.appendChild(card);
+        });
+        topicsForChart.sort(function (a, b) { return (b.totalVolume || 0) - (a.totalVolume || 0); });
+        drawTopicBarChart(topicsForChart.slice(0, 12));
+        document.getElementById("panel").hidden = lastClusters.length === 0;
+    }
+
+    async function openClusterProject(projectId) {
+        var msg = document.getElementById("msg");
+        msg.textContent = "";
+        try {
+            var r = await fetch("/keywords/cluster/history/" + encodeURIComponent(projectId), {
+                headers: authHeaders(),
+            });
+            var d = await r.json().catch(function () { return {}; });
+            if (!r.ok) throw new Error(d.detail || "Không tải được project");
+            currentProjectId = d.project && d.project.id ? d.project.id : projectId;
+            try { localStorage.setItem("kw_cluster_current_project_id", String(currentProjectId)); } catch (e) {}
+            setActiveProjectInSidebar(currentProjectId);
+            var kws = Array.isArray(d.keywords) ? d.keywords : [];
+            lastKeywords = kws;
+            document.getElementById("kws").value = kws.join("\n");
+            if (d.project) {
+                document.getElementById("fetchSerp").checked = !!d.project.fetch_serp;
+                document.getElementById("country").value = d.project.country || "vn";
+                document.getElementById("language").value = d.project.language || "vi";
+                document.getElementById("device").value = d.project.device || "desktop";
+                document.getElementById("strictness").value = d.project.cluster_strictness || "normal";
+                document.getElementById("brandUrl").value = d.project.brand_url || "";
+            }
+            var res = d.result || {};
+            lastVolumeMap = res.volumes || {};
+            if (!lastVolumeMap || Object.keys(lastVolumeMap).length === 0) {
+                var allK = [];
+                (res.clusters || []).forEach(function (c) { (c.keywords || []).forEach(function (k) { allK.push(k); }); });
+                lastVolumeMap = await fetchVolumesForKeywords(allK, { country: (d.project || {}).country, language: (d.project || {}).language });
+                res.volumes = lastVolumeMap;
+            }
+            renderClustersFromPayload(res);
+        } catch (e) {
+            msg.textContent = String(e.message || e);
+        }
+    }
+
+    async function deleteClusterProject(projectId) {
+        if (!projectId) return;
+        if (!confirm("Xóa project clustering này?")) return;
+        var msg = document.getElementById("msg");
+        msg.textContent = "";
+        try {
+            var r = await fetch("/keywords/cluster/history/" + encodeURIComponent(projectId), {
+                method: "DELETE",
+                headers: authHeaders(),
+            });
+            var d = await r.json().catch(function () { return {}; });
+            if (!r.ok) throw new Error(d.detail || "Xóa lỗi");
+            if (String(currentProjectId || "") === String(projectId)) {
+                clearResultUi();
+            }
+            await loadClusterProjectList();
+            msg.textContent = "Đã xóa project.";
+        } catch (e) {
+            msg.textContent = String(e.message || e);
+        }
+    }
+
+    async function saveClusterProject(runBody, resultPayload) {
+        try {
+            if (!resultPayload.volumes) resultPayload.volumes = lastVolumeMap || {};
+            var saveBody = {
+                keywords: lastKeywords || [],
+                fetch_serp: !!runBody.fetch_serp,
+                country: runBody.country || "vn",
+                language: runBody.language || "vi",
+                device: runBody.device || "desktop",
+                cluster_strictness: runBody.cluster_strictness || "normal",
+                url: runBody.url || "",
+                result: resultPayload || {},
+            };
+            var r = await fetch("/keywords/cluster/save", {
+                method: "POST",
+                headers: authHeaders(true),
+                body: JSON.stringify(saveBody),
+            });
+            var d = await r.json().catch(function () { return {}; });
+            if (!r.ok) throw new Error(formatApiError(d, r.status) || "Không lưu được project");
+            currentProjectId = d.project_id;
+            try { localStorage.setItem("kw_cluster_current_project_id", String(currentProjectId)); } catch (e) {}
+            await loadClusterProjectList();
+            setActiveProjectInSidebar(currentProjectId);
+        } catch (e) {
+            // Không chặn UI nếu lưu lỗi
+        }
+    }
+
+    async function importKeywordsFromExcel(file) {
+        if (!file) return null;
+        var fd = new FormData();
+        fd.append("file", file, file.name || "keywords.xlsx");
+        var r = await fetch("/keywords/import/excel", { method: "POST", headers: authHeaders(false), body: fd });
+        var data = await r.json();
+        if (!r.ok) {
+            throw new Error(formatApiError(data, r.status) || "Upload lỗi");
+        }
+        return data;
+    }
+
+    document.getElementById("btnExcel").addEventListener("click", async function () {
+        var msg = document.getElementById("msg");
+        msg.textContent = "";
+        var inp = document.getElementById("excel");
+        if (!inp || !inp.files || !inp.files.length) {
+            msg.textContent = "Chọn file Excel (.xlsx) trước.";
+            return;
+        }
+        try {
+            var btn = document.getElementById("btnExcel");
+            btn.disabled = true;
+            btn.textContent = "Đang upload…";
+            var data = await importKeywordsFromExcel(inp.files[0]);
+            var kws = (data && data.keywords) ? data.keywords : [];
+            if (!kws.length) {
+                msg.textContent = "Không tìm thấy keyword trong file.";
+                return;
+            }
+            document.getElementById("kws").value = kws.join("\n");
+            msg.textContent = "Đã nhập " + kws.length + " keyword từ Excel.";
+            refreshCreditsBanner();
+        } catch (e) {
+            msg.textContent = (e && e.message) ? e.message : "Upload lỗi";
+        } finally {
+            var btn2 = document.getElementById("btnExcel");
+            btn2.disabled = false;
+            btn2.textContent = "Upload Excel (.xlsx)";
+        }
+    });
+
+    document.getElementById("btnCluster").addEventListener("click", async function () {
+        var msg = document.getElementById("msg");
+        msg.textContent = "";
+        var lines = document.getElementById("kws").value.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+        if (!lines.length) { msg.textContent = "Nhập ít nhất một keyword."; return; }
+        lastKeywords = lines;
+        var btn = document.getElementById("btnCluster");
+        var oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Đang gom nhóm…";
+        setProgress(true);
+        var body = {
+            keywords: lines,
+            fetch_serp: document.getElementById("fetchSerp").checked,
+            country: document.getElementById("country").value.trim() || undefined,
+            language: document.getElementById("language").value.trim() || undefined,
+            device: document.getElementById("device").value || undefined,
+            cluster_strictness: document.getElementById("strictness").value || undefined,
+        };
+        var bu = document.getElementById("brandUrl").value.trim();
+        if (bu) body.url = bu;
+        try {
+            setPct(1, "Đang gom nhóm…");
+            var r = await fetch("/keywords/cluster/async", {
+                method: "POST",
+                headers: authHeaders(true),
+                body: JSON.stringify(body),
+            });
+            var queued = await r.json();
+            if (!r.ok) {
+                msg.textContent = formatApiError(queued, r.status) || "Lỗi";
+                if (r.status === 401 || r.status === 402) refreshCreditsBanner();
+                return;
+            }
+            var pollUrl = queued.poll_url || ("/keywords/cluster/job/" + queued.job_id);
+
+            var done = false;
+            var result = null;
+            var queuedWarnAt = 0;
+            var queuedFirstSeenAt = 0;
+            var startedAt = Date.now();
+            var lastChangeAt = startedAt;
+            var lastProg = -1;
+            var lastMsg = "";
+            var lastState = "";
+            var maxTotalMs = 2 * 60 * 60 * 1000; // 2 hours hard cap
+            var staleMs = 5 * 60 * 1000; // fail UI wait only if no updates for 5 minutes
+            for (;;) {
+                var pr = await fetch(pollUrl, { headers: authHeaders() });
+                var st = await pr.json();
+                if (!pr.ok) throw new Error(st.detail || "Không theo dõi được tiến trình.");
+                setPct(st.progress, st.message || "Đang xử lý…");
+                var now2 = Date.now();
+                var progNow = Number(st.progress) || 0;
+                var msgNow = String(st.message || "");
+                var stateNow = String(st.state || "");
+                if (progNow !== lastProg || msgNow !== lastMsg || stateNow !== lastState) {
+                    lastProg = progNow;
+                    lastMsg = msgNow;
+                    lastState = stateNow;
+                    lastChangeAt = now2;
+                }
+                if (st && (st.state === "QUEUED" || st.state === "PENDING")) {
+                    var now = Date.now();
+                    if (!queuedFirstSeenAt) queuedFirstSeenAt = now;
+                    if (!queuedWarnAt && (now - queuedFirstSeenAt) > 10000) {
+                        queuedWarnAt = now;
+                        msg.textContent = "Đang xử lý trong hàng đợi. Vui lòng chờ thêm.";
+                    }
+                } else {
+                    // Clear queued warning once worker starts running
+                    if (queuedWarnAt) {
+                        queuedWarnAt = 0;
+                        queuedFirstSeenAt = 0;
+                        msg.textContent = "";
+                    }
+                }
+                if (st.state === "SUCCESS") { done = true; result = st.result; break; }
+                if (st.state === "ERROR") throw new Error(st.error || "Job lỗi");
+                // Stop waiting only when clearly stuck (no updates) or beyond hard cap.
+                if ((now2 - startedAt) > maxTotalMs) {
+                    throw new Error("Quá thời gian chờ (quá lâu). Trạng thái cuối: " + stateNow + " · " + progNow + "% · " + (msgNow || "—"));
+                }
+                if ((now2 - lastChangeAt) > staleMs) {
+                    throw new Error("Quá thời gian chờ. Thử giảm số từ khóa hoặc tắt phân tích Google.");
+                }
+                await new Promise(function (res) { setTimeout(res, 900); });
+            }
+            if (!done || !result) throw new Error("Job chưa trả kết quả. Trạng thái cuối: " + (lastState || "—") + " · " + (lastProg >= 0 ? lastProg : "—") + "%.");
+
+            var data = result;
+            // Prefer volumes shipped by backend; fallback to batch endpoint for older payloads.
+            lastVolumeMap = data.volumes || {};
+            if (!lastVolumeMap || Object.keys(lastVolumeMap).length === 0) {
+                var allKw = [];
+                (data.clusters || []).forEach(function (c) { (c.keywords || []).forEach(function (k) { allKw.push(k); }); });
+                try {
+                    lastVolumeMap = await fetchVolumesForKeywords(allKw, { country: body.country, language: body.language });
+                    data.volumes = lastVolumeMap;
+                } catch (e) {
+                    lastVolumeMap = {};
+                }
+            }
+            renderClustersFromPayload(data);
+            await saveClusterProject(body, data);
+            refreshCreditsBanner();
+        } catch (e) {
+            msg.textContent = (e && e.message) ? e.message : "Có lỗi xảy ra.";
+        } finally {
+            btn.disabled = false;
+            btn.textContent = oldText;
+            setProgress(false);
+            setPct(0, "");
+        }
+    });
+
+    async function postExport(path, body) {
+        return fetch(path, { method: "POST", headers: authHeaders(true), body: JSON.stringify(body) });
+    }
+
+    document.getElementById("btnXlsx").addEventListener("click", async function () {
+        if (!lastClusters) { document.getElementById("msg").textContent = "Chạy clustering trước."; return; }
+        // flat rows: main/sub/classification/volume
+        var rows = [];
+        (lastClusters || []).forEach(function (c) {
+            var mainKw = c.main_keyword || "";
+            var intent = c.intent || "";
+            var kws = c.keywords || [];
+            if (mainKw) {
+                var v0 = lastVolumeMap && lastVolumeMap[mainKw] != null ? (lastVolumeMap[mainKw] || 0) : 0;
+                rows.push({ main_keyword: mainKw, sub_keyword: mainKw, classification: intent, search_volume: v0 });
+            }
+            kws.forEach(function (k) {
+                if (!k || k === mainKw) return;
+                var v = lastVolumeMap && lastVolumeMap[k] != null ? (lastVolumeMap[k] || 0) : 0;
+                rows.push({ main_keyword: mainKw, sub_keyword: k, classification: intent, search_volume: v });
+            });
+        });
+        var r = await postExport("/keywords/export/cluster-flat-excel", { rows: rows });
+        if (!r.ok) {
+            var t = await r.text();
+            try {
+                var j = t ? JSON.parse(t) : {};
+                document.getElementById("msg").textContent = (j && j.detail) ? j.detail : "Xuất file thất bại.";
+            } catch (e) {
+                document.getElementById("msg").textContent = (t && t.trim()) ? t.slice(0, 200) : "Xuất file thất bại.";
+            }
+            return;
+        }
+        var blob = await r.blob();
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "keyword_clusters.xlsx";
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
+
+    document.getElementById("btnSheets").addEventListener("click", async function () {
+        if (!lastClusters) { document.getElementById("msg").textContent = "Chạy clustering trước."; return; }
+        var kwRows = (lastKeywords || []).map(function (k) { return { keyword: k, intent: "", search_volume: {}, difficulty: "" }; });
+        var r = await postExport("/keywords/export/sheets", { keywords: kwRows, clusters: lastClusters });
+        var data = await r.json();
+        if (!r.ok || !data.spreadsheet_url) {
+            document.getElementById("msg").textContent = data.detail || "Chưa cấu hình GOOGLE_SHEETS_SA_JSON.";
+            return;
+        }
+        window.open(data.spreadsheet_url, "_blank");
+    });
+
+    document.getElementById("btnReset").addEventListener("click", function () {
+        var msg = document.getElementById("msg");
+        msg.textContent = "";
+        document.getElementById("kws").value = "";
+        document.getElementById("excel").value = "";
+        document.getElementById("fetchSerp").checked = true;
+        document.getElementById("strictness").value = "normal";
+        document.getElementById("country").value = "vn";
+        document.getElementById("language").value = "vi";
+        document.getElementById("device").value = "desktop";
+        document.getElementById("brandUrl").value = "";
+        clearResultUi();
+    });
+
+    (async function initSidebar() {
+        await loadClusterProjectList();
+        var saved = null;
+        try { saved = localStorage.getItem("kw_cluster_current_project_id"); } catch (e) {}
+        if (saved) {
+            currentProjectId = saved;
+            setActiveProjectInSidebar(saved);
+            openClusterProject(saved);
+        }
+        await refreshCreditsBanner();
+    })();
+})();
+</script>
+</div>
+</main>
+<script>
+(() => {
+    try {
+        const path = (window.location && window.location.pathname) ? window.location.pathname.replace(/\/+$/, "") : "";
+        document.querySelectorAll('.nav a, nav[aria-label="Menu chính"] a').forEach((a) => {
+            const href = (a.getAttribute("href") || "").trim();
+            if (!href || href.startsWith("http")) return;
+            const h = href.replace(/\/+$/, "");
+            if (h && h === path) a.classList.add("active");
+        });
+        if (path === "/settings") {
+            document.querySelectorAll('a[href="/settings"]').forEach((b) => b.classList.add("active"));
+        }
+    } catch (_) {}
+})();
+</script>
+{% include "partials/digiseo_i18n.html" %}
+{% include "partials/digiseo_pricing_bundle.html" %}
+</body>
+</html>

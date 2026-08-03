@@ -1,0 +1,52 @@
+.adm-pq-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.adm-pq-plan-card {
+    border: 1px solid var(--ab-line);
+    border-radius: 12px;
+    background: var(--ab-panel);
+    overflow: hidden;
+}
+
+.adm-pq-plan-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--ab-line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.adm-pq-plan-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.adm-pq-plan-slug {
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.adm-pq-features {
+    font-size: 0.8rem;
+    color: var(--ab-muted);
+    max-width: 420px;
+    text-align: right;
+}
+
+.adm-pq-plan-select {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--ab-line);
+    background: var(--ab-panel);
+    color: inherit;
+}
+
+.adm-pq-custom td:first-child::after {
+    content: " •";
+    color: #f59e0b;
+}

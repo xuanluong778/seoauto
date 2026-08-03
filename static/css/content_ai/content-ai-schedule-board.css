@@ -1,0 +1,838 @@
+/* Content AI — Schedule board modal UI (scoped #caSched*) */
+
+.ca-sched-board-backdrop,
+.ca-sched-edit-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483600 !important;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+#caSchedBoardModal.ca-sched-board-modal {
+  position: fixed !important;
+  z-index: 2147483601 !important;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 94vw !important;
+  max-width: 94vw !important;
+  height: 95vh !important;
+  max-height: 95vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: #0D1F2C !important;
+  color: #e2e8f0 !important;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  overflow: hidden !important;
+  box-sizing: border-box;
+}
+
+#caSchedBoardModal[hidden],
+#caSchedBoardBackdrop[hidden],
+#caSchedEditModal[hidden],
+#caSchedEditBackdrop[hidden],
+#caSchedBulkModal[hidden],
+#caSchedBulkBackdrop[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+body.ca-sched-board-open {
+  overflow: hidden !important;
+}
+
+/* Light form controls vs dark Content AI theme */
+#caSchedBoardModal {
+  color: #e2e8f0 !important;
+}
+
+#caSchedEditModal,
+#caSchedBulkModal {
+  color: #0f172a !important;
+}
+
+#caSchedBoardModal input,
+#caSchedBoardModal select,
+#caSchedBoardModal textarea,
+#caSchedEditModal input,
+#caSchedEditModal select,
+#caSchedEditModal textarea,
+#caSchedBulkModal input,
+#caSchedBulkModal select,
+#caSchedBulkModal textarea {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  caret-color: #0f172a !important;
+  opacity: 1 !important;
+  font-size: 0.82rem !important;
+  line-height: 1.25 !important;
+  height: 32px !important;
+  padding: 0 10px !important;
+  box-sizing: border-box !important;
+}
+
+#caSchedBoardModal input[type="checkbox"] {
+  width: 14px !important;
+  height: 14px !important;
+  padding: 0 !important;
+}
+
+#caSchedBoardModal input::placeholder,
+#caSchedEditModal input::placeholder,
+#caSchedBulkModal input::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+  opacity: 1 !important;
+}
+
+#caSchedBoardModal select option,
+#caSchedEditModal select option,
+#caSchedBulkModal select option {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+#caSchedBoardModal .ca-sched-btn:not(.primary):not(.success):not(.danger),
+#caSchedEditModal .ca-sched-btn:not(.primary):not(.success):not(.danger),
+#caSchedBulkModal .ca-sched-btn:not(.primary):not(.success):not(.danger) {
+  background: #ffffff !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+#caSchedBoardModal .ca-sched-btn.ghost {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+#caSchedBoardModal .ca-sched-btn.primary {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+#caSchedBoardModal .ca-sched-btn.success {
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+#caSchedBoardModal .ca-sched-btn.danger {
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+  background: #ffffff !important;
+}
+
+#caSchedBoardModal .ca-sched-btn.is-outline-primary {
+  color: #2563eb !important;
+  border-color: #93c5fd !important;
+  background: #ffffff !important;
+  -webkit-text-fill-color: #2563eb !important;
+}
+
+#caSchedBoardModal .ca-sched-btn.is-outline-success {
+  color: #16a34a !important;
+  border-color: #86efac !important;
+  background: #ffffff !important;
+  -webkit-text-fill-color: #16a34a !important;
+}
+
+#caSchedBoardModal .ca-sched-btn.is-outline-danger {
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+  background: #ffffff !important;
+  -webkit-text-fill-color: #dc2626 !important;
+}
+
+/* —— Compact header —— */
+.ca-sched-board-head {
+  flex: 0 0 auto;
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: #0D1F2C !important;
+  color: #e2e8f0 !important;
+}
+
+.ca-sched-board-head-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ca-sched-board-head-top h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f1f5f9 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ca-sched-title-ico {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.ca-sched-board-close {
+  border: 0;
+  background: transparent;
+  font-size: 1.45rem;
+  cursor: pointer;
+  line-height: 1;
+  color: #64748b !important;
+  padding: 0 2px;
+}
+
+.ca-sched-board-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.ca-sched-stat {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 0;
+}
+
+.ca-sched-stat .k {
+  display: block;
+  font-size: 0.68rem;
+  color: #ffffff !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ca-sched-stat strong {
+  font-size: 0.95rem;
+  color: #f1f5f9 !important;
+  line-height: 1;
+}
+
+.ca-sched-stat.is-warn strong { color: #ea580c !important; }
+.ca-sched-stat.is-info strong { color: #2563eb !important; }
+.ca-sched-stat.is-ok strong { color: #16a34a !important; }
+.ca-sched-stat.is-err strong { color: #dc2626 !important; }
+
+.ca-sched-board-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.ca-sched-search {
+  position: relative;
+  display: block;
+  width: 250px !important;
+  max-width: 250px !important;
+  min-width: 250px !important;
+  flex: 0 0 250px;
+}
+
+#caSchedFilterStatus {
+  width: 180px !important;
+  max-width: 180px !important;
+  min-width: 180px !important;
+  flex: 0 0 180px;
+  box-sizing: border-box !important;
+}
+
+#caSchedFilterSite {
+  width: 200px !important;
+  max-width: 200px !important;
+  min-width: 200px !important;
+  flex: 0 0 200px;
+  box-sizing: border-box !important;
+}
+
+#caSchedFilterCategory {
+  width: 180px !important;
+  max-width: 180px !important;
+  min-width: 180px !important;
+  flex: 0 0 180px;
+  box-sizing: border-box !important;
+}
+
+#caSchedBulkPublish,
+#caSchedBulkSchedule,
+#caSchedRefresh {
+  flex: 0 0 auto;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, filter 0.15s ease;
+}
+
+#caSchedBoardModal #caSchedBulkPublish:hover:not(:disabled),
+#caSchedBoardModal #caSchedBulkPublish:focus-visible:not(:disabled) {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.35), 0 4px 12px rgba(22, 163, 74, 0.35) !important;
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  cursor: pointer;
+}
+
+#caSchedBoardModal #caSchedBulkSchedule:hover:not(:disabled),
+#caSchedBoardModal #caSchedBulkSchedule:focus-visible:not(:disabled) {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35), 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  cursor: pointer;
+}
+
+#caSchedBoardModal #caSchedBulkPublish:active:not(:disabled),
+#caSchedBoardModal #caSchedBulkSchedule:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.95);
+  box-shadow: none !important;
+}
+
+.ca-sched-check-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #e2e8f0 !important;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.ca-sched-board-actions {
+  display: none;
+}
+
+.ca-sched-search input {
+  width: 100% !important;
+  padding-left: 28px !important;
+}
+
+.ca-sched-ico {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b !important;
+  pointer-events: none;
+  font-size: 0.85rem;
+}
+
+.ca-sched-checkall {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #e2e8f0 !important;
+  white-space: nowrap;
+}
+
+.ca-sched-selected-count,
+#caSchedSelectedCount {
+  margin-left: 0 !important;
+  font-size: 0.8rem;
+  color: #94a3b8 !important;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.ca-sched-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  background: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #0f172a;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ca-sched-btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.ca-sched-btn.success { background: #16a34a; border-color: #16a34a; color: #fff; }
+.ca-sched-btn.ghost { background: #f8fafc; }
+.ca-sched-btn.outline {
+  background: #fff;
+  border: 2px solid #000 !important;
+  color: #0f172a;
+}
+
+#caSchedBoardModal .ca-sched-btn.outline {
+  border: 2px solid #000 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+.ca-sched-btn.danger { color: #dc2626; border-color: #fecaca; }
+.ca-sched-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* —— Article list: no scrollbar; 2 rows of 210px cards fit in viewport —— */
+#caSchedBoardBody.ca-sched-board-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 8px 12px;
+  background: #0D1F2C !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ca-sched-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  align-items: flex-start;
+  gap: 8px 24px;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: calc(5 * 200px + 4 * 24px);
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.ca-sched-loading {
+  width: 100%;
+  text-align: center;
+  color: #94a3b8 !important;
+  font-size: 0.9rem;
+  padding: 28px 12px;
+}
+
+.ca-sched-empty {
+  text-align: center;
+  color: #94a3b8 !important;
+  padding: 24px 12px;
+  margin: auto;
+}
+
+/* —— Compact fixed cards (210px) —— */
+.ca-sched-card {
+  width: 200px;
+  max-width: 200px;
+  min-width: 200px;
+  height: 190px;
+  min-height: 190px;
+  max-height: 190px;
+  box-sizing: border-box;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #0f172a !important;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+.ca-sched-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px 0;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.ca-sched-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.ca-sched-badge.unscheduled { background: #ffedd5; color: #c2410c !important; }
+.ca-sched-badge.scheduled { background: #dbeafe; color: #1d4ed8 !important; }
+.ca-sched-badge.publishing { background: #fef9c3; color: #a16207 !important; }
+.ca-sched-badge.published { background: #dcfce7; color: #15803d !important; }
+.ca-sched-badge.failed { background: #fee2e2; color: #b91c1c !important; }
+
+/* Thumbnail removed from schedule cards — hide any leftover markup */
+.ca-sched-thumb {
+  display: none !important;
+}
+
+.ca-sched-card-body {
+  padding: 2px 6px 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  color: #0f172a !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  justify-content: flex-start;
+}
+
+.ca-sched-kw {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #2563eb !important;
+  word-break: break-word;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.ca-sched-meta {
+  font-size: 0.64rem;
+  color: #334155 !important;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  flex: 0 0 auto;
+}
+
+.ca-sched-meta .lbl {
+  color: #64748b !important;
+  font-weight: 600;
+}
+
+.ca-sched-time {
+  font-size: 0.62rem;
+  color: #334155 !important;
+  margin-top: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  flex: 0 0 auto;
+  min-height: 1.2em;
+}
+
+.ca-sched-time--empty {
+  visibility: hidden;
+  color: transparent !important;
+}
+
+.ca-sched-err {
+  font-size: 0.62rem;
+  color: #dc2626 !important;
+  margin-top: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  flex: 0 0 auto;
+}
+
+.ca-sched-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px 6px 6px;
+  margin-top: auto;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+}
+
+#caSchedBoardModal .ca-sched-card-actions .ca-sched-btn {
+  width: 100%;
+  padding: 2px !important;
+  font-size: 0.64rem !important;
+  border-radius: 5px !important;
+  text-align: center;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 22px !important;
+  height: 22px !important;
+  max-height: 22px !important;
+  cursor: pointer;
+  pointer-events: auto;
+  line-height: 1.1 !important;
+}
+
+#caSchedBoardModal .ca-sched-card-actions .ca-sched-btn:hover:not(:disabled),
+#caSchedBoardModal .ca-sched-card-actions .ca-sched-btn:focus-visible:not(:disabled) {
+  color: #00e676 !important;
+  background: var(--digiseo-nav-pill-bg, rgba(15, 23, 42, 0.92)) !important;
+  border: 1px solid transparent !important;
+  box-shadow: inset 0 0 0 1px #00e676, 0 0 12px rgba(0, 230, 118, 0.22) !important;
+  -webkit-text-fill-color: #00e676 !important;
+}
+
+/* —— Fixed footer inside modal —— */
+.ca-sched-board-foot {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  background: #0D1F2C !important;
+  font-size: 0.8rem;
+  color: #cbd5e1 !important;
+  min-height: 44px;
+}
+
+.ca-sched-pager {
+  grid-column: 2;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ca-sched-page-nums {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ca-sched-page-num {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: transparent;
+  color: #e2e8f0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.ca-sched-page-num.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+.ca-sched-page-num:not(.is-active):hover:not(:disabled) {
+  border-color: #93c5fd;
+  color: #ffffff !important;
+}
+
+.ca-sched-pagesize {
+  grid-column: 3;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: #cbd5e1 !important;
+}
+
+.ca-sched-pagesize select {
+  width: auto !important;
+  min-width: 56px;
+}
+
+/* Edit / bulk sub-modals */
+#caSchedEditModal.ca-sched-edit-modal,
+#caSchedBulkModal.ca-sched-edit-modal {
+  position: fixed !important;
+  z-index: 2147483610 !important;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, 92vw);
+  background: #ffffff !important;
+  border-radius: 14px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.3);
+  color: #0f172a !important;
+}
+
+.ca-sched-edit-head,
+.ca-sched-edit-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a !important;
+}
+
+.ca-sched-edit-foot {
+  border-bottom: 0;
+  border-top: 1px solid #e2e8f0;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ca-sched-edit-body {
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+  color: #0f172a !important;
+}
+
+.ca-sched-edit-body label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a !important;
+}
+
+.ca-sched-edit-body input,
+.ca-sched-edit-body select {
+  height: 36px !important;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.ca-sched-edit-body input[type="datetime-local"] {
+  min-height: 36px;
+  padding-right: 8px;
+  color-scheme: light;
+  cursor: pointer;
+}
+
+.ca-sched-edit-body input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+  padding: 4px;
+}
+
+.ca-sched-field-datetime {
+  cursor: pointer;
+}
+
+.ca-sched-field-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b !important;
+  line-height: 1.35;
+  min-height: 1.1em;
+}
+.ca-sched-field-hint.is-ok {
+  color: #15803d !important;
+}
+.ca-sched-field-hint.is-error {
+  color: #b91c1c !important;
+}
+
+.ca-sched-preview {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.8rem;
+  background: #f8fafc;
+  color: #0f172a !important;
+}
+
+.ca-sched-preview li { margin: 4px 0; }
+
+/* —— Responsive —— */
+@media (max-width: 1366px) {
+  .ca-sched-kw { font-size: 0.8rem; }
+  .ca-sched-board-filters {
+    flex-wrap: nowrap;
+  }
+  #caSchedFilterStatus,
+  #caSchedFilterCategory {
+    width: 180px !important;
+    max-width: 180px !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  #caSchedBoardModal.ca-sched-board-modal {
+    width: 94vw !important;
+    height: 95vh !important;
+  }
+  .ca-sched-grid {
+    max-width: calc(2 * 200px + 24px);
+    gap: 8px 24px;
+  }
+  .ca-sched-board-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ca-sched-board-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .ca-sched-grid {
+    max-width: 200px;
+    justify-content: center;
+    gap: 8px 24px;
+  }
+  .ca-sched-board-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ca-sched-board-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .ca-sched-selected-count { margin-left: 0; width: auto; }
+  .ca-sched-board-foot {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .ca-sched-pager {
+    grid-column: 1;
+  }
+  .ca-sched-pagesize {
+    grid-column: 1;
+    justify-self: center;
+  }
+  #caSchedBoardBody.ca-sched-board-body {
+    overflow: hidden !important;
+  }
+}

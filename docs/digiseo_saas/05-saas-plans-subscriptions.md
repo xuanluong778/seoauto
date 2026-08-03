@@ -1,12 +1,12 @@
 # SaaS Plans & Subscriptions
 
-Tài liệu này mô tả hệ thống gói dịch vụ và subscription cho DigiSEO SaaS.
+Tài liệu này mô tả hệ thống gói dịch vụ và subscription cho Seoauto SaaS.
 
 ---
 
 ## 1. Mục tiêu
 
-DigiSEO cần có gói dịch vụ rõ ràng để bán SaaS chuyên nghiệp.
+Seoauto cần có gói dịch vụ rõ ràng để bán SaaS chuyên nghiệp.
 
 Hệ thống cần trả lời được:
 

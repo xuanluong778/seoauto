@@ -20,6 +20,18 @@ def _now() -> str:
 
 
 def _read_all() -> list[dict[str, Any]]:
+    from app.services.user_data_pg.config import pg_fallback_json_enabled, pg_read_enabled
+
+    if pg_read_enabled("publishing_sites"):
+        try:
+            from app.services.user_data_pg import publishing_sites as pg_store
+
+            rows = pg_store.list_all_entries()
+            if rows or not pg_fallback_json_enabled():
+                return rows
+        except Exception:
+            if not pg_fallback_json_enabled():
+                raise
     if not SITES_FILE.exists():
         return []
     try:
@@ -43,6 +55,15 @@ def _write_all(items: list[dict[str, Any]]) -> None:
     SITES_FILE.parent.mkdir(parents=True, exist_ok=True)
     disk = [_entry_for_disk(x) for x in items]
     SITES_FILE.write_text(json.dumps(disk, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        from app.services.user_data_pg.config import pg_dual_write_enabled
+
+        if pg_dual_write_enabled("publishing_sites"):
+            from app.services.user_data_pg import publishing_sites as pg_store
+
+            pg_store.replace_all_entries(items)
+    except Exception:
+        pass
 
 
 def _norm_url(url: str) -> str:
@@ -123,7 +144,11 @@ def _public(entry: dict[str, Any], *, reveal_password: bool = False) -> dict[str
         except Exception:
             out["shopify_api_version"] = "2025-01"
     if reveal_password:
-        out["app_password"] = entry.get("app_password", "")
+        pwd = str(entry.get("app_password") or "")
+        # Defensive: if somehow ciphertext leaked through, decrypt again.
+        if pwd.startswith("enc:v1:"):
+            pwd = decrypt_secret(pwd)
+        out["app_password"] = pwd
     else:
         out["app_password"] = ""
         out["app_password_masked"] = _mask_password(entry.get("app_password", ""))
@@ -230,3 +255,68 @@ def delete_site(site_id: str, *, user_id: int) -> bool:
         return False
     _write_all(new_items)
     return True
+
+
+def _entry_domain(url: str) -> str:
+    try:
+        from app.services.wordpress_plugin_security import normalize_domain
+
+        return normalize_domain(url)
+    except Exception:
+        return str(url or "").strip().lower()
+
+
+def mark_seo_helper_installed(
+    *,
+    user_id: int,
+    site_urls: list[str] | None = None,
+    domains: set[str] | None = None,
+    message: str = "Đã phát hiện SEOAuto SEO Helper (kết nối plugin).",
+) -> int:
+    """Set plugin_installed=True for WordPress publishing sites matching helper connections.
+
+    Matches by normalized domain (www stripped). Returns number of rows updated.
+    """
+    want: set[str] = set()
+    for d in domains or set():
+        nd = _entry_domain(str(d))
+        if nd:
+            want.add(nd)
+    for u in site_urls or []:
+        nd = _entry_domain(str(u))
+        if nd:
+            want.add(nd)
+    if not want:
+        return 0
+
+    items = _read_all()
+    changed = 0
+    out: list[dict[str, Any]] = []
+    stamp = _now()
+    for raw in items:
+        entry = dict(raw)
+        if not _belongs_to_user(entry, user_id):
+            out.append(entry)
+            continue
+        platform = str(entry.get("platform") or "wordpress").strip().lower()
+        if platform != "wordpress":
+            out.append(entry)
+            continue
+        domain = _entry_domain(str(entry.get("url") or ""))
+        if not domain or domain not in want:
+            out.append(entry)
+            continue
+        if bool(entry.get("plugin_installed")) and bool(entry.get("verified")):
+            out.append(entry)
+            continue
+        entry["plugin_installed"] = True
+        entry["verified"] = True
+        entry["last_checked_at"] = stamp
+        entry["last_message"] = message
+        entry["updated_at"] = stamp
+        changed += 1
+        out.append(entry)
+
+    if changed:
+        _write_all(out)
+    return changed

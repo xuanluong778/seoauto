@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/index-control.css?v=38">
+</head>
+<body class="page-index-control page-index-control--saas">
+<div class="ic-wrap">
+    {% set nav_active = 'index_control' %}
+    {% include "partials/digiseo_nav.html" %}
+
+    <header class="ic-page-head ic-page-head--saas">
+        <span class="ic-pill">Index Control</span>
+        <h1>Gửi tín hiệu lập chỉ mục &amp; kiểm tra URL</h1>
+        <p class="ic-lead">Submit Indexing theo gói của bạn. Check Index miễn phí chỉ mang tính tham khảo.</p>
+    </header>
+
+    <nav class="ic-tabs ic-tabs--saas" role="tablist" aria-label="Index Control">
+        <button type="button" class="ic-tab active" id="icTabOverview" role="tab" aria-selected="true" data-ic-tab="overview">Tổng quan</button>
+        <button type="button" class="ic-tab" id="icTabSubmit" role="tab" aria-selected="false" data-ic-tab="submit">Submit Indexing</button>
+        <button type="button" class="ic-tab" id="icTabCheckFree" role="tab" aria-selected="false" data-ic-tab="check-free">Check Index Free</button>
+        <button type="button" class="ic-tab" id="icTabResults" role="tab" aria-selected="false" data-ic-tab="results">Kết quả</button>
+    </nav>
+
+    <main class="ic-main">
+        <!-- Tổng quan -->
+        <section class="ic-panel active" id="icPanelOverview" data-ic-panel="overview" role="tabpanel">
+            <p class="ic-status-line" id="icOverviewLoading" hidden>Đang tải…</p>
+            <p class="ic-status-line ic-status-line--err" id="icOverviewError" hidden></p>
+
+            <div class="ic-saas-cards">
+                <article class="ic-saas-card">
+                    <p class="ic-saas-card__label">Tổng link đã sử dụng trong tài khoản</p>
+                    <p class="ic-saas-card__value" id="icSaasUsedTotal">0</p>
+                    <p class="ic-saas-card__sub" id="icSaasUsedMonth">Tháng này: 0</p>
+                </article>
+                <article class="ic-saas-card ic-saas-card--accent">
+                    <p class="ic-saas-card__label">Link còn có thể submit theo gói</p>
+                    <p class="ic-saas-card__value" id="icSaasRemaining">0</p>
+                    <p class="ic-saas-card__sub" id="icSaasLimitHint">—</p>
+                </article>
+            </div>
+
+            <div class="ic-card ic-card--flat">
+                <h2 class="ic-card-title">5 URL submit gần nhất</h2>
+                <p class="ic-hint" id="icRecentEmpty" hidden>Chưa có URL nào được gửi.</p>
+                <ul class="ic-recent-list" id="icRecentList"></ul>
+            </div>
+        </section>
+
+        <!-- Submit Indexing -->
+        <section class="ic-panel" id="icPanelSubmit" data-ic-panel="submit" role="tabpanel" hidden>
+            <nav class="ic-submit-subtabs" role="tablist" aria-label="Submit Indexing">
+                <button type="button" class="ic-submit-subtab active" data-submit-tab="form" aria-selected="true">Gửi link</button>
+                <button type="button" class="ic-submit-subtab" data-submit-tab="projects" aria-selected="false">Dự án</button>
+            </nav>
+
+            <div class="ic-submit-pane active" id="icSubmitFormPane" data-submit-pane="form">
+                <div class="ic-card">
+                    <div class="ic-card-head">
+                        <span class="ic-card-head__icon" aria-hidden="true">✈</span>
+                        <div>
+                            <h2 class="ic-card-title">Tạo dự án mới</h2>
+                            <p class="ic-hint ic-hint--tight">Hãy đặt tên rõ ràng để dễ tìm lại trong tab Dự án.</p>
+                        </div>
+                    </div>
+
+                    <label class="ic-field-label" for="icSubmitProjectName">Tên dự án</label>
+                    <input type="text" id="icSubmitProjectName" class="ic-input" maxlength="255" placeholder="Ví dụ: Link guest post tháng 6" autocomplete="off">
+
+                    <label class="ic-field-label">File text chứa link</label>
+                    <div class="ic-upload-zone" id="icSubmitUploadZone" tabindex="0" role="button" aria-label="Upload file txt chứa link">
+                        <input type="file" id="icSubmitFileInput" accept=".txt,text/plain" hidden>
+                        <span class="ic-upload-zone__icon" aria-hidden="true">☁</span>
+                        <p class="ic-upload-zone__title">Kéo thả file .txt vào đây hoặc bấm để upload</p>
+                        <p class="ic-upload-zone__hint">Mỗi dòng một link để hệ thống xử lý chính xác nhất.</p>
+                        <p class="ic-upload-zone__file" id="icSubmitUploadFileName" hidden></p>
+                    </div>
+
+                    <label class="ic-field-label" for="icSubmitUrls">Danh sách URL</label>
+                    <p class="ic-hint ic-hint--tight">Dán URL cần gửi tín hiệu lập chỉ mục — mỗi dòng một URL. Hệ thống tự loại dòng trống và URL trùng.</p>
+                    <textarea id="icSubmitUrls" class="ic-input ic-textarea ic-textarea--lg" rows="10" placeholder="https://example.com/bai-viet-1&#10;https://example.com/bai-viet-2"></textarea>
+
+                    <div class="ic-live-stats" id="icSubmitLiveStats">
+                        <span>URL hợp lệ: <strong id="icSubmitValidCount">0</strong></span>
+                        <span>Sẽ dùng: <strong id="icSubmitUseCount">0</strong></span>
+                        <span>Còn lại sau submit: <strong id="icSubmitAfterCount">—</strong></span>
+                    </div>
+
+                    <button type="button" class="ic-btn ic-btn--primary ic-btn--block" id="icBtnSubmitIndexing">Submit Indexing</button>
+                    <p class="ic-status-line" id="icSubmitMsg" hidden></p>
+                </div>
+
+                <div class="ic-card ic-card--flat" id="icSubmitResultsCard" hidden>
+                    <h3 class="ic-card-subtitle">Kết quả</h3>
+                    <div class="ic-result-summary" id="icSubmitSummary"></div>
+                    <ul class="ic-result-list" id="icSubmitResultList"></ul>
+                </div>
+            </div>
+
+            <div class="ic-submit-pane" id="icSubmitProjectsPane" data-submit-pane="projects" hidden>
+                <div id="icSubmitProjectListView">
+                    <div class="ic-card ic-card--flat">
+                        <div class="ic-history-head">
+                            <h2 class="ic-card-title">Dự án Submit</h2>
+                            <button type="button" class="ic-btn ic-btn--danger ic-btn--xs" id="icBtnProjectsDeleteAll">Xóa tất cả</button>
+                        </div>
+                        <p class="ic-status-line" id="icProjectsLoading" hidden>Đang tải…</p>
+                        <p class="ic-hint" id="icProjectsEmpty" hidden>Chưa có dự án submit nào.</p>
+                        <div class="ic-project-list" id="icProjectList"></div>
+                    </div>
+                </div>
+
+                <div id="icSubmitProjectDetailView" hidden>
+                    <div class="ic-card ic-card--flat">
+                        <div class="ic-project-detail-head">
+                            <button type="button" class="ic-btn ic-btn--ghost ic-btn--xs" id="icBtnProjectBack">← Danh sách dự án</button>
+                            <h2 class="ic-card-title" id="icProjectDetailTitle">—</h2>
+                            <button type="button" class="ic-btn ic-btn--danger ic-btn--xs" id="icBtnProjectDelete">Delete</button>
+                        </div>
+                        <div class="ic-project-actions">
+                            <button type="button" class="ic-btn ic-btn--primary ic-btn--xs" id="icBtnProjectExport">Export Result</button>
+                            <button type="button" class="ic-btn ic-btn--primary ic-btn--xs" id="icBtnProjectCopyIndexed">Copy Indexed</button>
+                            <button type="button" class="ic-btn ic-btn--primary ic-btn--xs" id="icBtnProjectCopyAll">Copy All</button>
+                        </div>
+                        <div class="ic-project-table-wrap ic-checkfree-table-wrap">
+                            <table class="ic-table ic-project-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">ID</th>
+                                        <th scope="col">URL Submitted</th>
+                                        <th scope="col">Index</th>
+                                        <th scope="col">Mã phản hồi</th>
+                                        <th scope="col">Khả năng index</th>
+                                        <th scope="col">Redirect URL</th>
+                                        <th scope="col">Broken</th>
+                                        <th scope="col" class="ic-project-col-check"><input type="checkbox" id="icProjectSelectAll" aria-label="Chọn tất cả"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="icProjectTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="ic-project-cards" id="icProjectCards"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Check Index Free -->
+        <section class="ic-panel" id="icPanelCheckFree" data-ic-panel="check-free" role="tabpanel" hidden>
+            <div class="ic-card">
+                <div class="ic-card-head">
+                    <span class="ic-card-head__icon" aria-hidden="true">🔍</span>
+                    <div>
+                        <h2 class="ic-card-title">Check Index Free</h2>
+                        <p class="ic-hint ic-hint--tight">Hãy đặt tên rõ ràng để dễ tìm lại trong tab Lịch sử.</p>
+                    </div>
+                </div>
+                <p class="ic-hint ic-hint--notice">Kết quả check miễn phí có tính tham khảo. Website đã kết nối Google Search Console sẽ có độ chính xác cao hơn.</p>
+
+                <label class="ic-field-label" for="icCheckFreeProjectName">Tên dự án</label>
+                <input type="text" id="icCheckFreeProjectName" class="ic-input" maxlength="255" placeholder="Ví dụ: Check guest post tháng 6" autocomplete="off">
+
+                <label class="ic-field-label">File text chứa link</label>
+                <div class="ic-upload-zone" id="icCheckFreeUploadZone" tabindex="0" role="button" aria-label="Upload file txt chứa link">
+                    <input type="file" id="icCheckFreeFileInput" accept=".txt,text/plain" hidden>
+                    <span class="ic-upload-zone__icon" aria-hidden="true">☁</span>
+                    <p class="ic-upload-zone__title">Kéo thả file .txt vào đây hoặc bấm để upload</p>
+                    <p class="ic-upload-zone__hint">Mỗi dòng một link để hệ thống xử lý chính xác nhất.</p>
+                    <p class="ic-upload-zone__file" id="icCheckFreeUploadFileName" hidden></p>
+                </div>
+
+                <label class="ic-field-label" for="icCheckFreeUrls">Danh sách URL cần kiểm tra</label>
+                <textarea id="icCheckFreeUrls" class="ic-input ic-textarea ic-textarea--lg" rows="10" placeholder="https://example.com/trang-can-kiem-tra&#10;Mỗi dòng một URL"></textarea>
+                <p class="ic-checkfree-url-count" id="icCheckFreeUrlCount" hidden></p>
+                <div class="ic-checkfree-steps" role="group" aria-label="Quy trình kiểm tra">
+                    <button type="button" class="ic-btn ic-btn--step ic-btn--step-load" id="icBtnCheckFreeLoad">1. Tải danh sách link</button>
+                    <button type="button" class="ic-btn ic-btn--step ic-btn--primary" id="icBtnCheckFreeIndex" disabled>2. Check index</button>
+                    <button type="button" class="ic-btn ic-btn--step ic-btn--primary" id="icBtnCheckFreeResponse" disabled>3. Submit link NO</button>
+                    <div class="ic-checkfree-copy-wrap">
+                        <button type="button" class="ic-btn ic-btn--step ic-btn--primary" id="icBtnCheckFreeCopy" disabled aria-haspopup="true" aria-expanded="false">4. Copy cột index</button>
+                        <div class="ic-checkfree-copy-menu" id="icCheckFreeCopyMenu" hidden>
+                            <button type="button" class="ic-checkfree-copy-item" data-copy-group="indexed">Index</button>
+                            <button type="button" class="ic-checkfree-copy-item" data-copy-group="no">No</button>
+                        </div>
+                    </div>
+                </div>
+                <p class="ic-status-line" id="icCheckFreeProgress" hidden></p>
+                <p class="ic-status-line" id="icCheckFreeMsg" hidden></p>
+            </div>
+
+            <div class="ic-card ic-card--flat" id="icCheckFreeResultsCard" hidden>
+                <div class="ic-results-head">
+                    <h3 class="ic-card-subtitle">Kết quả</h3>
+                    <span class="ic-results-meta" id="icCheckFreeResultMeta"></span>
+                </div>
+                <div class="ic-checkfree-table-wrap ic-table-wrap">
+                    <table class="ic-table ic-checkfree-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="ic-checkfree-col-stt">STT</th>
+                                <th scope="col">Link / URL</th>
+                                <th scope="col">Index</th>
+                                <th scope="col">Mã phản hồi</th>
+                                <th scope="col">Khả năng index</th>
+                                <th scope="col">Tiêu đề trang</th>
+                                <th scope="col">Nguyên nhân / Gợi ý</th>
+                            </tr>
+                        </thead>
+                        <tbody id="icCheckFreeTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="ic-checkfree-cards" id="icCheckFreeCards" aria-label="Kết quả Check Index"></div>
+                <div class="ic-checkfree-export" id="icCheckFreeExportWrap" hidden>
+                    <button type="button" class="ic-btn ic-btn--export" id="icBtnCheckFreeExport">Xuất kết quả</button>
+                </div>
+            </div>
+
+            <div class="ic-modal" id="icCaptchaModal" hidden role="dialog" aria-modal="true" aria-labelledby="icCaptchaModalTitle">
+                <div class="ic-modal__backdrop" data-ic-captcha-close></div>
+                <div class="ic-modal__panel">
+                    <h3 class="ic-modal__title" id="icCaptchaModalTitle">Google yêu cầu xác minh</h3>
+                    <p class="ic-modal__text" id="icCaptchaModalMsg">Hệ thống đã tạm dừng batch. Kết quả đã kiểm tra được giữ nguyên; URL còn lại không bị đánh dấu No Index.</p>
+                    <p class="ic-hint" id="icCaptchaModalMeta"></p>
+                    <p class="ic-hint">Nếu Google hiện CAPTCHA trên trình duyệt của bạn, hãy mở Google, xác minh, đợi vài phút rồi bấm tiếp tục.</p>
+                    <div class="ic-modal__actions">
+                        <button type="button" class="ic-btn" id="icCaptchaOpenGoogleBtn">Mở Google</button>
+                        <button type="button" class="ic-btn ic-btn--primary" id="icCaptchaResumeBtn">Tiếp tục kiểm tra</button>
+                        <button type="button" class="ic-btn" id="icCaptchaCloseBtn" data-ic-captcha-close>Đóng</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Kết quả -->
+        <section class="ic-panel" id="icPanelResults" data-ic-panel="results" role="tabpanel" hidden>
+            <div id="icResultsListView">
+                <div class="ic-results-card">
+                    <form class="ic-results-filters" id="icResultsFilterForm" autocomplete="off">
+                        <div class="ic-results-filter-grid">
+                            <label class="ic-results-filter-field">
+                                <span class="ic-results-filter-label">Từ ngày</span>
+                                <input type="date" id="icResultsDateFrom" class="ic-input ic-results-date">
+                            </label>
+                            <label class="ic-results-filter-field">
+                                <span class="ic-results-filter-label">Đến ngày</span>
+                                <input type="date" id="icResultsDateTo" class="ic-input ic-results-date">
+                            </label>
+                            <label class="ic-results-filter-field ic-results-filter-field--search">
+                                <span class="ic-results-filter-label">Tìm kiếm</span>
+                                <input type="search" id="icResultsSearch" class="ic-input" placeholder="Tìm kiếm batch name..." maxlength="255">
+                            </label>
+                            <label class="ic-results-filter-field">
+                                <span class="ic-results-filter-label">Trạng thái</span>
+                                <select id="icResultsStatus" class="ic-input">
+                                    <option value="">Tất cả</option>
+                                    <option value="completed">Hoàn tất</option>
+                                    <option value="processing">Đang xử lý</option>
+                                    <option value="error">Lỗi</option>
+                                    <option value="not_checked">Chưa check</option>
+                                </select>
+                            </label>
+                            <div class="ic-results-filter-actions">
+                                <button type="submit" class="ic-btn ic-btn--primary ic-btn--search" id="icBtnResultsSearch">
+                                    <span aria-hidden="true">🔍</span> Tìm kiếm
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="ic-results-skeleton" id="icResultsSkeleton" hidden aria-hidden="true">
+                        <div class="ic-results-skeleton-row"></div>
+                        <div class="ic-results-skeleton-row"></div>
+                        <div class="ic-results-skeleton-row"></div>
+                    </div>
+                    <p class="ic-status-line ic-status-line--err" id="icResultsError" hidden></p>
+                    <p class="ic-hint ic-results-empty" id="icResultsEmpty" hidden>Chưa có kết quả submit index.</p>
+
+                    <div class="ic-results-table-wrap" id="icResultsTableWrap" hidden>
+                        <table class="ic-table ic-results-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Tên / Trạng thái submit</th>
+                                    <th scope="col">Tổng link</th>
+                                    <th scope="col">Thời gian upload</th>
+                                    <th scope="col">Dripfeed</th>
+                                    <th scope="col">Link đã submit</th>
+                                    <th scope="col">Trạng thái check index</th>
+                                    <th scope="col">Đã index Google</th>
+                                    <th scope="col" class="ic-results-col-check"><input type="checkbox" id="icResultsSelectAll" aria-label="Chọn tất cả"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="icResultsTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="ic-results-cards" id="icResultsCards" aria-label="Kết quả submit index"></div>
+                </div>
+            </div>
+
+            <div id="icResultsDetailView" hidden>
+                <div class="ic-results-card">
+                    <div class="ic-results-detail-head">
+                        <div class="ic-results-detail-actions ic-results-detail-actions--left">
+                            <button type="button" class="ic-btn ic-btn--ghost ic-btn--xs" id="icBtnResultsBack">← Kết quả</button>
+                            <button type="button" class="ic-btn ic-btn--export ic-btn--xs" id="icBtnResultsExportLeft">Tải .xlsx</button>
+                            <label class="ic-results-index-filter">
+                                <span class="ic-results-index-filter__label">Lọc index</span>
+                                <select id="icResultsDetailIndexFilter" class="ic-input ic-results-index-filter__select" aria-label="Lọc kết quả index Google">
+                                    <option value="">Tất cả</option>
+                                    <option value="index">Index</option>
+                                    <option value="no_index">No Index</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="ic-results-detail-center">
+                            <h2 class="ic-card-title" id="icResultsDetailTitle">—</h2>
+                            <p class="ic-results-detail-meta" id="icResultsDetailMeta"></p>
+                        </div>
+                        <div class="ic-results-detail-actions ic-results-detail-actions--right">
+                            <button type="button" class="ic-btn ic-btn--export ic-btn--xs" id="icBtnResultsExportRight">Tải .xlsx</button>
+                            <button type="button" class="ic-btn ic-btn--primary ic-btn--xs" id="icBtnResultsRecheck">Check lại index</button>
+                        </div>
+                    </div>
+                    <p class="ic-status-line" id="icResultsDetailLoading" hidden>Đang tải chi tiết…</p>
+                    <p class="ic-status-line ic-status-line--err" id="icResultsDetailError" hidden></p>
+                    <div class="ic-results-table-wrap ic-results-detail-table-wrap">
+                        <table class="ic-table ic-results-detail-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">STT</th>
+                                    <th scope="col">URL</th>
+                                    <th scope="col">Trạng thái submit</th>
+                                    <th scope="col">Trạng thái check index</th>
+                                    <th scope="col">Kết quả index Google</th>
+                                    <th scope="col">Nguyên nhân</th>
+                                    <th scope="col">Thời gian submit</th>
+                                    <th scope="col">Check gần nhất</th>
+                                </tr>
+                            </thead>
+                            <tbody id="icResultsDetailBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="ic-results-cards" id="icResultsDetailCards" aria-label="Chi tiết URL batch"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="ic-toast" id="icToast" role="status" aria-live="polite"></div>
+</div>
+<script src="/static/js/index-control.js?v=38" defer></script>
+{% include "partials/digiseo_chatbot_bundle.html" %}
+</body>
+</html>

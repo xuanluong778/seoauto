@@ -3,109 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DigiSEO Pricing — Bảng giá</title>
-    <script src="/static/js/digiseo-i18n.js"></script>
+    {% include "partials/digiseo_seo_head.html" %}
     {% include "partials/digiseo_theme_head.html" %}
-    <link rel="stylesheet" href="/static/css/digiseo_pricing.css?v=7" />
-    <style>
-        body.digiseo-pricing-page-body {
-            margin: 0;
-            min-height: 100vh;
-            background:
-                radial-gradient(900px 500px at 12% 0%, rgba(0, 230, 118, 0.07), transparent 55%),
-                radial-gradient(700px 400px at 88% 8%, rgba(99, 102, 241, 0.05), transparent 50%),
-                #050b18;
-            color: #e2e8f0;
-            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-        }
-        .pricing-page-nav {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(5, 11, 24, 0.92);
-            position: sticky;
-            top: 0;
-            z-index: 40;
-        }
-        .pricing-page-nav .inner {
-            max-width: 1180px;
-            margin: 0 auto;
-            padding: 12px 18px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px 14px;
-            align-items: center;
-        }
-        .pricing-page-nav .brand {
-            font-weight: 800;
-            color: #fff;
-            text-decoration: none;
-            margin-right: auto;
-        }
-        .pricing-page-nav .brand:hover { color: #00e676; text-decoration: none; }
-        .pricing-page-nav a { color: #93c5fd; text-decoration: none; font-size: 0.88rem; }
-        .pricing-page-nav a:hover { color: #00e676; }
-        #pricingCurrentBanner {
-            display: none;
-            max-width: 1180px;
-            margin: 16px auto 0;
-            padding: 10px 18px;
-            text-align: center;
-            font-size: 0.875rem;
-            color: #00e676;
-            background: rgba(0, 230, 118, 0.1);
-            border: 1px solid rgba(0, 230, 118, 0.35);
-            border-radius: 10px;
-        }
-        #pricingCurrentBanner.visible { display: block; }
-    </style>
+    <link rel="stylesheet" href="/static/css/pricing.css?v=16" />
 </head>
-<body class="digiseo-pricing-page-body" data-user-dock="hidden" id="digiseoPricingPage">
-    <header class="pricing-page-nav">
-        <div class="inner nav" aria-label="Menu chính">
-            <a href="/" class="brand">SEO Technical Tool</a>
-            {% include "partials/digiseo_main_nav.html" %}
-        </div>
-    </header>
+<body class="seo-pricing" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
 
-    <div id="pricingCurrentBanner" role="status"></div>
+    <main class="sp-wrap">
+        <section class="sp-hero">
+            <div class="sp-hero-inner">
+                <div class="sp-hero-copy">
+                    <p class="sp-eyebrow">Bảng giá SaaS</p>
+                    <h1>Chọn gói SEOAuto phù hợp</h1>
+                    <p class="sp-hero-sub">
+                        Một gói trả phí — đủ Content AI, Keyword, Audit và công cụ SEO. Không cần mua từng module riêng.
+                    </p>
+                </div>
+                <div class="sp-billing">
+                    <div class="sp-toggle" role="group" aria-label="Chu kỳ thanh toán">
+                        <button type="button" class="sp-toggle-btn is-active" data-billing="monthly" aria-pressed="true">
+                            Theo tháng
+                        </button>
+                        <button type="button" class="sp-toggle-btn" data-billing="semi_annual" aria-pressed="false">
+                            Thanh toán 6 tháng
+                        </button>
+                        <button type="button" class="sp-toggle-btn" data-billing="yearly" aria-pressed="false">
+                            Theo năm
+                        </button>
+                    </div>
+                    <div class="sp-billing-note" id="spBillingNote" hidden>Chọn chu kỳ thanh toán phù hợp</div>
+                    <div class="sp-billing-note sp-billing-note--promo" id="spSemiAnnualNote" hidden>
+                        Trả 5 tháng, dùng 6 tháng, nhận 7 tháng credit
+                    </div>
+                    <div class="sp-billing-note sp-billing-note--promo" id="spYearlyNote" hidden>
+                        Trả 12 tháng, dùng 14 tháng, nhận 14 tháng credit
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <div class="digiseo-pricing-page-wrap">
-        <div class="digiseo-pricing-page-shell">
-            <div class="digiseo-pricing-head">
-                <div>
-                    <h1 id="digiseoPricingTitle">DigiSEO Pricing</h1>
-                    <p>Choose the plan that fits your needs</p>
-                </div>
+        <aside class="sp-credit-banner" aria-label="Credit là gì">
+            <div class="sp-credit-banner-icon" aria-hidden="true">⚡</div>
+            <div class="sp-credit-banner-body">
+                <strong>Credit dùng cho AI, keyword, lead scanner và các API tốn phí.</strong>
+                <span>Chỉ trừ khi bạn chạy tác vụ mới — xem lại dữ liệu đã lưu không tốn credit.</span>
             </div>
-            <div class="digiseo-pricing-toolbar">
-                <div class="digiseo-toggle-group" role="group" aria-label="Duration">
-                    <button type="button" class="digiseo-toggle-btn digiseo-dur-btn is-active" data-dur="m6">6 months</button>
-                    <button type="button" class="digiseo-toggle-btn digiseo-dur-btn" data-dur="y1">1 year</button>
-                    <button type="button" class="digiseo-toggle-btn digiseo-dur-btn" data-dur="y2">2 years</button>
-                    <button type="button" class="digiseo-toggle-btn digiseo-dur-btn" data-dur="life">Lifetime</button>
-                </div>
-                <div class="digiseo-toggle-group" role="group" aria-label="Payment">
-                    <button type="button" class="digiseo-toggle-btn digiseo-pay-btn is-active" data-pay="payos">PayOS (VND)</button>
-                    <button type="button" class="digiseo-toggle-btn digiseo-pay-btn" data-pay="paypal">PayPal (USD)</button>
-                </div>
-                <div class="digiseo-coupon-wrap">
-                    <label for="digiseoCouponInput">Discount code (Coupon)</label>
-                    <input type="text" id="digiseoCouponInput" placeholder="Enter coupon code..." autocomplete="off" />
-                </div>
-            </div>
-            <div class="digiseo-pricing-scroll digiseo-pricing-scroll--page">
-                <div class="digiseo-pricing-grid" id="digiseoPricingGrid"></div>
-            </div>
-            <div class="digiseo-pricing-foot">
-                Giá theo catalog SaaS trong hệ thống. Thanh toán PayOS / PayPal sẽ tích hợp sau —
-                hiện tại chọn <strong>Mua ngay</strong> hoặc liên hệ admin để kích hoạt gói thủ công.
-                <span style="display:block;margin-top:6px;">
-                    <a href="/settings#account" style="color:#00e676;">Xem gói &amp; quota của bạn</a>
-                </span>
-            </div>
-        </div>
-    </div>
+            <a class="sp-credit-banner-link" href="/account-billing?tab=plans&amp;plans=credit">Mua thêm credit</a>
+        </aside>
 
-    <script type="application/json" id="digiseoSaasPlansJson">{{ plans | tojson }}</script>
-    <script src="/static/js/digiseo_pricing.js?v=7"></script>
+        <section class="sp-grid" aria-label="Gói dịch vụ">
+            {% for p in plans %}
+            <article class="sp-card{% if p.is_popular %} is-featured{% endif %}"
+                     data-plan="{{ p.slug }}"
+                     data-month="{{ p.month_price }}"
+                     data-semi="{{ p.semi_annual_price }}"
+                     data-year="{{ p.year_price }}"
+                     data-semi-credit="{{ p.semi_annual_total_credit }}"
+                     data-year-credit="{{ p.yearly_total_credit }}">
+                <div class="sp-card-body">
+                    <header class="sp-card-head">
+                        <div class="sp-card-title-row">
+                            <h2 class="sp-card-name">{{ p.name }}</h2>
+                            <div class="sp-card-badges">
+                                {% if p.is_popular %}
+                                <span class="sp-badge sp-badge--popular" data-plan-badge>{{ p.badge or "Khuyên dùng" }}</span>
+                                {% endif %}
+                                <span class="sp-badge sp-badge--promo" data-promo-badge hidden></span>
+                            </div>
+                        </div>
+                        <p class="sp-card-fit">{{ p.fit }}</p>
+                    </header>
+                    <div class="sp-price-block">
+                        <div class="sp-price-main">
+                            <span class="sp-price-currency">₫</span>
+                            <span class="sp-price-amount" data-price>{{ "{:,}".format(p.month_price).replace(",", ".") }}</span>
+                            <span class="sp-price-unit" data-unit>/tháng</span>
+                        </div>
+                        <p class="sp-price-credit" data-semi-credit-row hidden>
+                            Tổng credit 6 tháng: <strong data-semi-credit-val>{{ "{:,}".format(p.semi_annual_total_credit).replace(",", ".") }}</strong>
+                        </p>
+                        <p class="sp-price-credit" data-year-credit-row hidden>
+                            Tổng credit năm: <strong data-year-credit-val>{{ "{:,}".format(p.yearly_total_credit).replace(",", ".") }}</strong>
+                        </p>
+                    </div>
+                    <ul class="sp-highlights">
+                        {% for h in p.highlights %}
+                        <li>
+                            <span class="sp-hl-label">{{ h.label }}</span>
+                            <span class="sp-hl-value">{{ h.value }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <a class="sp-cta{% if p.is_popular %} is-primary{% endif %}"
+                   href="/account-billing?tab=plans&amp;plan={{ p.slug }}">{{ p.cta }}</a>
+            </article>
+            {% endfor %}
+        </section>
+
+        <section class="sp-cta-strip" aria-label="Hành động nhanh">
+            <a class="sp-cta-strip-btn is-ghost" href="/account-billing?tab=plans">Xem gói &amp; thanh toán</a>
+            <a class="sp-cta-strip-btn is-primary" href="/account-billing?tab=plans&amp;plans=credit">Mua thêm credit</a>
+        </section>
+
+        <section class="sp-compare" aria-label="So sánh chi tiết">
+            <div class="sp-compare-head">
+                <h2>So sánh chi tiết</h2>
+                <p>Đối chiếu quota và tính năng giữa 4 gói. Vuốt ngang trên mobile nếu cần.</p>
+            </div>
+
+            <div class="sp-compare-table-wrap">
+                <table class="sp-compare-table">
+                    <thead>
+                        <tr>
+                            <th class="sp-col-feature">Hạng mục</th>
+                            {% for p in plans %}
+                            <th class="sp-col-plan{% if p.is_popular %} is-pro{% endif %}">{{ p.name }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in compare_rows %}
+                        <tr>
+                            <td class="sp-col-feature">{{ r.label }}</td>
+                            {% for p in plans %}
+                                {% set v = p.compare.get(r.key) %}
+                                <td class="sp-col-plan{% if p.is_popular %} is-pro{% endif %}">
+                                    {% if v is boolean %}
+                                        {% if v %}<span class="sp-yes" title="Có">✓</span>{% else %}<span class="sp-no">—</span>{% endif %}
+                                    {% elif v is number %}
+                                        <span class="sp-val">{{ "{:,}".format(v).replace(",", ".") }}</span>
+                                    {% elif v %}
+                                        <span class="sp-val">{{ v }}</span>
+                                    {% else %}
+                                        <span class="sp-no">—</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="sp-compare-mobile">
+                {% for p in plans %}
+                <div class="sp-mcard{% if p.is_popular %} is-pro{% endif %}">
+                    <div class="sp-mcard-head">
+                        <div class="sp-mcard-name">{{ p.name }}</div>
+                        {% if p.is_popular %}<div class="sp-mcard-badge">Khuyên dùng</div>{% endif %}
+                    </div>
+                    <div class="sp-mcard-rows">
+                        {% for r in compare_rows %}
+                            {% set v = p.compare.get(r.key) %}
+                            <div class="sp-mrow">
+                                <div class="sp-mrow-k">{{ r.label }}</div>
+                                <div class="sp-mrow-v">
+                                    {% if v is boolean %}
+                                        {% if v %}<span class="sp-yes">✓</span>{% else %}<span class="sp-no">—</span>{% endif %}
+                                    {% elif v is number %}
+                                        <span class="sp-val">{{ "{:,}".format(v).replace(",", ".") }}</span>
+                                    {% elif v %}
+                                        <span class="sp-val">{{ v }}</span>
+                                    {% else %}
+                                        <span class="sp-no">—</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <a class="sp-cta{% if p.is_popular %} is-primary{% endif %} sp-mcard-cta"
+                       href="/account-billing?tab=plans&amp;plan={{ p.slug }}">{{ p.cta }}</a>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="sp-addons" aria-label="Mua thêm">
+            <div class="sp-addons-head">
+                <h2>Cần thêm tài nguyên?</h2>
+                <p>Mua thêm credit hoặc quota bài AI khi gói hiện tại chưa đủ — thanh toán qua SePay như gói chính.</p>
+            </div>
+            <div class="sp-addons-grid">
+                <article class="sp-addon-card">
+                    <span class="sp-addon-tag sp-addon-tag--credit">Credit</span>
+                    <h3>Gói credit bổ sung</h3>
+                    <p class="sp-addon-desc">Dùng cho Keyword Live, Lead Scanner, Content AI (API hệ thống), ảnh và audit.</p>
+                    <table class="sp-addon-table">
+                        <thead><tr><th>Giá</th><th>Credit</th></tr></thead>
+                        <tbody>
+                            {% for row in credit_addons %}
+                            <tr>
+                                <td class="sp-addon-price">{{ "{:,}".format(row.price).replace(",", ".") }}đ</td>
+                                <td class="sp-addon-value">{{ "{:,}".format(row.credits).replace(",", ".") }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <a class="sp-cta is-primary sp-addon-cta" href="/account-billing?tab=plans&amp;plans=credit">Mua thêm credit</a>
+                </article>
+                <article class="sp-addon-card">
+                    <span class="sp-addon-tag sp-addon-tag--article">Bài AI</span>
+                    <h3>Gói bài viết AI thêm</h3>
+                    <p class="sp-addon-desc">Tăng quota bài/tháng. Khuyến khích dùng API AI riêng (BYOK) để tối ưu chi phí.</p>
+                    <table class="sp-addon-table">
+                        <thead><tr><th>Quota thêm</th><th>Giá/tháng</th></tr></thead>
+                        <tbody>
+                            {% for row in article_addons %}
+                            <tr>
+                                <td class="sp-addon-value">+{{ "{:,}".format(row.articles).replace(",", ".") }} bài</td>
+                                <td class="sp-addon-price{% if row.price_label %} sp-addon-contact{% endif %}">
+                                    {% if row.price_label %}{{ row.price_label }}{% else %}{{ "{:,}".format(row.price).replace(",", ".") }}đ{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <a class="sp-cta sp-addon-cta" href="/account-billing?tab=plans&amp;plans=articles">Mua thêm bài AI</a>
+                </article>
+            </div>
+        </section>
+
+        <section class="sp-faq" aria-label="Câu hỏi thường gặp">
+            <div class="sp-faq-head">
+                <h2>Câu hỏi thường gặp</h2>
+            </div>
+            {% set faq_items = [
+                {"q": "Credit là gì?", "a": "Credit là đơn vị trả cho tác vụ tốn API thật: Keyword DataForSEO Live, Lead Scanner, viết bài bằng AI hệ thống, ảnh, audit. Không trừ khi bạn không dùng tính năng đó."},
+                {"q": "Basic khác Pro thế nào?", "a": "Basic dùng keyword research cơ bản/cache và ít quota hơn. Pro có DataForSEO nâng cao, Google Map SEO, nhiều credit và bài AI hơn — phù hợp freelancer/team nhỏ."},
+                {"q": "Tôi có cần API OpenAI không?", "a": "Không bắt buộc. Bạn có thể dùng API AI riêng (BYOK) hoặc API SEOAuto (trừ credit). BYOK giúp kiểm soát chi phí khi viết nhiều bài."},
+                {"q": "Credit có hết hạn không?", "a": "Credit tặng theo gói reset mỗi tháng. Credit mua thêm có hạn 12 tháng."},
+            ] %}
+            <div class="sp-faq-list">
+                {% for item in faq_items %}
+                <details class="sp-faq-item"{% if loop.first %} open{% endif %}>
+                    <summary class="sp-faq-q">
+                        <span class="sp-faq-qtext">{{ item.q }}</span>
+                        <span class="sp-faq-icon" aria-hidden="true"></span>
+                    </summary>
+                    <div class="sp-faq-a"><p>{{ item.a }}</p></div>
+                </details>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+
+    <script src="/static/js/pricing.js?v=9" defer></script>
+    {% include "partials/digiseo_chatbot_bundle.html" %}
 </body>
 </html>

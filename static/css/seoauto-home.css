@@ -1,0 +1,567 @@
+/* SEOAuto homepage — scoped under .seoauto-home only */
+.seoauto-home {
+    --sh-bg: #050b18;
+    --sh-surface: rgba(15, 23, 42, 0.72);
+    --sh-surface-2: rgba(30, 41, 59, 0.55);
+    --sh-border: rgba(255, 255, 255, 0.08);
+    --sh-text: #e2e8f0;
+    --sh-muted: #94a3b8;
+    --sh-green: #00e676;
+    --sh-green-dim: rgba(0, 230, 118, 0.12);
+    --sh-blue: #6366f1;
+    --sh-radius: 16px;
+    color: var(--sh-text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.seoauto-home a { text-decoration: none; }
+.seoauto-home a:hover { text-decoration: none; }
+
+/* —— Hero —— */
+.seoauto-home .sh-hero {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 48px 24px 56px;
+}
+
+.seoauto-home .sh-hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: center;
+}
+
+.seoauto-home .sh-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sh-green);
+    background: var(--sh-green-dim);
+    border: 1px solid rgba(0, 230, 118, 0.35);
+    margin-bottom: 18px;
+}
+
+.seoauto-home .sh-hero h1 {
+    margin: 0 0 16px;
+    font-size: clamp(1.85rem, 4vw, 2.65rem);
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    color: #fff;
+}
+
+.seoauto-home .sh-hero h1 em {
+    font-style: normal;
+    color: var(--sh-green);
+}
+
+.seoauto-home .sh-lead {
+    margin: 0 0 28px;
+    font-size: 1.05rem;
+    line-height: 1.65;
+    color: var(--sh-muted);
+    max-width: 520px;
+}
+
+.seoauto-home .sh-analyze-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.seoauto-home .sh-analyze-form input {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--sh-border);
+    background: rgba(5, 11, 24, 0.85);
+    color: #fff;
+    font-size: 0.95rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.seoauto-home .sh-analyze-form input:focus {
+    border-color: rgba(0, 230, 118, 0.55);
+    box-shadow: 0 0 0 3px rgba(0, 230, 118, 0.12);
+}
+
+.seoauto-home .sh-analyze-form input::placeholder { color: #64748b; }
+
+.seoauto-home .sh-btn-primary {
+    padding: 14px 22px;
+    border-radius: 12px;
+    border: 0;
+    background: linear-gradient(135deg, #00e676 0%, #00c264 100%);
+    color: #04140a;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 4px 20px rgba(0, 230, 118, 0.25);
+}
+
+.seoauto-home .sh-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(0, 230, 118, 0.35);
+}
+
+.seoauto-home .sh-hero-note {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--sh-muted);
+}
+
+.seoauto-home .sh-hero-note::before {
+    content: "✓ ";
+    color: var(--sh-green);
+    font-weight: 700;
+}
+
+/* —— Dashboard preview mock —— */
+.seoauto-home .sh-preview {
+    background: var(--sh-surface);
+    border: 1px solid var(--sh-border);
+    border-radius: var(--sh-radius);
+    padding: 20px;
+    box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.seoauto-home .sh-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--sh-border);
+}
+
+.seoauto-home .sh-preview-head span {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--sh-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.seoauto-home .sh-preview-score {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--sh-green);
+}
+
+.seoauto-home .sh-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.seoauto-home .sh-stat {
+    background: var(--sh-surface-2);
+    border: 1px solid var(--sh-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+}
+
+.seoauto-home .sh-stat label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--sh-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.seoauto-home .sh-stat strong {
+    font-size: 1.1rem;
+    color: #fff;
+}
+
+.seoauto-home .sh-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.seoauto-home .sh-bar-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 36px;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.78rem;
+    color: var(--sh-muted);
+}
+
+.seoauto-home .sh-bar-track {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+
+.seoauto-home .sh-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--sh-green), #34d399);
+}
+
+.seoauto-home .sh-bar-fill.warn { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.seoauto-home .sh-bar-fill.bad { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+/* —— Features —— */
+.seoauto-home .sh-section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px 64px;
+}
+
+.seoauto-home .sh-section-head {
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto 36px;
+}
+
+.seoauto-home .sh-section-head h2 {
+    margin: 0 0 10px;
+    font-size: clamp(1.35rem, 3vw, 1.75rem);
+    font-weight: 800;
+    color: #fff;
+}
+
+.seoauto-home .sh-section-head p {
+    margin: 0;
+    color: var(--sh-muted);
+    font-size: 0.95rem;
+}
+
+.seoauto-home .sh-feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.seoauto-home .sh-feature-card {
+    background: var(--sh-surface);
+    border: 1px solid var(--sh-border);
+    border-radius: var(--sh-radius);
+    padding: 24px;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.seoauto-home .sh-feature-card:hover {
+    border-color: rgba(0, 230, 118, 0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+.seoauto-home .sh-feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    margin-bottom: 14px;
+    background: var(--sh-green-dim);
+    border: 1px solid rgba(0, 230, 118, 0.25);
+}
+
+.seoauto-home .sh-feature-card h3 {
+    margin: 0 0 8px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.seoauto-home .sh-feature-card p {
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+    color: var(--sh-muted);
+    line-height: 1.55;
+}
+
+.seoauto-home .sh-feature-list {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+}
+
+.seoauto-home .sh-feature-list li {
+    position: relative;
+    padding-left: 18px;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+}
+
+.seoauto-home .sh-feature-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--sh-green);
+}
+
+.seoauto-home .sh-link {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--sh-green);
+}
+
+.seoauto-home .sh-link:hover { color: #1aeb84; }
+
+/* —— Steps —— */
+.seoauto-home .sh-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.seoauto-home .sh-step {
+    text-align: center;
+    padding: 28px 20px;
+    background: var(--sh-surface);
+    border: 1px solid var(--sh-border);
+    border-radius: var(--sh-radius);
+}
+
+.seoauto-home .sh-step-num {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1rem;
+    color: #04140a;
+    background: var(--sh-green);
+}
+
+.seoauto-home .sh-step h3 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+    color: #fff;
+}
+
+.seoauto-home .sh-step p {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--sh-muted);
+    line-height: 1.5;
+}
+
+/* —— Demo —— */
+.seoauto-home .sh-demo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.seoauto-home .sh-demo-card {
+    background: var(--sh-surface);
+    border: 1px solid var(--sh-border);
+    border-radius: var(--sh-radius);
+    padding: 22px;
+    overflow: hidden;
+}
+
+.seoauto-home .sh-demo-card h3 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    color: #fff;
+}
+
+.seoauto-home .sh-demo-card > p {
+    margin: 0 0 16px;
+    font-size: 0.85rem;
+    color: var(--sh-muted);
+}
+
+.seoauto-home .sh-score-ring {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 14px;
+}
+
+.seoauto-home .sh-ring {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: conic-gradient(var(--sh-green) 0 82%, rgba(255,255,255,0.08) 82% 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.seoauto-home .sh-ring-inner {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--sh-green);
+}
+
+.seoauto-home .sh-checks {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.82rem;
+}
+
+.seoauto-home .sh-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #cbd5e1;
+}
+
+.seoauto-home .sh-check .ok { color: var(--sh-green); }
+.seoauto-home .sh-check .warn { color: #fbbf24; }
+
+.seoauto-home .sh-clusters {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.seoauto-home .sh-cluster {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--sh-surface-2);
+    border: 1px solid var(--sh-border);
+}
+
+.seoauto-home .sh-cluster strong {
+    display: block;
+    font-size: 0.88rem;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.seoauto-home .sh-cluster span {
+    font-size: 0.78rem;
+    color: var(--sh-muted);
+}
+
+.seoauto-home .sh-cluster-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.seoauto-home .sh-tag {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.seoauto-home .sh-tag.main {
+    background: var(--sh-green-dim);
+    color: var(--sh-green);
+    border-color: rgba(0, 230, 118, 0.35);
+}
+
+/* —— Final CTA —— */
+.seoauto-home .sh-cta-final {
+    max-width: 1200px;
+    margin: 0 auto 72px;
+    padding: 0 24px;
+}
+
+.seoauto-home .sh-cta-box {
+    text-align: center;
+    padding: 48px 32px;
+    border-radius: 20px;
+    background:
+        radial-gradient(600px 300px at 50% 0%, rgba(0, 230, 118, 0.1), transparent 70%),
+        var(--sh-surface);
+    border: 1px solid rgba(0, 230, 118, 0.25);
+}
+
+.seoauto-home .sh-cta-box h2 {
+    margin: 0 0 10px;
+    font-size: clamp(1.35rem, 3vw, 1.85rem);
+    font-weight: 800;
+    color: #fff;
+}
+
+.seoauto-home .sh-cta-box p {
+    margin: 0 0 24px;
+    color: var(--sh-muted);
+    font-size: 0.95rem;
+}
+
+.seoauto-home .sh-btn-cta {
+    display: inline-block;
+    padding: 16px 32px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #00e676 0%, #00c264 100%);
+    color: #04140a;
+    font-weight: 800;
+    font-size: 1rem;
+    box-shadow: 0 8px 32px rgba(0, 230, 118, 0.3);
+    transition: transform 0.12s;
+}
+
+.seoauto-home .sh-btn-cta:hover {
+    transform: translateY(-2px);
+    color: #04140a;
+}
+
+/* —— Responsive —— */
+@media (max-width: 960px) {
+    .seoauto-home .sh-hero-grid {
+        grid-template-columns: 1fr;
+        gap: 32px;
+    }
+    .seoauto-home .sh-hero-preview { order: -1; }
+    .seoauto-home .sh-feature-grid,
+    .seoauto-home .sh-demo-grid {
+        grid-template-columns: 1fr;
+    }
+    .seoauto-home .sh-steps {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .seoauto-home .sh-hero { padding: 32px 16px 40px; }
+    .seoauto-home .sh-section { padding: 0 16px 48px; }
+    .seoauto-home .sh-cta-final { padding: 0 16px; margin-bottom: 48px; }
+    .seoauto-home .sh-analyze-form { flex-direction: column; }
+    .seoauto-home .sh-analyze-form .sh-btn-primary { width: 100%; }
+    .seoauto-home .sh-preview-grid { grid-template-columns: 1fr; }
+    .seoauto-home .sh-score-ring { flex-direction: column; text-align: center; }
+}

@@ -1,17 +1,17 @@
-# DigiSEO SaaS Roadmap & Professional System Checklist
+# Seoauto SaaS Roadmap & Professional System Checklist
 
-Tài liệu này dùng để định hướng nâng cấp DigiSEO / SEO Technical Tool từ một web app nội bộ thành một sản phẩm SaaS chuyên nghiệp, có thể phát triển thương hiệu và bán cho khách hàng thật.
+Tài liệu này dùng để định hướng nâng cấp Seoauto từ một web app nội bộ thành một sản phẩm SaaS chuyên nghiệp, có thể phát triển thương hiệu và bán cho khách hàng thật.
 
 ---
 
 ## 1. Mục tiêu sản phẩm
 
-DigiSEO nên được định vị không chỉ là một công cụ SEO đơn lẻ, mà là một nền tảng SEO Automation SaaS.
+Seoauto nên được định vị không chỉ là một công cụ SEO đơn lẻ, mà là một nền tảng SEO Automation SaaS.
 
 Định vị đề xuất:
 
 ```txt
-DigiSEO là nền tảng SEO AI giúp chủ website, SEOer và agency:
+Seoauto là nền tảng SEO AI giúp chủ website, SEOer và agency:
 - Quét lỗi Technical SEO
 - Research và gom nhóm từ khóa
 - Tạo bài viết SEO bằng AI
@@ -438,7 +438,7 @@ App hiện có nhiều tính năng, user mới dễ rối. Cần onboarding sau 
 ### Luồng onboarding
 
 ```txt
-Bước 1: Bạn muốn dùng DigiSEO để làm gì?
+Bước 1: Bạn muốn dùng Seoauto để làm gì?
 - Audit Technical SEO
 - Viết content SEO
 - Research keyword
@@ -608,7 +608,7 @@ Settings
 
 ## 13. Phase 10: AI Usage Cost Tracking
 
-Vì DigiSEO dùng AI nhiều, cần kiểm soát chi phí.
+Vì Seoauto dùng AI nhiều, cần kiểm soát chi phí.
 
 ### Bảng ai_usage_logs
 
@@ -940,7 +940,7 @@ Không nên thêm tính năng lung tung nữa. Nên đi theo thứ tự:
 ## 22. Prompt cho Cursor: Phase 1 SaaS Foundation
 
 ```txt
-Tôi muốn nâng cấp DigiSEO từ SEO tool nội bộ thành SaaS chuyên nghiệp.
+Tôi muốn nâng cấp Seoauto từ SEO tool nội bộ thành SaaS chuyên nghiệp.
 
 Bối cảnh:
 - Backend FastAPI + SQLAlchemy
@@ -979,7 +979,7 @@ Lưu ý:
 ## 23. Prompt cho Cursor: Payment Gateway
 
 ```txt
-Tôi muốn tích hợp payment gateway cho DigiSEO SaaS.
+Tôi muốn tích hợp payment gateway cho Seoauto SaaS.
 
 Bối cảnh:
 - App dùng FastAPI + SQLAlchemy + Jinja2
@@ -1014,7 +1014,7 @@ Lưu ý:
 ## 24. Prompt cho Cursor: User Dashboard SaaS
 
 ```txt
-Tôi muốn tạo dashboard SaaS tổng quan cho user DigiSEO.
+Tôi muốn tạo dashboard SaaS tổng quan cho user Seoauto.
 
 Bối cảnh:
 App hiện có các module Technical SEO, Content AI, Keyword Research, Schema, WordPress Publish, Credits, Trial.
@@ -1047,7 +1047,7 @@ Lưu ý:
 ## 25. Prompt cho Cursor: UI Design System
 
 ```txt
-Tôi muốn chuẩn hóa UI/UX cho DigiSEO để nhìn chuyên nghiệp như SaaS thật.
+Tôi muốn chuẩn hóa UI/UX cho Seoauto để nhìn chuyên nghiệp như SaaS thật.
 
 Bối cảnh:
 - Frontend hiện tại dùng Jinja2 SSR + HTML/CSS/JS
@@ -1082,7 +1082,7 @@ Lưu ý:
 
 ## 26. Kết luận
 
-DigiSEO đã có nền kỹ thuật mạnh. Việc cần làm tiếp không phải chỉ là thêm tính năng, mà là chuẩn hóa thành SaaS.
+Seoauto đã có nền kỹ thuật mạnh. Việc cần làm tiếp không phải chỉ là thêm tính năng, mà là chuẩn hóa thành SaaS.
 
 Ưu tiên lớn nhất:
 
@@ -1103,5 +1103,5 @@ UI/UX polish
 Định hướng thương hiệu nên đi theo:
 
 ```txt
-DigiSEO - All-in-one SEO Automation SaaS cho cá nhân, chủ website và agency tại Việt Nam.
+Seoauto - All-in-one SEO Automation SaaS cho cá nhân, chủ website và agency tại Việt Nam.
 ```

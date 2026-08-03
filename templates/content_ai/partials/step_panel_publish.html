@@ -1,0 +1,70 @@
+<div class="ca-inline-step-section" data-ca-inline-section="publish" id="contentAiPublishSection">
+    <div class="field-head"><label for="scheduledAt">Hẹn giờ đăng bài</label></div>
+    <input id="scheduledAt" type="datetime-local" />
+    <div class="hint" id="hint-scheduledAt"></div>
+    <div class="field-head" style="margin-top:8px;"><label for="autoInsertImageSource">Ảnh minh họa sau khi viết bài</label></div>
+    <select id="autoInsertImageSource" aria-label="Nguồn ảnh tự động">
+        <option value="none">Không chèn ảnh</option>
+        <option value="google" selected>Lấy ảnh từ Google</option>
+        <option value="ai">Tạo ảnh bằng AI</option>
+    </select>
+    <div class="hint" id="autoInsertImagePreview">Sẽ chèn 2 ảnh (bài 1000 từ) sau các mục H2 phù hợp.</div>
+    <input type="checkbox" id="autoInsertImagesAfterWrite" hidden checked />
+    <div class="content-ai-publish-bar ca-publish-center" id="contentAiPublishBar">
+        <div class="ca-publish-center-head">
+            <h3>Publish Center</h3>
+            <span class="ca-publish-precheck" id="caPublishPrecheck">Chưa kiểm tra checklist</span>
+        </div>
+        <div class="field-head"><label for="wpUrl">WordPress site</label></div>
+        <input id="wpUrl" type="text" placeholder="https://your-wordpress-site.com" list="wpUrlHistory" autocomplete="off" />
+        <div class="ca-publish-grid">
+            <div>
+                <div class="field-head"><label for="singleWpCategoryIdPublish">Danh mục</label></div>
+                <select id="singleWpCategoryIdPublish" aria-label="Danh mục publish">
+                    <option value="">-- Chọn danh mục --</option>
+                </select>
+            </div>
+            <div>
+                <div class="field-head"><label for="caPublishStatus">Trạng thái đăng</label></div>
+                <select id="caPublishStatus" aria-label="Trạng thái đăng">
+                    <option value="draft">Bản nháp (draft)</option>
+                    <option value="publish">Đăng ngay (publish)</option>
+                </select>
+            </div>
+        </div>
+        <div class="hint" style="margin-top:8px;">Ảnh đại diện lấy từ ảnh đầu tiên trong bài hoặc thumbnail dự án.</div>
+        <div class="wp-actions-row ca-publish-actions-row">
+            <button class="btn" type="button" id="btnPublishNow">Đăng bài</button>
+        </div>
+        <div class="ca-index-control-actions" id="caIndexControlActions" hidden>
+            <p class="ca-index-control-actions__label">Index Control</p>
+            <div class="ca-index-control-actions__row">
+                <button type="button" class="btn secondary" id="caBtnCheckIndex">Check Index</button>
+                <button type="button" class="btn secondary" id="caBtnIndexNow" hidden>Submit Indexing</button>
+            </div>
+            <p class="hint" id="caIndexControlHint"></p>
+        </div>
+    </div>
+    <div class="hint" id="hint-wp"></div>
+    <div class="row" style="margin-top:10px;">
+        <button type="button" class="btn secondary" id="btnWpUpdateContent">Cập nhật content lên WordPress (theo Post ID)</button>
+    </div>
+    <label for="publishLog">Publish log</label>
+    <textarea id="publishLog" readonly style="min-height:120px;"></textarea>
+    <div class="accordion" id="outputAccordion">
+        <div class="accordion-head" id="btnToggleOutput" role="button" aria-controls="outputAccordionBody" aria-expanded="false" tabindex="0">
+            <div class="accordion-title">Xem Output</div>
+            <div class="chev" id="outputChev">▾</div>
+        </div>
+        <div class="accordion-body" id="outputAccordionBody">
+            <div class="field-head">
+                <label for="output">Output</label>
+                <select id="outputFormat" style="width:auto; min-width: 160px;">
+                    <option value="text">Chữ thường (mặc định)</option>
+                    <option value="json">JSON</option>
+                </select>
+            </div>
+            <textarea id="output" readonly></textarea>
+        </div>
+    </div>
+</div>

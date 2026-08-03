@@ -7,6 +7,7 @@ pytest
 jinja2
 reportlab
 sqlalchemy
+alembic>=1.13
 celery[redis]>=5.3
 redis>=5.0
 psycopg2-binary>=2.9
@@ -25,3 +26,5 @@ cryptography>=42.0
 watchfiles
 sentence-transformers>=2.7
 torch
+boto3==1.43.54
+botocore==1.43.54

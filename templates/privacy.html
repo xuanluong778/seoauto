@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <style>
+        :root {
+            --bg: #050b18;
+            --surface: rgba(15, 23, 42, 0.72);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #00e676;
+            --line: rgba(255, 255, 255, 0.1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(900px 500px at 12% 0%, rgba(0, 230, 118, 0.07), transparent 55%),
+                radial-gradient(700px 400px at 88% 8%, rgba(99, 102, 241, 0.05), transparent 50%),
+                var(--bg);
+            line-height: 1.65;
+        }
+        a { color: #93c5fd; text-decoration: none; }
+        a:hover { color: var(--accent); }
+        .legal-nav {
+            border-bottom: 1px solid var(--line);
+            background: rgba(5, 11, 24, 0.92);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .legal-nav .inner {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .legal-nav .brand {
+            font-weight: 800;
+            color: #fff;
+            margin-right: auto;
+        }
+        .legal-nav .brand:hover { color: var(--accent); }
+        .legal-nav .back { font-size: 0.9rem; color: var(--muted); }
+        .legal-nav .back:hover { color: var(--accent); }
+        main {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 36px 20px 64px;
+        }
+        .legal-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 32px 28px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 1.75rem;
+            color: #fff;
+        }
+        .updated {
+            margin: 0 0 28px;
+            font-size: 0.875rem;
+            color: var(--muted);
+        }
+        h2 {
+            margin: 28px 0 10px;
+            font-size: 1.1rem;
+            color: #f8fafc;
+        }
+        p, li { color: #cbd5e1; }
+        ul { padding-left: 1.25rem; }
+        li { margin-bottom: 8px; }
+        .contact-box {
+            margin-top: 28px;
+            padding: 16px 18px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 230, 118, 0.25);
+            background: rgba(0, 230, 118, 0.06);
+        }
+        .contact-box strong { color: #fff; }
+        footer {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 0 20px 32px;
+            font-size: 0.85rem;
+            color: var(--muted);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header class="legal-nav">
+        <div class="inner">
+            {% include "partials/digiseo_brand.html" %}
+            <a href="/" class="back">← Về trang chủ</a>
+        </div>
+    </header>
+
+    <main>
+        <article class="legal-card">
+            <h1>Chính sách bảo mật</h1>
+            <p class="updated">Cập nhật lần cuối: 8 tháng 6, 2026</p>
+
+            <p>
+                SEOAuto (<a href="https://seoauto.vn">seoauto.vn</a>) là nền tảng hỗ trợ phân tích và quản lý SEO.
+                Chính sách này mô tả cách chúng tôi thu thập, sử dụng và bảo vệ dữ liệu khi bạn đăng nhập bằng Google
+                và kết nối Google Search Console.
+            </p>
+
+            <h2>1. Dữ liệu chúng tôi thu thập</h2>
+            <p>Khi bạn sử dụng SEOAuto, chúng tôi có thể xử lý các loại dữ liệu sau:</p>
+            <ul>
+                <li>Thông tin tài khoản Google cơ bản (tên, địa chỉ email, ảnh đại diện) khi bạn đăng nhập qua Google OAuth.</li>
+                <li>Token truy cập Google OAuth được lưu an toàn để duy trì phiên đăng nhập và kết nối dịch vụ Google theo yêu cầu của bạn.</li>
+                <li>Dữ liệu từ Google Search Console API ở chế độ <strong>read-only</strong> (chỉ đọc), bao gồm nhưng không giới hạn:
+                    truy vấn tìm kiếm (queries), trang (pages), lượt nhấp (clicks), lượt hiển thị (impressions),
+                    tỷ lệ nhấp (CTR), vị trí trung bình (average position) và thông tin property/site đã được bạn ủy quyền.</li>
+                <li>Dữ liệu bạn nhập trực tiếp trên SEOAuto (cài đặt, dự án, báo cáo) để vận hành tính năng của ứng dụng.</li>
+            </ul>
+
+            <h2>2. Cách chúng tôi sử dụng dữ liệu Google Search Console</h2>
+            <p>
+                SEOAuto sử dụng quyền truy cập Google Search Console <strong>read-only</strong> để hiển thị dữ liệu SEO
+                cho người dùng trong dashboard, báo cáo và các công cụ phân tích. Chúng tôi chỉ truy xuất dữ liệu từ
+                các property mà bạn đã chọn và ủy quyền.
+            </p>
+            <ul>
+                <li>SEOAuto <strong>không chỉnh sửa</strong>, không xóa và không ghi đè dữ liệu trên Google Search Console.</li>
+                <li>SEOAuto <strong>không bán</strong> dữ liệu người dùng cho bên thứ ba.</li>
+                <li>SEOAuto <strong>không chia sẻ</strong> dữ liệu Google Search Console hoặc dữ liệu OAuth với bên thứ ba,
+                    trừ khi pháp luật yêu cầu hoặc bạn đồng ý rõ ràng.</li>
+            </ul>
+
+            <h2>2.1. Google API Services User Data Policy</h2>
+            <p>
+                Việc sử dụng và chuyển giao thông tin nhận được từ Google API của SEOAuto tuân thủ
+                <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">
+                    Google API Services User Data Policy
+                </a>, bao gồm yêu cầu Limited Use.
+            </p>
+
+            <h2>3. Lưu trữ và bảo mật</h2>
+            <p>
+                Dữ liệu được lưu trên máy chủ bảo mật với các biện pháp kiểm soát truy cập phù hợp.
+                Token OAuth và dữ liệu nhạy cảm được bảo vệ; chúng tôi không công khai thông tin đăng nhập của bạn.
+            </p>
+
+            <h2>4. Ngắt kết nối Google</h2>
+            <p>
+                Bạn có thể ngắt kết nối Google bất kỳ lúc nào bằng cách:
+            </p>
+            <ul>
+                <li>Vào <strong>Cài đặt</strong> trên SEOAuto và hủy kết nối Google Search Console / Google OAuth.</li>
+                <li>Thu hồi quyền truy cập của SEOAuto tại
+                    <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
+                        Google Account Permissions
+                    </a>.</li>
+            </ul>
+            <p>
+                Sau khi ngắt kết nối, SEOAuto sẽ không còn truy xuất dữ liệu Google Search Console mới từ tài khoản của bạn.
+            </p>
+
+            <h2>5. Cookie và phiên đăng nhập</h2>
+            <p>
+                SEOAuto sử dụng cookie và session để duy trì trạng thái đăng nhập và bảo vệ tài khoản.
+                Cookie này phục vụ vận hành ứng dụng, không dùng cho quảng cáo bên thứ ba.
+            </p>
+
+            <h2>6. Quyền của bạn</h2>
+            <p>Bạn có quyền yêu cầu truy cập, cập nhật hoặc xóa dữ liệu cá nhân liên quan đến tài khoản SEOAuto,
+                trong phạm vi pháp luật hiện hành. Liên hệ chúng tôi qua email bên dưới.</p>
+
+            <h2>7. Thay đổi chính sách</h2>
+            <p>
+                Chúng tôi có thể cập nhật chính sách này theo thời gian. Phiên bản mới sẽ được đăng tại URL này
+                với ngày cập nhật tương ứng.
+            </p>
+
+            <div class="contact-box">
+                <strong>Liên hệ hỗ trợ</strong><br>
+                Email: <a href="mailto:xuanluong778@gmail.com">xuanluong778@gmail.com</a><br>
+                Website: <a href="https://seoauto.vn">https://seoauto.vn</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <a href="/">Trang chủ</a> · <a href="/terms">Điều khoản sử dụng</a> · <a href="/data-deletion">Xóa dữ liệu</a>
+    </footer>
+</body>
+</html>

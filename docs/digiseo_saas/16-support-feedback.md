@@ -1,6 +1,6 @@
 # Support & Feedback System
 
-Tài liệu này mô tả hệ thống support và feedback cho DigiSEO SaaS.
+Tài liệu này mô tả hệ thống support và feedback cho Seoauto SaaS.
 
 ---
 

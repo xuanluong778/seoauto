@@ -1,4 +1,4 @@
-# File database DigiSEO (local)
+# File database Seoauto (local)
 
 Thư mục gốc dự án: `c:\laragon\www\tooltechnical\`
 

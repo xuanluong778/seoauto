@@ -1,7 +1,17 @@
-{# Top nav cố định — dùng chung mọi trang (active: digiseo-nav-active.js) #}
+{# Top nav cố định — mobile: nút Menu xổ dropdown (digiseo-nav-mobile.js) #}
+<style>#digiseoNavBackdrop,.digiseo-nav-backdrop{display:none!important;visibility:hidden!important;pointer-events:none!important}</style>
 <div class="nav-strip" id="digiseoTopNavStrip">
-    <nav class="nav" data-i18n-aria="nav.aria" aria-label="Menu chính">
-        <a href="/" data-i18n="nav.brand">SEO Technical Tool</a>
-        {% include "partials/digiseo_main_nav.html" %}
+    <nav class="nav digiseo-top-nav" data-i18n-aria="nav.aria" aria-label="Menu chính">
+        <div class="digiseo-nav-bar">
+            <button type="button" class="digiseo-nav-toggle" aria-expanded="false" aria-controls="digiseoNavMenu" aria-label="Mở menu">
+                <span class="digiseo-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span class="digiseo-nav-toggle-label">Menu</span>
+            </button>
+            {% include "partials/digiseo_brand.html" %}
+        </div>
+        <div class="digiseo-nav-links" id="digiseoNavMenu">
+            {% include "partials/digiseo_main_nav.html" %}
+        </div>
     </nav>
+    <div class="digiseo-nav-account-slot" id="digiseoNavAccountSlot" aria-label="Tài khoản"></div>
 </div>

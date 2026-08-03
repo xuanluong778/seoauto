@@ -1,0 +1,1714 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chấm điểm SEO URL</title>
+    {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/seo-score-page.css?v=12">
+    <style>
+        :root {
+            --bg: linear-gradient(135deg, #050b18 0%, #0c1424 50%, #050b18 100%);
+            --accent-green: #00e676;
+            --accent-green-soft: rgba(0, 230, 118, 0.18);
+            --card: rgba(255, 255, 255, 0.12);
+            --line: rgba(255, 255, 255, 0.22);
+            --text: #eef2ff;
+            --muted: #cbd5e1;
+            --ok: #86efac;
+            --warn: #fde68a;
+            --err: #fecaca;
+            --accent: #5b67ff;
+            --seo-sidebar-w: min(288px, 92vw);
+        }
+        * { box-sizing: border-box; }
+        body.seo-score-page {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Inter", system-ui, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+        }
+        .seo-sidebar {
+            position: fixed;
+            left: 0;
+            top: var(--digiseo-nav-fixed-offset, 104px);
+            width: var(--seo-sidebar-w);
+            height: calc(100vh - var(--digiseo-nav-fixed-offset, 104px));
+            height: calc(100dvh - var(--digiseo-nav-fixed-offset, 104px));
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            background: rgba(15, 23, 42, 0.92);
+            border-right: 1px solid var(--line);
+            backdrop-filter: blur(12px);
+            padding: 14px 12px 12px;
+        }
+        .seo-sidebar-head {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #c7d2fe;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--line);
+        }
+        .seo-sidebar-list {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            margin: 0;
+            padding: 6px 2px 10px;
+        }
+        .score-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .score-actions .primary {
+            margin-top: 0;
+        }
+        .btn-reset {
+            flex-shrink: 0;
+            margin: 0;
+            padding: 12px 18px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: rgba(30, 41, 59, 0.75);
+            color: #cbd5e1;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-reset:hover:not(:disabled) {
+            background: rgba(51, 65, 85, 0.9);
+            color: #f1f5f9;
+        }
+        .btn-reset:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .seo-main {
+            margin-left: var(--seo-sidebar-w);
+            min-height: 100vh;
+            padding: 20px 0 40px;
+        }
+        .page-wrap {
+            width: 90%;
+            max-width: 100%;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+        @media (max-width: 820px) {
+            .seo-sidebar {
+                position: relative;
+                width: 100%;
+                height: auto;
+                min-height: 0;
+                max-height: none;
+                border-right: none;
+                border-bottom: 1px solid var(--line);
+            }
+            .seo-main {
+                margin-left: 0;
+            }
+        }
+        /* Top nav: static/css/digiseo-nav.css */
+        .nav-dd {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+        .nav-dd-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            min-width: 220px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 8px;
+            z-index: 20;
+        }
+        .nav-dd:hover .nav-dd-menu,
+        .nav-dd:focus-within .nav-dd-menu {
+            display: block;
+        }
+        .nav-dd-menu a {
+            display: block;
+            padding: 9px 10px;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-weight: 600;
+            text-decoration: none;
+            border: 1px solid transparent;
+        }
+        .nav-dd-menu a:hover {
+            background: rgba(0, 230, 118, 0.12);
+            border-color: rgba(0, 230, 118, 0.25);
+            color: #00e676;
+            text-decoration: none;
+        }
+        h1 { margin: 0 0 8px; font-size: 1.45rem; }
+        .sub { color: var(--muted); margin: 0 0 18px; font-size: 0.92rem; }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 16px;
+            width: 100%;
+            max-width: 100%;
+        }
+        label { display: block; font-weight: 600; margin: 10px 0 6px; font-size: 0.88rem; }
+        input {
+            width: 100%;
+            max-width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: rgba(15, 23, 42, 0.35);
+            color: var(--text);
+        }
+        button.primary {
+            padding: 12px 22px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            color: #fff;
+            background: linear-gradient(90deg, var(--accent), #45d3ff);
+        }
+        button.primary:disabled { opacity: 0.55; cursor: not-allowed; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 100%; }
+        @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+        #msg { margin-top: 12px; font-size: 0.88rem; white-space: pre-wrap; }
+        #msg.err { color: var(--err); }
+        #msg.ok { color: var(--ok); }
+        #out[hidden] { display: none !important; }
+        .total {
+            font-size: 2.4rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin: 4px 0 12px;
+        }
+        .bar-row { margin-bottom: 10px; }
+        .bar-label { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+        .bar-track {
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.45);
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #6366f1, #22d3ee);
+        }
+        pre.explain {
+            font-size: 0.78rem;
+            color: var(--muted);
+            background: rgba(15, 23, 42, 0.5);
+            padding: 10px;
+            border-radius: 10px;
+            overflow: auto;
+            max-height: 220px;
+        }
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            margin: 10px 0 18px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(15, 23, 42, 0.35);
+        }
+        .seo-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+            min-width: 920px;
+        }
+        .seo-table th,
+        .seo-table td {
+            border: 1px solid var(--line);
+            padding: 10px 10px;
+            vertical-align: top;
+            text-align: left;
+            color: #e2e8f0;
+            line-height: 1.45;
+        }
+        .seo-table th {
+            background: rgba(15, 23, 42, 0.65);
+            color: #c7d2fe;
+            font-weight: 700;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .seo-table td.ref a,
+        .seo-table td.deploy a {
+            color: #93c5fd;
+            word-break: break-all;
+        }
+        .seo-table tr:nth-child(even) td { background: rgba(255, 255, 255, 0.03); }
+
+        /* Seoauto bright-green accent overrides */
+        h1 { color: #00e676 !important; }
+        .nav-pro-badge {
+            display: inline-block;
+            margin-left: 6px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: linear-gradient(135deg, #f59e0b, #ea580c);
+            color: #111827;
+            vertical-align: middle;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body class="seo-score-page">
+<aside class="seo-sidebar" id="seoSidebar" aria-label="Lịch sử chấm điểm SEO">
+    <div class="seo-sidebar-head">
+        <span>Lịch sử URL</span>
+        <span class="seo-sidebar-count" id="historyCount"></span>
+    </div>
+    <div class="seo-sidebar-list" id="historyList"></div>
+    <nav class="seo-sidebar-pager" id="historyPager" aria-label="Phân trang lịch sử" hidden>
+        <button type="button" class="hist-page-btn" id="histPagePrev" aria-label="Trang trước">‹</button>
+        <span class="hist-page-info" id="histPageInfo">1 / 1</span>
+        <button type="button" class="hist-page-btn" id="histPageNext" aria-label="Trang sau">›</button>
+    </nav>
+</aside>
+<main class="seo-main">
+<div class="page-wrap">
+    {% set nav_active = 'seo_score' %}
+    {% include "partials/digiseo_nav.html" %}
+
+    <header class="ss-page-head">
+        <h1>Chấm điểm SEO URL</h1>
+        <p class="sub">Chấm điểm SEO theo 10 nhóm (tổng 100) — indexability, on-page, intent, content, link, schema &amp; UX.</p>
+    </header>
+
+    <div class="ss-form-card card">
+        <div class="ss-form-row">
+            <div class="ss-field">
+                <label for="u">URL cần chấm điểm</label>
+                <input type="url" id="u" placeholder="https://example.com/page" autocomplete="url">
+            </div>
+            <div class="ss-field">
+                <label for="kw">Từ khóa chính (primary)</label>
+                <input type="text" id="kw" placeholder="ví dụ: dịch vụ seo website" autocomplete="off">
+            </div>
+        </div>
+        <div class="ss-form-row">
+            <div class="ss-field">
+                <label for="secKw">Từ khóa phụ <span style="font-weight:400;color:#64748b;">(phân tách bằng dấu phẩy)</span></label>
+                <input type="text" id="secKw" placeholder="seo onpage, audit technical" autocomplete="off">
+            </div>
+            <div class="ss-field">
+                <label for="pageType">Loại trang (page type)</label>
+                <select id="pageType" class="ss-select">
+                    <option value="">— Tự nhận diện —</option>
+                    <option value="homepage">Homepage</option>
+                    <option value="article">Article / Blog</option>
+                    <option value="category">Category</option>
+                    <option value="product">Product</option>
+                    <option value="landing">Landing page</option>
+                    <option value="unknown">Khác</option>
+                </select>
+            </div>
+        </div>
+
+        <details class="ss-advanced">
+            <summary>Tùy chọn nâng cao — Volume &amp; thứ hạng SERP</summary>
+            <div class="ss-advanced-body">
+                <div class="grid2">
+                    <div class="ss-field">
+                        <label for="vol">Volume/tháng</label>
+                        <input type="number" id="vol" min="0" placeholder="1200">
+                    </div>
+                    <div class="ss-field">
+                        <label for="rank">Thứ hạng hiện tại (1–100)</label>
+                        <input type="number" id="rank" min="1" max="100" placeholder="12">
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <div class="score-actions">
+            <button type="button" class="primary" id="btn">Chấm điểm</button>
+            <button type="button" class="btn-reset" id="btnReset" title="Xóa ô nhập và kết quả — giữ lịch sử sidebar">Làm lại</button>
+        </div>
+        <div id="msg"></div>
+    </div>
+
+    <div class="card ss-results-card" id="out" hidden>
+        <div class="ss-ten-mobile-nav" id="ssTenMobileNav" hidden>
+            <label class="sr-only" for="ssTenMobileSelect">Chọn nhóm điểm</label>
+            <select id="ssTenMobileSelect" class="ss-select"></select>
+        </div>
+        <div class="ss-ten-shell">
+            <aside class="ss-ten-sidebar" id="ssTenSidebar" aria-label="10 nhóm chấm điểm SEO">
+                <div class="ss-ten-sidebar-head">
+                    <span>SEO Score</span>
+                    <span class="ss-ten-total-badge" id="ssTenTotalBadge">—</span>
+                </div>
+                <nav class="ss-ten-nav" id="ssTenNav"></nav>
+            </aside>
+            <div class="ss-ten-content" id="ssTenContent" aria-live="polite"></div>
+        </div>
+
+        <details class="ss-collapse" id="shLegacyDetails">
+            <summary>Báo cáo legacy — 15 nhóm / 12 trụ &amp; checklist 8 cột</summary>
+            <div class="ss-collapse-body">
+                <div class="ss-summary-grid" id="shSummaryGrid">
+                    <div class="ss-summary-card score">
+                        <div class="ss-card-label">Legacy total</div>
+                        <div class="ss-card-value" id="shCardScore"><span class="total" id="total15">—</span></div>
+                        <div class="ss-card-hint">15 nhóm checklist (cap intent)</div>
+                    </div>
+                    <div class="ss-summary-card" id="shCardIntentWrap">
+                        <div class="ss-card-label">Search Intent</div>
+                        <div class="ss-card-value small" id="shCardIntent">—</div>
+                        <div class="ss-card-hint" id="shCardIntentHint">Khớp intent trang vs SERP</div>
+                    </div>
+                    <div class="ss-summary-card" id="shCardIssuesWrap">
+                        <div class="ss-card-label">Technical Issues</div>
+                        <div class="ss-card-value" id="shCardIssues">—</div>
+                        <div class="ss-card-hint" id="shCardIssuesHint">P0 / P1 / P2 cần xử lý</div>
+                    </div>
+                    <div class="ss-summary-card" id="shCardOppWrap">
+                        <div class="ss-card-label">Keyword Opportunity</div>
+                        <div class="ss-card-value small" id="shCardOpportunity">—</div>
+                        <div class="ss-card-hint" id="shCardOppHint">Nhập keyword để bật</div>
+                    </div>
+                </div>
+                <section class="ss-conclusion" id="shQuickConclusion">
+                    <h2>Kết luận nhanh</h2>
+                    <p id="shConclusionText">—</p>
+                </section>
+                <section class="ss-priority" id="shPrioritySection">
+                    <h2>Cần sửa trước (legacy issues)</h2>
+                    <ul class="ss-fix-list" id="shPriorityList"></ul>
+                </section>
+                <section class="ss-clusters" id="shPillarClusters" aria-label="15 nhóm checklist theo cụm"></section>
+            </div>
+        </details>
+
+        <details class="ss-collapse" id="shAdvancedDetails">
+            <summary>Chi tiết nâng cao — 12 trụ legacy &amp; bảng checklist 8 cột</summary>
+            <div class="ss-collapse-body">
+                <p style="margin:0 0 10px;font-size:0.82rem;color:#94a3b8;">Thanh dưới = mô hình 12 trụ legacy. Bảng = 15 nhóm + dòng [Kỹ thuật].</p>
+                <div id="bars"></div>
+                <h2 style="margin:18px 0 8px;font-size:1rem;">Bảng checklist SEO</h2>
+                <div class="table-wrap digiseo-table-scroll">
+                    <table class="seo-table" aria-label="Bảng checklist SEO URL">
+                        <thead>
+                            <tr>
+                                <th>CHECKLIST</th>
+                                <th>ĐÁNH GIÁ</th>
+                                <th>DẪN CHỨNG CHI TIẾT</th>
+                                <th>GIẢI PHÁP</th>
+                                <th>LINK THAM KHẢO</th>
+                                <th>HIỆN TRẠNG</th>
+                                <th>LINK TRIỂN KHAI</th>
+                                <th>NOTE</th>
+                            </tr>
+                        </thead>
+                        <tbody id="chkTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+
+        <details class="ss-collapse content-ai-aux-hidden" id="shDebugDetails" hidden aria-hidden="true">
+            <summary>Chi tiết kỹ thuật</summary>
+            <div class="ss-collapse-body">
+                <pre class="explain" id="raw" style="max-height:240px;"></pre>
+                <pre class="explain" id="shDebugExtra" style="max-height:200px;margin-top:10px;"></pre>
+            </div>
+        </details>
+
+        <div class="ss-export-row">
+            <button type="button" class="btn-export" id="btnExportCsv" title="Tải CSV UTF-8 (mở bằng Excel)">Xuất CSV</button>
+            <button type="button" class="btn-export" id="btnExportPdf" disabled title="Sắp có">Sắp có — Xuất PDF</button>
+        </div>
+    </div>
+</div>
+</main>
+
+    <script>
+(function () {
+    const LS_HISTORY = "seo_url_score_history_v1";
+    const LS_LAST = "seo_url_score_last_response_v1";
+    const LS_CACHE = "seo_url_score_resp_cache_v1";
+    const MAX_HISTORY = 50;
+    const MAX_CACHE = 15;
+    const HIST_PAGE_SIZE = 4;
+    let historyPage = 0;
+
+    const token = sessionStorage.getItem("seo_token") || "";
+    const btn = document.getElementById("btn");
+    const msg = document.getElementById("msg");
+    const out = document.getElementById("out");
+    const historyList = document.getElementById("historyList");
+    const btnReset = document.getElementById("btnReset");
+
+    function setMsg(t, cls) {
+        msg.textContent = t || "";
+        msg.className = cls || "";
+    }
+
+    function esc(s) {
+        const t = String(s == null ? "" : s);
+        const d = document.createElement("div");
+        d.textContent = t;
+        return d.innerHTML;
+    }
+
+    function cellLinks(text, cls) {
+        const td = document.createElement("td");
+        td.className = cls;
+        const raw = String(text || "").trim();
+        if (!raw || raw === "—") {
+            td.textContent = "—";
+            return td;
+        }
+        raw.split(/\n/).forEach(function (line, i) {
+            const u = line.trim();
+            if (!u) return;
+            if (u.indexOf("http://") === 0 || u.indexOf("https://") === 0) {
+                const a = document.createElement("a");
+                a.href = u;
+                a.rel = "noopener noreferrer";
+                a.target = "_blank";
+                a.textContent = u;
+                if (i) td.appendChild(document.createElement("br"));
+                td.appendChild(a);
+            } else {
+                if (i) td.appendChild(document.createElement("br"));
+                td.appendChild(document.createTextNode(u));
+            }
+        });
+        return td;
+    }
+
+    function renderChecklistTable(rows) {
+        const tb = document.getElementById("chkTableBody");
+        tb.innerHTML = "";
+        if (!rows || !rows.length) {
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = 8;
+            td.style.color = "#94a3b8";
+            td.textContent = "Chưa có dòng checklist (chạy lại sau khi có issues).";
+            tr.appendChild(td);
+            tb.appendChild(tr);
+            return;
+        }
+        rows.forEach(function (row) {
+            const tr = document.createElement("tr");
+            ["checklist", "danh_gia", "dan_chung_chi_tiet", "giai_phap"].forEach(function (key) {
+                const td = document.createElement("td");
+                td.innerHTML = esc(row[key] != null ? row[key] : "");
+                tr.appendChild(td);
+            });
+            tr.appendChild(cellLinks(row.link_tham_khao, "ref"));
+            const tdH = document.createElement("td");
+            tdH.innerHTML = esc(row.hien_trang != null ? row.hien_trang : "");
+            tr.appendChild(tdH);
+            tr.appendChild(cellLinks(row.link_trien_khai, "deploy"));
+            const tdN = document.createElement("td");
+            tdN.innerHTML = esc(row.note != null ? row.note : "");
+            tr.appendChild(tdN);
+            tb.appendChild(tr);
+        });
+    }
+
+    function loadHistory() {
+        try {
+            const raw = localStorage.getItem(LS_HISTORY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function normEntry(x) {
+        return {
+            url: String(x.url || "").trim(),
+            keyword: String(x.keyword || "").trim(),
+            secKw: String(x.secKw != null ? x.secKw : "").trim(),
+            pageType: String(x.pageType != null ? x.pageType : "").trim(),
+            vol: String(x.vol != null ? x.vol : "").trim(),
+            rank: String(x.rank != null ? x.rank : "").trim(),
+        };
+    }
+
+    function itemKey(item) {
+        const n = normEntry(item);
+        return n.url + "\n" + n.keyword + "\n" + n.secKw + "\n" + n.pageType + "\n" + n.vol + "\n" + n.rank;
+    }
+
+    function loadCacheStore() {
+        try {
+            const raw = localStorage.getItem(LS_CACHE);
+            const o = raw ? JSON.parse(raw) : {};
+            return o && typeof o === "object" ? o : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function pruneCache(store) {
+        const keys = Object.keys(store);
+        if (keys.length <= MAX_CACHE) return store;
+        const entries = keys.map(function (k) {
+            return { k: k, at: Number(store[k] && store[k].savedAt) || 0 };
+        });
+        entries.sort(function (a, b) {
+            return a.at - b.at;
+        });
+        const drop = entries.length - MAX_CACHE;
+        for (let i = 0; i < drop; i++) delete store[entries[i].k];
+        return store;
+    }
+
+    function saveResponseCache(entry, responseObj) {
+        try {
+            const k = itemKey(entry);
+            const store = loadCacheStore();
+            store[k] = { savedAt: Date.now(), data: responseObj };
+            pruneCache(store);
+            localStorage.setItem(LS_CACHE, JSON.stringify(store));
+        } catch (e) {}
+    }
+
+    function loadResponseCache(item) {
+        try {
+            const k = itemKey(item);
+            const w = loadCacheStore()[k];
+            return w && w.data ? w.data : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function deleteResponseCache(item) {
+        try {
+            const k = itemKey(item);
+            const store = loadCacheStore();
+            delete store[k];
+            localStorage.setItem(LS_CACHE, JSON.stringify(store));
+        } catch (e) {}
+    }
+
+    function saveHistory(entry) {
+        let arr = loadHistory();
+        const key = itemKey(entry);
+        arr = arr.filter(function (x) {
+            return itemKey(x) !== key;
+        });
+        arr.unshift({
+            url: normEntry(entry).url,
+            keyword: normEntry(entry).keyword,
+            secKw: normEntry(entry).secKw,
+            pageType: normEntry(entry).pageType,
+            vol: normEntry(entry).vol,
+            rank: normEntry(entry).rank,
+            ts: entry.ts || Date.now(),
+        });
+        arr = arr.slice(0, MAX_HISTORY);
+        localStorage.setItem(LS_HISTORY, JSON.stringify(arr));
+    }
+
+    function tryLoadLastResponse() {
+        try {
+            const raw = localStorage.getItem(LS_LAST);
+            if (!raw) return null;
+            const o = JSON.parse(raw);
+            if (!o || !o.response) return null;
+            return {
+                url: o.url,
+                keyword: o.keyword || "",
+                secKw: o.secKw || "",
+                pageType: o.pageType || "",
+                vol: o.vol != null ? String(o.vol) : "",
+                rank: o.rank != null ? String(o.rank) : "",
+                response: o.response,
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveLastResponse(url, keyword, responseObj, vol, rank, secKw, pageType) {
+        try {
+            const payload = JSON.stringify({
+                url: url,
+                keyword: keyword || "",
+                secKw: secKw || "",
+                pageType: pageType || "",
+                vol: vol != null ? String(vol) : "",
+                rank: rank != null ? String(rank) : "",
+                ts: Date.now(),
+                response: responseObj,
+            });
+            if (payload.length > 4_500_000) return;
+            localStorage.setItem(LS_LAST, payload);
+        } catch (e) {
+            try {
+                localStorage.removeItem(LS_LAST);
+            } catch (e2) {}
+        }
+    }
+
+    function removeLastIfMatches(removed) {
+        const last = tryLoadLastResponse();
+        if (!last || !removed) return;
+        if (itemKey(last) === itemKey(removed)) {
+            try {
+                localStorage.removeItem(LS_LAST);
+            } catch (e) {}
+        }
+    }
+
+    function deleteHistoryAt(idx) {
+        const arr = loadHistory();
+        if (idx < 0 || idx >= arr.length) return;
+        const removed = arr[idx];
+        arr.splice(idx, 1);
+        try {
+            localStorage.setItem(LS_HISTORY, JSON.stringify(arr));
+        } catch (e) {}
+        deleteResponseCache(removed);
+        removeLastIfMatches(removed);
+        const totalPages = Math.max(1, Math.ceil(arr.length / HIST_PAGE_SIZE));
+        if (historyPage >= totalPages) historyPage = Math.max(0, totalPages - 1);
+        renderHistory();
+    }
+
+    async function fetchScoreboardForItem(item) {
+        const url = String(item.url || "").trim();
+        if (!url) throw new Error("Thiếu URL.");
+        const body = { url: url };
+        const keyword = String(item.keyword || "").trim();
+        if (keyword) body.keyword = keyword;
+        const sec = parseSecondaryKeywords(item.secKw);
+        if (sec.length) body.secondary_keywords = sec;
+        const pt = String(item.pageType || "").trim();
+        if (pt) body.page_type = pt;
+        const volS = String(item.vol != null ? item.vol : "").trim();
+        if (volS) body.search_volume = parseInt(volS, 10);
+        const rankS = String(item.rank != null ? item.rank : "").trim();
+        if (rankS) body.current_serp_position = parseInt(rankS, 10);
+        const r = await fetch("/analyze/url-seo-scoreboard", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify(body),
+        });
+        const d = await r.json().catch(function () {
+            return {};
+        });
+        if (!r.ok) {
+            const errMsg = d.detail ? (typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail)) : "Lỗi " + r.status;
+            throw new Error(errMsg);
+        }
+        return d;
+    }
+
+    function csvCell(x) {
+        const s = String(x == null ? "" : x)
+            .replace(/\r\n/g, "\n")
+            .replace(/\r/g, "\n");
+        return '"' + s.replace(/"/g, '""') + '"';
+    }
+
+    function linksPlain(text) {
+        const raw = String(text || "").trim();
+        if (!raw || raw === "—") return "";
+        return raw
+            .split(/\n/)
+            .map(function (l) {
+                return l.trim();
+            })
+            .filter(Boolean)
+            .join("; ");
+    }
+
+    function exportChecklistToCsv(d, item) {
+        const rows = [];
+        const n = normEntry(item);
+        rows.push([csvCell("URL"), csvCell(n.url), "", "", "", "", "", ""].join(","));
+        const t15 = d.scores && d.scores.checklist_15_total;
+        const total =
+            t15 != null && t15 !== ""
+                ? String(t15)
+                : d.scores && d.scores.total != null
+                  ? String(d.scores.total)
+                  : "";
+        rows.push([csvCell("Tổng điểm"), csvCell(total), "", "", "", "", "", ""].join(","));
+        rows.push("");
+        rows.push(
+            [
+                csvCell("CHECKLIST"),
+                csvCell("ĐÁNH GIÁ"),
+                csvCell("DẪN CHỨNG CHI TIẾT"),
+                csvCell("GIẢI PHÁP"),
+                csvCell("LINK THAM KHẢO"),
+                csvCell("HIỆN TRẠNG"),
+                csvCell("LINK TRIỂN KHAI"),
+                csvCell("NOTE"),
+            ].join(",")
+        );
+        const list = (d.optimization_report && d.optimization_report.checklist_table) || [];
+        list.forEach(function (row) {
+            rows.push(
+                [
+                    csvCell(row.checklist),
+                    csvCell(row.danh_gia),
+                    csvCell(row.dan_chung_chi_tiet),
+                    csvCell(row.giai_phap),
+                    csvCell(linksPlain(row.link_tham_khao)),
+                    csvCell(row.hien_trang),
+                    csvCell(linksPlain(row.link_trien_khai)),
+                    csvCell(row.note),
+                ].join(",")
+            );
+        });
+        if (!list.length) {
+            rows.push([csvCell("(Không có dòng checklist)"), "", "", "", "", "", "", ""].join(","));
+        }
+        return "\uFEFF" + rows.join("\r\n");
+    }
+
+    function triggerDownload(filename, text) {
+        const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
+        const u = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = u;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(u);
+    }
+
+    function slugFromUrl(u) {
+        try {
+            const withProto = /^https?:\/\//i.test(u) ? u : "https://" + u;
+            const h = new URL(withProto).hostname.replace(/[^\w.-]+/g, "-").slice(0, 48);
+            return h || "url";
+        } catch (e) {
+            return "url";
+        }
+    }
+
+    async function downloadExcelForItem(item, triggerBtn) {
+        if (!token) {
+            setMsg("Chưa có phiên đăng nhập.", "err");
+            return;
+        }
+        let d = loadResponseCache(item);
+        if (!d) {
+            const last = tryLoadLastResponse();
+            if (last && itemKey(last) === itemKey(item)) d = last.response;
+        }
+        if (triggerBtn) triggerBtn.disabled = true;
+        try {
+            if (!d) {
+                setMsg("Đang tải dữ liệu để xuất file…", "");
+                d = await fetchScoreboardForItem(item);
+                saveResponseCache(item, d);
+            }
+            const fn = "cham-diem-seo-" + slugFromUrl(item.url) + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+            triggerDownload(fn, exportChecklistToCsv(d, item));
+            setMsg("Đã tải file CSV UTF-8 (mở trực tiếp bằng Excel).", "ok");
+        } catch (e) {
+            setMsg(String(e.message || e), "err");
+        } finally {
+            if (triggerBtn) triggerBtn.disabled = false;
+        }
+    }
+
+    const PILLAR_CLUSTERS = [
+        { title: "Intent & SERP", ids: ["search_intent", "serp_benchmark", "ctr_optimization"] },
+        { title: "Content Quality", ids: ["helpful_content", "content_depth_serp", "freshness", "featured_snippet"] },
+        { title: "Onpage SEO", ids: ["keyword_semantic", "structure"] },
+        { title: "Technical UX", ids: ["ux_readability", "speed_mobile_cwv", "schema_markup"] },
+        { title: "Authority & Links", ids: ["eeat", "internal_link", "external_link"] },
+    ];
+
+    let lastResponseData = null;
+    let activeTenTab = "overview";
+
+    function tenBoard(d) {
+        return (d && d.ten_group_scoreboard && typeof d.ten_group_scoreboard === "object") ? d.ten_group_scoreboard : {};
+    }
+
+    function safeStr(v, fallback) {
+        if (v == null || v === "") return fallback != null ? fallback : "—";
+        return String(v);
+    }
+
+    function safeNum(v, fallback) {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : (fallback != null ? fallback : 0);
+    }
+
+    function scoreTone(s) {
+        const n = safeNum(s, 0);
+        if (n >= 80) return "good";
+        if (n >= 55) return "mid";
+        return "bad";
+    }
+
+    function parseSecondaryKeywords(raw) {
+        const s = String(raw || "").trim();
+        if (!s) return [];
+        return s.split(/[,;\n]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    }
+
+    function mainScore(d) {
+        const tb = tenBoard(d);
+        if (tb.total_score != null && tb.total_score !== "") return safeNum(tb.total_score, null);
+        const t15 = d.scores && d.scores.checklist_15_total;
+        if (t15 != null && t15 !== "") return Number(t15);
+        if (d.scores && d.scores.total != null) return Number(d.scores.total);
+        return null;
+    }
+
+    function legacyMainScore(d) {
+        const t15 = d.scores && d.scores.checklist_15_total;
+        if (t15 != null && t15 !== "") return Number(t15);
+        if (d.scores && d.scores.total != null) return Number(d.scores.total);
+        return null;
+    }
+
+    async function copyToClipboard(text, btn) {
+        const t = String(text || "").trim();
+        if (!t || t === "—") return;
+        try {
+            await navigator.clipboard.writeText(t);
+            if (btn) {
+                const prev = btn.textContent;
+                btn.textContent = "Đã copy";
+                setTimeout(function () { btn.textContent = prev; }, 1400);
+            }
+        } catch (e) {
+            setMsg("Không copy được — thử chọn thủ công.", "err");
+        }
+    }
+
+    function renderCheckCard(c) {
+        const card = document.createElement("article");
+        const st = safeStr(c.status, "warning");
+        card.className = "ss-check-card status-" + st;
+        const earned = safeNum(c.score, 0);
+        const max = safeNum(c.max_score, 0);
+        card.innerHTML =
+            '<header class="ss-check-head">' +
+            '<span class="ss-check-status ' + esc(st) + '">' + esc(st.toUpperCase()) + '</span>' +
+            '<span class="ss-check-score">' + esc(earned) + '/' + esc(max) + '</span>' +
+            '</header>' +
+            '<h4 class="ss-check-title">' + esc(safeStr(c.title, "Check")) + '</h4>' +
+            '<dl class="ss-check-meta">' +
+            '<div><dt>Vấn đề</dt><dd>' + esc(safeStr(c.problem, "—")) + '</dd></div>' +
+            '<div><dt>Ảnh hưởng</dt><dd>' + esc(safeStr(c.impact, "—")) + '</dd></div>' +
+            '<div><dt>Cách sửa</dt><dd class="ss-check-fix">' + esc(safeStr(c.fix, "—")) + '</dd></div>' +
+            '</dl>';
+        const fixText = safeStr(c.fix, "");
+        if (fixText && fixText !== "—") {
+            const foot = document.createElement("div");
+            foot.className = "ss-check-foot";
+            const copyBtn = document.createElement("button");
+            copyBtn.type = "button";
+            copyBtn.className = "ss-copy-btn";
+            copyBtn.textContent = "Copy cách sửa";
+            copyBtn.addEventListener("click", function () { copyToClipboard(fixText, copyBtn); });
+            foot.appendChild(copyBtn);
+            card.appendChild(foot);
+        }
+        return card;
+    }
+
+    function renderTenOverview(tb) {
+        const root = document.getElementById("ssTenContent");
+        if (!root) return;
+        root.innerHTML = "";
+        const total = safeNum(tb.total_score, 0);
+        const groups = Array.isArray(tb.groups) ? tb.groups : [];
+        const penalties = Array.isArray(tb.penalties_applied) ? tb.penalties_applied : [];
+
+        const head = document.createElement("section");
+        head.className = "ss-ten-overview-head";
+        head.innerHTML =
+            '<div class="ss-ten-hero">' +
+            '<div class="ss-ten-hero-score tone-' + scoreTone(total) + '">' + esc(Math.round(total * 10) / 10) + '<span>/100</span></div>' +
+            '<div class="ss-ten-hero-meta">' +
+            '<h2>Tổng quan SEO Score</h2>' +
+            '<p class="ss-ten-hero-sub">' + esc(groups.length) + ' nhóm · trọng số tổng 100 điểm</p>' +
+            (tb.primary_keyword ? '<p class="ss-ten-kw">Primary: <strong>' + esc(tb.primary_keyword) + '</strong></p>' : '') +
+            (Array.isArray(tb.secondary_keywords) && tb.secondary_keywords.length
+                ? '<p class="ss-ten-kw">Secondary: ' + esc(tb.secondary_keywords.join(", ")) + '</p>' : '') +
+            (tb.page_type ? '<p class="ss-ten-kw">Page type: ' + esc(tb.page_type) + '</p>' : '') +
+            '</div></div>';
+        root.appendChild(head);
+
+        if (penalties.length) {
+            const pen = document.createElement("div");
+            pen.className = "ss-penalty-banner";
+            pen.innerHTML = '<strong>Penalty áp dụng:</strong> ' +
+                penalties.map(function (p) {
+                    return esc(safeStr(p.reason, p.code)) + ' (cap ' + esc(safeNum(p.cap, 0)) + ')';
+                }).join(' · ');
+            root.appendChild(pen);
+        }
+
+        const grid = document.createElement("div");
+        grid.className = "ss-group-score-grid";
+        groups.forEach(function (g) {
+            const sc = safeNum(g.score, 0);
+            const cell = document.createElement("button");
+            cell.type = "button";
+            cell.className = "ss-group-score-cell tone-" + scoreTone(sc);
+            cell.dataset.groupId = safeStr(g.id, "");
+            cell.innerHTML =
+                '<span class="ss-gsc-label">' + esc(safeStr(g.label, g.id)) + '</span>' +
+                '<span class="ss-gsc-score">' + esc(sc) + '/100</span>' +
+                '<span class="ss-gsc-weight">Trọng số ' + esc(safeNum(g.weight, 0)) + '%</span>' +
+                '<span class="ss-gsc-badges">' +
+                '<span class="ok">' + esc(safeNum(g.checks_passed, 0)) + ' pass</span> · ' +
+                '<span class="warn">' + esc(safeNum(g.checks_warning, 0)) + ' warn</span> · ' +
+                '<span class="fail">' + esc(safeNum(g.checks_failed, 0)) + ' fail</span></span>';
+            cell.addEventListener("click", function () { navigateTenTab(g.id); });
+            grid.appendChild(cell);
+        });
+        root.appendChild(grid);
+
+        function listBlock(title, items, cls) {
+            if (!items || !items.length) return null;
+            const sec = document.createElement("section");
+            sec.className = "ss-ten-list-block " + (cls || "");
+            sec.innerHTML = "<h3>" + esc(title) + "</h3>";
+            const ul = document.createElement("ul");
+            items.forEach(function (line) {
+                const li = document.createElement("li");
+                li.textContent = safeStr(line, "");
+                ul.appendChild(li);
+            });
+            sec.appendChild(ul);
+            return sec;
+        }
+
+        const strengths = listBlock("Điểm mạnh", tb.strengths, "strengths");
+        if (strengths) root.appendChild(strengths);
+        const weaknesses = listBlock("Điểm yếu", tb.weaknesses, "weaknesses");
+        if (weaknesses) root.appendChild(weaknesses);
+
+        const fixSec = document.createElement("section");
+        fixSec.className = "ss-ten-list-block fixes";
+        fixSec.innerHTML = "<h3>Ưu tiên sửa (priority fixes)</h3>";
+        const fixes = Array.isArray(tb.priority_fixes) ? tb.priority_fixes : [];
+        if (!fixes.length) {
+            const p = document.createElement("p");
+            p.className = "ss-empty-hint";
+            p.textContent = "Không có mục ưu tiên — trang đạt tốt hoặc cần bổ sung keyword.";
+            fixSec.appendChild(p);
+        } else {
+            const ul = document.createElement("ul");
+            ul.className = "ss-priority-fix-list";
+            fixes.forEach(function (fx) {
+                const li = document.createElement("li");
+                li.innerHTML =
+                    '<span class="ss-pfx-pri ' + esc(safeStr(fx.priority, "medium")) + '">' + esc(safeStr(fx.priority, "medium").toUpperCase()) + '</span>' +
+                    '<div><strong>' + esc(safeStr(fx.title, "Fix")) + '</strong>' +
+                    '<span class="ss-pfx-group">' + esc(safeStr(fx.group_label, fx.group)) + '</span>' +
+                    '<p>' + esc(safeStr(fx.problem, "")) + '</p></div>';
+                ul.appendChild(li);
+            });
+            fixSec.appendChild(ul);
+        }
+        root.appendChild(fixSec);
+
+        const aiSec = document.createElement("section");
+        aiSec.className = "ss-ten-list-block ai";
+        aiSec.innerHTML = "<h3>Gợi ý AI</h3>";
+        const ai = Array.isArray(tb.ai_suggestions) ? tb.ai_suggestions : [];
+        if (!ai.length) {
+            const p = document.createElement("p");
+            p.className = "ss-empty-hint";
+            p.textContent = "Chưa có gợi ý.";
+            aiSec.appendChild(p);
+        } else {
+            const ul = document.createElement("ul");
+            ai.forEach(function (line) {
+                const li = document.createElement("li");
+                li.textContent = safeStr(line, "");
+                ul.appendChild(li);
+            });
+            aiSec.appendChild(ul);
+        }
+        root.appendChild(aiSec);
+    }
+
+    function renderTenGroupDetail(tb, groupId) {
+        const root = document.getElementById("ssTenContent");
+        if (!root) return;
+        root.innerHTML = "";
+        const groups = Array.isArray(tb.groups) ? tb.groups : [];
+        const g = groups.find(function (x) { return x.id === groupId; });
+        if (!g) {
+            root.innerHTML = '<p class="ss-empty-hint">Không tìm thấy nhóm.</p>';
+            return;
+        }
+        const sc = safeNum(g.score, 0);
+        const head = document.createElement("header");
+        head.className = "ss-ten-group-head";
+        head.innerHTML =
+            '<h2>' + esc(safeStr(g.label, g.id)) + '</h2>' +
+            '<p class="ss-ten-group-meta">Điểm nhóm <strong class="tone-' + scoreTone(sc) + '">' + esc(sc) + '/100</strong> · ' +
+            'Trọng số ' + esc(safeNum(g.weight, 0)) + '% · ' +
+            'Đóng góp ' + esc(safeNum(g.weighted_points, 0)) + ' điểm tổng</p>';
+        root.appendChild(head);
+
+        const checks = Array.isArray(g.checks) ? g.checks : [];
+        if (!checks.length) {
+            const p = document.createElement("p");
+            p.className = "ss-empty-hint";
+            p.textContent = "Chưa có check trong nhóm này.";
+            root.appendChild(p);
+            return;
+        }
+        const list = document.createElement("div");
+        list.className = "ss-check-list";
+        checks.forEach(function (c) { list.appendChild(renderCheckCard(c)); });
+        root.appendChild(list);
+    }
+
+    function syncTenMobileSelect(tb) {
+        const sel = document.getElementById("ssTenMobileSelect");
+        if (!sel) return;
+        sel.innerHTML = "";
+        const opt0 = document.createElement("option");
+        opt0.value = "overview";
+        opt0.textContent = "Tổng quan";
+        sel.appendChild(opt0);
+        (Array.isArray(tb.groups) ? tb.groups : []).forEach(function (g) {
+            const o = document.createElement("option");
+            o.value = g.id;
+            o.textContent = safeStr(g.label, g.id) + " (" + safeNum(g.score, 0) + ")";
+            sel.appendChild(o);
+        });
+        sel.value = activeTenTab;
+    }
+
+    function renderTenNav(tb) {
+        const nav = document.getElementById("ssTenNav");
+        const badge = document.getElementById("ssTenTotalBadge");
+        if (badge) badge.textContent = safeNum(tb.total_score, 0) + "/100";
+        if (!nav) return;
+        nav.innerHTML = "";
+        const overviewBtn = document.createElement("button");
+        overviewBtn.type = "button";
+        overviewBtn.className = "ss-ten-nav-item" + (activeTenTab === "overview" ? " active" : "");
+        overviewBtn.dataset.tab = "overview";
+        overviewBtn.innerHTML = '<span class="ss-ten-nav-label">Tổng quan</span><span class="ss-ten-nav-score">—</span>';
+        overviewBtn.addEventListener("click", function () { navigateTenTab("overview"); });
+        nav.appendChild(overviewBtn);
+
+        (Array.isArray(tb.groups) ? tb.groups : []).forEach(function (g) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "ss-ten-nav-item tone-" + scoreTone(g.score) + (activeTenTab === g.id ? " active" : "");
+            btn.dataset.tab = g.id;
+            const sc = safeNum(g.score, 0);
+            const failN = safeNum(g.checks_failed, 0);
+            btn.innerHTML =
+                '<span class="ss-ten-nav-label">' + esc(safeStr(g.label, g.id)) + '</span>' +
+                '<span class="ss-ten-nav-score">' + esc(sc) +
+                (failN > 0 ? '<span class="ss-ten-nav-badge">' + esc(failN) + '</span>' : '') +
+                '</span>';
+            btn.addEventListener("click", function () { navigateTenTab(g.id); });
+            nav.appendChild(btn);
+        });
+        syncTenMobileSelect(tb);
+    }
+
+    function navigateTenTab(tabId) {
+        activeTenTab = tabId || "overview";
+        const tb = tenBoard(lastResponseData);
+        renderTenNav(tb);
+        if (activeTenTab === "overview") renderTenOverview(tb);
+        else renderTenGroupDetail(tb, activeTenTab);
+        const content = document.getElementById("ssTenContent");
+        if (content) content.scrollTop = 0;
+    }
+
+    function renderTenGroupScoreboard(d) {
+        const tb = tenBoard(d);
+        const mobileNav = document.getElementById("ssTenMobileNav");
+        if (mobileNav) mobileNav.hidden = false;
+        renderTenNav(tb);
+        if (activeTenTab !== "overview") {
+            const exists = (tb.groups || []).some(function (g) { return g.id === activeTenTab; });
+            if (!exists) activeTenTab = "overview";
+        }
+        navigateTenTab(activeTenTab);
+    }
+
+    function intentItem(d) {
+        const items = (d.fifteen_pillar_assessment && d.fifteen_pillar_assessment.items) || [];
+        return items.find(function (x) { return x.id === "search_intent"; }) || null;
+    }
+
+    function countPriorityIssues(issues) {
+        const c = { P0: 0, P1: 0, P2: 0 };
+        (issues || []).forEach(function (it) {
+            const p = String(it.priority || "").toUpperCase();
+            if (c[p] != null) c[p] += 1;
+        });
+        return c;
+    }
+
+    function renderSummaryCards(d) {
+        const score = legacyMainScore(d);
+        document.getElementById("total15").textContent = score != null ? String(Math.round(score * 10) / 10) : "—";
+
+        const intent = intentItem(d);
+        const intentEl = document.getElementById("shCardIntent");
+        const intentWrap = document.getElementById("shCardIntentWrap");
+        if (intent) {
+            intentEl.textContent = intent.score + "/100 · " + String(intent.status || "").toUpperCase();
+            intentWrap.className = "ss-summary-card status-" + (intent.status === "pass" ? "pass" : intent.status === "warning" ? "warn" : "fail");
+            document.getElementById("shCardIntentHint").textContent =
+                intent.status === "fail" ? "Intent lệch SERP — ưu tiên sửa trước" : "Điểm intent & khớp SERP";
+        } else {
+            intentEl.textContent = (d.scores && d.scores.components && d.scores.components.intent != null)
+                ? d.scores.components.intent + "/100" : "—";
+            intentWrap.className = "ss-summary-card";
+        }
+
+        const pri = countPriorityIssues(d.issues);
+        const totalPri = pri.P0 + pri.P1 + pri.P2;
+        document.getElementById("shCardIssues").textContent = String(totalPri);
+        document.getElementById("shCardIssuesHint").textContent =
+            "P0: " + pri.P0 + " · P1: " + pri.P1 + " · P2: " + pri.P2;
+
+        const opp = d.opportunity;
+        const oppEl = document.getElementById("shCardOpportunity");
+        if (opp && opp.opportunity_score != null) {
+            oppEl.textContent = Math.round(Number(opp.opportunity_score)) + "/100";
+            document.getElementById("shCardOppHint").textContent =
+                "Ưu tiên: " + (opp.priority_hint || "—") +
+                (opp.estimated_monthly_visits_gain && opp.estimated_monthly_visits_gain.monthly_visits_delta_approx
+                    ? " · ~+" + opp.estimated_monthly_visits_gain.monthly_visits_delta_approx + " visits/tháng"
+                    : "");
+        } else if ((d.serp && d.serp.keyword) || document.getElementById("kw").value.trim()) {
+            oppEl.textContent = "N/A";
+            document.getElementById("shCardOppHint").textContent = "Chưa đủ dữ liệu opportunity";
+        } else {
+            oppEl.textContent = "—";
+            document.getElementById("shCardOppHint").textContent = "Nhập keyword để bật";
+        }
+    }
+
+    function renderQuickConclusion(d) {
+        const score = mainScore(d);
+        const intent = intentItem(d);
+        const pri = countPriorityIssues(d.issues);
+        const parts = [];
+        if (score != null) {
+            if (score >= 80) parts.push("Trang đạt mức tốt (" + score + "/100). Tập trung tinh chỉnh CTR và mở rộng cluster từ khóa.");
+            else if (score >= 65) parts.push("Trang ở mức khá (" + score + "/100). Còn khoảng cải thiện rõ trên onpage và content depth.");
+            else if (score >= 50) parts.push("Trang cần tối ưu (" + score + "/100). Nên xử lý các mục P0/P1 trước khi scale content.");
+            else parts.push("Trang yếu (" + score + "/100). Ưu tiên intent, technical và cấu trúc onpage cơ bản.");
+        }
+        if (intent && intent.status === "fail") {
+            parts.push("Search Intent đang FAIL — nội dung có thể không khớp SERP, tổng điểm bị cap.");
+        } else if (intent && intent.status === "warning") {
+            parts.push("Search Intent ở mức cảnh báo — nên điều chỉnh góc nội dung cho sát top Google.");
+        }
+        if (pri.P0 > 0) parts.push("Có " + pri.P0 + " lỗi P0 (critical) cần xử lý ngay.");
+        else if (pri.P1 > 0) parts.push("Có " + pri.P1 + " mục P1 nên sửa trong tuần này.");
+        const opp = d.opportunity;
+        if (opp && opp.opportunity_score >= 60 && score != null && score < 72) {
+            parts.push("Cơ hội từ khóa cao — tối ưu trang này có thể mang lại traffic đáng kể.");
+        }
+        document.getElementById("shConclusionText").textContent = parts.length ? parts.join(" ") : "Chạy phân tích để nhận kết luận.";
+    }
+
+    function renderPriorityFixes(d) {
+        const ul = document.getElementById("shPriorityList");
+        ul.innerHTML = "";
+        const order = { P0: 0, P1: 1, P2: 2 };
+        const list = (d.issues || []).filter(function (it) {
+            const p = String(it.priority || "").toUpperCase();
+            return p === "P0" || p === "P1" || p === "P2";
+        }).sort(function (a, b) {
+            return (order[String(a.priority).toUpperCase()] || 9) - (order[String(b.priority).toUpperCase()] || 9);
+        }).slice(0, 10);
+        if (!list.length) {
+            const li = document.createElement("li");
+            li.className = "ss-fix-item";
+            li.innerHTML = '<div class="ss-fix-body"><strong>Không có issue P0–P2 nổi bật</strong><span>Xem chi tiết trong 5 cụm checklist bên dưới.</span></div>';
+            ul.appendChild(li);
+            return;
+        }
+        list.forEach(function (it) {
+            const li = document.createElement("li");
+            li.className = "ss-fix-item";
+            const p = String(it.priority || "P2").toUpperCase();
+            li.innerHTML =
+                '<div class="ss-fix-pri ' + p.toLowerCase() + '">' + esc(p) + '</div>' +
+                '<div class="ss-fix-body"><strong>' + esc(it.message || it.type || "Issue") + '</strong>' +
+                '<span>' + esc(it.fix || "Xem bảng chi tiết nâng cao.") + '</span></div>';
+            ul.appendChild(li);
+        });
+    }
+
+    function renderPillarClusters(d) {
+        const root = document.getElementById("shPillarClusters");
+        root.innerHTML = "";
+        const items = (d.fifteen_pillar_assessment && d.fifteen_pillar_assessment.items) || [];
+        const byId = {};
+        items.forEach(function (it) { byId[it.id] = it; });
+
+        PILLAR_CLUSTERS.forEach(function (cluster) {
+            const details = document.createElement("details");
+            details.className = "ss-cluster";
+            const matched = cluster.ids.map(function (id) { return byId[id]; }).filter(Boolean);
+            let avg = 0;
+            if (matched.length) {
+                avg = matched.reduce(function (s, x) { return s + Number(x.score || 0); }, 0) / matched.length;
+            }
+            const summary = document.createElement("summary");
+            summary.innerHTML = '<span>' + esc(cluster.title) + '</span><span class="ss-cluster-score">' +
+                (matched.length ? Math.round(avg) + "/100 · " + matched.length + " nhóm" : "—") + '</span>';
+            details.appendChild(summary);
+            const body = document.createElement("div");
+            body.className = "ss-cluster-body";
+            if (!matched.length) {
+                body.innerHTML = '<p style="margin:10px 0;font-size:0.82rem;color:#94a3b8;">Chưa có dữ liệu nhóm.</p>';
+            } else {
+                matched.forEach(function (it) {
+                    const row = document.createElement("div");
+                    row.className = "ss-pillar-row";
+                    row.innerHTML =
+                        '<div class="ss-pillar-head">' +
+                        '<span class="ss-pillar-name">' + esc(it.name || it.id) + '</span>' +
+                        '<span class="ss-pillar-status ' + esc(it.status || "") + '">' + esc(it.status || "") + '</span>' +
+                        '</div>' +
+                        '<div class="ss-pillar-meta">Điểm ' + esc(it.score) + '/100 · TS ' + esc(it.weight_percent) + '%</div>' +
+                        '<div style="margin-top:4px;color:#94a3b8;font-size:0.78rem;">' + esc((it.reason || "").slice(0, 280)) + '</div>';
+                    body.appendChild(row);
+                });
+            }
+            details.appendChild(body);
+            root.appendChild(details);
+        });
+    }
+
+    function renderDebugExtra(d) {
+        const extra = document.getElementById("shDebugExtra");
+        if (!extra) return;
+        extra.textContent = JSON.stringify(
+            {
+                page_snapshot: d.page_snapshot || {},
+                serp: d.serp || null,
+                serp_top10_crawl: d.serp_top10_crawl || null,
+                fetch: d.fetch || {},
+            },
+            null,
+            2
+        );
+    }
+
+    function applyScoreboardResponse(d) {
+        lastResponseData = d;
+        activeTenTab = "overview";
+        renderTenGroupScoreboard(d);
+        renderSummaryCards(d);
+        renderQuickConclusion(d);
+        renderPriorityFixes(d);
+        renderPillarClusters(d);
+
+        const comp = (d.scores && d.scores.components) || {};
+        const w = d.weights || {};
+        const bars = document.getElementById("bars");
+        bars.innerHTML = "";
+        Object.keys(comp).forEach(function (k) {
+            const sc = Number(comp[k]) || 0;
+            const wt = (w[k] != null ? (w[k] * 100).toFixed(1) : "?") + "% trọng số";
+            const row = document.createElement("div");
+            row.className = "bar-row";
+            row.innerHTML =
+                '<div class="bar-label"><span>' + k + '</span><span>' + sc.toFixed(1) + " · " + wt + "</span></div>" +
+                '<div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, sc) + '%"></div></div>';
+            bars.appendChild(row);
+        });
+        const rep = d.optimization_report || {};
+        renderChecklistTable(rep.checklist_table || []);
+        const rawEl = document.getElementById("raw");
+        if (rawEl) {
+            rawEl.textContent = JSON.stringify(
+                {
+                    breakdown: d.breakdown || {},
+                    pillar_definitions: d.pillar_definitions || {},
+                    opportunity: d.opportunity || null,
+                    fifteen_pillar_assessment: d.fifteen_pillar_assessment || null,
+                    issues: d.issues || [],
+                },
+                null,
+                2
+            );
+        }
+        renderDebugExtra(d);
+        out.hidden = false;
+    }
+
+    function applyHistoryItem(item) {
+        document.getElementById("u").value = item.url || "";
+        document.getElementById("kw").value = item.keyword || "";
+        const secEl = document.getElementById("secKw");
+        if (secEl) secEl.value = item.secKw || "";
+        const ptEl = document.getElementById("pageType");
+        if (ptEl) ptEl.value = item.pageType || "";
+        document.getElementById("vol").value = item.vol || "";
+        document.getElementById("rank").value = item.rank || "";
+        const cached = loadResponseCache(item);
+        if (cached) {
+            applyScoreboardResponse(cached);
+            setMsg("Đã tải kết quả từ bộ nhớ (không gọi lại API).", "ok");
+            return;
+        }
+        const last = tryLoadLastResponse();
+        if (last && itemKey(last) === itemKey(item)) {
+            applyScoreboardResponse(last.response);
+            saveResponseCache(item, last.response);
+            setMsg("Đã tải kết quả đã lưu (không gọi lại API).", "ok");
+            return;
+        }
+        out.hidden = true;
+        setMsg("Đã điền form — bấm «Chấm điểm» để phân tích lại.", "");
+    }
+
+    function updateHistoryPager(arr) {
+        const pager = document.getElementById("historyPager");
+        const countEl = document.getElementById("historyCount");
+        const infoEl = document.getElementById("histPageInfo");
+        const prevBtn = document.getElementById("histPagePrev");
+        const nextBtn = document.getElementById("histPageNext");
+        const total = arr.length;
+        const totalPages = Math.max(1, Math.ceil(total / HIST_PAGE_SIZE));
+        if (historyPage >= totalPages) historyPage = totalPages - 1;
+        if (historyPage < 0) historyPage = 0;
+        if (countEl) {
+            countEl.textContent = total ? total + " mục" : "";
+        }
+        if (!pager || !infoEl) return;
+        if (total <= HIST_PAGE_SIZE) {
+            pager.hidden = true;
+            return;
+        }
+        pager.hidden = false;
+        infoEl.textContent = (historyPage + 1) + " / " + totalPages;
+        if (prevBtn) prevBtn.disabled = historyPage <= 0;
+        if (nextBtn) nextBtn.disabled = historyPage >= totalPages - 1;
+    }
+
+    function renderHistory() {
+        if (!historyList) return;
+        historyList.innerHTML = "";
+        const arr = loadHistory();
+        updateHistoryPager(arr);
+        if (!arr.length) {
+            historyPage = 0;
+            const p = document.createElement("p");
+            p.className = "hist-empty-msg";
+            p.textContent = "Chưa có URL nào. Sau khi chấm điểm thành công, URL sẽ lưu ở đây.";
+            historyList.appendChild(p);
+            return;
+        }
+        const totalPages = Math.max(1, Math.ceil(arr.length / HIST_PAGE_SIZE));
+        if (historyPage >= totalPages) historyPage = totalPages - 1;
+        const start = historyPage * HIST_PAGE_SIZE;
+        const pageItems = arr.slice(start, start + HIST_PAGE_SIZE);
+        pageItems.forEach(function (item, localIdx) {
+            const globalIdx = start + localIdx;
+            const card = document.createElement("div");
+            card.className = "hist-main";
+            const u = item.url || "—";
+            const short = u.length > 48 ? u.slice(0, 46) + "…" : u;
+            const kw = item.keyword ? " · " + item.keyword : "";
+            let when = "";
+            try {
+                when = new Date(item.ts || 0).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+            } catch (e2) {
+                when = "";
+            }
+            const cached = loadResponseCache(item);
+            const sc = cached ? mainScore(cached) : null;
+            const scoreText = sc != null ? Math.round(sc * 10) / 10 + "/100" : "chưa cache";
+            const scoreCls = sc != null ? "hist-score-badge" : "hist-score-badge muted";
+
+            const openBtn = document.createElement("button");
+            openBtn.type = "button";
+            openBtn.className = "hist-open";
+            openBtn.title = u;
+            openBtn.innerHTML =
+                '<div class="u">' + esc(short) + "</div>" +
+                '<div class="meta">' + esc(when) + esc(kw) + "</div>";
+            openBtn.addEventListener("click", function () {
+                applyHistoryItem(item);
+            });
+
+            const footer = document.createElement("div");
+            footer.className = "hist-footer";
+
+            const scoreBadge = document.createElement("span");
+            scoreBadge.className = scoreCls;
+            scoreBadge.textContent = scoreText;
+
+            const xlsBtn = document.createElement("button");
+            xlsBtn.type = "button";
+            xlsBtn.className = "hist-xls";
+            xlsBtn.textContent = "Excel";
+            xlsBtn.title = "Tải CSV UTF-8 (mở bằng Excel)";
+            xlsBtn.addEventListener("click", function (ev) {
+                ev.stopPropagation();
+                downloadExcelForItem(item, xlsBtn);
+            });
+
+            const delBtn = document.createElement("button");
+            delBtn.type = "button";
+            delBtn.className = "hist-del";
+            delBtn.textContent = "Xóa";
+            delBtn.title = "Xóa mục này khỏi lịch sử";
+            delBtn.addEventListener("click", function (ev) {
+                ev.stopPropagation();
+                if (!confirm("Xóa mục này khỏi lịch sử?")) return;
+                deleteHistoryAt(globalIdx);
+            });
+
+            footer.appendChild(scoreBadge);
+            footer.appendChild(xlsBtn);
+            footer.appendChild(delBtn);
+
+            card.appendChild(openBtn);
+            card.appendChild(footer);
+            historyList.appendChild(card);
+        });
+        updateHistoryPager(arr);
+    }
+
+    function clearFormAndResults() {
+        document.getElementById("u").value = "";
+        document.getElementById("kw").value = "";
+        const secEl = document.getElementById("secKw");
+        if (secEl) secEl.value = "";
+        const ptEl = document.getElementById("pageType");
+        if (ptEl) ptEl.value = "";
+        document.getElementById("vol").value = "";
+        document.getElementById("rank").value = "";
+        setMsg("", "");
+        out.hidden = true;
+        lastResponseData = null;
+        activeTenTab = "overview";
+        const tenContent = document.getElementById("ssTenContent");
+        if (tenContent) tenContent.innerHTML = "";
+        const tenNav = document.getElementById("ssTenNav");
+        if (tenNav) tenNav.innerHTML = "";
+        const mobileNav = document.getElementById("ssTenMobileNav");
+        if (mobileNav) mobileNav.hidden = true;
+        document.getElementById("bars").innerHTML = "";
+        renderChecklistTable([]);
+        document.getElementById("shPriorityList").innerHTML = "";
+        document.getElementById("shPillarClusters").innerHTML = "";
+        document.getElementById("shConclusionText").textContent = "—";
+        document.getElementById("total15").textContent = "—";
+        const rawEl = document.getElementById("raw");
+        if (rawEl) rawEl.textContent = "";
+        const dbg = document.getElementById("shDebugExtra");
+        if (dbg) dbg.textContent = "";
+    }
+
+    const histPagePrev = document.getElementById("histPagePrev");
+    const histPageNext = document.getElementById("histPageNext");
+    if (histPagePrev) {
+        histPagePrev.addEventListener("click", function () {
+            if (historyPage > 0) {
+                historyPage -= 1;
+                renderHistory();
+                if (historyList) historyList.scrollTop = 0;
+            }
+        });
+    }
+    if (histPageNext) {
+        histPageNext.addEventListener("click", function () {
+            const arr = loadHistory();
+            const totalPages = Math.ceil(arr.length / HIST_PAGE_SIZE);
+            if (historyPage < totalPages - 1) {
+                historyPage += 1;
+                renderHistory();
+                if (historyList) historyList.scrollTop = 0;
+            }
+        });
+    }
+
+    renderHistory();
+
+    const ssTenMobileSelect = document.getElementById("ssTenMobileSelect");
+    if (ssTenMobileSelect) {
+        ssTenMobileSelect.addEventListener("change", function () {
+            navigateTenTab(ssTenMobileSelect.value || "overview");
+        });
+    }
+
+    if (!token) {
+        msg.textContent = "Chưa có phiên đăng nhập. Mở /tool → Đăng nhập, rồi quay lại trang này.";
+        msg.className = "err";
+        btn.disabled = true;
+        if (btnReset) btnReset.disabled = true;
+        return;
+    }
+
+    if (btnReset) {
+        btnReset.addEventListener("click", function () {
+            clearFormAndResults();
+        });
+    }
+
+    const btnExportCsv = document.getElementById("btnExportCsv");
+    if (btnExportCsv) {
+        btnExportCsv.addEventListener("click", function () {
+            if (!lastResponseData) {
+                setMsg("Chưa có kết quả để xuất.", "err");
+                return;
+            }
+            const item = {
+                url: document.getElementById("u").value.trim(),
+                keyword: document.getElementById("kw").value.trim(),
+                vol: document.getElementById("vol").value.trim(),
+                rank: document.getElementById("rank").value.trim(),
+            };
+            const fn = "cham-diem-seo-" + slugFromUrl(item.url) + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+            triggerDownload(fn, exportChecklistToCsv(lastResponseData, item));
+            setMsg("Đã tải file CSV UTF-8.", "ok");
+        });
+    }
+
+    const last = tryLoadLastResponse();
+    if (last && last.response) {
+        document.getElementById("u").value = last.url || "";
+        document.getElementById("kw").value = last.keyword || "";
+        const secEl = document.getElementById("secKw");
+        if (secEl) secEl.value = last.secKw || "";
+        const ptEl = document.getElementById("pageType");
+        if (ptEl) ptEl.value = last.pageType || "";
+        document.getElementById("vol").value = last.vol || "";
+        document.getElementById("rank").value = last.rank || "";
+        applyScoreboardResponse(last.response);
+        saveResponseCache(
+            {
+                url: last.url,
+                keyword: last.keyword,
+                secKw: last.secKw || "",
+                pageType: last.pageType || "",
+                vol: last.vol,
+                rank: last.rank,
+            },
+            last.response
+        );
+        setMsg("Đã khôi phục kết quả lần chấm gần nhất (từ trình duyệt).", "ok");
+    }
+
+    btn.addEventListener("click", async function () {
+        const url = document.getElementById("u").value.trim();
+        const keyword = document.getElementById("kw").value.trim();
+        const secKwRaw = document.getElementById("secKw") ? document.getElementById("secKw").value.trim() : "";
+        const pageType = document.getElementById("pageType") ? document.getElementById("pageType").value.trim() : "";
+        const volRaw = document.getElementById("vol").value.trim();
+        const rankRaw = document.getElementById("rank").value.trim();
+        if (!url) {
+            setMsg("Nhập URL.", "err");
+            return;
+        }
+        const body = { url: url };
+        if (keyword) body.keyword = keyword;
+        const secList = parseSecondaryKeywords(secKwRaw);
+        if (secList.length) body.secondary_keywords = secList;
+        if (pageType) body.page_type = pageType;
+        if (volRaw) body.search_volume = parseInt(volRaw, 10);
+        if (rankRaw) body.current_serp_position = parseInt(rankRaw, 10);
+        btn.disabled = true;
+        setMsg("Đang phân tích…", "");
+        out.hidden = true;
+        try {
+            const r = await fetch("/analyze/url-seo-scoreboard", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + token,
+                },
+                body: JSON.stringify(body),
+            });
+            const d = await r.json().catch(function () { return {}; });
+            if (!r.ok) {
+                setMsg(d.detail ? (typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail)) : "Lỗi " + r.status, "err");
+                return;
+            }
+            setMsg("Xong.", "ok");
+            applyScoreboardResponse(d);
+            const histEntry = {
+                url: url,
+                keyword: keyword,
+                secKw: secKwRaw,
+                pageType: pageType,
+                vol: volRaw,
+                rank: rankRaw,
+                ts: Date.now(),
+            };
+            saveHistory(histEntry);
+            saveResponseCache(histEntry, d);
+            saveLastResponse(url, keyword, d, volRaw, rankRaw, secKwRaw, pageType);
+            historyPage = 0;
+            renderHistory();
+        } catch (e) {
+            setMsg(String(e.message || e), "err");
+        } finally {
+            btn.disabled = false;
+        }
+    });
+})();
+    </script>
+<script>
+(() => {
+    try {
+        const path = (window.location && window.location.pathname) ? window.location.pathname.replace(/\/+$/, "") : "";
+        document.querySelectorAll('.nav a, nav[aria-label="Menu chính"] a').forEach((a) => {
+            const href = (a.getAttribute("href") || "").trim();
+            if (!href || href.startsWith("http")) return;
+            const h = href.replace(/\/+$/, "");
+            if (h && h === path) a.classList.add("active");
+        });
+        if (path === "/settings") {
+            document.querySelectorAll('a[href="/settings"]').forEach((b) => b.classList.add("active"));
+        }
+    } catch (_) {}
+})();
+</script>
+{% include "partials/digiseo_i18n.html" %}
+{% include "partials/digiseo_pricing_bundle.html" %}
+</body>
+</html>

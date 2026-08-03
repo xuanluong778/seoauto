@@ -1,6 +1,6 @@
 # UI Design System Roadmap
 
-Tài liệu này mô tả cách chuẩn hóa UI/UX cho DigiSEO để nhìn chuyên nghiệp như SaaS thật.
+Tài liệu này mô tả cách chuẩn hóa UI/UX cho Seoauto để nhìn chuyên nghiệp như SaaS thật.
 
 ---
 

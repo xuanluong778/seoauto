@@ -1,0 +1,146 @@
+/* Unified credit confirm popup */
+.dcc-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 12050;
+    background: rgba(2, 8, 20, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.dcc-modal {
+    width: min(480px, 100%);
+    background: rgba(15, 23, 42, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    color: #e2e8f0;
+    overflow: hidden;
+}
+
+.dcc-modal--warn {
+    border-color: rgba(251, 191, 36, 0.45);
+}
+
+.dcc-modal--danger {
+    border-color: rgba(248, 113, 113, 0.5);
+}
+
+.dcc-head {
+    padding: 16px 18px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dcc-head h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #f8fafc;
+}
+
+.dcc-head p {
+    margin: 6px 0 0;
+    font-size: 0.82rem;
+    color: #94a3b8;
+}
+
+.dcc-body {
+    padding: 14px 18px;
+}
+
+.dcc-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    font-size: 0.88rem;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+.dcc-row:last-child {
+    border-bottom: none;
+}
+
+.dcc-row span {
+    color: #94a3b8;
+}
+
+.dcc-row strong {
+    color: #f1f5f9;
+    text-align: right;
+}
+
+.dcc-row strong.is-cost {
+    color: #00e676;
+    font-size: 1rem;
+}
+
+.dcc-alert {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.dcc-alert--warn {
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    color: #fde68a;
+}
+
+.dcc-alert--danger {
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    color: #fecaca;
+}
+
+.dcc-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 18px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dcc-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-weight: 600;
+    font-size: 0.86rem;
+    cursor: pointer;
+}
+
+.dcc-btn--ghost {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #e2e8f0;
+}
+
+.dcc-btn--primary {
+    background: #00e676;
+    color: #042015;
+}
+
+.dcc-btn--upgrade {
+    background: #a78bfa;
+    color: #1e1033;
+}
+
+.dcc-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.dcc-breakdown {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.35);
+}
+
+.dcc-row--sub span {
+    font-size: 0.92em;
+    color: #94a3b8;
+}

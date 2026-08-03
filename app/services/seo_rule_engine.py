@@ -40,6 +40,11 @@ RULE_CHECKLIST: dict[str, str] = {
     "js_shell_missing_critical": "Onpage",
     "cloaking_heuristic": "GSC",
     "robots_meta_noindex_contradiction": "GSC",
+    "meta_robots_noindex": "GSC",
+    "x_robots_tag_noindex": "GSC",
+    "canonical_scheme_mismatch": "Onpage",
+    "canonical_trailing_slash_mismatch": "Onpage",
+    "canonical_points_to_bad_status": "GSC",
     "http_status_non_200": "GSC",
     "missing_title": "Onpage",
     "title_too_long": "Onpage",
@@ -173,6 +178,11 @@ def build_page_rule_context(
     }
 
 
+def _has_noindex_directive(text: str) -> bool:
+    t = (text or "").lower()
+    return "noindex" in t or "none" in t
+
+
 def evaluate_indexability_blocked(d: dict[str, Any]) -> dict[str, Any] | None:
     idx = d["indexability"]
     fin = d.get("final_indexability_resolved")
@@ -183,18 +193,20 @@ def evaluate_indexability_blocked(d: dict[str, Any]) -> dict[str, Any] | None:
     if not blocked:
         return None
     url = str(d.get("url") or "")
-    page_type = str(d.get("page_type") or "").lower()
     parsed_robots = str((d.get("parsed") or {}).get("robots_meta") or "").lower()
     rs = d.get("resolved_signals")
     xr_doc = ""
     if isinstance(rs, dict):
         xr_doc = str(rs.get("x_robots_tag_document") or "").lower()
-    noindex = ("noindex" in parsed_robots or "none" in parsed_robots or "noindex" in xr_doc or "none" in xr_doc)
+    meta_txt = str(idx.get("meta_robots_text") or parsed_robots or "")
+    xr_txt = str(idx.get("x_robots_tag") or xr_doc or "")
+    # noindex cụ thể do rule meta_robots_noindex / x_robots_tag_noindex xử lý
+    if _has_noindex_directive(meta_txt) or _has_noindex_directive(xr_txt):
+        return None
+    page_type = str(d.get("page_type") or "").lower()
     severity = "high"
     if _policy_like_url(url):
         severity = "low"
-    elif noindex and page_type in ("product", "service"):
-        severity = "high"
     conf = float(idx.get("indexability_confidence") or 0.85)
     return _issue(
         "indexability_blocked",
@@ -202,25 +214,87 @@ def evaluate_indexability_blocked(d: dict[str, Any]) -> dict[str, Any] | None:
         severity,
         conf,
         "indexability",
-        why="Google thường không đưa URL vào index khi noindex, none, hoặc HTTP lỗi — mất traffic tìm kiếm có chủ đích.",
+        why="Google thường không đưa URL vào index khi HTTP lỗi hoặc tín hiệu chặn index khác noindex — mất traffic tìm kiếm có chủ đích.",
         detected_from=[
             "resolved.final_indexability",
             "indexability.indexability_reason",
             "status",
         ],
         causes=[
-            "Meta robots / googlebot chứa noindex hoặc none.",
-            "X-Robots-Tag trên phản hồi HTTP.",
             "Mã HTTP không phải 2xx.",
+            "Tín hiệu chặn index khác noindex (header/meta đặc biệt).",
         ],
         fixes=[
             "Xác nhận trong GSC → Page indexing: URL có bị 'Excluded' không.",
-            "Sửa meta robots / X-Robots-Tag hoặc HTTP status theo intent (staging vs production).",
+            "Sửa HTTP status hoặc tín hiệu chặn index theo intent (staging vs production).",
         ],
         validation=[
             "Mở URL với Googlebot UA (hoặc GSC URL Inspection) và kiểm tra HTML + response headers.",
             "So khớp bản raw vs rendered trong audit debug.",
         ],
+    )
+
+
+def evaluate_meta_robots_noindex(d: dict[str, Any]) -> dict[str, Any] | None:
+    idx = d["indexability"]
+    meta = str(idx.get("meta_robots_text") or (d.get("parsed") or {}).get("robots_meta") or "")
+    if not _has_noindex_directive(meta):
+        return None
+    fin = d.get("final_indexability_resolved", idx.get("indexable", True))
+    if fin is True and not _has_noindex_directive(meta):
+        return None
+    url = str(d.get("url") or "")
+    severity = "high"
+    if _policy_like_url(url):
+        severity = "low"
+    conf = float(idx.get("indexability_confidence") or 0.93)
+    return _issue(
+        "meta_robots_noindex",
+        f"Meta robots/googlebot chứa noindex/none — URL không được index: {url}",
+        severity,
+        conf,
+        "indexability",
+        why="Thẻ meta robots noindex là tín hiệu mạnh khiến Google thường loại URL khỏi index.",
+        detected_from=["indexability.meta_robots_text", "parsed.robots_meta"],
+        causes=["CMS staging", "Plugin SEO bật noindex nhầm", "Template <head> copy nhầm"],
+        fixes=["Gỡ noindex/none khỏi meta robots nếu URL cần index.", "Kiểm tra plugin SEO và môi trường production."],
+        validation=["View source / rendered HTML <head>.", "GSC URL Inspection → Indexing allowed?"],
+    )
+
+
+def evaluate_x_robots_tag_noindex(d: dict[str, Any]) -> dict[str, Any] | None:
+    idx = d["indexability"]
+    rs = d.get("resolved_signals") or {}
+    xr = str(
+        rs.get("x_robots_tag_document")
+        or idx.get("x_robots_tag")
+        or idx.get("x_robots_tag_raw")
+        or ""
+    )
+    hdrs = dict(d.get("playwright_headers") or d.get("raw_headers") or {})
+    if not xr:
+        for k, v in hdrs.items():
+            if str(k).lower() == "x-robots-tag" and v:
+                xr = str(v)
+                break
+    if not _has_noindex_directive(xr):
+        return None
+    url = str(d.get("url") or "")
+    severity = "high"
+    if _policy_like_url(url):
+        severity = "low"
+    conf = float(idx.get("indexability_confidence") or 0.94)
+    return _issue(
+        "x_robots_tag_noindex",
+        f"HTTP header X-Robots-Tag chứa noindex/none — URL không được index: {url}",
+        severity,
+        conf,
+        "indexability",
+        why="X-Robots-Tag trên response HTTP được Google ưu tiên — chặn index ngay cả khi meta cho phép.",
+        detected_from=["indexability.x_robots_tag", "response_headers.x-robots-tag"],
+        causes=["CDN/WAF header", "Server config Apache/Nginx", "Plugin cache header"],
+        fixes=["Gỡ noindex khỏi X-Robots-Tag trên response 200.", "Đồng bộ header với meta robots intent."],
+        validation=["curl -I URL và kiểm tra X-Robots-Tag.", "GSC Live test."],
     )
 
 
@@ -609,6 +683,9 @@ def evaluate_canonical_points_to_non_indexable(d: dict[str, Any]) -> dict[str, A
     cta = d.get("canonical_target_analysis") or {}
     if not cta.get("fetched"):
         return None
+    st = int(cta.get("target_status") or 0)
+    if 300 <= st < 600:
+        return None  # canonical_points_to_bad_status xử lý
     if cta.get("target_indexable", True):
         return None
     return _issue(
@@ -626,6 +703,99 @@ def evaluate_canonical_points_to_non_indexable(d: dict[str, Any]) -> dict[str, A
         causes=["Sai URL trong CMS", "Staging/noindex trên bản đích", "Soft-404 trên canonical"],
         fixes=["Sửa canonical về URL indexable thật hoặc self-canonical đúng intent.", "Kiểm tra robots + status đích."],
         validation=["Mở canonical đích bằng Googlebot UA.", "URL Inspection cho URL đích."],
+    )
+
+
+def evaluate_canonical_points_to_bad_status(d: dict[str, Any]) -> dict[str, Any] | None:
+    cta = d.get("canonical_target_analysis") or {}
+    if not cta.get("fetched"):
+        return None
+    st = int(cta.get("target_status") or 0)
+    if st == 200 or st == 0:
+        return None
+    cr = d["canonical_resolution"]
+    canonical = str(cr.get("canonical_url") or d["parsed"].get("canonical") or "")
+    if not canonical:
+        return None
+    if 300 <= st < 400:
+        sev = "medium"
+        label = f"redirect HTTP {st}"
+    elif 400 <= st < 500:
+        sev = "high"
+        label = f"lỗi client HTTP {st}"
+    else:
+        sev = "high"
+        label = f"lỗi server HTTP {st}"
+    return _issue(
+        "canonical_points_to_bad_status",
+        f"Canonical trỏ tới URL đích trả {label}: {canonical}",
+        sev,
+        0.9,
+        "indexability",
+        why="Canonical sang URL redirect/lỗi khiến Google khó hợp nhất cluster và có thể bỏ qua canonical.",
+        detected_from=[
+            "canonical_target_analysis.target_status",
+            "canonical_resolution.canonical_url",
+        ],
+        causes=["URL đích đã xóa/redirect", "Staging URL trong canonical", "Sai slug trong CMS"],
+        fixes=["Sửa canonical về URL trả 200 indexable.", "Redirect 301 đích cũ về URL chính thức trước khi canonical."],
+        validation=["Fetch canonical đích bằng curl.", "GSC URL Inspection canonical đích."],
+    )
+
+
+def evaluate_canonical_scheme_mismatch(d: dict[str, Any]) -> dict[str, Any] | None:
+    cr = d["canonical_resolution"]
+    c = str(cr.get("canonical_url") or "").strip()
+    fe = str(cr.get("final_effective_url") or d["url"] or "").strip()
+    if not c or not fe:
+        return None
+    pc, pf = urlparse(c), urlparse(fe)
+    if pc.path.rstrip("/") != pf.path.rstrip("/"):
+        return None
+    if (pc.hostname or "").lower().replace("www.", "") != (pf.hostname or "").lower().replace("www.", ""):
+        return None
+    if pc.scheme.lower() == pf.scheme.lower():
+        return None
+    return _issue(
+        "canonical_scheme_mismatch",
+        f"Canonical dùng scheme khác URL hiệu dụng ({pc.scheme} vs {pf.scheme}): {c}",
+        "medium",
+        0.87,
+        "indexability",
+        why="http vs https là hai URL khác nhau — Google có thể chọn bản không mong muốn nếu canonical không nhất quán.",
+        detected_from=["canonical_resolution.canonical_url", "canonical_resolution.final_effective_url"],
+        causes=["Mixed content redirect chưa hoàn tất", "CMS hard-code http trong canonical"],
+        fixes=["Chuẩn hóa canonical về https (hoặc scheme chính thức).", "301 toàn site sang HTTPS."],
+        validation=["So sánh scheme sau redirect cuối.", "GSC property http vs https."],
+    )
+
+
+def evaluate_canonical_trailing_slash_mismatch(d: dict[str, Any]) -> dict[str, Any] | None:
+    cr = d["canonical_resolution"]
+    c = str(cr.get("canonical_url") or "").strip()
+    fe = str(cr.get("final_effective_url") or d["url"] or "").strip()
+    if not c or not fe:
+        return None
+    pc, pf = urlparse(c), urlparse(fe)
+    if pc.scheme.lower() != pf.scheme.lower():
+        return None
+    if (pc.hostname or "").lower() != (pf.hostname or "").lower():
+        return None
+    if pc.path.rstrip("/") != pf.path.rstrip("/"):
+        return None
+    if pc.path == pf.path:
+        return None
+    return _issue(
+        "canonical_trailing_slash_mismatch",
+        f"Canonical khác trailing slash so với URL hiệu dụng: {c} vs {fe}",
+        "medium",
+        0.84,
+        "indexability",
+        why="Hai biến thể slash có thể tách tín hiệu index nếu không redirect/canonical nhất quán.",
+        detected_from=["canonical_resolution.canonical_url", "canonical_resolution.final_effective_url"],
+        causes=["CMS thêm/bỏ slash", "Server rewrite không thống nhất"],
+        fixes=["Chọn một convention (có hoặc không slash) và 301 + canonical thống nhất."],
+        validation=["curl -I cả hai biến thể slash.", "Screaming Frog canonical report."],
     )
 
 
@@ -742,12 +912,17 @@ def evaluate_weak_heading_structure(d: dict[str, Any]) -> dict[str, Any] | None:
 
 
 RULES: list[IssueFn] = [
+    evaluate_meta_robots_noindex,
+    evaluate_x_robots_tag_noindex,
     evaluate_indexability_blocked,
     evaluate_http_status_non_200,
     evaluate_indexability_signal_conflict,
     evaluate_canonical_cross_host,
     evaluate_canonical_self_mismatch,
+    evaluate_canonical_scheme_mismatch,
+    evaluate_canonical_trailing_slash_mismatch,
     evaluate_canonical_missing_high_value,
+    evaluate_canonical_points_to_bad_status,
     evaluate_canonical_points_to_non_indexable,
     evaluate_canonical_low_similarity_mismatch,
     evaluate_google_may_ignore_canonical,

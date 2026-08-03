@@ -1,6 +1,6 @@
 # Admin SaaS Metrics
 
-Tài liệu này mô tả các chỉ số SaaS cần thêm vào trang Admin DigiSEO.
+Tài liệu này mô tả các chỉ số SaaS cần thêm vào trang Admin Seoauto.
 
 ---
 

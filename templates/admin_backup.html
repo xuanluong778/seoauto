@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=10">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+    <link rel="stylesheet" href="/static/css/admin-backup.css?v=1">
+</head>
+<body class="ab-page" data-user-dock="hidden">
+{% include "partials/digiseo_top_nav.html" %}
+<div class="adm-wrap">
+    {% set admin_nav_active = 'backup' %}
+    {% include "partials/admin_shell_header.html" %}
+
+    <div class="ab-card adm-bk-status" id="admBkStatus">
+        <p>Đang tải trạng thái backup…</p>
+    </div>
+
+    <div class="ab-card">
+        <div class="adm-bk-toolbar">
+            <select id="admBkFilterType" class="ab-input">
+                <option value="">Tất cả loại</option>
+                <option value="db">Database</option>
+                <option value="media">Uploads/Media</option>
+                <option value="source">Source</option>
+                <option value="infra">Infra</option>
+            </select>
+            <select id="admBkFilterStatus" class="ab-input">
+                <option value="">Tất cả trạng thái</option>
+                <option value="success">Thành công</option>
+                <option value="failed">Lỗi</option>
+                <option value="running">Đang chạy</option>
+                <option value="verified">Đã verify</option>
+            </select>
+            <button type="button" class="ab-btn" id="btnBkRefresh">Làm mới</button>
+            <button type="button" class="ab-btn secondary" id="btnBkTriggerDb">Backup DB</button>
+            <button type="button" class="ab-btn secondary" id="btnBkTriggerSource">Backup Source</button>
+            <button type="button" class="ab-btn secondary" id="btnBkTriggerFull">Backup Full</button>
+        </div>
+        <div class="ab-table-wrap">
+            <table class="ab-table" id="admBkTable">
+                <thead>
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Loại</th>
+                        <th>Trạng thái</th>
+                        <th>Verify</th>
+                        <th>Dung lượng</th>
+                        <th>Thời lượng</th>
+                        <th>Run ID</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="admBkBody"><tr><td colspan="8">Đang tải…</td></tr></tbody>
+            </table>
+        </div>
+        <div class="adm-bk-pager" id="admBkPager"></div>
+    </div>
+    <p class="adm-bk-msg" id="admBkMsg" hidden></p>
+</div>
+<script src="/static/js/digiseo-auth-token.js?v=1"></script>
+<script src="/static/js/digiseo-admin-nav.js?v=1"></script>
+<script src="/static/js/admin-backup.js?v=1"></script>
+</body>
+</html>

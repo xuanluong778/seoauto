@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=8">
+    <link rel="stylesheet" href="/static/css/admin-pricing.css?v=1">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=1">
+</head>
+<body class="ab-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+
+    <div id="admPricingBlocked" class="adm-pricing-blocked" hidden>
+        <h2>Không có quyền truy cập</h2>
+        <p>Chỉ tài khoản <strong>admin</strong> mới vào được trang này.</p>
+        <p><a href="/admin">← Quay lại Admin</a></p>
+    </div>
+
+    <div class="adm-pricing-wrap" id="admPricingApp" hidden>
+        {% include "partials/admin_shell_header.html" %}
+
+        <div class="ab-card adm-pricing-toolbar">
+            <p class="ab-muted-text">Thay đổi được lưu vào bảng <code>plans</code> (metadata). Không hiển thị dữ liệu thanh toán hay API key.</p>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmPricingRefresh">Làm mới</button>
+                <button type="button" class="ab-btn secondary" id="btnAdmPricingResetAll">Reset về mặc định (tất cả)</button>
+            </div>
+        </div>
+
+        <div class="ab-loading" id="admPricingLoading">Đang tải bảng giá…</div>
+        <div class="ab-error" id="admPricingError" hidden></div>
+        <div class="adm-pricing-grid" id="admPricingGrid"></div>
+    </div>
+
+    <div class="adm-pricing-modal" id="admPricingConfirmModal" hidden>
+        <div class="adm-pricing-modal-box" role="dialog" aria-modal="true" aria-labelledby="admPricingConfirmTitle">
+            <h3 id="admPricingConfirmTitle">Xác nhận lưu</h3>
+            <p class="ab-muted-text" id="admPricingConfirmDesc"></p>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmPricingConfirmCancel">Hủy</button>
+                <button type="button" class="ab-btn" id="btnAdmPricingConfirmOk">Lưu thay đổi</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="adm-pricing-modal" id="admPricingResetModal" hidden>
+        <div class="adm-pricing-modal-box" role="dialog" aria-modal="true">
+            <h3>Reset về mặc định</h3>
+            <p class="ab-muted-text" id="admPricingResetDesc">Thao tác này sẽ ghi đè cấu hình hiện tại bằng giá trị mặc định trong hệ thống.</p>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmPricingResetCancel">Hủy</button>
+                <button type="button" class="ab-btn" id="btnAdmPricingResetOk">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="ab-toast" id="admPricingToast" role="status" aria-live="polite" hidden></div>
+
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=1"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=6" defer></script>
+    <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+    <script src="/static/js/admin-pricing.js?v=2"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

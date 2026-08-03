@@ -22,6 +22,13 @@ from app.services.crawler import (
     parse_robots_txt,
     parse_sitemap_xml,
 )
+from app.services.index_crawl_rules import (
+    build_sitemap_indexability_issues,
+    internal_link_issue_message,
+    internal_link_issue_type,
+    robots_fetch_issue_type,
+    sitemap_missing_issue_type,
+)
 from app.services.audit_debug import AuditDebugSession
 from app.services.parser import parse_page, parse_page_seo_data
 from app.services.structured_parser import structured_to_legacy_page_data
@@ -40,6 +47,10 @@ def _tech_issue(
     confidence: float | None = None,
     explanation: str | None = None,
     page_type: str | None = None,
+    evidence: list[dict] | None = None,
+    source: str | None = None,
+    detected_from: list[str] | None = None,
+    error_kind: str | None = None,
 ) -> dict:
     group = checklist_group or TECH_CHECKLIST_BY_TYPE.get(type_, "General")
     d: dict = {
@@ -58,6 +69,14 @@ def _tech_issue(
         d["explanation"] = explanation
     if page_type:
         d["page_type"] = page_type
+    if evidence:
+        d["evidence"] = evidence
+    if source:
+        d["source"] = source
+    if detected_from:
+        d["detected_from"] = detected_from
+    if error_kind:
+        d["error_kind"] = error_kind
     return d
 
 
@@ -467,6 +486,13 @@ def analyze_technical_seo(
     gsc_queries: list[dict] | None = None,
     project_id: int | None = None,
     enable_keyword_intelligence: bool | None = None,
+    user_id: int | None = None,
+    use_gsc: bool = False,
+    gsc_property: str | None = None,
+    gsc_date_range: str = "28d",
+    gsc_start_date: str | None = None,
+    gsc_end_date: str | None = None,
+    url_inspection_limit: int = 10,
 ) -> TechnicalAnalyzeResponse:
     try:
         normalized_start = normalize_url(start_url)
@@ -524,50 +550,63 @@ def analyze_technical_seo(
     )
 
     broken_links: list[dict] = []
+    broken_internal_urls: set[str] = set()
     for result in checked_links:
         if not result["is_broken"]:
             continue
-        broken_links.append({"url": result["url"], "status": result["status"]})
-    broken_internal_urls: set[str] = set()
-    for b in broken_links:
-        u = str(b.get("url") or "").strip()
+        broken_links.append({"url": result["url"], "status": result["status"], "error_kind": result.get("error_kind")})
+        u = str(result.get("url") or "").strip()
         if not u:
             continue
         try:
             broken_internal_urls.add(normalize_url(u))
         except ValueError:
             broken_internal_urls.add(u)
-        if result["status"] == 404:
-            technical_issues.append(
-                _tech_issue(
-                    "broken_internal_link",
-                    "high",
-                    f"Liên kết nội bộ trả 404: {result['url']}",
-                    url=result["url"],
-                )
+        issue_type, sev = internal_link_issue_type(result)
+        status = int(result.get("status") or 0)
+        kind = result.get("error_kind") or ""
+        evidence = [
+            {"kind": "url", "url": u},
+            {"kind": "http_status", "value": status},
+        ]
+        if kind:
+            evidence.append({"kind": "error_kind", "value": kind})
+        technical_issues.append(
+            _tech_issue(
+                issue_type,
+                sev,
+                internal_link_issue_message(result),
+                url=u,
+                confidence=0.88 if status else 0.75,
+                evidence=evidence,
+                source="crawl",
+                detected_from=["internal_link_check", f"http_status:{status}"],
+                error_kind=str(kind) if kind else None,
             )
-        else:
-            technical_issues.append(
-                _tech_issue(
-                    "broken_internal_http_error",
-                    "high",
-                    f"Liên kết nội bộ lỗi HTTP {result['status']}: {result['url']}",
-                    url=result["url"],
-                )
-            )
+        )
 
     redirect_chains = [
-        {"url": result["url"], "chain": result["chain"], "hops": len(result["chain"]) - 1}
+        {"url": result["url"], "chain": list(result["chain"]), "hops": len(result["chain"]) - 1}
         for result in checked_links
-        if not result["is_broken"] and len(result["chain"]) >= 3
+        if not result["is_broken"] and len(result["chain"]) >= 4
     ]
     for chain in redirect_chains:
+        full_chain = list(chain["chain"])
         technical_issues.append(
             _tech_issue(
                 "redirect_chain",
                 "medium",
-                f"Chuỗi redirect dài ({chain['hops']} bước) — ảnh hưởng crawl: {chain['url']}",
+                f"Chuỗi redirect dài ({chain['hops']} bước, >2 hops) — ảnh hưởng crawl: {chain['url']}",
                 url=chain["url"],
+                confidence=0.85,
+                evidence=[
+                    {"kind": "url", "url": chain["url"]},
+                    {"kind": "redirect_chain", "value": full_chain},
+                    {"kind": "redirect_chain_urls", "urls": full_chain},
+                    {"kind": "hops", "value": chain["hops"]},
+                ],
+                source="crawl",
+                detected_from=["internal_link_check", "redirect_chain"],
             )
         )
 
@@ -832,20 +871,73 @@ def analyze_technical_seo(
         technical_issues.extend(_analyze_robots_txt_detailed(robots, base_netloc, base_scheme))
     sitemap = parse_sitemap_xml(start_url, robots_sitemaps=robots.get("sitemaps", []))
 
-    if robots.get("status", 0) != 200:
+    robots_fail = robots_fetch_issue_type(robots)
+    if robots_fail:
+        r_type, r_sev, r_suffix = robots_fail
         technical_issues.append(
             _tech_issue(
-                "robots_unreachable",
-                "high",
-                "robots.txt không tồn tại hoặc không truy cập được (Robots / Technical-SEO.txt).",
+                r_type,
+                r_sev,
+                f"robots.txt {r_suffix} (Robots / Technical-SEO.txt).",
+                url=robots.get("url"),
+                confidence=0.9 if int(robots.get("status") or 0) else 0.78,
+                evidence=[
+                    {"kind": "robots_txt", "url": robots.get("url")},
+                    {"kind": "http_status", "value": int(robots.get("status") or 0)},
+                    *(
+                        [{"kind": "error_kind", "value": robots.get("error_kind")}]
+                        if robots.get("error_kind")
+                        else []
+                    ),
+                ],
+                source="robots",
+                detected_from=["robots.txt", "http_status"],
             )
         )
-    if sitemap.get("status", 0) != 200:
+    if sitemap.get("parse_error"):
         technical_issues.append(
             _tech_issue(
-                "sitemap_unreachable",
+                "sitemap_parse_error",
                 "high",
-                "sitemap.xml / sitemap_index không tồn tại hoặc không đọc được (Sitemap / Technical-SEO.txt).",
+                f"Sitemap trả 200 nhưng XML không parse được: {sitemap.get('url') or sitemap.get('last_error', {}).get('url', '')}",
+                url=sitemap.get("url") or (sitemap.get("last_error") or {}).get("url"),
+                confidence=0.92,
+                evidence=[
+                    {"kind": "sitemap_url", "url": sitemap.get("url")},
+                    {"kind": "parse_error", "value": True},
+                    {"kind": "http_status", "value": 200},
+                ],
+                source="sitemap",
+                detected_from=["sitemap.xml", "xml_parse"],
+            )
+        )
+    elif sitemap.get("status", 0) != 200:
+        sm_type, sm_message = sitemap_missing_issue_type(sitemap)
+        sm_url = sitemap.get("url") or (sitemap.get("last_error") or {}).get("url") or ""
+        last_err = sitemap.get("last_error") or {}
+        technical_issues.append(
+            _tech_issue(
+                sm_type,
+                "high",
+                sm_message,
+                url=sm_url or None,
+                confidence=0.88 if sm_type == "sitemap_not_found" else 0.85,
+                evidence=[
+                    *([{"kind": "sitemap_url", "url": sm_url}] if sm_url else []),
+                    {"kind": "http_status", "value": int(last_err.get("http_status") or 0)},
+                    *(
+                        [{"kind": "error_kind", "value": last_err.get("error_kind")}]
+                        if last_err.get("error_kind")
+                        else []
+                    ),
+                    *(
+                        [{"kind": "domain_scope", "domain": base_netloc or base_domain}]
+                        if not sm_url and (base_netloc or base_domain)
+                        else []
+                    ),
+                ],
+                source="sitemap",
+                detected_from=["sitemap.xml", "http_status"],
             )
         )
     elif not (sitemap.get("urls") or []):
@@ -855,8 +947,43 @@ def analyze_technical_seo(
                 "medium",
                 "Sitemap trả 200 nhưng không có URL <loc> (Sitemap / Technical-SEO.txt).",
                 url=sitemap.get("url"),
+                confidence=0.9,
+                evidence=[
+                    {"kind": "sitemap_url", "url": sitemap.get("url")},
+                    {"kind": "http_status", "value": 200},
+                    {"kind": "loc_count", "value": 0},
+                ],
+                source="sitemap",
+                detected_from=["sitemap.xml", "loc"],
             )
         )
+
+    if (
+        robots.get("status", 0) == 200
+        and sitemap.get("status", 0) == 200
+        and (sitemap.get("urls") or [])
+        and not sitemap.get("parse_error")
+    ):
+        for raw_issue in build_sitemap_indexability_issues(
+            sitemap=sitemap,
+            pages=pages,
+            robots=robots,
+            check_url_status=check_internal_link_status,
+        ):
+            technical_issues.append(
+                _tech_issue(
+                    raw_issue["type"],
+                    raw_issue["severity"],
+                    raw_issue["message"],
+                    url=raw_issue.get("url"),
+                    checklist_group=raw_issue.get("checklist_group"),
+                    confidence=raw_issue.get("confidence"),
+                    evidence=raw_issue.get("evidence"),
+                    source=raw_issue.get("source"),
+                    detected_from=raw_issue.get("detected_from"),
+                    error_kind=raw_issue.get("error_kind"),
+                )
+            )
 
     if (
         robots.get("status", 0) == 200
@@ -918,6 +1045,58 @@ def analyze_technical_seo(
         start_url=start_url,
     )
 
+    # Hybrid GSC layer (optional) — never fails the whole audit
+    gsc_payload: dict = {}
+    issues_final = issues_out
+    if use_gsc and user_id and gsc_property:
+        try:
+            from app.services.gsc_enrichment import enrich_technical_audit_with_gsc
+
+            gsc_payload = enrich_technical_audit_with_gsc(
+                user_id=user_id,
+                gsc_property=gsc_property,
+                gsc_date_range=gsc_date_range,
+                gsc_start_date=gsc_start_date,
+                gsc_end_date=gsc_end_date,
+                url_inspection_limit=url_inspection_limit,
+                start_url=start_url,
+                pages=pages,
+                sitemap=(
+                    sitemap
+                    if isinstance(sitemap, dict)
+                    else (sitemap.model_dump() if hasattr(sitemap, "model_dump") else {})
+                ),
+                issues=[dict(i) if hasattr(i, "model_dump") else i for i in issues_out],
+                page_audits=page_audits,
+            )
+            issues_final = gsc_payload.get("issues") or issues_out
+            if gsc_payload.get("confidence_overall") is not None:
+                technical_summary_dict["gsc_confidence"] = gsc_payload["confidence_overall"]
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning("GSC enrichment failed (audit continues): %s", exc)
+            gsc_payload = {
+                "gsc_summary": {
+                    "enabled": True,
+                    "connected": False,
+                    "partial_data": True,
+                    "message": f"Không tích hợp được GSC: {exc}",
+                    "errors": [str(exc)],
+                },
+            }
+            from app.services.gsc_enrichment import _apply_no_gsc_disclaimers
+
+            _apply_no_gsc_disclaimers(
+                [dict(i) if hasattr(i, "model_dump") else i for i in issues_out]
+            )
+    else:
+        from app.services.gsc_enrichment import _apply_no_gsc_disclaimers
+
+        raw_issues = [dict(i) if hasattr(i, "model_dump") else i for i in issues_out]
+        _apply_no_gsc_disclaimers(raw_issues)
+        issues_final = raw_issues
+
     return TechnicalAnalyzeResponse(
         domain=base_domain,
         pages_scanned=len(pages),
@@ -927,11 +1106,17 @@ def analyze_technical_seo(
         internal_link_structure=internal_structure,
         robots=robots,
         sitemap=sitemap,
-        issues=issues_out,
+        issues=issues_final,
         page_audits=page_audits,
         ranking_priorities=ranking_priorities,
         site_graph_summary=site_graph_summary,
         keyword_intelligence=kw_bundle,
         topical_authority=topical_rows,
         seo_intelligence_core=seo_core,
+        gsc_summary=gsc_payload.get("gsc_summary"),
+        gsc_enriched_pages=gsc_payload.get("gsc_enriched_pages") or [],
+        gsc_confirmed_issues=gsc_payload.get("gsc_confirmed_issues") or [],
+        gsc_opportunities=gsc_payload.get("gsc_opportunities") or [],
+        url_inspection_results=gsc_payload.get("url_inspection_results") or [],
+        confidence_overall=gsc_payload.get("confidence_overall"),
     )

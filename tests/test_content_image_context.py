@@ -1,5 +1,11 @@
 """Tests for context-aware Content AI images."""
 
+from app.services.content_ai_image_inserter import (
+    count_content_images,
+    inject_images_into_content_html,
+    prepare_content_html_for_images,
+    strip_placeholder_figures,
+)
 from app.services.content_image_context import (
     build_image_prompt_for_section,
     build_image_search_query_for_section,
@@ -130,3 +136,41 @@ def test_search_query_not_empty():
         "Technical SEO",
     )
     assert len(q) >= 4
+
+
+def test_strip_llm_placeholder_figures_before_image_insert():
+    html = """
+    <h2>Dịch vụ sửa máy tính</h2>
+    <figure><img alt="placeholder" src="" /><figcaption>Ảnh minh họa</figcaption></figure>
+    <p>Thợ sửa laptop tại nhà.</p>
+    <h2>Báo giá</h2>
+    <figure><img alt="giá" src="" /></figure>
+    <p>Giá minh bạch theo lỗi.</p>
+    """
+    cleaned = strip_placeholder_figures(html)
+    assert count_content_images(cleaned) == 0
+    prepared = prepare_content_html_for_images(html)
+    assert count_content_images(prepared) == 0
+    assert "<figure" not in prepared.lower() or 'src=""' not in prepared
+
+
+def test_inject_after_h2_when_placeholders_removed():
+    html = prepare_content_html_for_images(
+        '<h2>Core Web Vitals</h2><figure><img src="" alt="x"/></figure><p>LCP và CLS.</p>'
+    )
+    out = inject_images_into_content_html(
+        html,
+        [{"h2_index": 0, "url": "/static/uploads/content-ai/test.webp", "alt": "Core Web Vitals"}],
+    )
+    assert "/static/uploads/content-ai/test.webp" in out
+    assert count_content_images(out) == 1
+
+
+def test_extract_section_content_from_list_not_only_paragraph():
+    html = """
+    <h2>Quy trình sửa chữa</h2>
+    <ul><li>Kiểm tra phần cứng</li><li>Thay linh kiện</li></ul>
+    """
+    ctx = extract_image_contexts_from_article(article_html=html)
+    assert len(ctx) == 1
+    assert "phần cứng" in ctx[0]["content"].lower()

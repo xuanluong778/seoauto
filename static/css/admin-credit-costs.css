@@ -1,0 +1,96 @@
+.adm-cc-wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+}
+
+.adm-cc-blocked {
+    max-width: 520px;
+    margin: 48px auto;
+    padding: 24px;
+    text-align: center;
+}
+
+.adm-cc-toolbar {
+    margin-bottom: 14px;
+}
+
+.adm-cc-toolbar code {
+    font-size: 0.82rem;
+    color: #cbd5e1;
+}
+
+.adm-cc-filter {
+    min-width: 220px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--ab-line);
+    background: var(--ab-panel);
+    color: inherit;
+}
+
+.adm-cc-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--ab-line);
+    border-radius: 12px;
+    background: var(--ab-panel);
+}
+
+.adm-cc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.adm-cc-table th,
+.adm-cc-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--ab-line);
+    vertical-align: middle;
+}
+
+.adm-cc-table th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--ab-muted);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.adm-cc-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.adm-cc-table input[type="number"] {
+    width: 72px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--ab-line);
+    background: rgba(0, 0, 0, 0.2);
+    color: inherit;
+}
+
+.adm-cc-table input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+.adm-cc-module {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.adm-cc-action {
+    font-family: ui-monospace, monospace;
+    font-size: 0.82rem;
+}
+
+.adm-cc-label {
+    color: var(--ab-muted);
+    font-size: 0.82rem;
+    max-width: 220px;
+}
+
+.adm-cc-save {
+    white-space: nowrap;
+}

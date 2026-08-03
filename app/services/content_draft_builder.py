@@ -478,6 +478,320 @@ def _extract_district_label(pk: str) -> str:
     return ""
 
 
+_GEO_TAIL_STOPWORDS = frozenset(
+    {
+        "re",
+        "rẻ",
+        "uy",
+        "tin",
+        "tín",
+        "nhanh",
+        "chuyen",
+        "chuyên",
+        "nghiep",
+        "nghiệp",
+        "tai",
+        "tại",
+        "nha",
+        "nhà",
+        "tan",
+        "tận",
+        "noi",
+        "nơi",
+        "gan",
+        "gần",
+        "day",
+        "đây",
+        "online",
+        "gia",
+        "giá",
+        "bao",
+        "nhieu",
+        "nhiêu",
+        "tien",
+        "tiền",
+        "dich",
+        "dịch",
+        "vu",
+        "vụ",
+        "sua",
+        "sửa",
+        "cai",
+        "cài",
+        "dat",
+        "đặt",
+        "mua",
+        "ban",
+        "bán",
+        "la",
+        "là",
+        "gi",
+        "gì",
+        "cho",
+        "va",
+        "và",
+        "co",
+        "có",
+        "khong",
+        "không",
+        "may",
+        "máy",
+        "tinh",
+        "tính",
+        "dien",
+        "điện",
+        "thoai",
+        "thoại",
+        "laptop",
+        "pc",
+        "chong",
+        "chóng",
+        "tot",
+        "tốt",
+        "nhat",
+        "nhất",
+        "dich",
+        "vu",
+    }
+)
+
+
+def _fold_vi_text(s: str) -> str:
+    t = (s or "").replace("Đ", "D").replace("đ", "d")
+    t = unicodedata.normalize("NFKD", t)
+    t = t.encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"\s+", " ", t).strip().lower()
+
+
+def content_ai_extract_geo_tail(pk: str) -> str:
+    """
+    Trích đoạn địa danh từ PRIMARY_KEYWORD (quận/huyện/tp hoặc 1–2 từ cuối nếu là tên địa phương).
+    Dùng chung cho prompt brief và kiểm tra fidelity sau LLM.
+    """
+    raw = re.sub(r"\s+", " ", (pk or "").strip())
+    kw = re.split(r"\s*[|]\s*", raw, maxsplit=1)[0].strip()
+    if not kw:
+        return ""
+    dl = _extract_district_label(kw)
+    if dl:
+        return dl
+    m = re.search(r"(?:thành phố|thanh pho|tp\.?)\s+(.+)$", kw, flags=re.I)
+    if m:
+        return re.sub(r"\s+", " ", m.group(1).strip())
+    m2 = re.search(r"(?:phường|phuong)\s+([^\s,|]+(?:\s+[^\s,|]+)?)", kw, flags=re.I)
+    if m2:
+        return re.sub(r"\s+", " ", m2.group(1).strip())
+    m3 = re.search(
+        r"(?:tại|tai|ở|o)\s+([^\s,|]+(?:\s+[^\s,|]+)?)\s*$",
+        kw,
+        flags=re.I,
+    )
+    if m3:
+        place = re.sub(r"\s+", " ", m3.group(1).strip())
+        if place and not any(_fold_vi_text(w) in _GEO_TAIL_STOPWORDS for w in place.split()):
+            return place
+    words = kw.split()
+    if len(words) < 2:
+        return ""
+    for n in (2, 1):
+        tail_words = words[-n:]
+        if any(_fold_vi_text(w) in _GEO_TAIL_STOPWORDS for w in tail_words):
+            continue
+        if not all(len(_fold_vi_text(w)) >= 2 for w in tail_words):
+            continue
+        if not (_is_service_keyword(kw) or len(words) >= 3):
+            continue
+        candidate = " ".join(tail_words)
+        head = " ".join(words[:-n]).lower()
+        if candidate.lower() in head:
+            continue
+        return candidate
+    return ""
+
+
+def content_ai_align_brief_suggestion(
+    *,
+    field: str,
+    text: str,
+    pk: str,
+    title: str = "",
+    target_website: str = "",
+    secondary_keywords: str = "",
+    meta_description: str = "",
+) -> str:
+    """Chuẩn hóa brief field: giữ output nếu đúng từ khóa/địa danh, ngược lại dùng rule-based."""
+    f = (field or "").strip().lower()
+    body = re.sub(r"\s+", " ", (text or "").strip())
+    kw = re.sub(r"\s+", " ", (pk or "").strip())
+    if f not in {"title", "meta_description", "secondary_keywords"} or not kw:
+        return body
+    if content_ai_brief_field_honors_primary_keyword(field=f, text=body, pk=kw):
+        return body
+    fixed = suggest_content_ai_field(
+        field=f,
+        primary_keyword=kw,
+        title=title,
+        target_website=target_website,
+        secondary_keywords=secondary_keywords,
+        meta_description=meta_description,
+    )
+    return fixed.strip() or body
+
+
+_BRIEF_GEO_CONFLICT_PLACES = (
+    "thủ dầu một",
+    "thu dau mot",
+    "dĩ an",
+    "di an",
+    "tân uyên",
+    "tan uyen",
+    "bến cát",
+    "ben cat",
+    "bình dương",
+    "binh duong",
+)
+
+_BRIEF_GEO_WRONG_PATTERNS = (
+    (re.compile(r"thủ\s*dầu\s*một", re.I), "thu dau mot"),
+    (re.compile(r"thu\s*dau\s*mot", re.I), "thu dau mot"),
+    (re.compile(r"dĩ\s*an", re.I), "di an"),
+    (re.compile(r"di\s*an", re.I), "di an"),
+    (re.compile(r"tân\s*uyên", re.I), "tan uyen"),
+    (re.compile(r"tan\s*uyen", re.I), "tan uyen"),
+    (re.compile(r"bến\s*cát", re.I), "ben cat"),
+    (re.compile(r"ben\s*cat", re.I), "ben cat"),
+)
+
+
+def content_ai_replace_conflicting_geo_in_brief(text: str, pk: str, geo: str = "") -> str:
+    """Thay địa danh sai (vd. Thủ Dầu Một) bằng địa danh đúng từ PRIMARY_KEYWORD."""
+    body = re.sub(r"\s+", " ", (text or "").strip())
+    kw = re.split(r"\s*[|]\s*", re.sub(r"\s+", " ", (pk or "").strip()), maxsplit=1)[0].strip()
+    place = (geo or "").strip() or content_ai_extract_geo_tail(kw)
+    if not body or not kw or not place:
+        return body
+    pk_fold = _fold_vi_text(kw)
+    if _fold_vi_text(place) in _fold_vi_text(body):
+        return body
+    out = body
+    for rx, wrong_fold in _BRIEF_GEO_WRONG_PATTERNS:
+        if wrong_fold in pk_fold:
+            continue
+        if not rx.search(out):
+            continue
+        out = rx.sub(place, out, count=1)
+        break
+    if out == body:
+        for marker in _BRIEF_GEO_CONFLICT_PLACES:
+            mf = _fold_vi_text(marker)
+            if mf in pk_fold or mf not in _fold_vi_text(out):
+                continue
+            out = re.sub(re.escape(marker), place, out, count=1, flags=re.I)
+            break
+    return out
+
+
+def content_ai_finalize_brief_field_value(*, field: str, text: str, pk: str) -> str:
+    """Cổng cuối API gợi ý brief: luôn sửa xung đột địa danh trước khi trả client."""
+    f = (field or "").strip().lower()
+    body = re.sub(r"\s+", " ", (text or "").strip())
+    kw = re.split(r"\s*[|]\s*", re.sub(r"\s+", " ", (pk or "").strip()), maxsplit=1)[0].strip()
+    if f not in {"title", "meta_description", "secondary_keywords"} or not kw:
+        return body
+    geo = content_ai_extract_geo_tail(kw)
+    if geo:
+        body = content_ai_replace_conflicting_geo_in_brief(body, kw, geo)
+    if content_ai_brief_field_honors_primary_keyword(field=f, text=body, pk=kw):
+        return body
+    return content_ai_enforce_brief_primary_keyword(field=f, text=body, pk=kw)
+
+
+def content_ai_enforce_brief_primary_keyword(*, field: str, text: str, pk: str) -> str:
+    """Bước cuối: đảm bảo brief bám PRIMARY_KEYWORD khi LLM vẫn sai địa danh."""
+    f = (field or "").strip().lower()
+    body = re.sub(r"\s+", " ", (text or "").strip())
+    kw = re.split(r"\s*[|]\s*", re.sub(r"\s+", " ", (pk or "").strip()), maxsplit=1)[0].strip()
+    if f not in {"title", "meta_description", "secondary_keywords"} or not kw:
+        return body
+    geo = content_ai_extract_geo_tail(kw)
+    if geo:
+        body = content_ai_replace_conflicting_geo_in_brief(body, kw, geo)
+    if content_ai_brief_field_honors_primary_keyword(field=f, text=body, pk=kw):
+        return body
+    fixed = suggest_content_ai_field(
+        field=f,
+        primary_keyword=kw,
+        title="",
+        target_website="",
+        secondary_keywords="",
+        meta_description="",
+    )
+    out = fixed.strip() or body
+    if geo:
+        out = content_ai_replace_conflicting_geo_in_brief(out, kw, geo)
+    return out
+
+
+def content_ai_brief_field_honors_primary_keyword(*, field: str, text: str, pk: str) -> bool:
+    """Kiểm tra title/meta/secondary_keywords có bám PRIMARY_KEYWORD (đặc biệt địa danh cuối)."""
+    f = (field or "").strip().lower()
+    if f not in {"title", "meta_description", "secondary_keywords"}:
+        return True
+    body = re.sub(r"\s+", " ", (text or "").strip())
+    kw = re.split(r"\s*[|]\s*", re.sub(r"\s+", " ", (pk or "").strip()), maxsplit=1)[0].strip()
+    if not kw or not body:
+        return not kw
+    geo = content_ai_extract_geo_tail(kw)
+    fold_body = _fold_vi_text(body)
+    fold_kw = _fold_vi_text(kw)
+    if f == "secondary_keywords":
+        items = [x.strip() for x in body.split(",") if x.strip()]
+        if not items:
+            return False
+        if geo:
+            geo_fold = _fold_vi_text(geo)
+            hits = sum(
+                1
+                for it in items
+                if geo_fold in _fold_vi_text(it) or fold_kw in _fold_vi_text(it)
+            )
+            if hits >= max(1, (len(items) + 1) // 2):
+                return True
+            return False
+        pk_tokens = [t for t in fold_kw.split() if len(t) >= 4]
+        if not pk_tokens:
+            pk_tokens = fold_kw.split()
+        if not pk_tokens:
+            return True
+        hits = sum(1 for it in items if any(tok in _fold_vi_text(it) for tok in pk_tokens))
+        return hits >= max(1, (len(items) + 1) // 2)
+    if geo and _brief_has_conflicting_geo(body=body, pk=kw, geo=geo):
+        return False
+    if fold_kw in fold_body:
+        return True
+    if geo:
+        return _fold_vi_text(geo) in fold_body
+    kw_tokens = kw.split()
+    anchor = " ".join(kw_tokens[: min(3, len(kw_tokens))])
+    return _fold_vi_text(anchor) in fold_body
+
+
+def _brief_has_conflicting_geo(*, body: str, pk: str, geo: str) -> bool:
+    """True nếu body chứa địa danh khác PRIMARY_KEYWORD (vd. Thủ Dầu Một thay Thuận An)."""
+    pk_fold = _fold_vi_text(pk)
+    body_fold = _fold_vi_text(body)
+    geo_fold = _fold_vi_text(geo)
+    if geo_fold in body_fold:
+        return False
+    for marker in _BRIEF_GEO_CONFLICT_PLACES:
+        mf = _fold_vi_text(marker)
+        if mf in pk_fold:
+            continue
+        if mf in body_fold:
+            return True
+    return False
+
+
 def _is_pc_repair_topic(pk: str) -> bool:
     s = (pk or "").lower()
     return any(x in s for x in ("máy tính", "may tinh", "laptop", "pc ", " pc", "macbook"))
@@ -514,15 +828,87 @@ def extract_clean_html_fragment(raw: str) -> str:
     return s.strip()
 
 
+def _brace_match_json_object(text: str, start: int) -> tuple[str, int] | None:
+    """Return (json_blob, end_index_exclusive) when `start` points at `{` of a JSON object."""
+    if start < 0 or start >= len(text) or text[start] != "{":
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for j in range(start, len(text)):
+        ch = text[j]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : j + 1], j + 1
+    return None
+
+
+def sanitize_leaked_json_ld_in_html(raw: str) -> str:
+    """
+    Remove raw JSON-LD blobs visible in the article body and re-wrap as script tags.
+    LLM streams sometimes emit `@type` JSON without `<script>` wrappers.
+    """
+    import json
+
+    s = str(raw or "")
+    if not s or '"@type"' not in s and "'@type'" not in s and '"@context"' not in s:
+        return s
+
+    parts: list[str] = []
+    scripts: list[str] = []
+    i = 0
+    n = len(s)
+    while i < n:
+        if s[i] == "{":
+            window = s[i : min(n, i + 160)]
+            if '"@type"' in window or '"@context"' in window:
+                matched = _brace_match_json_object(s, i)
+                if matched:
+                    blob, end = matched
+                    try:
+                        data = json.loads(blob)
+                        if isinstance(data, dict) and ("@type" in data or "@context" in data):
+                            scripts.append(
+                                '<script type="application/ld+json">'
+                                + json.dumps(data, ensure_ascii=False)
+                                + "</script>"
+                            )
+                            i = end
+                            continue
+                    except Exception:
+                        pass
+        parts.append(s[i])
+        i += 1
+    cleaned = "".join(parts)
+    if scripts:
+        cleaned = cleaned.rstrip() + "\n" + "\n".join(scripts)
+    return cleaned
+
+
 def _finalize_content_html(s: str) -> str:
-    out = extract_clean_html_fragment(_strip_markdown_code_fence(s))
+    out = sanitize_leaked_json_ld_in_html(extract_clean_html_fragment(_strip_markdown_code_fence(s)))
     from app.services.content_blockquote_postprocess import postprocess_content_blockquotes
     from app.services.content_ai_publish_checklist import strip_publish_checklist_from_html
     from app.services.content_table_format import enhance_tables_in_html
+    from app.services.content_ai_image_guard import repair_content_html_images
 
     out = postprocess_content_blockquotes(out)
     out = strip_publish_checklist_from_html(out)
-    return enhance_tables_in_html(out)
+    out = enhance_tables_in_html(out)
+    return repair_content_html_images(out, source="finalize_content_html", probe_remote=False)
 
 
 def _service_mode(pk: str) -> str:
@@ -604,6 +990,8 @@ def _is_howto_keyword(pk: str) -> bool:
 
 
 def _has_local_service_signal(pk: str) -> bool:
+    if content_ai_extract_geo_tail(pk):
+        return True
     s = (pk or "").lower()
     signals = (
         "quận",
@@ -630,6 +1018,8 @@ def _detect_search_intent(pk: str) -> str:
     kw = re.split(r"\s*[|]\s*", raw, maxsplit=1)[0].strip()
     if not kw:
         return "informational"
+    if _is_training_keyword(kw):
+        return "commercial investigation"
     if _has_local_service_signal(kw):
         return "transactional"
     s = kw.lower()
@@ -657,6 +1047,164 @@ def _detect_search_intent(pk: str) -> str:
 
 def detect_search_intent(pk: str) -> str:
     return _detect_search_intent(pk)
+
+
+def classify_content_intent(pk: str) -> str:
+    """Public intent for prompts/fallback: howto | service | training | info."""
+    return _classify_intent(pk)
+
+
+def _outline_lines_to_h2_items(outline: str, *, limit: int = 6) -> list[str]:
+    h2_items: list[str] = []
+    for ln in (outline or "").splitlines():
+        s = re.sub(r"^\s*#+\s*", "", str(ln or "").strip())
+        if len(s) >= 4:
+            h2_items.append(s)
+        if len(h2_items) >= limit:
+            break
+    return h2_items
+
+
+def build_fallback_content_html(
+    *,
+    primary_keyword: str = "",
+    title: str = "",
+    outline_content: str = "",
+    content: str = "",
+) -> str:
+    """
+    Deterministic fallback HTML when LLM returns empty or stream fails.
+    Intent-aware: training/info content must not use transactional service templates.
+    """
+    kw = re.sub(r"\s+", " ", (primary_keyword or "").strip())
+    title = (title or "").strip() or kw or "Bài viết"
+    notes = (content or "").strip()
+    intent = _classify_intent(kw)
+    h2_items = _outline_lines_to_h2_items(outline_content)
+
+    if intent == "training":
+        if not h2_items:
+            h2_items = [
+                f"{kw or 'Khóa học'} là gì và ai nên học?",
+                "Lộ trình đào tạo từ cơ bản đến nâng cao",
+                "Kỹ năng và kết quả sau khóa học",
+                "FAQ: thời gian học, hình thức và chi phí tham khảo",
+            ]
+        intro = (
+            f"Bạn đang tìm hiểu {kw or 'chương trình đào tạo'} với lộ trình rõ ràng, "
+            "thực hành bài bản và có thể áp dụng ngay sau khi hoàn thành."
+        )
+        section_para = (
+            "Nội dung module kết hợp lý thuyết, bài tập thực hành và checklist triển khai "
+            "để học viên làm được việc ngay sau buổi học."
+        )
+        checklist_title = "Checklist trước khi đăng ký"
+        checklist_items = [
+            "Xác định mục tiêu học (on-page, content, technical SEO…).",
+            "Chuẩn bị website/dự án để thực hành trong quá trình học.",
+            "Đặt câu hỏi về lộ trình, mentor và hình thức học (online/offline).",
+        ]
+        cta_h2 = "Đăng ký tư vấn khóa học"
+        cta_p = "Liên hệ để nhận syllabus chi tiết và lịch khai giảng phù hợp."
+    elif intent == "howto":
+        if not h2_items:
+            h2_items = [
+                f"Nguyên nhân phổ biến khi cần {kw or 'xử lý'}",
+                "Các bước thực hiện chi tiết",
+                "Lưu ý an toàn và sai lầm thường gặp",
+                "FAQ nhanh",
+            ]
+        intro = (
+            f"Hướng dẫn {kw or 'xử lý'} theo từng bước, dễ làm theo ngay tại nhà hoặc tại chỗ."
+        )
+        section_para = (
+            "Mỗi bước có mô tả ngắn, điều kiện cần và cách kiểm tra kết quả trước khi chuyển bước tiếp theo."
+        )
+        checklist_title = "Checklist trước khi bắt đầu"
+        checklist_items = [
+            "Chuẩn bị dụng cụ và môi trường làm việc an toàn.",
+            "Ghi lại hiện trạng ban đầu để đối chiếu sau khi xong.",
+            "Đọc kỹ cảnh báo an toàn trước khi thao tác.",
+        ]
+        cta_h2 = "Cần hỗ trợ thêm?"
+        cta_p = "Nếu chưa tự tin, hãy nhờ chuyên gia kiểm tra để tránh rủi ro."
+    elif intent == "service":
+        if not h2_items:
+            h2_items = [
+                f"Nhu cầu phổ biến về {kw or 'dịch vụ'}",
+                "Dịch vụ cung cấp và phạm vi hỗ trợ",
+                "Bảng giá tham khảo và quy trình triển khai",
+                "Liên hệ đặt lịch nhanh",
+            ]
+        intro = (
+            f"Bạn đang cần {kw or 'dịch vụ'} nhanh, rõ chi phí và có người xử lý đúng lỗi ngay từ đầu. "
+            "Thông tin dưới đây giúp bạn chọn phương án phù hợp và đặt lịch ngay."
+        )
+        section_para = (
+            "Chúng tôi tiếp nhận nhu cầu, kiểm tra hiện trạng và báo hướng xử lý trước khi thực hiện "
+            "để bạn chủ động thời gian."
+        )
+        checklist_title = "Checklist trước khi đặt lịch"
+        checklist_items = [
+            "Mô tả lỗi đang gặp và thời điểm bắt đầu.",
+            "Gửi ảnh/video hiện trạng nếu có.",
+            "Để lại số điện thoại/Zalo để kỹ thuật viên xác nhận.",
+        ]
+        cta_h2 = "Liên hệ ngay"
+        cta_p = "Gọi hotline hoặc nhắn Zalo để được tư vấn nhanh và đặt lịch theo khung giờ phù hợp."
+    else:
+        if not h2_items:
+            h2_items = [
+                f"Tổng quan về {kw or 'chủ đề'}",
+                "Khái niệm và bước triển khai cốt lõi",
+                "Lỗi thường gặp và cách tránh",
+                "FAQ và tài nguyên tham khảo",
+            ]
+        intro = (
+            f"Bài viết tổng hợp kiến thức về {kw or 'chủ đề'}: khái niệm, quy trình thực hành "
+            "và checklist để áp dụng nhanh, tránh sai lầm phổ biến."
+        )
+        section_para = (
+            "Nội dung ưu tiên giải thích rõ ràng, có ví dụ minh họa và liên kết tài nguyên uy tín khi phù hợp."
+        )
+        checklist_title = "Checklist hành động"
+        checklist_items = [
+            "Xác định mục tiêu và phạm vi cần làm trước.",
+            "Áp dụng từng bước theo thứ tự logic.",
+            "Đo lường kết quả và điều chỉnh khi cần.",
+        ]
+        cta_h2 = "Đọc thêm"
+        cta_p = "Khám phá thêm bài viết liên quan để đi sâu từng hạng mục."
+
+    html_parts = [f"<h1>{html.escape(title)}</h1>", f"<p><strong>{intro}</strong></p>"]
+    for idx, h2 in enumerate(h2_items, start=1):
+        html_parts.append(f"<h2>{html.escape(h2)}</h2>")
+        html_parts.append(f"<p>{section_para}</p>")
+        if intent == "service" and idx == 3:
+            html_parts.append(
+                "<table><tr><th>Hạng mục</th><th>Chi phí tham khảo</th></tr>"
+                "<tr><td>Kiểm tra - chẩn đoán</td><td>150.000 - 300.000đ</td></tr>"
+                "<tr><td>Bảo trì tối ưu</td><td>300.000 - 800.000đ</td></tr>"
+                "<tr><td>Sửa lỗi phần cứng/phần mềm</td><td>400.000 - 2.500.000đ</td></tr></table>"
+            )
+        elif intent == "training" and idx == 3:
+            html_parts.append(
+                "<table><tr><th>Module</th><th>Nội dung chính</th></tr>"
+                "<tr><td>Nền tảng</td><td>Từ khóa, SERP, on-page cơ bản</td></tr>"
+                "<tr><td>Thực hành</td><td>Audit, content brief, internal link</td></tr>"
+                "<tr><td>Nâng cao</td><td>Technical SEO, đo lường, tối ưu chuyển đổi</td></tr></table>"
+            )
+    html_parts.append(f"<h2>{checklist_title}</h2>")
+    html_parts.append(
+        "<ul>"
+        + "".join(f"<li>{html.escape(item)}</li>" for item in checklist_items)
+        + "</ul>"
+    )
+    if notes:
+        plain = re.sub(r"<[^>]+>", " ", notes)
+        html_parts.append(f"<p>{html.escape(plain[:900])}</p>")
+    html_parts.append(f"<h2>{cta_h2}</h2><p>{cta_p}</p>")
+    return _finalize_content_html("\n".join(html_parts))
 
 
 def content_ai_has_local_service_signal(keyword: str) -> bool:
@@ -1315,6 +1863,15 @@ def build_draft_payload(
     html_content = _markdown_to_html(raw) if _is_probably_markdown(raw) else raw
     safe_html = _sanitize_html(html_content)
     optimized_html = _optimize_headings(safe_html, t)
+    from app.services.content_ai_image_guard import repair_content_html_images
+
+    site_base = str(target_website or "").strip().rstrip("/")
+    optimized_html = repair_content_html_images(
+        optimized_html,
+        site_base=site_base,
+        source="build_draft_payload",
+        probe_remote=False,
+    )
     # Auto internal-link injection (uses SERP + sitemap heuristic; no DB required).
     # Keep it best-effort: if network fails or site has no sitemap, we just keep content as-is.
     try:

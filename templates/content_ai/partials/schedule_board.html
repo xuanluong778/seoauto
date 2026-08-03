@@ -1,0 +1,141 @@
+{# Content AI — Schedule board modals (Đặt lịch) #}
+<div class="ca-sched-board-backdrop" id="caSchedBoardBackdrop" hidden></div>
+<div class="ca-sched-board-modal" id="caSchedBoardModal" hidden role="dialog" aria-modal="true" aria-labelledby="caSchedBoardTitle">
+    <div class="ca-sched-board-head">
+        <div class="ca-sched-board-head-top">
+            <h2 id="caSchedBoardTitle"><span class="ca-sched-title-ico" aria-hidden="true">📅</span> Bảng đặt lịch đăng</h2>
+            <button type="button" class="ca-sched-board-close" id="caSchedBoardClose" aria-label="Đóng">×</button>
+        </div>
+        <div class="ca-sched-board-stats" aria-live="polite">
+            <div class="ca-sched-stat"><span class="k">Tổng</span><strong id="caSchedStatTotal">0</strong></div>
+            <div class="ca-sched-stat"><span class="k">Chưa lịch</span><strong id="caSchedStatUnsched">0</strong></div>
+            <div class="ca-sched-stat"><span class="k">Đã lịch</span><strong id="caSchedStatSched">0</strong></div>
+            <div class="ca-sched-stat"><span class="k">Đã đăng</span><strong id="caSchedStatPub">0</strong></div>
+            <div class="ca-sched-stat"><span class="k">Lỗi</span><strong id="caSchedStatFail">0</strong></div>
+        </div>
+        <div class="ca-sched-board-filters">
+            <div class="ca-sched-search">
+                <input type="search" id="caSchedSearch" placeholder="Tìm keyword / tiêu đề…" autocomplete="off" />
+            </div>
+            <select id="caSchedFilterStatus" aria-label="Lọc trạng thái">
+                <option value="">Trạng thái: Tất cả</option>
+                <option value="unscheduled">Chưa đặt lịch</option>
+                <option value="scheduled">Đã đặt lịch</option>
+                <option value="publishing">Đang đăng</option>
+                <option value="published">Đã đăng</option>
+                <option value="failed">Đăng lỗi</option>
+            </select>
+            <select id="caSchedFilterSite" aria-label="Lọc website">
+                <option value="">Website: Tất cả</option>
+            </select>
+            <select id="caSchedFilterCategory" aria-label="Lọc danh mục">
+                <option value="">Danh mục: Tất cả</option>
+            </select>
+            <button type="button" class="ca-sched-btn success" id="caSchedBulkPublish">Đăng ngay đã chọn</button>
+            <button type="button" class="ca-sched-btn primary" id="caSchedBulkSchedule">Đặt lịch hàng loạt</button>
+            <label class="ca-sched-check-all"><input type="checkbox" id="caSchedSelectAll" /> Chọn trang</label>
+            <span id="caSchedSelectedCount" class="ca-sched-selected-count">Đã chọn 0 bài</span>
+            <button type="button" class="ca-sched-btn ghost" id="caSchedRefresh">Làm mới</button>
+        </div>
+    </div>
+    <div class="ca-sched-board-body" id="caSchedBoardBody">
+        <div class="ca-sched-grid" id="caSchedGrid"></div>
+        <div class="ca-sched-empty" id="caSchedEmpty" hidden>Chưa có bài viết để đặt lịch.</div>
+    </div>
+    <div class="ca-sched-board-foot">
+        <div class="ca-sched-pager">
+            <button type="button" class="ca-sched-btn ghost" id="caSchedPrev" aria-label="Trang trước">‹</button>
+            <div class="ca-sched-page-nums" id="caSchedPageNums" aria-label="Chọn trang"></div>
+            <button type="button" class="ca-sched-btn ghost" id="caSchedNext" aria-label="Trang sau">›</button>
+            <span id="caSchedPageInfo">Hiển thị 0 - 0 trong tổng số 0 bài</span>
+        </div>
+        <label class="ca-sched-pagesize">
+            Mỗi trang
+            <select id="caSchedPageSize">
+                <option value="10">10</option>
+                <option value="4">4</option>
+                <option value="2">2</option>
+            </select>
+        </label>
+    </div>
+</div>
+
+<div class="ca-sched-edit-backdrop" id="caSchedEditBackdrop" hidden></div>
+<div class="ca-sched-edit-modal" id="caSchedEditModal" hidden role="dialog" aria-modal="true" aria-labelledby="caSchedEditTitle">
+    <div class="ca-sched-edit-head">
+        <h3 id="caSchedEditTitle">Đặt lịch bài viết</h3>
+        <button type="button" class="ca-sched-board-close" id="caSchedEditClose" aria-label="Đóng">×</button>
+    </div>
+    <div class="ca-sched-edit-body">
+        <input type="hidden" id="caSchedEditProjectId" value="" />
+        <label class="ca-sched-field ca-sched-field-datetime">
+            <span>Thời gian đăng</span>
+            <input type="datetime-local" id="caSchedEditAt" step="60" />
+        </label>
+        <label class="ca-sched-field">
+            <span>Website</span>
+            <select id="caSchedEditSite">
+                <option value="">-- Chọn website --</option>
+            </select>
+        </label>
+        <label class="ca-sched-field">
+            <span>Danh mục</span>
+            <select id="caSchedEditCategory"><option value="">-- Chọn danh mục --</option></select>
+            <span class="ca-sched-field-hint" id="caSchedEditCategoryHint" aria-live="polite"></span>
+        </label>
+        <label class="ca-sched-field">
+            <span>Chế độ</span>
+            <select id="caSchedEditMode">
+                <option value="publish">Publish</option>
+                <option value="draft">Draft</option>
+            </select>
+        </label>
+        <label class="ca-sched-field">
+            <span>Slug (tùy chọn)</span>
+            <input type="text" id="caSchedEditSlug" placeholder="slug-bai-viet" />
+        </label>
+    </div>
+    <div class="ca-sched-edit-foot">
+        <button type="button" class="ca-sched-btn ghost" id="caSchedEditCancel">Hủy</button>
+        <button type="button" class="ca-sched-btn primary" id="caSchedEditSave">Lưu lịch</button>
+    </div>
+</div>
+
+<div class="ca-sched-edit-backdrop" id="caSchedBulkBackdrop" hidden></div>
+<div class="ca-sched-edit-modal" id="caSchedBulkModal" hidden role="dialog" aria-modal="true" aria-labelledby="caSchedBulkTitle">
+    <div class="ca-sched-edit-head">
+        <h3 id="caSchedBulkTitle">Đặt lịch hàng loạt</h3>
+        <button type="button" class="ca-sched-board-close" id="caSchedBulkClose" aria-label="Đóng">×</button>
+    </div>
+    <div class="ca-sched-edit-body">
+        <label class="ca-sched-field">
+            <span>Bắt đầu từ</span>
+            <input type="datetime-local" id="caSchedBulkStart" />
+        </label>
+        <label class="ca-sched-field">
+            <span>Cách xếp giờ</span>
+            <select id="caSchedBulkMode">
+                <option value="stagger">Cách đều giữa các bài</option>
+                <option value="same">Cùng một thời điểm</option>
+            </select>
+        </label>
+        <label class="ca-sched-field">
+            <span>Khoảng cách</span>
+            <select id="caSchedBulkInterval">
+                <option value="30">30 phút</option>
+                <option value="60" selected>1 giờ</option>
+                <option value="120">2 giờ</option>
+                <option value="custom">Tùy chỉnh (phút)</option>
+            </select>
+        </label>
+        <label class="ca-sched-field" id="caSchedBulkCustomWrap" hidden>
+            <span>Số phút tùy chỉnh</span>
+            <input type="number" id="caSchedBulkCustom" min="5" step="5" value="45" />
+        </label>
+        <div class="ca-sched-preview" id="caSchedBulkPreview"></div>
+    </div>
+    <div class="ca-sched-edit-foot">
+        <button type="button" class="ca-sched-btn ghost" id="caSchedBulkCancel">Hủy</button>
+        <button type="button" class="ca-sched-btn primary" id="caSchedBulkConfirm">Xác nhận đặt lịch</button>
+    </div>
+</div>

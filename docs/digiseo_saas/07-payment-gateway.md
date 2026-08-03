@@ -1,12 +1,12 @@
 # Payment Gateway Roadmap
 
-Tài liệu này mô tả định hướng tích hợp payment gateway cho DigiSEO SaaS.
+Tài liệu này mô tả định hướng tích hợp payment gateway cho Seoauto SaaS.
 
 ---
 
 ## 1. Mục tiêu
 
-DigiSEO cần hệ thống thanh toán thật để tự động kích hoạt gói dịch vụ.
+Seoauto cần hệ thống thanh toán thật để tự động kích hoạt gói dịch vụ.
 
 ---
 

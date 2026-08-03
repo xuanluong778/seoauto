@@ -17,7 +17,7 @@ class UserApiKey(Base):
     key_fingerprint: Mapped[str] = mapped_column(String(64), index=True, nullable=False, default="")
     daily_limit: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     priority: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("1"))
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'healthy'"))
     used_today: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     errors_today: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))

@@ -1,0 +1,155 @@
+/* Popup xác nhận xóa — load cuối cùng, luôn trên mọi modal-card / nav */
+#deleteConfirmOverlay.ca-delete-confirm-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483000 !important;
+    display: none !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 24px !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    margin: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+#deleteConfirmOverlay.ca-delete-confirm-overlay.open {
+    display: flex !important;
+}
+
+body.ca-delete-confirm-open {
+    overflow: hidden !important;
+}
+
+body.ca-delete-confirm-open .modal.open,
+body.ca-delete-confirm-open .modal-backdrop.open,
+body.ca-delete-confirm-open .bulk-v2-modal-backdrop:not([hidden]),
+body.ca-delete-confirm-open .ca-step-modal-overlay:not([hidden]),
+body.ca-delete-confirm-open .ca-quota-backdrop.open {
+    z-index: 1 !important;
+    pointer-events: none !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-backdrop {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 0 !important;
+    background: rgba(2, 6, 23, 0.82) !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-dialog {
+    position: relative !important;
+    z-index: 1 !important;
+    width: min(440px, calc(100vw - 48px)) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    pointer-events: auto !important;
+    inset: auto !important;
+    display: block !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-card {
+    margin: 0 !important;
+    padding: 16px 18px !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    background: rgba(15, 23, 42, 0.98) !important;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55) !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-head {
+    margin-bottom: 12px !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-title {
+    font-size: 1.05rem !important;
+    font-weight: 800 !important;
+    color: #f8fafc !important;
+    line-height: 1.35 !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-body {
+    display: block !important;
+    grid-template-columns: unset !important;
+    gap: 0 !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-msg {
+    width: auto !important;
+    max-width: 100% !important;
+    margin: 0 0 16px !important;
+    font-size: 0.9rem !important;
+    line-height: 1.55 !important;
+    color: #cbd5e1 !important;
+    white-space: pre-line !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+}
+
+#deleteConfirmOverlay .ca-delete-confirm-actions .mini-btn {
+    width: auto !important;
+    min-width: 72px !important;
+    max-width: none !important;
+    padding: 8px 14px !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+}
+
+/* Popup LLM không khả dụng — luôn trên bulk/modal editor */
+#caLlmUnavailableOverlay.ca-llm-unavailable-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483100 !important;
+    display: none !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 24px !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    margin: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+#caLlmUnavailableOverlay.ca-llm-unavailable-overlay.open {
+    display: flex !important;
+}
+
+body.ca-llm-unavailable-open {
+    overflow: hidden !important;
+}
+
+body.ca-llm-unavailable-open .modal.open,
+body.ca-llm-unavailable-open .modal-backdrop.open,
+body.ca-llm-unavailable-open .bulk-v2-modal-backdrop:not([hidden]),
+body.ca-llm-unavailable-open .ca-step-modal-overlay:not([hidden]),
+body.ca-llm-unavailable-open .ca-quota-backdrop.open,
+body.ca-llm-unavailable-open .cau-seo-modal-overlay:not([hidden]) {
+    z-index: 1 !important;
+    pointer-events: none !important;
+}
+
+#caLlmUnavailableOverlay .ca-llm-unavailable-backdrop {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 0 !important;
+}
+
+#caLlmUnavailableOverlay .ca-llm-unavailable-dialog {
+    position: relative !important;
+    z-index: 1 !important;
+    pointer-events: auto !important;
+    width: min(640px, calc(100vw - 40px)) !important;
+    margin: 0 !important;
+    display: block !important;
+    inset: auto !important;
+}

@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.user import User
 from app.services.auth import get_current_user
+from app.services.rbac import normalize_role
+from app.services.site_ownership import require_wp_site_owner
 from app.queue.celery_app import celery_app
 from app.services.internal_linking.anchor_generator import generate_anchor_variations
 from app.services.internal_linking.crawler import sync_wordpress_site
@@ -72,11 +74,13 @@ def internal_links_sync(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    wp_site = str(payload.wp_site or "").strip()
-    if not wp_site:
-        raise HTTPException(status_code=400, detail="wp_site is required")
+    role = normalize_role(current_user.role)
+    wp_site = require_wp_site_owner(current_user.id, payload.wp_site, role=role)
     if payload.async_mode:
-        task = celery_app.send_task("internal_links.sync_site", args=[wp_site, int(payload.limit_per_type)])
+        task = celery_app.send_task(
+            "internal_links.sync_site",
+            args=[wp_site, int(payload.limit_per_type), int(current_user.id), role],
+        )
         return JSONResponse(content={"ok": True, "queued": True, "task_id": task.id})
     try:
         res = sync_wordpress_site(db=db, wp_site=wp_site, limit_per_type=int(payload.limit_per_type), recreate_chunks=True)
@@ -101,12 +105,14 @@ def internal_links_embed(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    wp_site = str(payload.wp_site or "").strip()
-    if not wp_site:
-        raise HTTPException(status_code=400, detail="wp_site is required")
+    role = normalize_role(current_user.role)
+    wp_site = require_wp_site_owner(current_user.id, payload.wp_site, role=role)
     model = (payload.model_name or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     if payload.async_mode:
-        task = celery_app.send_task("internal_links.embed_site", args=[wp_site, model, bool(payload.only_missing)])
+        task = celery_app.send_task(
+            "internal_links.embed_site",
+            args=[wp_site, model, bool(payload.only_missing), int(current_user.id), role],
+        )
         return JSONResponse(content={"ok": True, "queued": True, "task_id": task.id, "model": model})
     try:
         res = embed_chunks_for_site(db=db, wp_site=wp_site, model_name=model, only_missing=bool(payload.only_missing))
@@ -131,9 +137,8 @@ def internal_links_suggest(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    wp_site = str(payload.wp_site or "").strip()
-    if not wp_site:
-        raise HTTPException(status_code=400, detail="wp_site is required")
+    role = normalize_role(current_user.role)
+    wp_site = require_wp_site_owner(current_user.id, payload.wp_site, role=role)
     src_text = _html_to_text_for_embedding(payload.source_html)
     if not src_text:
         raise HTTPException(status_code=400, detail="source_html is empty")

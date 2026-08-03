@@ -1,5 +1,5 @@
 /**
- * DigiSEO global light theme — white page shell; menu shells transparent, pills stay dark.
+ * Seoauto global light theme — white page shell; menu shells transparent, pills stay dark.
  */
 
 html[data-theme="light"],
@@ -89,7 +89,6 @@ html[data-theme="light"] .card,
 html[data-theme="light"] .sys-card,
 html[data-theme="light"] .settings-main section,
 html[data-theme="light"] .settings-sb,
-html[data-theme="light"] .manual-form-card,
 html[data-theme="light"] .schema-result-card,
 html[data-theme="light"] aside.seo-sidebar,
 html[data-theme="light"] aside.sidebar,
@@ -104,7 +103,6 @@ html[data-theme="light"] .kw-project-card {
     html[data-theme="system"] .sys-card,
     html[data-theme="system"] .settings-main section,
     html[data-theme="system"] .settings-sb,
-    html[data-theme="system"] .manual-form-card,
     html[data-theme="system"] .schema-result-card,
     html[data-theme="system"] aside.seo-sidebar,
     html[data-theme="system"] aside.sidebar {

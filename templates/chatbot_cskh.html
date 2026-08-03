@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/chatbot-cskh.css?v=12">
+    <link rel="stylesheet" href="/static/css/chatbot-kb-sync.css?v=2">
+</head>
+<body class="page-chatbot-cskh">
+<div class="cskh-wrap">
+    {% include "partials/digiseo_nav.html" %}
+
+    <header class="cskh-page-head">
+        <span class="cskh-pill">Chatbot CSKH</span>
+        <h1>Chatbot chăm sóc khách hàng tự động</h1>
+        <p class="cskh-lead">Tạo chatbot AI trả lời FAQ, kết nối website và mạng xã hội — quản lý nguồn dữ liệu, kênh và hội thoại trên một dashboard.</p>
+        <div class="cskh-plan-badge" id="cskhPlanBadge" hidden></div>
+    </header>
+
+    <!-- Demo / upgrade wall -->
+    <section class="cskh-upgrade" id="cskhUpgradeWall" hidden>
+        <h2 id="cskhUpgradeTitle">Nâng cấp gói để sử dụng Chatbot CSKH</h2>
+        <p id="cskhUpgradeMsg">Gói trial chỉ xem giới thiệu. Nâng cấp Basic, Pro, Agency hoặc Business để tạo và vận hành chatbot.</p>
+        <div class="cskh-btn-row" style="justify-content:center;">
+            <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnUpgrade">Nâng cấp gói để sử dụng Chatbot CSKH</button>
+            <button type="button" class="cskh-btn cskh-btn--ghost" id="cskhBtnLogin">Đăng nhập</button>
+        </div>
+
+        <div class="cskh-demo-grid">
+            <article class="cskh-demo-card">
+                <h3>Tổng quan</h3>
+                <p>Theo dõi số chatbot, nguồn dữ liệu, kênh kết nối và hội thoại trong ngày.</p>
+            </article>
+            <article class="cskh-demo-card">
+                <h3>Chatbot của tôi</h3>
+                <p>Tạo nhiều chatbot cho từng website hoặc chiến dịch, bật/tạm dừng linh hoạt.</p>
+            </article>
+            <article class="cskh-demo-card">
+                <h3>Nguồn dữ liệu</h3>
+                <p>FAQ, URL, file hoặc nội dung thủ công làm knowledge base cho AI.</p>
+            </article>
+            <article class="cskh-demo-card">
+                <h3>Kênh kết nối</h3>
+                <p>Widget website, Facebook, Zalo, Telegram hoặc API webhook.</p>
+            </article>
+            <article class="cskh-demo-card">
+                <h3>Hội thoại</h3>
+                <p>Xem lịch sử chat, đánh giá chất lượng phản hồi CSKH.</p>
+            </article>
+            <article class="cskh-demo-card">
+                <h3>Cài đặt AI</h3>
+                <p>Tùy chỉnh model, temperature, system prompt và lời chào.</p>
+            </article>
+        </div>
+
+        <div class="cskh-demo-preview" aria-hidden="true">
+            <div class="cskh-stat-grid">
+                <article class="cskh-stat-card"><div class="cskh-stat-label">Chatbot</div><div class="cskh-stat-value">2</div></article>
+                <article class="cskh-stat-card"><div class="cskh-stat-label">Nguồn dữ liệu</div><div class="cskh-stat-value">12</div></article>
+                <article class="cskh-stat-card"><div class="cskh-stat-label">Kênh</div><div class="cskh-stat-value">3</div></article>
+                <article class="cskh-stat-card"><div class="cskh-stat-label">Hội thoại hôm nay</div><div class="cskh-stat-value">48</div></article>
+            </div>
+            <p class="cskh-hint" style="text-align:center;margin-top:12px;">Bản xem trước — dữ liệu minh họa</p>
+        </div>
+    </section>
+
+    <!-- Full app (paid plans) -->
+    <div id="cskhApp" hidden>
+        <div class="cskh-stats-bar" id="cskhStatsBar" aria-label="Thống kê nhanh">
+            <article class="cskh-stat-card">
+                <div class="cskh-stat-label">Chatbot</div>
+                <div class="cskh-stat-value" id="cskhStatBots">0</div>
+                <div class="cskh-stat-sub" id="cskhStatBotsSub">0 đang hoạt động</div>
+            </article>
+            <article class="cskh-stat-card">
+                <div class="cskh-stat-label">Nguồn dữ liệu</div>
+                <div class="cskh-stat-value" id="cskhStatSources">0</div>
+            </article>
+            <article class="cskh-stat-card">
+                <div class="cskh-stat-label">Hội thoại</div>
+                <div class="cskh-stat-value" id="cskhStatConversations">0</div>
+            </article>
+            <article class="cskh-stat-card">
+                <div class="cskh-stat-label">Lead</div>
+                <div class="cskh-stat-value" id="cskhStatLeads">0</div>
+                <div class="cskh-stat-sub" id="cskhStatLeadRate">0% chuyển đổi</div>
+            </article>
+            <article class="cskh-stat-card">
+                <div class="cskh-stat-label">AI tháng này</div>
+                <div class="cskh-stat-value" id="cskhStatReplyUsed">0</div>
+                <div class="cskh-stat-sub" id="cskhStatReplySub">/ 0 lượt</div>
+            </article>
+            <article class="cskh-stat-card">
+                <div class="cskh-stat-label">Kênh kết nối</div>
+                <div class="cskh-stat-value" id="cskhStatChannels">0</div>
+            </article>
+        </div>
+
+        <div class="cskh-state-banner" id="cskhStateBanner" hidden role="status"></div>
+
+        <div class="cskh-quick-actions" id="cskhQuickActions">
+            <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnQuickCreate" data-cskh-goto="bots">+ Tạo chatbot</button>
+            <button type="button" class="cskh-btn cskh-btn--secondary" id="cskhBtnQuickEmbed">Copy mã nhúng</button>
+            <button type="button" class="cskh-btn cskh-btn--secondary" id="cskhBtnQuickCrawl" data-cskh-goto="sources">Quét dữ liệu</button>
+            <button type="button" class="cskh-btn cskh-btn--secondary" id="cskhBtnQuickConv" data-cskh-goto="conversations">Xem hội thoại</button>
+        </div>
+
+        <div class="cskh-shell">
+            <nav class="cskh-sidebar" role="tablist" aria-label="Điều hướng Chatbot CSKH">
+                <button type="button" class="cskh-nav-item active" data-cskh-tab="overview" aria-selected="true">
+                    <span class="cskh-nav-label">Tổng quan</span>
+                </button>
+                <button type="button" class="cskh-nav-item" data-cskh-tab="bots" aria-selected="false">
+                    <span class="cskh-nav-label">Chatbot</span>
+                </button>
+                <button type="button" class="cskh-nav-item" data-cskh-tab="sources" aria-selected="false">
+                    <span class="cskh-nav-label">Nguồn dữ liệu</span>
+                </button>
+                <button type="button" class="cskh-nav-item" data-cskh-tab="kb" aria-selected="false">
+                    <span class="cskh-nav-label">Sơ đồ tri thức / KB</span>
+                </button>
+                <button type="button" class="cskh-nav-item" data-cskh-tab="channels" aria-selected="false">
+                    <span class="cskh-nav-label">Kênh kết nối</span>
+                </button>
+                <button type="button" class="cskh-nav-item" data-cskh-tab="conversations" aria-selected="false">
+                    <span class="cskh-nav-label">Hội thoại</span>
+                </button>
+                <button type="button" class="cskh-nav-item" data-cskh-tab="settings" aria-selected="false">
+                    <span class="cskh-nav-label">Cài đặt AI</span>
+                </button>
+            </nav>
+
+            <div class="cskh-main">
+            <!-- Tổng quan -->
+            <section class="cskh-panel active" data-cskh-panel="overview" role="tabpanel">
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Bắt đầu nhanh</h2>
+                    <ol class="cskh-steps">
+                        <li>Tạo chatbot và điền thông tin doanh nghiệp</li>
+                        <li>Thêm FAQ hoặc quét website làm nguồn dữ liệu</li>
+                        <li>Kích hoạt bot và copy mã nhúng lên website</li>
+                        <li>Theo dõi hội thoại và lead trên dashboard</li>
+                    </ol>
+                </div>
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Sử dụng gói</h2>
+                    <div class="cskh-usage-grid">
+                        <div class="cskh-usage-item">
+                            <span class="cskh-usage-label">Bot đã dùng</span>
+                            <strong id="cskhStatBotLimit">0/0</strong>
+                        </div>
+                        <div class="cskh-usage-item">
+                            <span class="cskh-usage-label">Credit tháng</span>
+                            <strong id="cskhStatCredits">0</strong>
+                        </div>
+                        <div class="cskh-usage-item">
+                            <span class="cskh-usage-label">Còn lại AI</span>
+                            <strong id="cskhStatReplyRemaining">—</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chatbot của tôi -->
+            <section class="cskh-panel" data-cskh-panel="bots" role="tabpanel" hidden>
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Tạo chatbot website</h2>
+                    <p class="cskh-hint">Điền thông tin doanh nghiệp — sau khi tạo và kích hoạt, copy mã nhúng vào website.</p>
+                    <div class="cskh-form-grid">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhBotName">Tên chatbot *</label>
+                            <input type="text" id="cskhBotName" class="cskh-input" maxlength="120" placeholder="VD: CSKH Website chính">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhBotWebsite">Website URL</label>
+                            <input type="url" id="cskhBotWebsite" class="cskh-input" maxlength="2000" placeholder="https://example.com">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhBotBusiness">Tên doanh nghiệp</label>
+                            <input type="text" id="cskhBotBusiness" class="cskh-input" maxlength="160" placeholder="VD: Công ty ABC">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhBotIndustry">Ngành nghề</label>
+                            <input type="text" id="cskhBotIndustry" class="cskh-input" maxlength="120" placeholder="VD: Thời trang, Bất động sản">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhBotHotline">Hotline</label>
+                            <input type="tel" id="cskhBotHotline" class="cskh-input" maxlength="64" placeholder="09xxxxxxxx">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhBotTone">Giọng tư vấn</label>
+                            <select id="cskhBotTone" class="cskh-select">
+                                <option value="friendly">Thân thiện</option>
+                                <option value="professional">Chuyên nghiệp</option>
+                                <option value="enthusiastic">Nhiệt tình</option>
+                                <option value="concise">Ngắn gọn</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhBotServices">Dịch vụ chính</label>
+                        <textarea id="cskhBotServices" class="cskh-textarea" maxlength="4000" placeholder="Mô tả ngắn các dịch vụ/sản phẩm chính để bot tư vấn…"></textarea>
+                    </div>
+                    <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnCreateBot">+ Tạo chatbot</button>
+                </div>
+                <div class="cskh-card cskh-embed-card" id="cskhEmbedCard" hidden>
+                    <h2 class="cskh-card-title">Mã nhúng website</h2>
+                    <p class="cskh-hint">Dán đoạn mã sau trước thẻ <code>&lt;/body&gt;</code> trên website. Kích hoạt chatbot trước khi widget hiển thị cho khách.</p>
+                    <pre class="cskh-embed-code" id="cskhEmbedCode"></pre>
+                    <button type="button" class="cskh-btn cskh-btn--ghost" id="cskhBtnCopyEmbed">Copy mã nhúng</button>
+                </div>
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Danh sách chatbot</h2>
+                    <div id="cskhBotsList"><p class="cskh-empty">Đang tải…</p></div>
+                </div>
+            </section>
+
+            <!-- Nguồn dữ liệu -->
+            <section class="cskh-panel" data-cskh-panel="sources" role="tabpanel" hidden>
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Nguồn dữ liệu chatbot</h2>
+                    <p class="cskh-hint">Thêm FAQ, nội dung doanh nghiệp hoặc quét website. Chatbot chỉ trả lời dựa trên dữ liệu đã lưu — không tự bịa thông tin.</p>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhSourceBot">Chatbot</label>
+                        <select id="cskhSourceBot" class="cskh-select"><option value="">— Chọn chatbot —</option></select>
+                    </div>
+                    <div class="cskh-source-modes" role="tablist">
+                        <button type="button" class="cskh-source-mode active" data-source-mode="faq">FAQ thủ công</button>
+                        <button type="button" class="cskh-source-mode" data-source-mode="business">Doanh nghiệp / Dịch vụ</button>
+                        <button type="button" class="cskh-source-mode" data-source-mode="website">Quét website</button>
+                    </div>
+
+                    <div class="cskh-source-form" data-source-form="faq">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhFaqTitle">Tiêu đề FAQ</label>
+                            <input type="text" id="cskhFaqTitle" class="cskh-input" maxlength="160" placeholder="VD: FAQ giao hàng">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhFaqContent">Nội dung FAQ</label>
+                            <textarea id="cskhFaqContent" class="cskh-textarea" placeholder="Câu hỏi và câu trả lời…"></textarea>
+                        </div>
+                        <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnAddFaq">+ Thêm FAQ</button>
+                    </div>
+
+                    <div class="cskh-source-form" data-source-form="business" hidden>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhBizTitle">Tiêu đề</label>
+                            <input type="text" id="cskhBizTitle" class="cskh-input" maxlength="160" placeholder="VD: Bảng giá dịch vụ SEO">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhBizContent">Nội dung doanh nghiệp / dịch vụ / bảng giá</label>
+                            <textarea id="cskhBizContent" class="cskh-textarea" placeholder="Mô tả dịch vụ, bảng giá, chính sách…"></textarea>
+                        </div>
+                        <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnAddBusiness">+ Thêm nội dung</button>
+                    </div>
+
+                    <div class="cskh-source-form" data-source-form="website" hidden>
+                        <div class="cskh-form-grid">
+                            <div class="cskh-field">
+                                <label class="cskh-label" for="cskhCrawlTitle">Tiêu đề (tuỳ chọn)</label>
+                                <input type="text" id="cskhCrawlTitle" class="cskh-input" maxlength="160" placeholder="VD: Trang chủ">
+                            </div>
+                            <div class="cskh-field">
+                                <label class="cskh-label" for="cskhCrawlUrl">URL website</label>
+                                <input type="url" id="cskhCrawlUrl" class="cskh-input" maxlength="2000" placeholder="https://example.com/gioi-thieu">
+                            </div>
+                        </div>
+                        <p class="cskh-hint">Hệ thống chỉ lấy text từ title, meta, h1, h2, đoạn văn, FAQ, dịch vụ — bỏ menu/footer/script.</p>
+                        <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnCrawlWebsite">Quét website</button>
+                    </div>
+                </div>
+
+                <div class="cskh-card" id="cskhSourceEditCard" hidden>
+                    <h2 class="cskh-card-title">Sửa nguồn dữ liệu</h2>
+                    <input type="hidden" id="cskhEditSourceId" value="">
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhEditTitle">Tiêu đề</label>
+                        <input type="text" id="cskhEditTitle" class="cskh-input" maxlength="160">
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhEditContent">Nội dung</label>
+                        <textarea id="cskhEditContent" class="cskh-textarea"></textarea>
+                    </div>
+                    <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnSaveSourceEdit">Lưu</button>
+                    <button type="button" class="cskh-btn cskh-btn--ghost" id="cskhBtnCancelSourceEdit">Huỷ</button>
+                </div>
+
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Danh sách nguồn dữ liệu</h2>
+                    <div id="cskhSourcesList"><p class="cskh-empty">Chọn chatbot để xem nguồn dữ liệu.</p></div>
+                </div>
+            </section>
+
+            <!-- Sơ đồ tri thức / KB -->
+            <section class="cskh-panel" data-cskh-panel="kb" role="tabpanel" hidden>
+                <div class="cskh-card">
+                    <div class="cskh-kb-head">
+                        <div>
+                            <h2 class="cskh-card-title">Sơ đồ tri thức / KB</h2>
+                            <p class="cskh-hint">Tổ chức kiến thức theo nhóm và node — chatbot ưu tiên trả lời theo sơ đồ này, không bịa giá hay chính sách.</p>
+                        </div>
+                        <div id="cskhKbMapBadge"></div>
+                        <div id="cskhKbSyncBadge" class="ckb-sync" hidden aria-live="polite"></div>
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhKbBot">Chatbot</label>
+                        <select id="cskhKbBot" class="cskh-select"><option value="">— Chọn chatbot —</option></select>
+                    </div>
+                    <div class="cskh-btn-row cskh-kb-actions">
+                        <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnKbAddNode">+ Thêm node kiến thức</button>
+                        <button type="button" class="cskh-btn cskh-btn--secondary" id="cskhBtnKbImport">Import dữ liệu KB</button>
+                        <button type="button" class="cskh-btn cskh-btn--secondary" id="cskhBtnKbPreview">Xem trước chatbot với KB</button>
+                    </div>
+                </div>
+
+                <div class="cskh-card" id="cskhKbImportCard" hidden>
+                    <div class="cskh-kb-import-head">
+                        <div>
+                            <h2 class="cskh-card-title">Import dữ liệu sơ đồ tri thức</h2>
+                            <p class="cskh-hint">Đưa FAQ, nội dung doanh nghiệp, website đã quét, văn bản hoặc file vào cây kiến thức. Bot ưu tiên trả lời theo các node này.</p>
+                        </div>
+                        <button type="button" class="cskh-btn cskh-btn--ghost cskh-btn--sm" id="cskhBtnKbImportClose" aria-label="Đóng">Đóng</button>
+                    </div>
+
+                    <div class="cskh-kb-import-tabs" role="tablist" aria-label="Cách import KB">
+                        <button type="button" class="cskh-kb-import-tab active" data-kb-import-tab="sources">Từ nguồn dữ liệu</button>
+                        <button type="button" class="cskh-kb-import-tab" data-kb-import-tab="paste">Dán văn bản</button>
+                        <button type="button" class="cskh-kb-import-tab" data-kb-import-tab="file">Tải file</button>
+                    </div>
+
+                    <div class="cskh-kb-import-pane active" data-kb-import-pane="sources">
+                        <p class="cskh-hint">Chọn FAQ / doanh nghiệp / website đã lưu ở tab «Nguồn dữ liệu» để đưa vào sơ đồ tri thức.</p>
+                        <div id="cskhKbImportSourcesList" class="cskh-kb-import-list"><p class="cskh-empty">Chọn chatbot để tải nguồn dữ liệu.</p></div>
+                        <label class="cskh-check"><input type="checkbox" id="cskhKbImportAllSources" checked> Chọn tất cả nguồn chưa import</label>
+                    </div>
+
+                    <div class="cskh-kb-import-pane" data-kb-import-pane="paste" hidden>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhKbImportTitleInput">Tiêu đề node</label>
+                            <input type="text" id="cskhKbImportTitleInput" class="cskh-input" maxlength="200" placeholder="VD: Bảng giá dịch vụ sửa máy tính">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhKbImportPaste">Nội dung</label>
+                            <textarea id="cskhKbImportPaste" class="cskh-textarea" rows="8" placeholder="Dán FAQ, bảng giá, chính sách…&#10;&#10;Nhiều node: ngăn cách bằng dòng ---"></textarea>
+                        </div>
+                        <label class="cskh-check"><input type="checkbox" id="cskhKbImportBulk"> Tách thành nhiều node (ngăn cách bằng ---)</label>
+                    </div>
+
+                    <div class="cskh-kb-import-pane" data-kb-import-pane="file" hidden>
+                        <p class="cskh-hint">Hỗ trợ <strong>.txt</strong>, <strong>.md</strong>, <strong>.csv</strong> (cột: title, content, tags) và <strong>.xlsx</strong> (cột A=tiêu đề, B=nội dung, C=tags).</p>
+                        <label class="cskh-kb-file-zone" id="cskhKbImportFileZone">
+                            <input type="file" id="cskhKbImportFile" accept=".txt,.md,.markdown,.csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+                            <span>Kéo thả hoặc bấm để chọn file</span>
+                        </label>
+                        <p class="cskh-hint" id="cskhKbImportFileName"></p>
+                    </div>
+
+                    <div class="cskh-form-grid cskh-kb-import-options">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhKbImportParent">Node cha (tuỳ chọn)</label>
+                            <select id="cskhKbImportParent" class="cskh-select"><option value="">— Không có —</option></select>
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label">Tag mặc định (văn bản / file)</label>
+                            <div class="cskh-kb-tags" id="cskhKbImportTags">
+                                <label class="cskh-check"><input type="checkbox" value="dịch vụ"> Dịch vụ</label>
+                                <label class="cskh-check"><input type="checkbox" value="bảng giá"> Bảng giá</label>
+                                <label class="cskh-check"><input type="checkbox" value="chính sách"> Chính sách</label>
+                                <label class="cskh-check"><input type="checkbox" value="faq"> FAQ</label>
+                                <label class="cskh-check"><input type="checkbox" value="bảo hành"> Bảo hành</label>
+                                <label class="cskh-check"><input type="checkbox" value="liên hệ"> Liên hệ</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="cskh-kb-import-err" id="cskhKbImportErr" hidden></p>
+                    <p class="cskh-hint" id="cskhKbImportResult" hidden></p>
+
+                    <div class="cskh-btn-row">
+                        <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnKbImportSubmit">Import vào KB</button>
+                        <button type="button" class="cskh-btn cskh-btn--ghost" id="cskhBtnKbImportCancel">Huỷ</button>
+                    </div>
+                </div>
+
+                <div class="cskh-card" id="cskhKbFormCard" hidden>
+                    <h2 class="cskh-card-title" id="cskhKbFormTitle">Thêm node kiến thức</h2>
+                    <input type="hidden" id="cskhKbEditNodeId" value="">
+                    <div class="cskh-form-grid">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhKbNodeType">Loại</label>
+                            <select id="cskhKbNodeType" class="cskh-select">
+                                <option value="group">Nhóm kiến thức</option>
+                                <option value="node" selected>Node kiến thức</option>
+                            </select>
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhKbParent">Node cha</label>
+                            <select id="cskhKbParent" class="cskh-select"><option value="">— Không có —</option></select>
+                        </div>
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhKbTitle">Tiêu đề *</label>
+                        <input type="text" id="cskhKbTitle" class="cskh-input" maxlength="200" placeholder="VD: Bảng giá dịch vụ SEO">
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhKbContent">Nội dung chi tiết</label>
+                        <textarea id="cskhKbContent" class="cskh-textarea" placeholder="Mô tả chính xác thông tin bot được phép trả lời…"></textarea>
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label">Tag</label>
+                        <div class="cskh-kb-tags" id="cskhKbTags">
+                            <label class="cskh-check"><input type="checkbox" value="dịch vụ"> Dịch vụ</label>
+                            <label class="cskh-check"><input type="checkbox" value="bảng giá"> Bảng giá</label>
+                            <label class="cskh-check"><input type="checkbox" value="chính sách"> Chính sách</label>
+                            <label class="cskh-check"><input type="checkbox" value="faq"> FAQ</label>
+                            <label class="cskh-check"><input type="checkbox" value="bảo hành"> Bảo hành</label>
+                            <label class="cskh-check"><input type="checkbox" value="liên hệ"> Liên hệ</label>
+                        </div>
+                    </div>
+                    <div class="cskh-form-grid">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhKbPriority">Ưu tiên (0–100)</label>
+                            <input type="number" id="cskhKbPriority" class="cskh-input" min="0" max="1000" value="0">
+                        </div>
+                        <div class="cskh-field cskh-field--check">
+                            <label class="cskh-check"><input type="checkbox" id="cskhKbActive" checked> Bật — chatbot được dùng node này</label>
+                        </div>
+                    </div>
+                    <div class="cskh-btn-row">
+                        <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnKbSave">Lưu node</button>
+                        <button type="button" class="cskh-btn cskh-btn--ghost" id="cskhBtnKbCancel">Huỷ</button>
+                    </div>
+                </div>
+
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Cây kiến thức</h2>
+                    <div id="cskhKbNodesList"><p class="cskh-empty">Chọn chatbot để quản lý sơ đồ tri thức.</p></div>
+                </div>
+            </section>
+
+            <!-- Kênh kết nối -->
+            <section class="cskh-panel" data-cskh-panel="channels" role="tabpanel" hidden>
+                <div class="cskh-card" id="cskhFbUpgradeCard" hidden>
+                    <h2 class="cskh-card-title">Facebook Fanpage (beta)</h2>
+                    <p class="cskh-hint">Kết nối Messenger chỉ dành cho gói <strong>Pro</strong> trở lên. <a href="/pricing">Nâng cấp gói</a></p>
+                </div>
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Website</h2>
+                    <p class="cskh-hint">Mỗi chatbot đang hoạt động có thể nhúng widget trên website. Copy mã nhúng tại tab «Chatbot của tôi».</p>
+                    <div id="cskhWebsiteChannelsList"><p class="cskh-empty">Đang tải…</p></div>
+                </div>
+                <div class="cskh-card" id="cskhFacebookChannelCard">
+                    <h2 class="cskh-card-title">Facebook Fanpage <span class="cskh-pill">Beta</span></h2>
+                    <p class="cskh-hint">Kết nối Fanpage qua Facebook Login — bot trả lời tin nhắn Messenger theo dữ liệu đã huấn luyện. Tuân thủ cửa sổ 24h của Meta.</p>
+                    <div class="cskh-form-grid">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhFbBot">Chatbot</label>
+                            <select id="cskhFbBot" class="cskh-select"><option value="">— Chọn chatbot —</option></select>
+                        </div>
+                    </div>
+                    <div class="cskh-btn-row">
+                        <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnConnectFacebook">Kết nối Fanpage</button>
+                    </div>
+                    <div id="cskhFacebookChannelsList" class="cskh-mt"><p class="cskh-empty">Chưa kết nối Fanpage.</p></div>
+                </div>
+            </section>
+
+            <!-- Hội thoại & Lead -->
+            <section class="cskh-panel" data-cskh-panel="conversations" role="tabpanel" hidden>
+                <div class="cskh-inbox-layout">
+                    <aside class="cskh-inbox-sidebar">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhConvBot">Chatbot</label>
+                            <select id="cskhConvBot" class="cskh-select"><option value="">Tất cả bot</option></select>
+                        </div>
+                        <div class="cskh-conv-filters" role="tablist">
+                            <button type="button" class="cskh-conv-filter active" data-conv-filter="all">Tất cả</button>
+                            <button type="button" class="cskh-conv-filter" data-conv-filter="has_phone">Có SĐT</button>
+                            <button type="button" class="cskh-conv-filter" data-conv-filter="unprocessed">Chưa xử lý</button>
+                            <button type="button" class="cskh-conv-filter" data-conv-filter="handled">Đã xử lý</button>
+                            <button type="button" class="cskh-conv-filter" data-conv-filter="needs_staff">Cần tư vấn</button>
+                        </div>
+                        <div id="cskhConversationsList" class="cskh-conv-list"><p class="cskh-empty">Đang tải…</p></div>
+                    </aside>
+                    <div class="cskh-inbox-main" id="cskhConversationDetail">
+                        <p class="cskh-empty">Chọn một hội thoại để xem tin nhắn.</p>
+                    </div>
+                </div>
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Danh sách Lead</h2>
+                    <div class="cskh-form-grid">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhLeadBot">Lọc theo bot</label>
+                            <select id="cskhLeadBot" class="cskh-select"><option value="">Tất cả bot</option></select>
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhLeadStatus">Trạng thái lead</label>
+                            <select id="cskhLeadStatus" class="cskh-select">
+                                <option value="">Tất cả</option>
+                                <option value="new">Mới</option>
+                                <option value="consulting">Đang tư vấn</option>
+                                <option value="won">Đã chốt</option>
+                                <option value="no_potential">Không tiềm năng</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="cskhLeadsList"><p class="cskh-empty">Đang tải…</p></div>
+                </div>
+            </section>
+
+            <!-- Cài đặt AI -->
+            <section class="cskh-panel" data-cskh-panel="settings" role="tabpanel" hidden>
+                <div class="cskh-card">
+                    <h2 class="cskh-card-title">Cài đặt AI</h2>
+                    <div class="cskh-form-grid">
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhSettingModel">Model</label>
+                            <input type="text" id="cskhSettingModel" class="cskh-input" placeholder="gpt-4o-mini">
+                        </div>
+                        <div class="cskh-field">
+                            <label class="cskh-label" for="cskhSettingTemp">Temperature (0–1)</label>
+                            <input type="number" id="cskhSettingTemp" class="cskh-input" min="0" max="1" step="0.1" value="0.4">
+                        </div>
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhSettingPrompt">System prompt</label>
+                        <textarea id="cskhSettingPrompt" class="cskh-textarea"></textarea>
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhSettingGreeting">Lời chào</label>
+                        <input type="text" id="cskhSettingGreeting" class="cskh-input">
+                    </div>
+                    <div class="cskh-field">
+                        <label class="cskh-label" for="cskhSettingFallback">Câu trả lời khi không biết</label>
+                        <input type="text" id="cskhSettingFallback" class="cskh-input">
+                    </div>
+                    <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnSaveSettings">Lưu cài đặt</button>
+                </div>
+            </section>
+            </div><!-- .cskh-main -->
+        </div><!-- .cskh-shell -->
+    </div>
+</div>
+
+<div class="cskh-toast" id="cskhToast" aria-live="polite"></div>
+
+<div class="cskh-modal" id="cskhKbPreviewModal" hidden>
+    <div class="cskh-modal-backdrop" data-kb-preview-close></div>
+    <div class="cskh-modal-panel" role="dialog" aria-labelledby="cskhKbPreviewTitle">
+        <div class="cskh-modal-head">
+            <h3 id="cskhKbPreviewTitle">Xem trước chatbot với KB</h3>
+            <button type="button" class="cskh-modal-close" data-kb-preview-close aria-label="Đóng">×</button>
+        </div>
+        <div class="cskh-kb-preview-body" id="cskhKbPreviewBody"></div>
+        <div class="cskh-kb-preview-foot">
+            <input type="text" id="cskhKbPreviewInput" class="cskh-input" placeholder="Nhập câu hỏi thử…" maxlength="2000">
+            <button type="button" class="cskh-btn cskh-btn--primary" id="cskhBtnKbPreviewSend">Gửi</button>
+        </div>
+    </div>
+</div>
+
+{% include "partials/digiseo_auth_modal.html" %}
+{% include "partials/digiseo_credit_confirm_bundle.html" %}
+{% include "partials/digiseo_chatbot_bundle.html" %}
+<script src="/static/js/chatbot-kb-shared.js?v=2"></script>
+<script src="/static/js/chatbot-cskh.js?v=13"></script>
+</body>
+</html>

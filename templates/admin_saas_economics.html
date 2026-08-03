@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=8">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+    <link rel="stylesheet" href="/static/css/admin-saas-economics.css?v=2">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=1">
+</head>
+<body class="ab-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+
+    <div id="admEcoBlocked" class="adm-eco-blocked" hidden>
+        <h2>Không có quyền truy cập</h2>
+        <p>Chỉ tài khoản <strong>admin</strong> mới vào được trang này.</p>
+        <p><a href="/admin">← Quay lại Admin</a></p>
+    </div>
+
+    <div class="adm-eco-wrap" id="admEcoApp" hidden>
+        {% include "partials/admin_shell_header.html" %}
+
+        <div class="ab-card adm-eco-toolbar">
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmEcoRefresh">Làm mới</button>
+                <button type="button" class="ab-btn secondary" id="btnAdmEcoUnblock" hidden>Gỡ chặn API đắt</button>
+            </div>
+            <p class="ab-muted-text" id="admEcoGenerated"></p>
+        </div>
+
+        <div id="admEcoAlerts" class="adm-eco-alerts" hidden></div>
+        <div id="admEcoBlockBanner" class="adm-eco-block-banner" hidden></div>
+
+        <div class="ab-loading" id="admEcoLoading">Đang tải báo cáo economics…</div>
+        <div class="ab-error" id="admEcoError" hidden></div>
+
+        <div id="admEcoContent" hidden>
+            <section class="adm-eco-kpi-grid" id="admEcoKpis"></section>
+
+            <div class="adm-eco-grid-2">
+                <section class="ab-card">
+                    <h2 class="adm-eco-section-title">Chi phí theo provider (tháng)</h2>
+                    <div class="adm-eco-table-wrap">
+                        <table class="adm-eco-table" id="admEcoProviderTable">
+                            <thead>
+                                <tr><th>Provider</th><th>Credit</th><th>Ước tính VND</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
+                <section class="ab-card">
+                    <h2 class="adm-eco-section-title">Doanh thu & lợi nhuận (tháng)</h2>
+                    <div id="admEcoRevenue" class="adm-eco-revenue"></div>
+                </section>
+            </div>
+
+            <div class="adm-eco-grid-2">
+                <section class="ab-card">
+                    <h2 class="adm-eco-section-title">Credit burn theo module (tháng)</h2>
+                    <div class="adm-eco-table-wrap">
+                        <table class="adm-eco-table" id="admEcoModuleTable">
+                            <thead><tr><th>Module</th><th>Credit</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
+                <section class="ab-card">
+                    <h2 class="adm-eco-section-title">Top user burn (tháng)</h2>
+                    <div class="adm-eco-table-wrap">
+                        <table class="adm-eco-table" id="admEcoUserTable">
+                            <thead><tr><th>User</th><th>Credit</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <section class="ab-card">
+                <h2 class="adm-eco-section-title">User nguy cơ gây lỗ (tháng)</h2>
+                <div class="adm-eco-table-wrap">
+                    <table class="adm-eco-table" id="admEcoRiskTable">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Credit đốt</th>
+                                <th>Chi phí ước tính</th>
+                                <th>Doanh thu (pre-VAT)</th>
+                                <th>Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="ab-card adm-eco-settings">
+                <h2 class="adm-eco-section-title">Cấu hình ngưỡng cảnh báo</h2>
+                <p class="ab-muted-text">Vượt ngưỡng → cảnh báo admin và (nếu bật) tự chặn OpenAI, Anthropic, DataForSEO, Google Places/CSE.</p>
+                <form id="admEcoSettingsForm" class="adm-eco-settings-form">
+                    <label>Ngưỡng chi phí ngày (VND)
+                        <input type="number" min="0" step="1000" name="daily_cost_threshold_vnd" />
+                    </label>
+                    <label>Ngưỡng chi phí tháng (VND)
+                        <input type="number" min="0" step="10000" name="monthly_cost_threshold_vnd" />
+                    </label>
+                    <label>Tự chặn API đắt
+                        <input type="checkbox" name="auto_block_expensive_api" />
+                    </label>
+                    <label>Cooldown cảnh báo (giờ)
+                        <input type="number" min="1" max="168" name="alert_cooldown_hours" />
+                    </label>
+                    <fieldset class="adm-eco-vpc-fieldset">
+                        <legend>VND / credit theo provider</legend>
+                        <div class="adm-eco-vpc-grid" id="admEcoVpcGrid"></div>
+                    </fieldset>
+                    <button type="submit" class="ab-btn">Lưu cấu hình</button>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    <div class="ab-toast" id="admEcoToast" role="status" aria-live="polite" hidden></div>
+
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=1"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=6" defer></script>
+    <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+    <script src="/static/js/admin-saas-economics.js?v=2"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

@@ -3,6 +3,9 @@
   "users": {
     "8": {
       "pipeline_multi_model": false
+    },
+    "1": {
+      "pipeline_multi_model": false
     }
   }
 }

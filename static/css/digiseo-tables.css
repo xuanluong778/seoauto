@@ -1,37 +1,47 @@
 /**
- * DigiSEO — bảng: viền đậm, chữ rõ, header xanh + zebra + hover.
+ * Seoauto — bảng: viền đậm, chữ rõ, header xanh + zebra + hover.
  * UI đặc biệt: class no-digiseo-table để bỏ qua.
  */
 
 :root {
-    --digiseo-table-border: #0f172a;
+    --digiseo-table-border: #000000;
     --digiseo-table-border-w: 2px;
     --digiseo-table-head-bg: #43a047;
     --digiseo-table-head-text: #ffffff;
     --digiseo-table-row-odd: #ffffff;
     --digiseo-table-row-even: #e8f5e9;
     --digiseo-table-row-hover: #a5d6a7;
-    --digiseo-table-cell-text: #0f172a;
+    --digiseo-table-cell-text: #000000;
 }
 
 html[data-theme="dark"],
 body.page-tool:not([data-theme="light"]) {
-    /* Bảng trong bài vẫn nền sáng → giữ chữ đậm, viền đậm */
-    --digiseo-table-border: #0f172a;
+    /* Bảng trong bài vẫn nền sáng → giữ chữ đen, viền đen liền */
+    --digiseo-table-border: #000000;
     --digiseo-table-border-w: 2px;
     --digiseo-table-head-bg: #388e3c;
     --digiseo-table-head-text: #ffffff;
     --digiseo-table-row-odd: #ffffff;
     --digiseo-table-row-even: #e8f5e9;
     --digiseo-table-row-hover: #81c784;
-    --digiseo-table-cell-text: #0f172a;
+    --digiseo-table-cell-text: #000000;
 }
 
-.digiseo-table-wrap {
+.digiseo-table-wrap,
+.digiseo-table-scroll {
+    display: block;
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     margin: 1.25rem 0;
     padding: 0;
     -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+}
+
+.digiseo-table-scroll > table,
+.digiseo-table-wrap > table {
+    margin-bottom: 0;
 }
 
 table.digiseo-table,
@@ -43,7 +53,7 @@ table:not(.no-digiseo-table) {
     font-size: 0.95rem;
     line-height: 1.5;
     color: var(--digiseo-table-cell-text) !important;
-    border: var(--digiseo-table-border-w) dashed var(--digiseo-table-border) !important;
+    border: var(--digiseo-table-border-w) solid var(--digiseo-table-border) !important;
     background: var(--digiseo-table-row-odd);
     opacity: 1 !important;
 }
@@ -54,7 +64,7 @@ table:not(.no-digiseo-table) th,
 table:not(.no-digiseo-table) td {
     padding: 12px 16px;
     vertical-align: middle;
-    border: var(--digiseo-table-border-w) dashed var(--digiseo-table-border) !important;
+    border: var(--digiseo-table-border-w) solid var(--digiseo-table-border) !important;
     text-align: left;
     color: var(--digiseo-table-cell-text) !important;
     font-weight: 500;
@@ -109,7 +119,7 @@ table:not(.no-digiseo-table) tbody tr:hover {
 
 table.digiseo-table tbody tr:hover td,
 table:not(.no-digiseo-table) tbody tr:hover td {
-    color: #0f172a !important;
+    color: #000000 !important;
 }
 
 /* Editor Content AI — không kế thừa chữ xám của shell tối */
@@ -121,7 +131,7 @@ table:not(.no-digiseo-table) tbody tr:hover td {
 .preview-body table:not(.no-digiseo-table),
 .ad-content-preview table.digiseo-table,
 .ad-content-preview table:not(.no-digiseo-table) {
-    border: var(--digiseo-table-border-w) dashed var(--digiseo-table-border) !important;
+    border: var(--digiseo-table-border-w) solid var(--digiseo-table-border) !important;
 }
 
 .content-render table th,
@@ -130,9 +140,9 @@ table:not(.no-digiseo-table) tbody tr:hover td {
 #contentRender table td,
 .preview-body table th,
 .preview-body table td {
-    color: #0f172a !important;
+    color: #000000 !important;
     opacity: 1 !important;
-    border-color: #0f172a !important;
+    border-color: #000000 !important;
 }
 
 .content-render table thead th,
@@ -151,12 +161,9 @@ table:not(.no-digiseo-table) tbody tr:hover td {
 }
 
 /* TinyMCE iframe */
-.mce-content-body table.digiseo-table th,
-.mce-content-body table.digiseo-table td,
-.mce-content-body table:not(.no-digiseo-table) th,
 .mce-content-body table:not(.no-digiseo-table) td {
-    color: #0f172a !important;
-    border: 2px dashed #0f172a !important;
+    color: #000000 !important;
+    border: 2px solid #000000 !important;
     opacity: 1 !important;
 }
 
@@ -164,4 +171,23 @@ table:not(.no-digiseo-table) tbody tr:hover td {
 .mce-content-body table:not(.no-digiseo-table) thead th {
     background: #43a047 !important;
     color: #ffffff !important;
+}
+
+/* Khung UI toàn app — viền 2px solid đen, nét liền (không dashed) */
+.card:not(.no-digiseo-border),
+.box:not(.no-digiseo-border),
+fieldset:not(.no-digiseo-border),
+.bulk-v2-card,
+.bulk-v2-actions,
+.bulk-v2-stepper,
+.bulk-write-panel,
+input:not([type="checkbox"]):not([type="radio"]):not(.no-digiseo-border),
+textarea:not(.no-digiseo-border),
+select:not(.no-digiseo-border),
+.btn:not(.no-digiseo-border):not(.nav-dd-btn),
+.bulk-v2-modal,
+.bulk-v2-editor-modal {
+    border-width: 2px;
+    border-style: solid;
+    border-color: #000;
 }

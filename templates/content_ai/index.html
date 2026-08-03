@@ -1,0 +1,102 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-il-media.css?v=8">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-layout.css?v=2">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-sidebar.css?v=1">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-editor.css?v=9">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-bulk.css?v=51">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-schedule-board.css?v=29">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-projects.css?v=3">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-legacy.css?v=1">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-responsive.css?v=1">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-auto-update.css?v=53">
+    <link rel="stylesheet" href="/static/css/content-ai-page.css?v=62">
+    <link rel="stylesheet" href="/static/css/content_ai/content-ai-delete-confirm.css?v=2">
+</head>
+<body class="page-content-ai">
+<div id="caToastHost" aria-live="polite" aria-atomic="true"></div>
+<!-- Popup LLM không khả dụng — lớn, có nút X -->
+<div id="caLlmUnavailableOverlay" class="ca-llm-unavailable-overlay" aria-hidden="true" hidden>
+    <div class="ca-llm-unavailable-backdrop" id="caLlmUnavailableBackdrop"></div>
+    <div class="ca-llm-unavailable-dialog" role="alertdialog" aria-modal="true" aria-labelledby="caLlmUnavailableTitle">
+        <button type="button" class="ca-llm-unavailable-close" id="btnCaLlmUnavailableClose" aria-label="Đóng" title="Đóng">×</button>
+        <div class="ca-llm-unavailable-icon" aria-hidden="true">!</div>
+        <h2 id="caLlmUnavailableTitle" class="ca-llm-unavailable-title">Thông báo hệ thống</h2>
+        <p id="caLlmUnavailableMessage" class="ca-llm-unavailable-message"></p>
+    </div>
+</div>
+<!-- Popup xác nhận xóa — gắn body đầu tiên, z-index cao nhất -->
+<div id="deleteConfirmOverlay" class="ca-delete-confirm-overlay" aria-hidden="true">
+    <div id="deleteConfirmBackdrop" class="ca-delete-confirm-backdrop" aria-hidden="true"></div>
+    <div id="deleteConfirmModal" class="ca-delete-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="deleteConfirmTitle">
+        <div class="ca-delete-confirm-card">
+            <div class="ca-delete-confirm-head">
+                <div class="ca-delete-confirm-title" id="deleteConfirmTitle">Xác nhận xóa</div>
+            </div>
+            <div class="ca-delete-confirm-body">
+                <p class="ca-delete-confirm-msg" id="deleteConfirmMessage"></p>
+                <div class="ca-delete-confirm-actions">
+                    <button type="button" class="mini-btn" id="btnDeleteConfirmCancel">Hủy</button>
+                    <button type="button" class="mini-btn danger" id="btnDeleteConfirmOk">Xóa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Bulk editor modal — gắn body để không bị header/stacking context che -->
+<div class="bulk-v2-modal-backdrop bulk-v2-editor-overlay" id="bulkV2ModalBackdrop" hidden>
+    <div class="bulk-v2-modal bulk-v2-editor-modal" id="bulkV2Modal" role="dialog" aria-modal="true" aria-labelledby="bulkV2ModalTitle" hidden>
+        <div class="bulk-v2-modal-head bulk-v2-editor-modal-head">
+            <h3 id="bulkV2ModalTitle">Cấu hình bài viết</h3>
+            <button type="button" class="bulk-v2-drawer-close bulk-v2-modal-close" id="bulkV2ModalClose" aria-label="Đóng" title="Đóng">×</button>
+        </div>
+        <div class="bulk-v2-modal-body" id="bulkV2ModalBody"></div>
+    </div>
+</div>
+<div class="wrap">
+    {% include "partials/digiseo_top_nav.html" %}
+    <div class="content-shell ca-workspace">
+        {% include "content_ai/partials/sidebar_steps.html" %}
+        <div class="ca-main-column">
+            <nav class="content-ai-main-tabs" aria-label="Chế độ viết bài" id="contentAiMainTabs">
+                <button type="button" class="content-ai-main-tab active" id="tabMainSingle">Viết bài SEO</button>
+                <button type="button" class="content-ai-main-tab" id="tabMainBulk">Viết hàng loạt</button>
+                <button type="button" class="content-ai-main-tab" id="tabMainAutoUpdate">Auto Update</button>
+            </nav>
+            {% include "content_ai/partials/project_board.html" %}
+            {% include "content_ai/partials/bulk_writer.html" %}
+            {% include "content_ai/partials/single_writer.html" %}
+            {% include "content_ai/partials/auto_update.html" %}
+        </div>
+        <div class="ca-right-rail">
+            {% include "content_ai/partials/tool_sidebar.html" %}
+            {% include "content_ai/partials/project_board_sidebar.html" %}
+        </div>
+    </div>
+</div>
+<div id="contentAiModalRoot" aria-hidden="false">
+    {% include "content_ai/partials/step_modals.html" %}
+    {% include "content_ai/partials/seo_score_modal.html" %}
+    {% include "content_ai/partials/seo_autofix_diff_modal.html" %}
+    {% include "content_ai/partials/studio_modal.html" %}
+</div>
+{% include "content_ai/partials/modals.html" %}
+{% include "content_ai/partials/schedule_board.html" %}
+<script src="/static/js/seoauto-poll-job.js?v=1" defer></script>
+<script src="/static/js/content_ai/content-ai-index-control.js?v=2" defer></script>
+<script src="/static/js/content_ai/content-ai-api.js?v=1" defer></script>
+<script src="/static/js/content_ai/content-ai-tab-loader.js?v=22" defer></script>
+<script src="/static/js/content_ai/content-ai-bulk-ui.js?v=38" defer></script>
+<script src="/static/js/content_ai/content-ai-bulk-publish-center.js?v=5" defer></script>
+<script src="/static/js/content_ai/content-ai-bulk-schedule-board.js?v=32" defer></script>
+<script src="/static/js/content_ai/content-ai-app.js?v=196" defer></script>
+<script src="/static/js/content_ai/content-ai-usage.js?v=4" defer></script>
+{% include "partials/digiseo_i18n.html" %}
+{% include "partials/digiseo_pricing_bundle.html" %}
+</body>
+</html>

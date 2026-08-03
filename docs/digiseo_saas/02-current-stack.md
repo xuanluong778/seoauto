@@ -1,6 +1,6 @@
-# DigiSEO Current Stack
+# Seoauto Current Stack
 
-Tài liệu này tóm tắt stack kỹ thuật hiện tại của DigiSEO / SEO Technical Tool.
+Tài liệu này tóm tắt stack kỹ thuật hiện tại của Seoauto.
 
 ---
 

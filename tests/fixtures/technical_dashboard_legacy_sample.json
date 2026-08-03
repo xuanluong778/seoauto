@@ -1,0 +1,41 @@
+{
+  "domain": "legacy.com",
+  "source_url": "https://legacy.com",
+  "pages_scanned": 8,
+  "audit_id": "test-legacy-001",
+  "issues": [
+    {
+      "type": "https_not_used",
+      "severity": "high",
+      "message": "Site không dùng HTTPS",
+      "url": "https://legacy.com/",
+      "checklist_group": "Security",
+      "category": "https"
+    },
+    {
+      "type": "missing_h1",
+      "severity": "medium",
+      "message": "Thiếu H1",
+      "url": "https://legacy.com/about",
+      "checklist_group": "Onpage",
+      "category": "onpage"
+    }
+  ],
+  "technical_summary": {
+    "broken_internal_links": 0,
+    "broken_internal_404": 0,
+    "redirect_chains": 0,
+    "internal_pages": 8,
+    "total_technical_issues": 2,
+    "health_score": 68,
+    "issues_by_severity": {"high": 1, "medium": 1, "low": 0}
+  },
+  "passed_checks": [
+    {"id": "robots_txt", "title": "robots.txt exists", "category": "robots"},
+    {"id": "html_lang", "title": "html lang found", "category": "onpage"}
+  ],
+  "broken_internal_links": [],
+  "redirect_chains": [],
+  "robots": {"url": "", "status": 200, "disallow": [], "sitemaps": []},
+  "sitemap": {"url": "", "status": 200, "urls": []}
+}

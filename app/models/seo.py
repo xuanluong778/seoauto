@@ -76,3 +76,24 @@ class ScanIssue(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
 
     page: Mapped["Page"] = relationship("Page", back_populates="issues")
+
+
+class SeoScoreApplyLog(Base):
+    """Audit log — áp dụng SEO Score fix lên WordPress."""
+
+    __tablename__ = "seo_score_apply_logs"
+    __table_args__ = (
+        Index("ix_seo_score_apply_logs_user_created", "user_id", "created_at"),
+        Index("ix_seo_score_apply_logs_project", "project_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), index=True, nullable=True)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    page_field: Mapped[str] = mapped_column(String(64), nullable=False)
+    before_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    after_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

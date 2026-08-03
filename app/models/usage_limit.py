@@ -22,7 +22,7 @@ class UsageLimit(Base):
     feature_key: Mapped[str] = mapped_column(String(64), nullable=False)
     limit_value: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     period: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'monthly'"))
-    is_hard_limit: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("1"))
+    is_hard_limit: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     credit_cost_override: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

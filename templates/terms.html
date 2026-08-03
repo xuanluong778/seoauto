@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <style>
+        :root {
+            --bg: #050b18;
+            --surface: rgba(15, 23, 42, 0.72);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #00e676;
+            --line: rgba(255, 255, 255, 0.1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(900px 500px at 12% 0%, rgba(0, 230, 118, 0.07), transparent 55%),
+                radial-gradient(700px 400px at 88% 8%, rgba(99, 102, 241, 0.05), transparent 50%),
+                var(--bg);
+            line-height: 1.65;
+        }
+        a { color: #93c5fd; text-decoration: none; }
+        a:hover { color: var(--accent); }
+        .legal-nav {
+            border-bottom: 1px solid var(--line);
+            background: rgba(5, 11, 24, 0.92);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .legal-nav .inner {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .legal-nav .brand {
+            font-weight: 800;
+            color: #fff;
+            margin-right: auto;
+        }
+        .legal-nav .brand:hover { color: var(--accent); }
+        .legal-nav .back { font-size: 0.9rem; color: var(--muted); }
+        .legal-nav .back:hover { color: var(--accent); }
+        main {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 36px 20px 64px;
+        }
+        .legal-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 32px 28px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 1.75rem;
+            color: #fff;
+        }
+        .updated {
+            margin: 0 0 28px;
+            font-size: 0.875rem;
+            color: var(--muted);
+        }
+        h2 {
+            margin: 28px 0 10px;
+            font-size: 1.1rem;
+            color: #f8fafc;
+        }
+        p, li { color: #cbd5e1; }
+        ul { padding-left: 1.25rem; }
+        li { margin-bottom: 8px; }
+        .contact-box {
+            margin-top: 28px;
+            padding: 16px 18px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 230, 118, 0.25);
+            background: rgba(0, 230, 118, 0.06);
+        }
+        .contact-box strong { color: #fff; }
+        footer {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 0 20px 32px;
+            font-size: 0.85rem;
+            color: var(--muted);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header class="legal-nav">
+        <div class="inner">
+            {% include "partials/digiseo_brand.html" %}
+            <a href="/" class="back">← Về trang chủ</a>
+        </div>
+    </header>
+
+    <main>
+        <article class="legal-card">
+            <h1>Điều khoản sử dụng</h1>
+            <p class="updated">Cập nhật lần cuối: 8 tháng 6, 2026</p>
+
+            <p>
+                Chào mừng bạn đến với SEOAuto (<a href="https://seoauto.vn">seoauto.vn</a>).
+                Bằng việc truy cập hoặc sử dụng dịch vụ, bạn đồng ý với các điều khoản dưới đây.
+                Nếu không đồng ý, vui lòng không sử dụng dịch vụ.
+            </p>
+
+            <h2>1. Mô tả dịch vụ</h2>
+            <p>
+                SEOAuto cung cấp công cụ phân tích SEO, báo cáo kỹ thuật, nghiên cứu từ khóa và các tính năng liên quan.
+                Khi bạn kết nối Google, SEOAuto có thể truy xuất dữ liệu Google Search Console ở chế độ read-only
+                để hiển thị thông tin SEO trong tài khoản của bạn.
+            </p>
+
+            <h2>2. Tài khoản và trách nhiệm người dùng</h2>
+            <ul>
+                <li>Bạn chịu trách nhiệm bảo mật tài khoản Google và tài khoản SEOAuto của mình.</li>
+                <li>Bạn chịu trách nhiệm với website, property Search Console và dữ liệu mà bạn kết nối vào SEOAuto.</li>
+                <li>Bạn cam kết chỉ kết nối các website/property mà bạn có quyền quản lý hoặc được ủy quyền hợp pháp.</li>
+                <li>Bạn không được sử dụng SEOAuto cho mục đích vi phạm pháp luật, spam, hoặc gây hại cho hệ thống.</li>
+            </ul>
+
+            <h2>3. Tích hợp Google OAuth và Search Console</h2>
+            <p>
+                Việc đăng nhập Google và kết nối Search Console là tùy chọn. Bạn có thể thu hồi quyền truy cập bất kỳ lúc nào
+                trong Cài đặt SEOAuto hoặc tại
+                <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
+                    Google Account Permissions
+                </a>.
+            </p>
+            <p>
+                SEOAuto chỉ đọc dữ liệu Search Console để phân tích và hiển thị; không thay đổi cấu hình trên Google của bạn.
+            </p>
+
+            <h2>4. Giới hạn trách nhiệm và cam kết</h2>
+            <p>
+                SEOAuto cung cấp công cụ hỗ trợ phân tích SEO dựa trên dữ liệu có sẵn và thuật toán nội bộ.
+                Chúng tôi <strong>không cam kết</strong> thứ hạng Google, lưu lượng truy cập, doanh thu hoặc kết quả kinh doanh cụ thể.
+                Kết quả SEO phụ thuộc nhiều yếu tố ngoài tầm kiểm soát của SEOAuto.
+            </p>
+            <p>
+                Dịch vụ được cung cấp trên cơ sở “nguyên trạng” (as-is) trong phạm vi pháp luật cho phép.
+                SEOAuto không chịu trách nhiệm cho thiệt hại gián tiếp phát sinh từ việc sử dụng hoặc không thể sử dụng dịch vụ.
+            </p>
+
+            <h2>5. Gói trả phí và thanh toán</h2>
+            <p>
+                Một số tính năng SEOAuto có thể yêu cầu gói trả phí. Khi bạn đăng ký gói trả phí:
+            </p>
+            <ul>
+                <li>Giá và quyền lợi từng gói được hiển thị tại trang <a href="/pricing">Bảng giá</a> hoặc theo thỏa thuận riêng.</li>
+                <li>Thanh toán (nếu có) được thực hiện theo phương thức mà SEOAuto công bố tại thời điểm đăng ký.</li>
+                <li>Gói trả phí có thể có chu kỳ (tháng/năm) và tự gia hạn trừ khi bạn hủy trước ngày gia hạn.</li>
+                <li>Chúng tôi có thể điều chỉnh giá hoặc tính năng gói; thay đổi quan trọng sẽ được thông báo hợp lý trước khi áp dụng.</li>
+            </ul>
+
+            <h2>6. Ngừng sử dụng và ngắt kết nối</h2>
+            <p>Bạn có thể ngừng sử dụng SEOAuto bất kỳ lúc nào bằng cách:</p>
+            <ul>
+                <li>Ngắt kết nối Google Search Console và Google OAuth trong Cài đặt.</li>
+                <li>Thu hồi quyền ứng dụng tại Google Account Permissions.</li>
+                <li>Liên hệ hỗ trợ để yêu cầu xóa tài khoản (nếu cần).</li>
+            </ul>
+            <p>
+                SEOAuto có quyền tạm ngưng hoặc chấm dứt quyền truy cập nếu phát hiện vi phạm điều khoản,
+                lạm dụng hệ thống hoặc theo yêu cầu pháp luật.
+            </p>
+
+            <h2>7. Sở hữu trí tuệ</h2>
+            <p>
+                Giao diện, mã nguồn, thương hiệu và nội dung do SEOAuto cung cấp thuộc quyền sở hữu của SEOAuto
+                hoặc bên cấp phép. Bạn không được sao chép, phân phối hoặc khai thác thương mại trái phép.
+            </p>
+
+            <h2>8. Thay đổi điều khoản</h2>
+            <p>
+                Chúng tôi có thể cập nhật điều khoản này. Phiên bản hiện hành luôn được đăng tại URL này.
+                Việc tiếp tục sử dụng dịch vụ sau khi cập nhật đồng nghĩa bạn chấp nhận điều khoản mới.
+            </p>
+
+            <h2>9. Luật áp dụng</h2>
+            <p>
+                Điều khoản này được điều chỉnh theo pháp luật Việt Nam, trừ khi có thỏa thuận khác bằng văn bản.
+            </p>
+
+            <div class="contact-box">
+                <strong>Liên hệ hỗ trợ</strong><br>
+                Email: <a href="mailto:xuanluong778@gmail.com">xuanluong778@gmail.com</a><br>
+                Website: <a href="https://seoauto.vn">https://seoauto.vn</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <a href="/">Trang chủ</a> · <a href="/privacy">Chính sách bảo mật</a> · <a href="/data-deletion">Xóa dữ liệu</a>
+    </footer>
+</body>
+</html>

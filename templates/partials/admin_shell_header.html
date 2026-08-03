@@ -1,0 +1,26 @@
+{# admin_nav_active: users | affiliate | pricing | billing | integrations #}
+<header class="adm-shell">
+    <div class="adm-shell-top">
+        <div class="adm-shell-brand">
+            <h1>Quản trị viên <span class="adm-shell-badge">ADMIN</span></h1>
+            {% if admin_page_lead %}
+            <p class="adm-shell-lead">{{ admin_page_lead }}</p>
+            {% endif %}
+        </div>
+        <div class="adm-shell-actions">
+            <a href="/">Trang chủ</a>
+            {% if admin_extra_actions %}{{ admin_extra_actions | safe }}{% endif %}
+        </div>
+    </div>
+    <nav class="adm-shell-tabs" aria-label="Menu quản trị">
+        <a href="/admin" class="adm-shell-tab{% if admin_nav_active == 'users' %} is-active{% endif %}">Quản lý User</a>
+        <a href="/admin/affiliate" class="adm-shell-tab{% if admin_nav_active == 'affiliate' %} is-active{% endif %}">Affiliate</a>
+        <a href="/admin/pricing" class="adm-shell-tab{% if admin_nav_active == 'pricing' %} is-active{% endif %}">Pricing / Plans</a>
+        <a href="/admin/credit-costs" class="adm-shell-tab{% if admin_nav_active == 'credit_costs' %} is-active{% endif %}">Credit costs</a>
+        <a href="/admin/plan-quotas" class="adm-shell-tab{% if admin_nav_active == 'plan_quotas' %} is-active{% endif %}">Plan quotas</a>
+        <a href="/admin/billing" class="adm-shell-tab{% if admin_nav_active == 'billing' %} is-active{% endif %}">Billing / Đơn thanh toán</a>
+        <a href="/admin/backup" class="adm-shell-tab{% if admin_nav_active == 'backup' %} is-active{% endif %}">Backup</a>
+        <a href="/admin/integrations" class="adm-shell-tab{% if admin_nav_active == 'integrations' %} is-active{% endif %}">Integrations</a>
+        <a href="/admin/saas-economics" class="adm-shell-tab{% if admin_nav_active == 'saas_economics' %} is-active{% endif %}">SaaS economics</a>
+    </nav>
+</header>

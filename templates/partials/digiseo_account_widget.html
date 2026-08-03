@@ -1,0 +1,50 @@
+<div id="digiseoAccountWidget" class="digiseo-account-widget" data-digiseo-account-widget aria-label="Tài khoản">
+    <div
+        class="daw-popover"
+        id="dawPopover"
+        hidden
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="dawPopoverTitle"
+    >
+        <div class="daw-popover-head">
+            <p class="daw-popover-title" id="dawPopoverTitle">Tài khoản</p>
+            <p class="daw-email" id="dawEmail">—</p>
+            <dl class="daw-stats">
+                <div class="daw-stat">
+                    <dt>Gói hiện tại</dt>
+                    <dd id="dawPlan">—</dd>
+                </div>
+                <div class="daw-stat">
+                    <dt>Credit còn lại</dt>
+                    <dd id="dawCredits">—</dd>
+                </div>
+            </dl>
+        </div>
+        <div class="daw-popover-actions">
+            <p class="daw-trial-hint" id="dawTrialHint" hidden></p>
+            <button type="button" class="daw-btn daw-btn--trial" id="dawActivateTrial" hidden>
+                Kích hoạt dùng thử 3 ngày
+            </button>
+            <button type="button" class="daw-btn daw-btn--credit" id="dawBuyCredit" data-digiseo-buy-credit hidden>Mua credit</button>
+            <button type="button" class="daw-btn daw-btn--primary" id="dawUpgrade" data-digiseo-pricing-open>
+                Nâng cấp gói
+            </button>
+            <a class="daw-menu-link" id="dawAccountLink" href="/account-billing">Tài khoản &amp; Thanh toán</a>
+            <a class="daw-menu-link daw-menu-link--admin" id="dawAdminLink" href="/admin" hidden data-i18n="nav.admin">Quản trị viên</a>
+            <a class="daw-menu-link" id="dawSettingsLink" href="/settings">Cài đặt</a>
+            <button type="button" class="daw-menu-link daw-menu-link--btn" id="dawSessionBtn">Đăng xuất</button>
+        </div>
+    </div>
+    <button
+        type="button"
+        class="daw-avatar-btn"
+        id="dawAvatarBtn"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="dawPopover"
+        title="Tài khoản"
+    >
+        <span class="daw-avatar is-guest" id="dawAvatar" aria-hidden="true">?</span>
+    </button>
+</div>

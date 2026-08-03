@@ -1,16 +1,12 @@
-<link rel="stylesheet" href="/static/css/digiseo_pricing.css?v=8" />
-<link rel="stylesheet" href="/static/css/digiseo-user-dock.css?v=3" />
+<link rel="stylesheet" href="/static/css/digiseo_pricing.css?v=10" />
 
-{% if not skip_global_user_dock|default(false) %}
-{% include "partials/digiseo_user_dock.html" %}
-{% endif %}
 {% include "partials/digiseo_account_mini.html" %}
 
 <div id="digiseoPricingBackdrop" class="digiseo-pricing-backdrop" role="dialog" aria-modal="true" aria-labelledby="digiseoPricingTitle">
     <div class="digiseo-pricing-modal" id="digiseoPricingModal">
         <div class="digiseo-pricing-head">
             <div>
-                <h2 id="digiseoPricingTitle">DigiSEO Pricing</h2>
+                <h2 id="digiseoPricingTitle">Seoauto Pricing</h2>
                 <p>Choose the plan that fits your needs</p>
             </div>
             <button type="button" class="digiseo-pricing-close" id="digiseoPricingClose" aria-label="Đóng">×</button>
@@ -35,10 +31,12 @@
             <div class="digiseo-pricing-grid" id="digiseoPricingGrid"></div>
         </div>
         <div class="digiseo-pricing-foot">
-            Giá hiển thị mang tính tham khảo theo gói DigiSEO. Thanh toán trực tuyến (PayOS / PayPal) sẽ được tích hợp trong bản cập nhật tiếp theo.
+            Giá hiển thị mang tính tham khảo theo gói Seoauto. Thanh toán trực tuyến (PayOS / PayPal) sẽ được tích hợp trong bản cập nhật tiếp theo.
         </div>
     </div>
 </div>
 
-<script src="/static/js/digiseo-user-dock.js?v=3" defer></script>
-<script src="/static/js/digiseo_pricing.js?v=8" defer></script>
+<script src="/static/js/digiseo-quota-handler.js?v=1" defer></script>
+{% include "partials/digiseo_credit_confirm_bundle.html" %}
+<script src="/static/js/digiseo_pricing.js?v=15" defer></script>
+{% include "partials/digiseo_chatbot_bundle.html" %}

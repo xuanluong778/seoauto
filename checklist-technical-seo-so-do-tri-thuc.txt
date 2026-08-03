@@ -1,7 +1,7 @@
-# CHECKLIST TECHNICAL SEO CHO SƠ ĐỒ TRI THỨC DigiSEO
+# CHECKLIST TECHNICAL SEO CHO SƠ ĐỒ TRI THỨC Seoauto
 
 Mục đích:
-File này dùng để đưa vào Knowledge Base / Sơ đồ tri thức **DigiSEO** (Global). Hệ thống AI có thể dùng dữ liệu này để phân tích lỗi technical SEO, giải thích nguyên nhân và gợi ý hướng xử lý cụ thể cho từng nhóm lỗi.
+File này dùng để đưa vào Knowledge Base / Sơ đồ tri thức **Seoauto** (Global). Hệ thống AI có thể dùng dữ liệu này để phân tích lỗi technical SEO, giải thích nguyên nhân và gợi ý hướng xử lý cụ thể cho từng nhóm lỗi.
 
 Cấu trúc chuẩn cho mỗi lỗi Technical SEO:
 - issue_code: mã lỗi

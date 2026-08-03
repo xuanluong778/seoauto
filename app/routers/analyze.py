@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -12,10 +14,15 @@ from app.services.audit_store import save_technical_audit
 from app.services.auth import get_current_user
 from app.services.trial_access import require_active_trial
 from app.services.credits import consume_credits, cost_analyze_project, cost_technical_analyze, cost_url_seo_scoreboard, credits_enforced
+from app.services.cost_control import CostGateRequest, ExternalApiProvider, cost_gate_session
+from app.services.plan_quota_registry import feature_key_for
+from app.services.plan_quota_service import record_quota_usage
 from app.services.crawler import CrawlRequestError, CrawlStatusError, CrawlTimeoutError
+from app.services.url_safety import assert_public_http_url
 from app.services.url_seo_scoreboard import build_url_seo_scoreboard
 
 router = APIRouter(tags=["analyze"])
+_LOG = logging.getLogger(__name__)
 
 
 @router.post("/analyze", response_model=AnalyzeProjectResponse)
@@ -31,8 +38,21 @@ def analyze(
             detail="Không có project này trong tài khoản của bạn. Hãy đăng nhập đúng email, tạo project ở Bước 2, rồi chọn project trong danh sách (không dùng ID của tài khoản khác).",
         )
 
+    assert_public_http_url(payload.url, label="URL")
+    credit_cost = cost_analyze_project() if credits_enforced() else 0
+    gate_req = CostGateRequest(
+        db=db,
+        user=current_user,
+        provider=ExternalApiProvider.CRAWL,
+        action="analyze_project",
+        credit_cost=credit_cost,
+        feature_key=feature_key_for("seo_score"),
+        quota_units=1,
+        single_flight_key=f"analyze_project:{current_user.id}",
+    )
     try:
-        result = analyze_url(payload.url)
+        with cost_gate_session(gate_req):
+            result = analyze_url(payload.url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except CrawlTimeoutError as exc:
@@ -83,6 +103,7 @@ def analyze(
                 reason="analyze_project",
                 note=f"project_id={project.id}",
             )
+    record_quota_usage(db, current_user.id, feature_key_for("seo_score"), quantity=1, credits_used=credit_cost)
     db.commit()
     return AnalyzeProjectResponse(scan_id=scan.id, seo_score=seo_score)
 
@@ -93,21 +114,65 @@ def analyze_technical(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_active_trial),
 ) -> TechnicalAnalyzeResponse:
+    assert_public_http_url(payload.url, label="URL")
+    credit_cost = cost_technical_analyze() if credits_enforced() else 0
+    gate_req = CostGateRequest(
+        db=db,
+        user=current_user,
+        provider=ExternalApiProvider.CRAWL,
+        action="technical_analyze",
+        credit_cost=credit_cost,
+        feature_key=feature_key_for("technical_audit"),
+        quota_units=1,
+        single_flight_key=f"technical_analyze:{current_user.id}",
+    )
     try:
-        result = analyze_technical_seo(payload.url, max_pages=payload.max_pages)
+        with cost_gate_session(gate_req):
+            result = analyze_technical_seo(
+                payload.url,
+                max_pages=payload.max_pages,
+                user_id=current_user.id,
+                use_gsc=payload.use_gsc,
+                gsc_property=payload.gsc_property,
+                gsc_date_range=payload.gsc_date_range,
+                gsc_start_date=payload.gsc_start_date,
+                gsc_end_date=payload.gsc_end_date,
+                url_inspection_limit=payload.url_inspection_limit,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    result_dict = result.model_dump()
+    try:
+        from app.services.technical_output_normalizer import build_saas_api_extensions
+
+        saas_ext = build_saas_api_extensions(result_dict)
+        result_dict.update(saas_ext)
+    except Exception as exc:
+        _LOG.warning("SaaS normalizer failed (audit continues with legacy fields): %s", exc, exc_info=True)
+        from app.services.technical_output_normalizer import empty_saas_api_extensions
+
+        result_dict.update(empty_saas_api_extensions())
+
     audit_id = save_technical_audit(
         user_id=current_user.id,
         source_url=payload.url,
-        result=result.model_dump(),
+        result=result_dict,
     )
     if credits_enforced():
         c = cost_technical_analyze()
         if c > 0:
             consume_credits(db, user_id=current_user.id, amount=c, reason="technical_analyze", note=payload.url[:500])
-            db.commit()
-    return result.model_copy(update={"audit_id": audit_id})
+    record_quota_usage(
+        db,
+        current_user.id,
+        feature_key_for("technical_audit"),
+        quantity=1,
+        credits_used=credit_cost,
+    )
+    db.commit()
+    result_dict["audit_id"] = audit_id
+    return TechnicalAnalyzeResponse.model_validate(result_dict)
 
 
 @router.post("/analyze/url-seo-scoreboard", response_model=UrlSeoScoreboardResponse)
@@ -120,18 +185,41 @@ def analyze_url_seo_scoreboard(
     Chấm điểm SEO 1 URL (technical, on-page, content, internal link, schema, SERP fit, opportunity).
     Không lưu DB; an toàn khi thiếu dữ liệu (mock SERP / không có backlink API).
     """
+    assert_public_http_url(payload.url, label="URL")
+    credit_cost = cost_url_seo_scoreboard() if credits_enforced() else 0
+    gate_req = CostGateRequest(
+        db=db,
+        user=current_user,
+        provider=ExternalApiProvider.CRAWL,
+        action="url_seo_scoreboard",
+        credit_cost=credit_cost,
+        feature_key=feature_key_for("seo_score"),
+        quota_units=1,
+        single_flight_key=f"url_seo_scoreboard:{current_user.id}",
+    )
     try:
-        raw = build_url_seo_scoreboard(
-            payload.url,
-            keyword=(payload.keyword or "").strip() or None,
-            search_volume=payload.search_volume,
-            current_serp_position=payload.current_serp_position,
-        )
+        with cost_gate_session(gate_req):
+            raw = build_url_seo_scoreboard(
+                payload.url,
+                keyword=(payload.keyword or "").strip() or None,
+                secondary_keywords=payload.secondary_keywords,
+                page_type=(payload.page_type or "").strip() or None,
+                search_volume=payload.search_volume,
+                current_serp_position=payload.current_serp_position,
+            )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"url_seo_scoreboard: {exc}") from exc
+        _LOG.exception("url_seo_scoreboard failed for %s", payload.url)
+        raise HTTPException(status_code=500, detail="Không thể chấm điểm URL. Vui lòng thử lại sau.") from exc
     if credits_enforced():
         c = cost_url_seo_scoreboard()
         if c > 0:
             consume_credits(db, user_id=current_user.id, amount=c, reason="url_seo_scoreboard", note=payload.url[:500])
-            db.commit()
+    record_quota_usage(
+        db,
+        current_user.id,
+        feature_key_for("seo_score"),
+        quantity=1,
+        credits_used=credit_cost,
+    )
+    db.commit()
     return UrlSeoScoreboardResponse.model_validate(raw)

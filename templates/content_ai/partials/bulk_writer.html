@@ -1,0 +1,335 @@
+    <div class="card bulk-write-panel bulk-v2" id="bulkWritePanel" hidden>
+        <span id="bulkKwCount" class="content-ai-aux-hidden" hidden aria-hidden="true">0 từ khóa</span>
+
+        <!-- Publish Center — sticky, luôn hiện khi tab Viết hàng loạt (không phụ thuộc bước Review) -->
+        <div class="bulk-v2-publish-center" id="bulkV2PublishCenter">
+            <header class="bulk-v2-publish-center-head">
+                <h3>Publish Center</h3>
+                <p class="hint">Tổng quan đăng bài WordPress — trạng thái đồng bộ từ server.</p>
+            </header>
+            <div class="bulk-v2-publish-stats" id="bulkV2PublishStats" aria-live="polite">
+                <div class="bulk-v2-publish-stat"><span>Tổng số bài</span><strong id="pubStatTotal">0</strong></div>
+                <div class="bulk-v2-publish-stat"><span>Sẵn sàng đăng</span><strong id="pubStatReady">0</strong></div>
+                <div class="bulk-v2-publish-stat"><span>Thiếu ảnh</span><strong id="pubStatMissingImage">0</strong></div>
+                <div class="bulk-v2-publish-stat"><span>Đã đặt lịch</span><strong id="pubStatScheduled">0</strong></div>
+                <div class="bulk-v2-publish-stat"><span>Đã đăng</span><strong id="pubStatPublished">0</strong></div>
+                <div class="bulk-v2-publish-stat bulk-v2-publish-stat-err"><span>Lỗi</span><strong id="pubStatError">0</strong></div>
+            </div>
+            <div class="bulk-v2-publish-center-actions">
+                <button type="button" class="btn secondary btn-sm" id="btnPublishCenterSelected">Đăng bài đã chọn</button>
+                <button type="button" class="btn secondary btn-sm" id="btnPublishCenterScheduleSelected">Đặt lịch bài đã chọn</button>
+                <button type="button" class="btn btn-sm" id="btnPublishCenterPublishAll">Đăng tất cả</button>
+                <button type="button" class="btn secondary btn-sm" id="btnPublishCenterCancelSchedule">Hủy lịch đã chọn</button>
+                <label class="bulk-v2-publish-require-img">
+                    <input type="checkbox" id="bulkV2RequireImage" />
+                    Bắt buộc có ảnh trước khi đăng
+                </label>
+            </div>
+            <ul class="bulk-v2-publish-row-errors" id="bulkV2PublishRowErrors" hidden></ul>
+        </div>
+
+        <!-- Step 1: Import -->
+        <section class="bulk-v2-panel is-active" id="bulkPanelImport" data-bulk-panel="import">
+            <div class="bulk-import-mode" id="bulkImportMode" role="radiogroup" aria-label="Chế độ import">
+                <label class="bulk-import-mode-opt">
+                    <input type="radio" name="bulkImportMode" value="normal" checked />
+                    <span class="bulk-import-mode-text">
+                        <strong>Import danh sách từ khóa thường</strong>
+                        <em>Mỗi dòng / mỗi keyword = 1 bài viết</em>
+                    </span>
+                </label>
+                <label class="bulk-import-mode-opt">
+                    <input type="radio" name="bulkImportMode" value="clustered" />
+                    <span class="bulk-import-mode-text">
+                        <strong>Import file từ khóa đã gom nhóm</strong>
+                        <em>Mỗi cluster = 1 bài · từ khóa phụ vào cấu hình</em>
+                    </span>
+                </label>
+            </div>
+            <div class="bulk-file-upload" id="bulkImportSection">
+                <div class="bulk-v2-panel-title" id="bulkImportSectionTitle">Upload file từ khóa</div>
+                <p class="hint" id="bulkImportSectionHint">Hỗ trợ <code>.xlsx</code>, <code>.txt</code>, <code>.csv</code> — tự điền keyword, title, meta, outline, loại content, số từ, URL đối thủ.</p>
+                <div class="bulk-file-row">
+                    <input type="file" id="bulkImportFile" accept=".xlsx,.txt,.csv,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                    <button type="button" class="btn secondary" id="btnBulkImportFile">Tải file vào danh sách</button>
+                </div>
+                <div class="hint" id="bulkImportFileHint"></div>
+            </div>
+            <div class="bulk-kw-add-bar" id="bulkKwAddBar">
+                <textarea id="bulkAddKeywordInput" rows="5" placeholder="Mỗi dòng một từ khóa, hoặc phân tách bằng dấu phẩy / chấm phẩy.&#10;Ví dụ:&#10;sửa máy tính quận 9&#10;cài win tại nhà"></textarea>
+                <button type="button" class="btn" id="btnBulkAddKeyword">Thêm</button>
+            </div>
+            <p class="hint bulk-kw-count-hint" id="bulkKeywordCountHint" aria-live="polite">Chưa có từ khóa trong danh sách.</p>
+            <div class="ca-duplicate-warning bulk-dup-warning" id="bulkDuplicateWarning" hidden aria-hidden="true" role="status"></div>
+            <details class="bulk-import-advanced" id="bulkImportAdvanced">
+                <summary>Dán text / import file phụ (tùy chọn)</summary>
+                <div class="bulk-drop" style="margin-top:10px;">
+                    <div class="hint">.txt / .csv — mỗi dòng một từ khóa hoặc <code>keyword | title | description | outline</code></div>
+                    <input type="file" id="bulkKeywordsFile" accept=".txt,.csv,.xlsx,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                </div>
+                <textarea id="bulkQuickInput" hidden aria-hidden="true"></textarea>
+                <textarea id="bulkKeywordsText" style="min-height:80px;margin-top:8px;" placeholder="Dán nhiều dòng để import vào danh sách…"></textarea>
+                <button type="button" class="btn secondary" id="btnBulkImportText" style="margin-top:8px;">Import vào danh sách</button>
+            </details>
+        </section>
+
+        <!-- Cluster import preview modal -->
+        <div class="bulk-cluster-preview-backdrop" id="bulkClusterPreviewBackdrop" hidden>
+            <div class="bulk-cluster-preview-modal" id="bulkClusterPreviewModal" role="dialog" aria-modal="true" aria-labelledby="bulkClusterPreviewTitle">
+                <div class="bulk-cluster-preview-head">
+                    <h3 id="bulkClusterPreviewTitle">Xem trước nhóm từ khóa</h3>
+                    <button type="button" class="bulk-cluster-preview-close" id="btnBulkClusterPreviewClose" aria-label="Đóng">×</button>
+                </div>
+                <div class="bulk-cluster-preview-summary" id="bulkClusterPreviewSummary"></div>
+                <div class="bulk-cluster-preview-warnings" id="bulkClusterPreviewWarnings" hidden></div>
+                <div class="bulk-cluster-preview-table-wrap">
+                    <table class="bulk-cluster-preview-table" id="bulkClusterPreviewTable">
+                        <thead>
+                            <tr>
+                                <th>Nhóm</th>
+                                <th>Từ khóa chính</th>
+                                <th>Số từ khóa phụ</th>
+                                <th>Intent</th>
+                                <th>Volume</th>
+                                <th>Cảnh báo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulkClusterPreviewBody"></tbody>
+                    </table>
+                </div>
+                <div class="bulk-cluster-preview-foot">
+                    <button type="button" class="btn secondary" id="btnBulkClusterPreviewCancel">Hủy</button>
+                    <button type="button" class="btn" id="btnBulkClusterPreviewConfirm" data-idle-label="Xác nhận — thêm vào bảng" data-busy-label="Đang thêm vào bảng…">Xác nhận — thêm vào bảng</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Setup — Target website & thương hiệu luôn hiển thị -->
+        <section class="bulk-v2-panel is-active" id="bulkPanelSetup" data-bulk-panel="setup">
+            <div class="row bulk-v2-setup-row">
+                <div>
+                    <div class="field-head"><label for="bulkTargetWebsite">Target website</label></div>
+                    <input id="bulkTargetWebsite" type="text" placeholder="https://example.com" list="targetWebsiteHistory" />
+                </div>
+                <div>
+                    <div class="field-head"><label for="bulkBrandName">Tên thương hiệu</label></div>
+                    <input id="bulkBrandName" type="text" placeholder="VD: Công ty / thương hiệu" autocomplete="organization" />
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 3: Run -->
+        <section class="bulk-v2-panel" id="bulkPanelRun" data-bulk-panel="run" hidden>
+            <div class="bulk-v2-run-hero">
+                <p class="hint">Job chạy trên server — có thể đóng tab sau khi bắt đầu (nếu server vẫn bật).</p>
+                <div class="bulk-v2-run-btns">
+                    <button type="button" class="btn" id="btnBulkWriteStart">Bắt đầu viết bài</button>
+                    <button type="button" class="btn secondary" id="btnBulkWriteStopPoll" hidden>Dừng cập nhật</button>
+                </div>
+            </div>
+            <div class="bulk-job-progress" id="bulkJobProgress" hidden>
+                <div id="bulkJobStatus">Đang chờ…</div>
+                <div class="bar"><div class="fill" id="bulkJobProgressFill"></div></div>
+                <div class="hint" id="bulkJobPct" style="margin-top:6px;">0%</div>
+            </div>
+            <label for="bulkJobLog" class="content-ai-aux-hidden" hidden aria-hidden="true">Nhật ký</label>
+            <textarea id="bulkJobLog" readonly class="content-ai-aux-hidden" hidden aria-hidden="true"></textarea>
+            <div class="bulk-v2-panel-footer">
+                <button type="button" class="btn secondary" data-bulk-goto="setup">← Cấu hình</button>
+                <button type="button" class="btn" data-bulk-goto="review">Xem kết quả →</button>
+            </div>
+        </section>
+
+        <!-- Step 4: Review -->
+        <section class="bulk-v2-panel" id="bulkPanelReview" data-bulk-panel="review" hidden>
+        </section>
+
+        <!-- Bulk actions — ngay trên bảng từ khóa -->
+        <div class="bulk-v2-actions" id="bulkV2Actions">
+            <div class="bulk-v2-actions-btns">
+                <button type="button" class="btn secondary btn-sm" id="btnBulkV2WriteSelected" title="Viết các bài đã chọn">Viết bài đã chọn</button>
+                <button type="button" class="btn secondary btn-sm bulk-v2-delete-all" id="btnBulkV2DeleteMenu" title="Xóa từ khóa">Xóa từ khóa</button>
+                <button type="button" class="btn secondary btn-sm" id="btnBulkV2FetchImages" title="Tự lấy ảnh cho bài đã chọn">Tự lấy ảnh (đã chọn)</button>
+                <button type="button" class="btn secondary btn-sm" id="btnBulkV2FetchImagesAll" title="Tự lấy ảnh cho tất cả bài đã viết">Tự lấy ảnh (tất cả)</button>
+                <button type="button" class="btn secondary btn-sm" id="btnBulkV2Schedule" title="Đặt lịch đăng">Đặt lịch</button>
+                <button type="button" class="btn btn-sm" id="btnBulkV2PublishAll" title="Đăng các bài đã chọn">Đăng tất cả</button>
+            </div>
+        </div>
+
+        <!-- Unified articles board (desktop table / mobile cards) -->
+        <div class="bulk-v2-board" id="bulkV2Board">
+            <div class="bulk-v2-table-wrap bulk-v2-desktop-only" id="bulkV2TableWrap">
+                <table class="bulk-v2-table ca-bulk-table no-digiseo-table" id="caBulkStatusTable" aria-label="Danh sách bài viết hàng loạt">
+                    <colgroup>
+                        <col class="col-chk">
+                        <col class="col-kw" span="1" style="width:180px">
+                        <col class="col-target-wc" style="width:140px">
+                        <col class="col-actual-wc">
+                        <col class="col-seo">
+                        <col class="col-llm">
+                        <col class="col-publish">
+                        <col class="col-badges">
+                        <col class="col-act">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th class="col-chk">
+                                <input type="checkbox" id="bulkV2TableChkAll" title="Chọn tất cả từ khóa" aria-label="Chọn tất cả từ khóa">
+                            </th>
+                            <th class="col-kw">Keyword</th>
+                            <th class="col-target-wc">Target WC</th>
+                            <th class="col-actual-wc">Actual WC</th>
+                            <th class="col-seo">SEO</th>
+                            <th class="col-llm">LLM</th>
+                            <th class="col-publish">Publish</th>
+                            <th class="col-badges">Badge</th>
+                            <th class="col-act">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="caBulkStatusBody">
+                        <tr><td colspan="9" class="ca-bulk-empty">Chưa có từ khóa — thêm ở bước Import.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="bulk-v2-cards bulk-v2-mobile-only" id="bulkV2Cards" aria-live="polite"></div>
+        </div>
+
+        <!-- Legacy hidden list — JS gốc vẫn render card tại đây -->
+        <div id="bulkKeywordList" class="bulk-kw-list bulk-v2-legacy-hidden" aria-hidden="true" hidden>
+            <div class="bulk-kw-empty" id="bulkKeywordListEmpty">Chưa có từ khóa.</div>
+        </div>
+        <div class="bulk-job-items bulk-v2-legacy-hidden" id="bulkJobItems" hidden aria-hidden="true"></div>
+
+        <!-- Drawer desktop -->
+        <aside class="bulk-v2-drawer" id="bulkV2Drawer" aria-hidden="true" hidden>
+            <div class="bulk-v2-drawer-head">
+                <h3 id="bulkV2DrawerTitle">Cấu hình bài viết</h3>
+                <button type="button" class="bulk-v2-drawer-close" id="bulkV2DrawerClose" aria-label="Đóng">×</button>
+            </div>
+            <div class="bulk-v2-drawer-body" id="bulkV2DrawerBody"></div>
+        </aside>
+        <div class="bulk-v2-drawer-backdrop" id="bulkV2DrawerBackdrop" hidden></div>
+
+        <!-- Modal xóa từ khóa (overlay fixed — căn giữa viewport) -->
+        <div class="bulk-v2-delete-overlay" id="bulkV2DeleteOverlay" hidden>
+            <div class="bulk-v2-delete-dialog" id="bulkV2DeleteModal" role="dialog" aria-modal="true" aria-labelledby="bulkV2DeleteTitle">
+                <div class="bulk-v2-modal-head">
+                    <h3 id="bulkV2DeleteTitle">Xóa từ khóa</h3>
+                    <button type="button" class="bulk-v2-drawer-close bulk-v2-modal-close" id="bulkV2DeleteClose" aria-label="Đóng">×</button>
+                </div>
+                <div class="bulk-v2-delete-dialog-body">
+                    <p class="bulk-v2-delete-modal-summary" id="bulkV2DeleteSummary"></p>
+                    <fieldset class="bulk-v2-delete-mode">
+                        <legend>Chọn thao tác</legend>
+                        <label class="bulk-v2-delete-opt" id="bulkV2DeleteOptSelected">
+                            <input type="radio" name="bulkV2DeleteMode" value="selected" id="bulkV2DeleteModeSelected" />
+                            <span class="bulk-v2-delete-opt-text">
+                                <strong>Xóa từ khóa đã chọn</strong>
+                                <em id="bulkV2DeleteSelectedHint">0 từ khóa đang được tích</em>
+                            </span>
+                        </label>
+                        <label class="bulk-v2-delete-opt" id="bulkV2DeleteOptAll">
+                            <input type="radio" name="bulkV2DeleteMode" value="all" id="bulkV2DeleteModeAll" />
+                            <span class="bulk-v2-delete-opt-text">
+                                <strong>Xóa tất cả</strong>
+                                <em id="bulkV2DeleteAllHint">Toàn bộ từ khóa trong bảng</em>
+                            </span>
+                        </label>
+                        <label class="bulk-v2-delete-opt" id="bulkV2DeleteOptBrand">
+                            <input type="radio" name="bulkV2DeleteMode" value="brand" id="bulkV2DeleteModeBrand" />
+                            <span class="bulk-v2-delete-opt-text">
+                                <strong>Xóa từ khóa thương hiệu</strong>
+                                <em id="bulkV2DeleteBrandHint">Tự nhận diện hàng có tên thương hiệu</em>
+                            </span>
+                        </label>
+                    </fieldset>
+                    <div class="bulk-v2-delete-dialog-foot">
+                        <button type="button" class="btn secondary" id="btnBulkV2DeleteCancel">Hủy</button>
+                        <button type="button" class="btn bulk-v2-delete-confirm" id="btnBulkV2DeleteConfirm">Xác nhận xóa</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Publish Center modal (đăng tất cả / lịch dàn) -->
+        <div class="bulk-v2-modal-backdrop" id="bulkV2PublishCenterBackdrop" hidden></div>
+        <div class="bulk-v2-modal bulk-v2-modal-lg" id="bulkV2PublishCenterModal" hidden role="dialog" aria-modal="true" aria-labelledby="bulkV2PublishCenterTitle">
+            <div class="bulk-v2-modal-head">
+                <h3 id="bulkV2PublishCenterTitle">Xác nhận đăng bài</h3>
+                <button type="button" class="bulk-v2-drawer-close bulk-v2-modal-close" id="bulkV2PublishCenterClose" aria-label="Đóng">×</button>
+            </div>
+            <div class="bulk-v2-modal-body bulk-v2-publish-modal-body">
+                <div class="bulk-v2-publish-field">
+                    <label for="bulkV2PubSite">Website WordPress</label>
+                    <select id="bulkV2PubSite"></select>
+                </div>
+                <div class="bulk-v2-publish-field">
+                    <label for="bulkV2PubCategory">Category</label>
+                    <div class="bulk-v2-publish-field-row">
+                        <select id="bulkV2PubCategory"><option value="">-- Chọn danh mục --</option></select>
+                        <button type="button" class="btn secondary btn-sm" id="btnBulkV2PubLoadCategories">Tải danh mục</button>
+                    </div>
+                    <p class="hint" id="bulkV2PubCategoryHint"></p>
+                </div>
+                <fieldset class="bulk-v2-publish-mode">
+                    <legend>Chế độ</legend>
+                    <label><input type="radio" name="bulkV2PubMode" value="now" checked> Đăng ngay</label>
+                    <label><input type="radio" name="bulkV2PubMode" value="schedule"> Đặt lịch</label>
+                </fieldset>
+                <div class="bulk-v2-publish-schedule-opts" id="bulkV2PubScheduleOpts" hidden>
+                    <div class="bulk-v2-publish-field">
+                        <label for="bulkV2PubStartAt">Bắt đầu từ</label>
+                        <input type="datetime-local" id="bulkV2PubStartAt" />
+                    </div>
+                    <div class="bulk-v2-publish-field">
+                        <label for="bulkV2PubInterval">Khoảng cách giữa mỗi bài</label>
+                        <select id="bulkV2PubInterval">
+                            <option value="30">30 phút</option>
+                            <option value="60" selected>1 giờ</option>
+                            <option value="120">2 giờ</option>
+                            <option value="custom">Tùy chỉnh (phút)</option>
+                        </select>
+                        <input type="number" id="bulkV2PubIntervalCustom" min="5" step="5" placeholder="Phút" hidden />
+                    </div>
+                </div>
+                <div class="bulk-v2-publish-preview-wrap">
+                    <div class="bulk-v2-publish-preview-head">Preview lịch đăng từng bài</div>
+                    <ul class="bulk-v2-publish-preview" id="bulkV2PubPreview"></ul>
+                </div>
+                <ul class="bulk-v2-publish-modal-errors" id="bulkV2PubModalErrors" hidden></ul>
+                <div class="bulk-v2-publish-modal-foot">
+                    <button type="button" class="btn secondary" id="btnBulkV2PubCancel">Hủy</button>
+                    <button type="button" class="btn" id="btnBulkV2PubConfirm">Xác nhận</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule modal -->
+        <div class="bulk-v2-modal-backdrop" id="bulkV2ScheduleBackdrop" hidden></div>
+        <div class="bulk-v2-modal bulk-v2-modal-sm" id="bulkV2ScheduleModal" hidden role="dialog" aria-modal="true">
+            <div class="bulk-v2-modal-head">
+                <h3>Đặt lịch đăng</h3>
+                <button type="button" class="bulk-v2-drawer-close" id="bulkV2ScheduleClose" aria-label="Đóng">×</button>
+            </div>
+            <div class="bulk-v2-modal-body">
+                <label for="bulkV2ScheduleAt">Thời gian đăng (giờ máy chủ / local)</label>
+                <input type="datetime-local" id="bulkV2ScheduleAt" />
+                <p class="hint">Áp dụng cho các bài đã chọn đã viết xong. Lịch lưu trên project — đăng thực tế qua tab Publish.</p>
+                <button type="button" class="btn" id="btnBulkV2ScheduleApply" style="margin-top:12px;">Lưu lịch</button>
+            </div>
+        </div>
+
+        <!-- Image fetch summary modal -->
+        <div class="bulk-v2-modal-backdrop" id="bulkV2ImageSummaryBackdrop" hidden></div>
+        <div class="bulk-v2-modal bulk-v2-modal-sm" id="bulkV2ImageSummaryModal" hidden role="dialog" aria-modal="true" aria-labelledby="bulkV2ImageSummaryTitle">
+            <div class="bulk-v2-modal-head">
+                <h3 id="bulkV2ImageSummaryTitle">Kết quả lấy ảnh</h3>
+                <button type="button" class="bulk-v2-drawer-close" id="bulkV2ImageSummaryClose" aria-label="Đóng">×</button>
+            </div>
+            <div class="bulk-v2-modal-body" id="bulkV2ImageSummaryBody">
+                <p class="bulk-v2-img-summary-loading" id="bulkV2ImageSummaryLoading" hidden>Đang lấy ảnh…</p>
+                <div class="bulk-v2-img-summary-stats" id="bulkV2ImageSummaryStats" hidden></div>
+                <ul class="bulk-v2-img-summary-errors" id="bulkV2ImageSummaryErrors" hidden></ul>
+            </div>
+        </div>
+    </div>

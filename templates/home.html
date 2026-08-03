@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SEO Technical Tool</title>
-    <script src="/static/js/digiseo-i18n.js"></script>
+    {% include "partials/digiseo_seo_head.html" %}
     {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/seoauto-home.css?v=1">
     <style>
         :root {
             --bg: #050b18;
-            --accent-green: #00e676;
             --surface: #ffffff;
             --text: #0f172a;
             --muted: #64748b;
@@ -17,8 +16,6 @@
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
             --primary-soft: #eff6ff;
-            --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-            --shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.12);
         }
         * { box-sizing: border-box; }
         body {
@@ -27,14 +24,12 @@
             color: var(--text);
             background: var(--bg);
             line-height: 1.55;
-            padding-bottom: 100px;
+            padding-bottom: 48px;
         }
-        a { color: var(--primary); text-decoration: none; }
-        a:hover { text-decoration: underline; }
 
-        /* —— Header —— */
+        /* —— Header (home only) —— */
         .site-header {
-            /* position: fixed — static/css/digiseo-nav.css */
+            position: relative;
             z-index: 100;
             background: #050B18;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -44,10 +39,10 @@
             max-width: 1440px;
             margin: 0 auto;
             padding: 0 24px;
-            min-height: 64px;
+            min-height: 96px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             gap: 16px;
             flex-wrap: nowrap;
         }
@@ -55,30 +50,9 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            font-weight: 800;
-            font-size: 1.05rem;
-            color: #ffffff;
-            text-decoration: none;
+            flex-shrink: 0;
         }
-        .brand:hover { text-decoration: none; color: #00e676; }
-        .brand-mark {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, var(--primary), #6366f1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-        }
-        /* .main-nav layout/sizing: static/css/digiseo-nav.css */
-        .main-nav {
-            flex: 1 1 auto;
-            min-width: 0;
-        }
+        .main-nav { flex: 1 1 auto; min-width: 0; }
         .main-nav > a[href="/report"] {
             color: #fff;
             background: linear-gradient(135deg, #4f46e5 0%, #6366f1 55%, #7c3aed 100%);
@@ -90,500 +64,160 @@
             border-color: rgba(199, 210, 254, 0.75);
             box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
         }
-        .nav-dd {
-            position: relative;
-            display: inline-flex;
-            flex-direction: column;
-            align-self: center;
-            z-index: 20;
-        }
-        /* Cầu vô hình: rê từ nút xuống menu không bị “rơi” khỏi vùng hover */
+        .nav-dd { position: relative; display: inline-flex; flex-direction: column; align-self: center; z-index: 20; }
         .nav-dd::before {
-            content: "";
-            position: absolute;
-            left: 0;
-            width: max(100%, 220px);
-            top: 100%;
-            height: 14px;
-            z-index: 99;
+            content: ""; position: absolute; left: 0; width: max(100%, 220px);
+            top: 100%; height: 14px; z-index: 99;
         }
         .nav-dd-btn {
             background: rgba(255, 255, 255, 0.06);
             border: 1px solid rgba(255, 255, 255, 0.18);
-            cursor: pointer;
-            color: #ffffff;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            padding: 9px 14px;
-            font-family: inherit;
-            border-radius: 10px;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
+            cursor: pointer; color: #ffffff;
+            font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.04em; padding: 9px 14px; font-family: inherit;
+            border-radius: 10px; display: inline-flex; align-items: center; gap: 4px;
             transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
         }
-        .nav-dd:hover .nav-dd-btn,
-        .nav-dd:focus-within .nav-dd-btn {
-            color: #00e676;
-            background: rgba(0, 230, 118, 0.1);
+        .nav-dd:hover .nav-dd-btn, .nav-dd:focus-within .nav-dd-btn {
+            color: #00e676; background: rgba(0, 230, 118, 0.1);
             border-color: rgba(0, 230, 118, 0.55);
             box-shadow: 0 2px 10px rgba(0, 230, 118, 0.2);
         }
         .nav-dd-menu {
-            display: none;
-            position: absolute;
-            left: 0;
-            top: calc(100% + 14px);
-            min-width: 220px;
-            padding: 8px;
+            display: none; position: absolute; left: 0; top: calc(100% + 14px);
+            min-width: 220px; padding: 8px;
             background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-            border: 1px solid #c7d2fe;
-            border-radius: 14px;
-            box-shadow:
-                0 10px 40px rgba(15, 23, 42, 0.12),
-                0 0 0 1px rgba(255, 255, 255, 0.6) inset;
-            flex-direction: column;
-            gap: 4px;
-            z-index: 100;
+            border: 1px solid #c7d2fe; border-radius: 14px;
+            box-shadow: 0 10px 40px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+            flex-direction: column; gap: 4px; z-index: 100;
         }
-        /* Chỉ cần rê chuột vào “Keyword” (hoặc khu vực nối) là mở menu */
-        .nav-dd:hover .nav-dd-menu,
-        .nav-dd:focus-within .nav-dd-menu {
-            display: flex;
-        }
+        .nav-dd:hover .nav-dd-menu, .nav-dd:focus-within .nav-dd-menu { display: flex; }
         .nav-dd-menu a {
-            display: block;
-            padding: 10px 14px;
-            border-radius: 10px;
-            color: var(--text);
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-transform: none;
-            letter-spacing: 0;
-            border: 1px solid transparent;
-            transition: background 0.12s ease, border-color 0.12s ease;
-        }
-        .nav-dd-menu a:hover {
-            background: rgba(0, 230, 118, 0.12);
-            color: #00a86b;
-            border-color: rgba(0, 230, 118, 0.35);
+            display: block; padding: 10px 14px; border-radius: 10px;
+            color: var(--text); font-size: 0.9rem; font-weight: 600;
+            text-transform: none; letter-spacing: 0;
+            border: 1px solid transparent; transition: background 0.12s ease, border-color 0.12s ease;
             text-decoration: none;
         }
+        .nav-dd-menu a:hover {
+            background: rgba(0, 230, 118, 0.12); color: #00a86b;
+            border-color: rgba(0, 230, 118, 0.35); text-decoration: none;
+        }
         .nav-pro-badge {
-            display: inline-block;
-            margin-left: 6px;
-            font-size: 0.65rem;
-            font-weight: 800;
-            padding: 2px 6px;
-            border-radius: 4px;
-            background: linear-gradient(135deg, #f59e0b, #ea580c);
-            color: #111827;
-            vertical-align: middle;
-            letter-spacing: 0.04em;
+            display: inline-block; margin-left: 6px; font-size: 0.65rem; font-weight: 800;
+            padding: 2px 6px; border-radius: 4px;
+            background: linear-gradient(135deg, #f59e0b, #ea580c); color: #111827;
+            vertical-align: middle; letter-spacing: 0.04em;
         }
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-        .brand { flex-shrink: 0; }
-        @media (max-width: 1100px) {
-            .header-inner { flex-wrap: wrap; }
-            .main-nav { order: 3; flex-basis: 100%; justify-content: flex-start; padding: 4px 0 10px; }
-        }
+        .header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
         .lang-flag {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: 1px solid var(--line);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.1rem;
-            background: var(--surface);
+            width: 32px; height: 32px; border-radius: 50%;
+            border: 1px solid var(--line); display: flex; align-items: center;
+            justify-content: center; font-size: 1.1rem; background: var(--surface);
         }
         .btn-login {
-            padding: 9px 18px;
-            border-radius: 8px;
-            border: 1px solid var(--primary);
-            background: var(--surface);
-            color: var(--primary);
-            font-weight: 700;
-            font-size: 0.9rem;
-            cursor: pointer;
-            font-family: inherit;
+            padding: 9px 18px; border-radius: 8px; border: 1px solid var(--primary);
+            background: var(--surface); color: var(--primary);
+            font-weight: 700; font-size: 0.9rem; cursor: pointer; font-family: inherit;
         }
         .btn-login:hover { background: var(--primary-soft); }
         .btn-login[hidden] { display: none !important; }
         .btn-tool {
-            padding: 9px 16px;
-            border-radius: 8px;
-            border: 1px solid var(--line);
-            background: var(--surface);
-            color: var(--text);
-            font-weight: 700;
-            font-size: 0.9rem;
-            cursor: pointer;
-            font-family: inherit;
-            text-decoration: none;
-            display: inline-block;
+            padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line);
+            background: var(--surface); color: var(--text);
+            font-weight: 700; font-size: 0.9rem; cursor: pointer; font-family: inherit;
+            text-decoration: none; display: inline-block;
         }
         .btn-tool:hover { background: #f1f5f9; text-decoration: none; }
         .menu-action-hidden { display: none !important; }
-        .auth-inline-msg {
-            font-size: 0.8rem;
-            color: var(--muted);
-            max-width: 200px;
-            text-align: right;
-        }
+        .auth-inline-msg { font-size: 0.8rem; color: var(--muted); max-width: 200px; text-align: right; }
         .auth-inline-msg.ok { color: #15803d; }
         .auth-inline-msg.error { color: #b91c1c; }
 
-        /* —— Hero —— */
-        .hero {
-            max-width: 720px;
-            margin: 0 auto;
-            padding: 56px 20px 40px;
-            text-align: center;
-        }
-        .hero h1 {
-            margin: 0 0 16px;
-            font-size: clamp(1.75rem, 4vw, 2.35rem);
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            line-height: 1.2;
-            color: #ffffff;
-        }
-        .hero .lead {
-            margin: 0 0 28px;
-            font-size: 1.05rem;
-            color: #ffffff;
-        }
-        .hero .lead strong { color: #ffffff; }
-        .hero-cta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            justify-content: center;
-            margin-bottom: 14px;
-        }
-        .btn-primary {
-            padding: 12px 24px;
-            border-radius: 10px;
-            border: 0;
-            background: var(--primary);
-            color: #fff;
-            font-weight: 700;
-            font-size: 1rem;
-            cursor: pointer;
-            font-family: inherit;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .btn-primary:hover { background: var(--primary-hover); color: #fff; text-decoration: none; }
-        .btn-secondary {
-            padding: 12px 24px;
-            border-radius: 10px;
-            border: 1px solid var(--line);
-            background: var(--surface);
-            color: var(--text);
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            font-family: inherit;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .btn-secondary:hover { background: #f1f5f9; text-decoration: none; color: var(--text); }
-        .hero-note {
-            font-size: 0.88rem;
-            color: #ffffff;
-        }
-        .hero-note::before { content: "✓ "; color: #16a34a; font-weight: 700; }
-
-        /* —— Features —— */
-        .features-wrap {
-            max-width: 1120px;
-            margin: 0 auto;
-            padding: 24px 20px 72px;
-        }
-        .features-wrap h2 {
-            text-align: center;
-            font-size: 1.35rem;
-            font-weight: 800;
-            margin: 0 0 8px;
-            color: #ffffff;
-        }
-        .features-sub {
-            text-align: center;
-            color: #ffffff;
-            margin: 0 0 32px;
-            font-size: 0.95rem;
-        }
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 20px;
-        }
-        .feature-card {
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 22px;
-            box-shadow: var(--shadow);
-            transition: box-shadow 0.2s, border-color 0.2s;
-        }
-        .feature-card:hover {
-            box-shadow: var(--shadow-lg);
-            border-color: #cbd5e1;
-        }
-        .feature-illus {
-            height: 100px;
-            border-radius: 10px;
-            background: linear-gradient(180deg, #f1f5f9, #e2e8f0);
-            border: 1px solid var(--line);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            overflow: hidden;
-        }
-        .feature-illus--image {
-            padding: 0;
-            background: #050B18;
-        }
-        .feature-illus--image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-        .feature-card h3 {
-            margin: 0 0 8px;
-            font-size: 1.05rem;
-            font-weight: 800;
-        }
-        .feature-card p {
-            margin: 0 0 14px;
-            font-size: 0.9rem;
-            color: var(--muted);
-        }
-        .feature-card .more {
-            font-weight: 700;
-            font-size: 0.88rem;
-        }
-
-        .site-footer {
-            border-top: 1px solid var(--line);
-            padding: 20px;
-            text-align: center;
-            font-size: 0.85rem;
-            color: var(--muted);
-            background: var(--surface);
-        }
-
-        /* —— Auth modal (giống /tool) —— */
+        /* —— Auth modal —— */
         .auth-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(2, 6, 23, 0.45);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: fixed; inset: 0; background: rgba(2, 6, 23, 0.45);
+            display: flex; flex-direction: column; align-items: center;
+            overflow-x: hidden; overflow-y: auto;
             z-index: 200;
-            padding: 20px;
+            padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+            min-height: 100dvh; min-height: 100svh;
+            box-sizing: border-box;
         }
         .auth-modal[hidden] { display: none; }
         .auth-panel {
-            width: min(460px, 100%);
-            background: #fff;
-            color: #334155;
-            border-radius: 14px;
-            padding: 20px;
+            width: min(460px, 100%); background: #fff; color: #334155;
+            border-radius: 14px; padding: 20px;
             box-shadow: 0 20px 40px rgba(15, 23, 42, .28);
+            margin-top: auto; margin-bottom: auto; flex-shrink: 0;
         }
         .auth-panel h2 { margin: 0 0 4px; text-align: center; color: #334155; }
         .auth-panel > p { margin: 0 0 14px; text-align: center; color: #64748b; font-size: 0.92rem; }
         .auth-panel input {
-            width: 100%;
-            margin-bottom: 10px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            color: #334155;
-            background: #f8fafc;
-            border: 1px solid #dbe3ef;
-            font-size: 0.95rem;
+            width: 100%; margin-bottom: 10px; padding: 10px 12px; border-radius: 8px;
+            color: #334155; background: #f8fafc; border: 1px solid #dbe3ef; font-size: 0.95rem;
         }
         .auth-panel .btn-outline {
-            width: 100%;
-            margin-top: 4px;
-            padding: 10px;
-            border-radius: 8px;
-            background: #fff;
-            color: #334155;
-            border: 1px solid #dbe3ef;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
+            width: 100%; margin-top: 4px; padding: 10px; border-radius: 8px;
+            background: #fff; color: #334155; border: 1px solid #dbe3ef;
+            font-weight: 600; cursor: pointer; font-family: inherit;
         }
         .auth-panel .btn-submit {
-            width: 100%;
-            margin-top: 8px;
-            padding: 11px;
-            border-radius: 8px;
-            border: 0;
-            background: var(--primary);
-            color: #fff;
-            font-weight: 700;
-            cursor: pointer;
-            font-family: inherit;
+            width: 100%; margin-top: 8px; padding: 11px; border-radius: 8px; border: 0;
+            background: var(--primary); color: #fff; font-weight: 700;
+            cursor: pointer; font-family: inherit;
         }
         .auth-panel .btn-submit:hover { background: var(--primary-hover); }
         .modal-close {
-            width: 100%;
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 8px;
-            background: #eef2ff;
-            color: #334155;
-            border: 0;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
+            width: 100%; margin-top: 10px; padding: 10px; border-radius: 8px;
+            background: #eef2ff; color: #334155; border: 0;
+            font-weight: 600; cursor: pointer; font-family: inherit;
         }
         .modal-hint { font-size: 0.78rem; color: #94a3b8; margin: -8px 0 10px; text-align: center; }
-        .auth-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
+        .auth-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
         .auth-tab {
-            flex: 1;
-            padding: 9px 12px;
-            border-radius: 8px;
-            border: 1px solid #dbe3ef;
-            background: #f8fafc;
-            color: #64748b;
-            font-weight: 700;
-            font-size: 0.88rem;
-            cursor: pointer;
-            font-family: inherit;
+            flex: 1; padding: 9px 12px; border-radius: 8px;
+            border: 1px solid #dbe3ef; background: #f8fafc; color: #64748b;
+            font-weight: 700; font-size: 0.88rem; cursor: pointer; font-family: inherit;
         }
-        .auth-tab.active {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: #fff;
-        }
+        .auth-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
         .auth-tab-panel[hidden] { display: none !important; }
         .auth-tab-panel > p { margin: 0 0 12px; text-align: center; color: #64748b; font-size: 0.9rem; }
         .auth-switch-link {
-            display: block;
-            width: 100%;
-            margin: 4px 0 10px;
-            padding: 0;
-            border: 0;
-            background: none;
-            color: var(--primary);
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            text-align: center;
-            font-family: inherit;
-            text-decoration: underline;
+            display: block; width: 100%; margin: 4px 0 10px; padding: 0; border: 0;
+            background: none; color: var(--primary); font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; text-align: center; font-family: inherit; text-decoration: underline;
         }
         .modal-auth-msg {
-            margin: 8px 0 0;
-            min-height: 1.25em;
-            font-size: 0.88rem;
-            color: #64748b;
-            white-space: pre-wrap;
+            margin: 8px 0 0; min-height: 1.25em; font-size: 0.88rem;
+            color: #64748b; white-space: pre-wrap;
         }
         .modal-auth-msg.ok { color: #15803d; }
         .modal-auth-msg.error { color: #b91c1c; }
         .pw-wrap { position: relative; margin-bottom: 10px; }
         .pw-wrap input { margin-bottom: 0; padding-right: 48px; }
         .pw-toggle {
-            position: absolute;
-            right: 8px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 40px;
-            height: 34px;
-            padding: 0;
-            border: 0;
-            border-radius: 8px;
-            background: #e2e8f0;
-            color: #475569;
-            cursor: pointer;
-            font-size: 1rem;
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            width: 40px; height: 34px; padding: 0; border: 0; border-radius: 8px;
+            background: #e2e8f0; color: #475569; cursor: pointer; font-size: 1rem;
         }
-        .pw-rules {
-            list-style: none;
-            margin: 0 0 10px;
-            padding: 0;
-            font-size: 0.8rem;
-            color: #94a3b8;
-        }
+        .pw-rules { list-style: none; margin: 0 0 10px; padding: 0; font-size: 0.8rem; color: #94a3b8; }
         .pw-rules li { margin-bottom: 4px; padding-left: 1em; position: relative; }
         .pw-rules li::before { content: "○"; position: absolute; left: 0; font-size: 0.65em; top: 0.1em; }
         .pw-rules li.ok { color: #15803d; }
         .pw-rules li.ok::before { content: "✓"; color: #15803d; }
         label.pw-label { display: block; font-weight: 600; color: #475569; margin-top: 4px; font-size: 0.85rem; }
-
-        .package-panel-home .package-list-home {
-            max-height: min(52vh, 440px);
-            overflow: auto;
-            margin-top: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .package-card-home {
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 12px 14px;
-            background: #f8fafc;
-            text-align: left;
-        }
-        .package-card-home h3 {
-            margin: 0 0 6px;
-            font-size: 1rem;
-            color: #0f172a;
-        }
-        .package-card-home .pkg-meta {
-            font-size: 0.8rem;
-            color: #64748b;
-            margin: 0 0 6px;
-        }
-        .package-card-home p:last-child {
-            margin: 0;
-            font-size: 0.85rem;
-            color: #475569;
-            line-height: 1.45;
-        }
-
-        /* DigiSEO bright-green accent overrides */
-        .brand { color: #00e676 !important; }
-        .brand:hover { color: #1aeb84 !important; }
-        .brand-mark { background: linear-gradient(135deg, #00e676 0%, #00c264 100%) !important; color: #04140a !important; }
-        .hero h1 { color: #00e676 !important; }
-        .nav-dd-menu a:hover { background: rgba(0, 230, 118, 0.12) !important; color: #00e676 !important; }
     </style>
+    <link rel="stylesheet" href="/static/css/digiseo-auth-modal.css?v=3">
 </head>
-<body>
-    <header class="site-header">
+<body class="site-header-page">
+    <header class="site-header" id="digiseoTopNavStrip">
         <div class="header-inner">
-            <a class="brand" href="/">
-                <span class="brand-mark">SEO</span>
-                <span>SEO Technical Tool</span>
-            </a>
-            <nav class="main-nav nav" data-i18n-aria="nav.aria" aria-label="Menu chính">
-                {% include "partials/digiseo_main_nav.html" %}
-            </nav>
+            <button type="button" class="digiseo-nav-toggle" aria-expanded="false" aria-controls="digiseoNavMenu" aria-label="Mở menu">
+                <span class="digiseo-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span class="digiseo-nav-toggle-label">Menu</span>
+            </button>
+            <div class="brand">{% include "partials/digiseo_brand.html" %}</div>
             <div class="header-actions">
                 <span class="lang-flag" title="Tiếng Việt">🇻🇳</span>
                 <span id="authMsg" class="auth-inline-msg" aria-live="polite"></span>
@@ -591,110 +225,306 @@
                 <a class="btn-tool menu-action-hidden" id="linkGoTool" href="/tool" hidden data-i18n="auth.open_tool">Vào công cụ</a>
                 <button type="button" class="btn-tool menu-action-hidden" id="btnLogout" hidden data-i18n="auth.logout">Đăng xuất</button>
             </div>
+            <nav class="main-nav nav digiseo-nav-links" id="digiseoNavMenu" data-i18n-aria="nav.aria" aria-label="Menu chính">
+                {% include "partials/digiseo_main_nav.html" %}
+            </nav>
         </div>
+        <div class="digiseo-nav-account-slot" id="digiseoNavAccountSlot" aria-label="Tài khoản"></div>
     </header>
 
-    <section class="hero">
-        <h1>Kiểm tra technical SEO &amp; từ khóa trên một nền tảng</h1>
-        <p class="lead">
-            <strong>Quét URL</strong>, xem dashboard audit, nghiên cứu <strong>từ khóa</strong> (volume + intent), gom <strong>cụm SERP</strong>, và sinh <strong>JSON-LD</strong> — phù hợp team SEO kỹ thuật.
-        </p>
-        <div class="hero-cta">
-            <a class="btn-primary" href="/tool">Nhập URL → Phân tích</a>
-            <a class="btn-secondary" href="/docs">Swagger / API</a>
-        </div>
-        <p class="hero-note">Đăng nhập để lưu project và xuất checklist (CSV/PDF).</p>
-    </section>
-
-    <section class="features-wrap">
-        <h2>Tính năng</h2>
-        <p class="features-sub">Các module chính của ứng dụng</p>
-        <div class="feature-grid">
-            <article class="feature-card">
-                <div class="feature-illus feature-illus--image" aria-hidden="true">
-                    <img src="/static/images/technical-seo-hero.png" alt="Technical SEO — Build a Strong Foundation. Rank Higher." loading="lazy">
+    <div class="seoauto-home">
+        <section class="sh-hero" aria-labelledby="shHeroTitle">
+            <div class="sh-hero-grid">
+                <div class="sh-hero-copy">
+                    <span class="sh-badge">SaaS SEO AI</span>
+                    <h1 id="shHeroTitle">Tool SEO tự động cho website</h1>
+                    <p class="sh-lead">
+                        Phần mềm SEO tự động — audit technical, nghiên cứu từ khóa, gom cụm SERP, viết bài SEO AI và kiểm tra index Google trên một nền tảng dành cho SEOer và doanh nghiệp.
+                    </p>
+                    <form class="sh-analyze-form" action="/tool" method="get" id="homeAnalyzeForm">
+                        <input type="url" name="url" id="homeUrlInput" placeholder="https://yourdomain.com" autocomplete="url" aria-label="URL hoặc domain cần phân tích">
+                        <button type="submit" class="sh-btn-primary">Phân tích ngay</button>
+                    </form>
+                    <p class="sh-hero-note">Miễn phí thử — đăng nhập để lưu project và xuất CSV/PDF.</p>
                 </div>
-                <h3>Phân tích Technical SEO</h3>
-                <p>Crawl URL, checklist lỗi kỹ thuật, liên kết nội bộ — lưu theo project khi đã đăng nhập.</p>
-                <a class="more" href="/tool">Mở công cụ →</a>
-            </article>
-            <article class="feature-card">
-                <div class="feature-illus" aria-hidden="true">📊</div>
-                <h3>Dashboard audit</h3>
-                <p>Tổng quan các lần quét, Technical-SEO.txt và bảng hành động.</p>
-                <a class="more" href="/report">Xem dashboard →</a>
-            </article>
-            <article class="feature-card">
-                <div class="feature-illus" aria-hidden="true">🔑</div>
-                <h3>Keyword Research</h3>
-                <p>Mở rộng từ seed + SERP, volume theo tháng (có cờ ước lượng), intent.</p>
-                <a class="more" href="/keywords/tools/research">Mở research →</a>
-            </article>
-            <article class="feature-card">
-                <div class="feature-illus" aria-hidden="true">🧩</div>
-                <h3>Keyword Clustering</h3>
-                <p>Gom cụm theo overlap URL SERP + embedding, nhóm theo ý định tìm kiếm.</p>
-                <a class="more" href="/keywords/tools/research?tab=group">Mở gom nhóm →</a>
-            </article>
-            <article class="feature-card">
-                <div class="feature-illus" aria-hidden="true">📋</div>
-                <h3>Schema Generator</h3>
-                <p>JSON-LD đa kiểu (Article, FAQ, Product…), kiểm tra và gợi ý theo SERP.</p>
-                <a class="more" href="/schema">Mở Schema →</a>
-            </article>
-            <article class="feature-card">
-                <div class="feature-illus" aria-hidden="true">⚡</div>
-                <h3>API &amp; tích hợp</h3>
-                <p>REST API (Swagger), health check, tích hợp Google (sau khi đăng nhập trên tool).</p>
-                <a class="more" href="/docs">Mở Swagger →</a>
-            </article>
-        </div>
-    </section>
-
-    <div class="auth-modal" id="authModal" hidden>
-        <div class="auth-panel">
-            <div class="auth-tabs" role="tablist" aria-label="Đăng nhập hoặc đăng ký">
-                <button type="button" class="auth-tab active" id="authTabLogin" data-auth-tab="login" role="tab" aria-selected="true">Đăng nhập</button>
-                <button type="button" class="auth-tab" id="authTabRegister" data-auth-tab="register" role="tab" aria-selected="false">Đăng ký</button>
-            </div>
-            <div id="authPanelLogin" class="auth-tab-panel" role="tabpanel">
-            <p id="authLoginHint">Nhập email và mật khẩu đã đăng ký để đăng nhập.</p>
-            <input type="email" id="authEmail" placeholder="Email đăng nhập" autocomplete="username">
-            <div class="pw-wrap">
-                <input type="password" id="authPassword" placeholder="Mật khẩu" minlength="8" autocomplete="current-password">
-                <button type="button" class="pw-toggle" id="btnTogglePw" title="Hiện/ẩn mật khẩu" aria-label="Hiện mật khẩu">👁</button>
-            </div>
-            <button type="button" class="auth-switch-link" id="linkGoRegister">Chưa có tài khoản? Đăng ký</button>
-            <button type="button" id="btnSubmitAuth" class="btn-submit">Đăng nhập</button>
-            </div>
-
-            <div id="authPanelRegister" class="auth-tab-panel" role="tabpanel" hidden>
-                <p>Tạo tài khoản Gmail: nhận OTP → nhập OTP → đặt mật khẩu → bấm <strong>Đăng ký</strong>.</p>
-                <input type="email" id="regEmail" placeholder="Email Gmail" autocomplete="email">
-                <p class="modal-hint">Chỉ Gmail (@gmail.com) nhận được mã OTP.</p>
-                <button type="button" id="btnRegOtpSend" class="btn-outline">Nhận mã OTP (gửi về Gmail)</button>
-                <input type="text" id="regOtp" placeholder="Mã OTP trong email" inputmode="numeric" autocomplete="one-time-code">
-                <label class="pw-label" for="regPassword">Tiêu chí mật khẩu</label>
-                <ul id="regPwRules" class="pw-rules" aria-live="polite">
-                    <li id="reg-rule-len">Ít nhất 8 ký tự</li>
-                    <li id="reg-rule-up">Ít nhất 1 chữ hoa (A–Z)</li>
-                    <li id="reg-rule-low">Ít nhất 1 chữ thường (a–z)</li>
-                    <li id="reg-rule-num">Ít nhất 1 chữ số (0–9)</li>
-                </ul>
-                <div class="pw-wrap">
-                    <input type="password" id="regPassword" placeholder="Mật khẩu mới" minlength="8" autocomplete="new-password">
-                    <button type="button" class="pw-toggle" id="btnToggleRegPw" title="Hiện/ẩn mật khẩu" aria-label="Hiện mật khẩu">👁</button>
+                <div class="sh-hero-preview" aria-hidden="true">
+                    <div class="sh-preview">
+                        <div class="sh-preview-head">
+                            <span>Dashboard preview</span>
+                            <span class="sh-preview-score">82/100</span>
+                        </div>
+                        <div class="sh-preview-grid">
+                            <div class="sh-stat"><label>Lỗi critical</label><strong>3</strong></div>
+                            <div class="sh-stat"><label>Cảnh báo</label><strong>12</strong></div>
+                            <div class="sh-stat"><label>Từ khóa</label><strong>248</strong></div>
+                            <div class="sh-stat"><label>Cụm chủ đề</label><strong>18</strong></div>
+                        </div>
+                        <div class="sh-bars">
+                            <div class="sh-bar-row">
+                                <span>Title / Meta</span>
+                                <div class="sh-bar-track"><div class="sh-bar-fill" style="width:92%"></div></div>
+                                <span>92</span>
+                            </div>
+                            <div class="sh-bar-row">
+                                <span>Index</span>
+                                <div class="sh-bar-track"><div class="sh-bar-fill warn" style="width:68%"></div></div>
+                                <span>68</span>
+                            </div>
+                            <div class="sh-bar-row">
+                                <span>Sitemap</span>
+                                <div class="sh-bar-track"><div class="sh-bar-fill bad" style="width:45%"></div></div>
+                                <span>45</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <button type="button" class="auth-switch-link" id="linkGoLogin">Đã có tài khoản? Đăng nhập</button>
-                <button type="button" id="btnSubmitRegister" class="btn-submit">Đăng ký</button>
             </div>
+        </section>
 
-            <div id="modalAuthMsg" class="modal-auth-msg"></div>
-            <div style="height:8px;"></div>
-            <button type="button" id="btnGoogleLogin" class="btn-outline">Đăng nhập với Google</button>
-            <button type="button" id="btnCloseModal" class="modal-close">Đóng</button>
-        </div>
+        <section class="sh-section" aria-labelledby="shAboutTitle">
+            <div class="sh-section-head">
+                <h2 id="shAboutTitle">SEOAuto là gì?</h2>
+                <p>SEOAuto là <strong>phần mềm SEO</strong> và <strong>công cụ SEO tự động</strong> chạy trên trình duyệt — không cần cài đặt phức tạp.</p>
+            </div>
+            <div class="sh-steps">
+                <div class="sh-step">
+                    <h3>Phần mềm SEO all-in-one</h3>
+                    <p>Gộp audit technical, nghiên cứu từ khóa, clustering, viết bài SEO AI và kiểm tra index trong một dashboard thống nhất.</p>
+                </div>
+                <div class="sh-step">
+                    <h3>Tool SEO tự động bằng AI</h3>
+                    <p>AI hỗ trợ phân tích SERP, gợi ý từ khóa, tối ưu nội dung và ưu tiên hóa lỗi SEO cần sửa trước.</p>
+                </div>
+                <div class="sh-step">
+                    <h3>Dành cho team SEO &amp; doanh nghiệp</h3>
+                    <p>Phù hợp agency, in-house SEO và chủ website cần quy trình SEO có thể đo lường, lặp lại và mở rộng.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="sh-section" aria-labelledby="shFeaturesTitle">
+            <div class="sh-section-head">
+                <h2 id="shFeaturesTitle">Tính năng chính</h2>
+                <p>Mọi công cụ bạn cần để audit, nghiên cứu từ khóa và báo cáo — trong một giao diện thống nhất.</p>
+            </div>
+            <div class="sh-feature-grid">
+                <article class="sh-feature-card">
+                    <div class="sh-feature-icon" aria-hidden="true">🔍</div>
+                    <h3>Technical SEO Audit</h3>
+                    <p>Quét toàn diện lỗi SEO kỹ thuật và chấm điểm URL.</p>
+                    <ul class="sh-feature-list">
+                        <li>Quét lỗi SEO technical</li>
+                        <li>Kiểm tra title, meta, heading, sitemap, robots, index, canonical</li>
+                        <li>Hiển thị điểm SEO Score</li>
+                    </ul>
+                    <a class="sh-link" href="/tool">Mở Technical Audit →</a>
+                </article>
+                <article class="sh-feature-card">
+                    <div class="sh-feature-icon" aria-hidden="true">🔑</div>
+                    <h3>Keyword Research</h3>
+                    <p>Mở rộng từ seed keyword với dữ liệu volume và intent.</p>
+                    <ul class="sh-feature-list">
+                        <li>Nhập từ khóa chính</li>
+                        <li>Lấy volume, CPC, competition, intent</li>
+                        <li>Gợi ý từ khóa liên quan</li>
+                    </ul>
+                    <a class="sh-link" href="/keywords/tools/research">Mở Keyword Research →</a>
+                </article>
+                <article class="sh-feature-card">
+                    <div class="sh-feature-icon" aria-hidden="true">🧩</div>
+                    <h3>Keyword Clustering</h3>
+                    <p>Gom nhóm từ khóa theo overlap SERP để lập kế hoạch content.</p>
+                    <ul class="sh-feature-list">
+                        <li>Gom nhóm theo SERP overlap</li>
+                        <li>Tách keyword chính / phụ</li>
+                        <li>Gợi ý cụm chủ đề để viết content</li>
+                    </ul>
+                    <a class="sh-link" href="/keywords/tools/clustering">Mở Clustering →</a>
+                </article>
+                <article class="sh-feature-card">
+                    <div class="sh-feature-icon" aria-hidden="true">📊</div>
+                    <h3>SEO Report</h3>
+                    <p>Dashboard tổng quan và báo cáo lỗi ưu tiên hóa.</p>
+                    <ul class="sh-feature-list">
+                        <li>Dashboard preview</li>
+                        <li>Báo cáo lỗi ưu tiên</li>
+                        <li>Xuất CSV / PDF</li>
+                    </ul>
+                    <a class="sh-link" href="/report">Xem SEO Report →</a>
+                </article>
+            </div>
+        </section>
+
+        <section class="sh-section" aria-labelledby="shStepsTitle">
+            <div class="sh-section-head">
+                <h2 id="shStepsTitle">Hoạt động trong 3 bước</h2>
+                <p>Đơn giản, nhanh — từ URL đến báo cáo hành động.</p>
+            </div>
+            <div class="sh-steps">
+                <div class="sh-step">
+                    <div class="sh-step-num">1</div>
+                    <h3>Nhập URL / từ khóa</h3>
+                    <p>Dán domain cần audit hoặc seed keyword để bắt đầu phân tích.</p>
+                </div>
+                <div class="sh-step">
+                    <div class="sh-step-num">2</div>
+                    <h3>AI phân tích</h3>
+                    <p>Hệ thống crawl, đối chiếu SERP và gom cụm tự động bằng AI.</p>
+                </div>
+                <div class="sh-step">
+                    <div class="sh-step-num">3</div>
+                    <h3>Nhận báo cáo</h3>
+                    <p>Xem điểm SEO, lỗi ưu tiên và xuất báo cáo CSV/PDF cho team.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="sh-section" aria-labelledby="shDemoTitle">
+            <div class="sh-section-head">
+                <h2 id="shDemoTitle">Xem trước kết quả</h2>
+                <p>Mẫu minh họa Technical SEO Score và Keyword Clustering.</p>
+            </div>
+            <div class="sh-demo-grid">
+                <div class="sh-demo-card">
+                    <h3>Technical SEO Score</h3>
+                    <p>Điểm tổng hợp và checklist lỗi kỹ thuật.</p>
+                    <div class="sh-score-ring">
+                        <div class="sh-ring"><div class="sh-ring-inner">82</div></div>
+                        <div class="sh-checks">
+                            <div class="sh-check"><span class="ok">✓</span> Title &amp; meta description</div>
+                            <div class="sh-check"><span class="ok">✓</span> Canonical &amp; robots.txt</div>
+                            <div class="sh-check"><span class="warn">!</span> Sitemap XML thiếu URL</div>
+                            <div class="sh-check"><span class="warn">!</span> Heading H1 trùng lặp</div>
+                        </div>
+                    </div>
+                    <a class="sh-link" href="/tool/seo-score">Chấm điểm SEO URL →</a>
+                </div>
+                <div class="sh-demo-card">
+                    <h3>Keyword Clustering</h3>
+                    <p>Cụm chủ đề gợi ý từ overlap SERP.</p>
+                    <div class="sh-clusters">
+                        <div class="sh-cluster">
+                            <strong>Cụm: SEO technical audit</strong>
+                            <span>4 từ khóa · intent: informational</span>
+                            <div class="sh-cluster-tags">
+                                <span class="sh-tag main">seo audit tool</span>
+                                <span class="sh-tag">technical seo checklist</span>
+                                <span class="sh-tag">site audit</span>
+                            </div>
+                        </div>
+                        <div class="sh-cluster">
+                            <strong>Cụm: Keyword clustering</strong>
+                            <span>3 từ khóa · intent: commercial</span>
+                            <div class="sh-cluster-tags">
+                                <span class="sh-tag main">keyword grouping</span>
+                                <span class="sh-tag">serp overlap</span>
+                            </div>
+                        </div>
+                    </div>
+                    <a class="sh-link" href="/keywords/tools/clustering">Mở gom nhóm →</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="sh-section" aria-labelledby="shBenefitsTitle">
+            <div class="sh-section-head">
+                <h2 id="shBenefitsTitle">Lợi ích cho SEOer và doanh nghiệp</h2>
+                <p>Tiết kiệm thời gian vận hành SEO hàng ngày với phần mềm SEO tự động.</p>
+            </div>
+            <div class="sh-feature-grid">
+                <article class="sh-feature-card">
+                    <h3>Rút ngắn thời gian audit</h3>
+                    <p>Quét technical SEO toàn site trong vài phút thay vì checklist thủ công từng URL.</p>
+                </article>
+                <article class="sh-feature-card">
+                    <h3>Kế hoạch từ khóa rõ ràng</h3>
+                    <p>Nghiên cứu và gom nhóm từ khóa theo intent, giúp team content biết viết gì trước.</p>
+                </article>
+                <article class="sh-feature-card">
+                    <h3>Sản xuất nội dung chuẩn SEO</h3>
+                    <p>Phần mềm viết bài SEO AI hỗ trợ outline, draft và tối ưu on-page trước khi xuất bản.</p>
+                </article>
+                <article class="sh-feature-card">
+                    <h3>Kiểm soát index Google</h3>
+                    <p>Theo dõi URL đã index, gửi tín hiệu indexing và ưu tiên trang quan trọng.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="sh-section" aria-labelledby="shToolsTitle">
+            <div class="sh-section-head">
+                <h2 id="shToolsTitle">Công cụ SEO tự động gồm những gì?</h2>
+                <p>Bộ công cụ SEO tự động tích hợp sẵn trên SEOAuto.</p>
+            </div>
+            <div class="sh-steps">
+                <div class="sh-step">
+                    <h3><a class="sh-link" href="/tool">Technical SEO Audit</a></h3>
+                    <p>Kiểm tra title, meta, heading, sitemap, robots, canonical và chấm điểm SEO.</p>
+                </div>
+                <div class="sh-step">
+                    <h3><a class="sh-link" href="/keywords/tools/research">Nghiên cứu từ khóa</a></h3>
+                    <p>Volume, CPC, competition và gợi ý từ khóa liên quan.</p>
+                </div>
+                <div class="sh-step">
+                    <h3><a class="sh-link" href="/keywords/tools/clustering">Gom nhóm từ khóa</a></h3>
+                    <p>Cluster theo SERP overlap để lập content hub.</p>
+                </div>
+                <div class="sh-step">
+                    <h3><a class="sh-link" href="/content-ai">Viết bài SEO AI</a></h3>
+                    <p>Phần mềm viết bài SEO — draft, tối ưu heading và xuất bản.</p>
+                </div>
+                <div class="sh-step">
+                    <h3><a class="sh-link" href="/index-control">Kiểm tra index Google</a></h3>
+                    <p>Check index URL và submit indexing theo gói.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="sh-section" aria-labelledby="shPricingTitle">
+            <div class="sh-section-head">
+                <h2 id="shPricingTitle">Bảng giá</h2>
+                <p>Chọn gói phần mềm SEO phù hợp — dùng credit linh hoạt cho từng công cụ.</p>
+            </div>
+            <div class="sh-cta-box" style="max-width:720px;margin:0 auto;">
+                <p>Gói trial miễn phí, nâng cấp khi cần thêm credit audit, từ khóa và viết bài AI.</p>
+                <a class="sh-btn-cta" href="/pricing">Xem bảng giá SEOAuto</a>
+            </div>
+        </section>
+
+        <section class="sh-section" aria-labelledby="shFaqTitle">
+            <div class="sh-section-head">
+                <h2 id="shFaqTitle">Câu hỏi thường gặp</h2>
+            </div>
+            <div class="sh-demo-grid">
+                <div class="sh-demo-card">
+                    <h3>SEOAuto có phải tool SEO tự động không?</h3>
+                    <p>Có. SEOAuto là công cụ SEO tự động trên nền web, hỗ trợ audit, từ khóa, viết bài AI và kiểm tra index.</p>
+                </div>
+                <div class="sh-demo-card">
+                    <h3>Khác gì so với phần mềm SEO truyền thống?</h3>
+                    <p>Tích hợp AI, chạy SaaS không cần cài server — phù hợp team nhỏ đến agency cần triển khai nhanh.</p>
+                </div>
+                <div class="sh-demo-card">
+                    <h3>Có hỗ trợ viết bài SEO không?</h3>
+                    <p>Có module Content AI — phần mềm viết bài SEO với outline, draft và tối ưu on-page.</p>
+                </div>
+                <div class="sh-demo-card">
+                    <h3>Làm sao bắt đầu?</h3>
+                    <p>Đăng ký trial, nhập URL cần audit tại <a class="sh-link" href="/tool">công cụ Technical SEO</a> hoặc xem <a class="sh-link" href="/pricing">bảng giá</a>.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="sh-cta-final" aria-labelledby="shCtaTitle">
+            <div class="sh-cta-box">
+                <h2 id="shCtaTitle">Bắt đầu phân tích SEO miễn phí</h2>
+                <p>Nhập URL ngay — không cần cài đặt, chạy trên trình duyệt.</p>
+                <a class="sh-btn-cta" href="/tool">Bắt đầu phân tích SEO miễn phí</a>
+            </div>
+        </section>
     </div>
+
+    {% include "partials/digiseo_auth_modal.html" %}
 
     <script>
 (function () {
@@ -772,12 +602,40 @@
     if (linkGoRegister) linkGoRegister.addEventListener("click", () => setAuthTab("register"));
     if (linkGoLogin) linkGoLogin.addEventListener("click", () => setAuthTab("login"));
 
+    let otpSendInFlight = false;
+    let otpCooldownTimer = null;
+
+    function setOtpSendEnabled(enabled, label) {
+        if (!btnRegOtpSend) return;
+        btnRegOtpSend.disabled = !enabled;
+        if (label != null) btnRegOtpSend.textContent = label;
+    }
+
+    function startOtpCooldown(seconds) {
+        let left = Math.max(1, Number(seconds) || 60);
+        if (otpCooldownTimer) clearInterval(otpCooldownTimer);
+        setOtpSendEnabled(false, "Gửi lại sau " + left + "s");
+        otpCooldownTimer = setInterval(function () {
+            left -= 1;
+            if (left <= 0) {
+                clearInterval(otpCooldownTimer);
+                otpCooldownTimer = null;
+                setOtpSendEnabled(true, "Nhận mã OTP (gửi về Gmail)");
+                return;
+            }
+            setOtpSendEnabled(false, "Gửi lại sau " + left + "s");
+        }, 1000);
+    }
+
     async function sendRegOtp() {
+        if (otpSendInFlight || (btnRegOtpSend && btnRegOtpSend.disabled)) return;
         const email = (regEmail && regEmail.value || "").trim().toLowerCase();
         if (!email) { setModalAuthMsg("Nhập Gmail trước.", "error"); return; }
         if (!email.endsWith("@gmail.com") && !email.endsWith("@googlemail.com")) {
             setModalAuthMsg("Chỉ gửi OTP cho Gmail.", "error"); return;
         }
+        otpSendInFlight = true;
+        setOtpSendEnabled(false, "Đang gửi...");
         try {
             setModalAuthMsg("Đang gửi mã OTP...", "");
             const r = await fetch("/auth/otp/send", {
@@ -787,9 +645,16 @@
             });
             const d = await r.json().catch(() => ({}));
             if (!r.ok) throw new Error(apiDetail(d));
-            setModalAuthMsg(d.message || "Đã gửi OTP. Kiểm tra Gmail.", "ok");
+            setModalAuthMsg(
+                (d.message || "Đã gửi OTP.") + " Kiểm tra hộp thư đến và Spam/Promotions; dùng mã trong email mới nhất.",
+                "ok"
+            );
+            startOtpCooldown(60);
         } catch (e) {
             setModalAuthMsg(String(e.message || e), "error");
+            setOtpSendEnabled(true, "Nhận mã OTP (gửi về Gmail)");
+        } finally {
+            otpSendInFlight = false;
         }
     }
 
@@ -832,6 +697,9 @@
     if (btnRegOtpSend) btnRegOtpSend.addEventListener("click", sendRegOtp);
     if (btnSubmitRegister) btnSubmitRegister.addEventListener("click", doRegister);
 
+    if (typeof window.DigiSeoSyncTokenFromCookie === "function") {
+        window.DigiSeoSyncTokenFromCookie();
+    }
     let token = sessionStorage.getItem("seo_token") || "";
 
     function apiDetail(d) {
@@ -937,12 +805,18 @@
                 setModalAuthMsg("Đăng nhập thất bại: không có mã truy cập. Thử lại.", "error");
                 return;
             }
-            sessionStorage.setItem("seo_token", token);
-            document.cookie = "seo_token=" + encodeURIComponent(token) + "; path=/; SameSite=Lax; max-age=86400";
+            if (typeof window.DigiSeoSetAuthToken === "function") {
+                window.DigiSeoSetAuthToken(token);
+            } else {
+                sessionStorage.setItem("seo_token", token);
+                document.cookie = "seo_token=" + encodeURIComponent(token) + "; path=/; SameSite=Lax; max-age=2592000";
+            }
             setModalAuthMsg("");
             authModal.hidden = true;
             applyAuthState();
-            window.location.href = "/tool";
+            if (typeof window.DigiSeoAfterLoginSuccess === "function") {
+                window.DigiSeoAfterLoginSuccess();
+            }
         } catch (e) {
             setModalAuthMsg(String(e.message || e), "error");
         }
@@ -955,8 +829,25 @@
         authModal.hidden = false;
         setAuthTab("login");
     });
-    btnGoogleLogin.addEventListener("click", function () {
-        setModalAuthMsg("Chưa cấu hình OAuth Google trong backend.", "error");
+    btnGoogleLogin.addEventListener("click", async function () {
+        try {
+            btnGoogleLogin.disabled = true;
+            setModalAuthMsg("Đang chuyển tới Google…", "");
+            const r = await fetch("/auth/google/configured");
+            const d = await r.json().catch(function () { return {}; });
+            if (!r.ok || !d.configured) {
+                btnGoogleLogin.disabled = false;
+                setModalAuthMsg("Chưa cấu hình OAuth Google trong backend.", "error");
+                return;
+            }
+            if (typeof window.DigiSeoRememberPostLoginReturn === "function") {
+                window.DigiSeoRememberPostLoginReturn();
+            }
+            window.location.assign("/auth/google/login");
+        } catch (e) {
+            btnGoogleLogin.disabled = false;
+            setModalAuthMsg("Không kết nối được OAuth Google. Thử lại sau.", "error");
+        }
     });
     btnSubmitAuth.addEventListener("click", function () { doLogin(); });
     btnCloseModal.addEventListener("click", function () {
@@ -973,6 +864,37 @@
         applyAuthState();
     });
 
+    (function () {
+        const p = new URLSearchParams(window.location.search);
+        if (p.get("google_login") === "1") {
+            const m = document.cookie.match(/(?:^|;\s*)seo_token=([^;]*)/);
+            if (m) {
+                token = decodeURIComponent(m[1].replace(/\+/g, " ")).trim();
+                if (token) sessionStorage.setItem("seo_token", token);
+            }
+            if (typeof window.DigiSeoAfterLoginSuccess === "function") {
+                window.DigiSeoAfterLoginSuccess();
+            } else if (typeof window.DigiSeoStripAuthCallbackParams === "function") {
+                window.DigiSeoStripAuthCallbackParams();
+            }
+            return;
+        }
+        const err = p.get("google_login_error");
+        if (err) {
+            const detail = (p.get("detail") || "").replace(/\+/g, " ");
+            const fallback = err === "access_denied"
+                ? "Google từ chối đăng nhập. Nếu app OAuth đang Testing, thêm email vào Test users trong Google Cloud Console."
+                : "";
+            setModalAuthMsg(
+                detail ? decodeURIComponent(detail) : (fallback || ("Đăng nhập Google thất bại (" + err + ").")),
+                "error"
+            );
+            authModal.hidden = false;
+            setAuthTab("login");
+            window.history.replaceState({}, "", window.location.pathname);
+        }
+    })();
+
     applyAuthState();
 })();
     </script>
@@ -987,7 +909,7 @@
             if (h && h === path) a.classList.add("active");
         });
         if (path === "/settings") {
-            document.querySelectorAll(".main-nav a[href="/settings"]").forEach((b) => b.classList.add("active"));
+            document.querySelectorAll('.main-nav a[href="/settings"]').forEach((b) => b.classList.add("active"));
         }
     } catch (_) {}
 })();

@@ -36,34 +36,216 @@
     box-shadow: 0 0 0 1px rgba(5, 150, 105, 0.35);
 }
 
-/* Vùng chứa trong panel trắng */
+/* Vùng chứa trong panel */
 .kw-tools-panel {
     padding: 18px 20px 16px;
-    border-bottom: 1px solid #e2e8f0;
-    background: #ffffff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: #272f3c;
+    color: #ffffff;
 }
 
-/* Shell: menu + box trắng — giữ bề ngang hiện tại, căn giữa viewport */
+/* Shell: căn giữa viewport — không trừ 15rem (gây lệch/margin lạ bên phải) */
 .kw-page-shell {
-    --kw-block-w: min(68rem, calc(100vw - 15rem));
-    width: var(--kw-block-w);
-    max-width: 100%;
+    width: 100%;
+    max-width: min(68rem, 100%);
     margin-left: auto;
     margin-right: auto;
     box-sizing: border-box;
 }
 
-.kw-white-panel {
+.kw-white-panel .kw-research-cost-hint,
+.kw-white-panel .kw-research-cost-hint strong {
+    color: #0f172a !important;
+}
+
+.kw-white-panel .kw-research-cost-hint {
+    background-color: #fffbeb !important;
+    border-color: #fcd34d !important;
+}
+
+.kw-white-panel,
+.kw-white-panel.bg-white {
     width: 100%;
     max-width: 100%;
     margin-left: auto;
     margin-right: auto;
     box-sizing: border-box;
-    background: #ffffff;
+    background: #272f3c !important;
+    color: #ffffff;
     border-radius: 16px;
-    border: 1px solid rgba(226, 232, 240, 0.9);
-    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
     overflow: hidden;
+}
+
+/* Nền & chữ trong panel keyword */
+.kw-white-panel .bg-white {
+    background-color: #272f3c !important;
+    color: #ffffff;
+}
+
+.kw-white-panel .text-slate-900,
+.kw-white-panel .text-slate-800,
+.kw-white-panel .text-slate-700,
+.kw-white-panel .text-slate-600,
+.kw-white-panel .text-slate-500 {
+    color: #ffffff !important;
+}
+
+.kw-white-panel .text-slate-500,
+.kw-white-panel .text-slate-600 {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.kw-white-panel label,
+.kw-white-panel p,
+.kw-white-panel h1,
+.kw-white-panel h2,
+.kw-white-panel h3,
+.kw-white-panel th,
+.kw-white-panel td,
+.kw-white-panel li,
+.kw-white-panel summary {
+    color: inherit;
+}
+
+.kw-white-panel .border-slate-200,
+.kw-white-panel .border-slate-200\/80 {
+    border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.kw-white-panel .bg-slate-50,
+.kw-white-panel .bg-slate-50\/50,
+.kw-white-panel .bg-slate-50\/60 {
+    background-color: rgba(0, 0, 0, 0.18) !important;
+}
+
+.kw-white-panel .bg-slate-100,
+.kw-white-panel .bg-slate-100\/80 {
+    background-color: rgba(0, 0, 0, 0.28) !important;
+    color: #ffffff !important;
+}
+
+.kw-white-panel code {
+    background: rgba(0, 0, 0, 0.35) !important;
+    color: #e2e8f0 !important;
+}
+
+.kw-white-panel input,
+.kw-white-panel select,
+.kw-white-panel textarea {
+    background-color: #1e2430 !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+    color: #ffffff !important;
+}
+
+.kw-white-panel input::placeholder,
+.kw-white-panel textarea::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.kw-white-panel select option {
+    background: #1e2430;
+    color: #ffffff;
+}
+
+.kw-white-panel .kw-tab {
+    color: rgba(255, 255, 255, 0.72) !important;
+    border-bottom-color: transparent;
+}
+
+.kw-white-panel .kw-tab.active {
+    color: #00e676 !important;
+    border-bottom-color: #00e676 !important;
+}
+
+.kw-white-panel .kw-tab:hover {
+    color: #ffffff !important;
+}
+
+.kw-white-panel th.sortable:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.kw-white-panel .kw-tools-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
+.kw-white-panel .kw-tools-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(147, 197, 253, 0.75);
+    color: #ffffff;
+}
+
+.kw-white-panel .kw-tools-btn.active {
+    color: #00e676 !important;
+    border-color: rgba(0, 230, 118, 0.85) !important;
+    background: rgba(2, 8, 20, 0.88) !important;
+    box-shadow: 0 0 0 1px rgba(0, 230, 118, 0.45), 0 0 16px rgba(0, 230, 118, 0.22);
+}
+
+/* Bảng Keyword Research — luôn nền sáng, không bị panel tối làm ô đen */
+.kw-white-panel #tableWrap {
+    background: #ffffff !important;
+}
+.kw-white-panel #tableWrap table.kw-research-table tbody tr,
+.kw-white-panel #tableWrap table.kw-research-table tbody tr:hover {
+    background: transparent !important;
+}
+.kw-white-panel #tableWrap table.kw-research-table thead.bg-slate-50,
+.kw-white-panel #tableWrap table.kw-research-table thead th {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+
+.kw-white-panel tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Bảng kết quả — nền zebra sáng (digiseo-tables), chữ đen dễ đọc */
+.kw-white-panel table tbody td {
+    color: #0f172a !important;
+}
+.kw-white-panel table tbody td.text-slate-400 {
+    color: #64748b !important;
+}
+.kw-white-panel table tbody td.text-slate-600 {
+    color: #475569 !important;
+}
+.kw-white-panel table tbody td.kw-kw-cell {
+    color: #0f172a !important;
+    font-weight: 600;
+}
+
+.kw-white-panel .hover\:bg-slate-50:hover {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.kw-white-panel .kw-toolbar-btn {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.28) !important;
+    color: rgba(255, 255, 255, 0.92) !important;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.kw-white-panel .kw-toolbar-btn:hover {
+    background: #334155 !important;
+    border-color: #475569 !important;
+    color: #ffffff !important;
+}
+
+.kw-white-panel .text-blue-600 {
+    color: #7dd3fc !important;
+}
+
+.kw-white-panel .text-blue-700 {
+    color: #93c5fd !important;
+}
+
+.kw-white-panel #msg {
+    color: #fca5a5 !important;
 }
 
 body:has(.kw-white-panel) .kw-page-root {
@@ -75,11 +257,155 @@ body:has(.kw-white-panel) .kw-page-root {
     padding-right: 1rem;
     padding-bottom: 7.5rem;
     box-sizing: border-box;
+    overflow-x: clip;
+}
+
+.kw-white-panel {
+    overflow-x: clip;
 }
 
 @media (max-width: 900px) {
     .kw-page-shell {
-        --kw-block-w: min(100%, calc(100vw - 2rem));
+        max-width: 100%;
+        padding-left: 0;
+        padding-right: 0;
+    }
+}
+
+/* Tab bar — không phụ thuộc Tailwind CDN */
+.kw-tab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 1rem 1.25rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.kw-tab {
+    appearance: none;
+    font-family: inherit;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.3;
+}
+
+/* Form tìm kiếm — layout flex tự chứa (fallback khi Tailwind CDN lỗi) */
+.kw-search-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 1rem;
+}
+
+.kw-search-form__seed {
+    flex: 1 1 280px;
+    min-width: 0;
+}
+
+.kw-search-form__seed label,
+.kw-search-form__field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.kw-search-form__seed textarea {
+    width: 100%;
+    min-height: 6.5rem;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.kw-search-form__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    flex: 1 1 300px;
+}
+
+.kw-search-form__field {
+    flex: 1 1 9rem;
+    min-width: 8.5rem;
+}
+
+.kw-search-form__field select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.kw-white-panel #btnSearch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    border: none;
+    background: #2563eb !important;
+    color: #ffffff !important;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    width: auto;
+    max-width: none;
+}
+
+.kw-white-panel #btnSearch:hover {
+    background: #1d4ed8 !important;
+}
+
+.kw-white-panel #btnSearch svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+
+.kw-white-panel #panelAnalysis,
+.kw-white-panel #panelSuggest,
+.kw-white-panel #panelGroup {
+    padding: 1rem 1.25rem 1.5rem;
+}
+
+@media (min-width: 640px) {
+    .kw-white-panel #panelAnalysis,
+    .kw-white-panel #panelSuggest,
+    .kw-white-panel #panelGroup {
+        padding: 1.25rem 1.5rem 1.75rem;
+    }
+
+    .kw-search-form {
+        flex-wrap: nowrap;
+    }
+
+    .kw-search-form__seed {
+        flex: 1 1 42%;
+    }
+
+    .kw-search-form__controls {
+        flex: 1 1 52%;
+    }
+}
+
+@media (max-width: 639px) {
+    .kw-search-form__controls {
+        width: 100%;
+    }
+
+    .kw-white-panel #btnSearch {
+        width: 100%;
     }
 }
 
@@ -90,7 +416,7 @@ body:has(.kw-white-panel) .kw-page-root {
 }
 
 .kw-white-panel > .kw-tools-panel {
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 /* Hub: chỉ có 2 nút trong box trắng */

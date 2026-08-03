@@ -15,6 +15,7 @@ celery_app = Celery(
     include=[
         "app.workers.crawl_worker",
         "app.workers.keyword_tasks",
+        "app.workers.wordpress_publish_worker",
         "app.services.internal_linking.tasks",
     ],
 )

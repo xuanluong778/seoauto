@@ -50,7 +50,7 @@ def test_indexability_blocked_low_on_policy_noindex() -> None:
         "raw_response_headers": {},
     }
     out = run_seo_decision_layer("https://ex.com/chinh-sach-bao-mat-thong-tin", parsed, "unknown", cr)
-    issue = next((i for i in out["issues"] if i["rule_id"] == "indexability_blocked"), None)
+    issue = next((i for i in out["issues"] if i["rule_id"] == "meta_robots_noindex"), None)
     assert issue is not None
     assert issue["severity"] == "low"
 

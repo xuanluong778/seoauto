@@ -1,12 +1,12 @@
 # Content AI Upgrade Roadmap
 
-Tài liệu này mô tả hướng nâng cấp Content AI thành USP chính của DigiSEO.
+Tài liệu này mô tả hướng nâng cấp Content AI thành USP chính của Seoauto.
 
 ---
 
 ## 1. Vai trò của Content AI
 
-Content AI là một trong những module mạnh nhất của DigiSEO.
+Content AI là một trong những module mạnh nhất của Seoauto.
 
 Nên biến Content AI thành điểm bán hàng chính:
 
@@ -100,7 +100,7 @@ CTA
 
 ## 6. Mục tiêu kinh doanh
 
-Content AI nên giúp DigiSEO khác biệt so với tool viết bài thông thường:
+Content AI nên giúp Seoauto khác biệt so với tool viết bài thông thường:
 
 ```txt
 Research → Brief → Write → Optimize → Internal Link → Publish

@@ -146,12 +146,13 @@ def build_professional_image_prompt(
 
     if preset_id == PRESET_SEO_3D_PREMIUM and itype in ("inline_h2", "hero_featured", "thumbnail"):
         base = build_premium_3d_seo_illustration_prompt(
-            topic=kw or ttl,
-            keyword=kw,
+            main_keyword=kw,
+            article_title=ttl,
             section_heading=h2 or ttl,
-            audience=aud or "Vietnamese business owners and marketers",
-            industry=ind or "digital marketing and SEO",
-            language=language,
+            section_summary=summary,
+            brand_name=brand,
+            industry=ind,
+            target_audience=aud or "Vietnamese business owners and marketers",
         )
         parts = [base, type_meta["composition_en"], f"Brand tone: {tone}."]
         if brand:

@@ -1,8 +1,9 @@
-"""SaaS entitlement checks (Phase 1 — enforcement off by default)."""
+"""SaaS entitlement checks — subscription, trial, free usage, system AI."""
 
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -11,9 +12,19 @@ from app.models.user import User
 from app.schemas.saas import EntitlementResult
 from app.services import credits as credits_svc
 from app.services import plan_service, subscription_service, usage_tracking_service
-from app.services.rbac import can_write, is_admin, normalize_role
-from app.services.user_api_access import api_access_enabled_for
-from app.services.user_trial_service import trial_status_snapshot
+from app.services.free_usage_service import (
+    free_usage_days_remaining,
+    free_usage_need_credit_message,
+    has_active_free_usage,
+)
+from app.services.saas_trial_service import (
+    TRIAL_PLAN_SLUG,
+    check_trial_feature_allowed,
+    is_saas_trial_active,
+)
+from app.services.rbac import can_write, is_admin
+
+_LEGACY_PAID_SLUGS = frozenset({"free_trial_5d"})
 
 
 def is_saas_enforcement_enabled() -> bool:
@@ -34,14 +45,64 @@ def _credit_cost_for_feature(feature_key: str, quantity: int = 1) -> int:
         "keyword_research": credits_svc.cost_research_run,
         "technical_audit": credits_svc.cost_technical_analyze,
         "seo_score": credits_svc.cost_url_seo_scoreboard,
-        "content_ai_article": lambda: credits_svc._int_env("CREDIT_COST_CONTENT_AI_ARTICLE", 5),
-        "content_ai_bulk_article": lambda: credits_svc._int_env("CREDIT_COST_CONTENT_AI_BULK_ARTICLE", 5),
-        "keyword_cluster": credits_svc.cost_cluster_sync,
+        "content_ai_article": lambda: credits_svc.cost_content_ai_article(word_count=1000),
+        "content_ai_bulk_article": lambda: credits_svc.cost_content_ai_article(word_count=1500),
     }.get(feature_key)
     if per is None:
         return credits_svc._int_env(f"CREDIT_COST_{feature_key.upper()}", 0) * q
     unit = per() if callable(per) else int(per)
     return max(0, unit) * q
+
+
+def _active_subscription_plan(db: Session, user: User):
+    sub = subscription_service.get_active_subscription(db, user.id)
+    if sub is None or not subscription_service.is_subscription_active(sub):
+        return None, None
+    plan = plan_service.get_plan_by_id(db, sub.plan_id)
+    return sub, plan
+
+
+def _has_paid_active_subscription(db: Session, user: User) -> bool:
+    _sub, plan = _active_subscription_plan(db, user)
+    if plan is None:
+        return False
+    slug = str(plan.slug or "").lower()
+    return slug not in {TRIAL_PLAN_SLUG, *_LEGACY_PAID_SLUGS}
+
+
+def _apply_credit_requirement(
+    db: Session,
+    user: User,
+    feature_key: str,
+    quantity: int,
+    base: EntitlementResult,
+) -> EntitlementResult:
+    if not base.allowed or not credits_svc.credits_enforced():
+        return base
+    credits_svc.ensure_plan_monthly_credits(db, user.id)
+    cost = _credit_cost_for_feature(feature_key, quantity)
+    balance = credits_svc.get_available_balance(db, user.id)
+    if balance <= 0:
+        return EntitlementResult(
+            allowed=False,
+            reason_code="insufficient_credits",
+            message="Tài khoản cần credit > 0 để sử dụng tính năng AI.",
+            plan_slug=base.plan_slug,
+            subscription_id=base.subscription_id,
+            quota_remaining=balance,
+            feature_key=feature_key,
+        )
+    if cost > 0 and balance < cost:
+        return EntitlementResult(
+            allowed=False,
+            reason_code="insufficient_credits",
+            message=f"Không đủ credit (cần {cost}, hiện có {balance}).",
+            plan_slug=base.plan_slug,
+            subscription_id=base.subscription_id,
+            quota_remaining=balance,
+            feature_key=feature_key,
+        )
+    return base
 
 
 def _subscription_allows(
@@ -50,12 +111,20 @@ def _subscription_allows(
     feature_key: str,
     quantity: int,
 ) -> EntitlementResult | None:
-    sub = subscription_service.get_active_subscription(db, user.id)
-    if sub is None:
+    sub, plan = _active_subscription_plan(db, user)
+    if sub is None or plan is None:
         return None
 
-    plan = plan_service.get_plan_by_id(db, sub.plan_id)
-    if plan is None:
+    if str(plan.slug or "").lower() == TRIAL_PLAN_SLUG:
+        if not is_saas_trial_active(user):
+            return EntitlementResult(
+                allowed=False,
+                reason_code="trial_expired",
+                message="Gói dùng thử đã hết hạn. Vui lòng nâng cấp Basic, Pro, Agency hoặc Business để tiếp tục.",
+                plan_slug=plan.slug,
+                subscription_id=sub.id,
+                feature_key=feature_key,
+            )
         return None
 
     limit_row = plan_service.get_limit_for_feature(db, plan.id, feature_key)
@@ -119,12 +188,110 @@ def _subscription_allows(
     )
 
 
+def _free_usage_credit_allows(
+    db: Session,
+    user: User,
+    feature_key: str,
+    quantity: int,
+) -> EntitlementResult | None:
+    if _has_paid_active_subscription(db, user):
+        return None
+    if not has_active_free_usage(db, user.id):
+        return None
+
+    days = free_usage_days_remaining(db, user.id)
+    if not credits_svc.credits_enforced():
+        return EntitlementResult(
+            allowed=True,
+            reason_code="free_usage",
+            message=free_usage_need_credit_message(days),
+            feature_key=feature_key,
+        )
+
+    credits_svc.ensure_plan_monthly_credits(db, user.id)
+    cost = _credit_cost_for_feature(feature_key, quantity)
+    balance = credits_svc.get_available_balance(db, user.id)
+    if balance <= 0:
+        return EntitlementResult(
+            allowed=False,
+            reason_code="insufficient_credits",
+            message=free_usage_need_credit_message(days),
+            quota_remaining=balance,
+            feature_key=feature_key,
+        )
+    if cost <= 0:
+        return EntitlementResult(
+            allowed=True,
+            reason_code="free_usage",
+            message="Còn ngày sử dụng miễn phí — tính năng không trừ credit.",
+            quota_remaining=balance,
+            feature_key=feature_key,
+        )
+    if balance >= cost:
+        return EntitlementResult(
+            allowed=True,
+            reason_code="free_usage_credits",
+            message=f"Còn {days} ngày miễn phí — đủ credit ({balance} >= {cost}).",
+            quota_remaining=balance - cost,
+            feature_key=feature_key,
+        )
+    return EntitlementResult(
+        allowed=False,
+        reason_code="insufficient_credits",
+        message=free_usage_need_credit_message(days),
+        quota_remaining=balance,
+        feature_key=feature_key,
+    )
+
+
+def _trial_3d_allows(
+    db: Session,
+    user: User,
+    feature_key: str,
+    quantity: int,
+) -> EntitlementResult | None:
+    if _has_paid_active_subscription(db, user):
+        return None
+    if not is_saas_trial_active(user):
+        if bool(getattr(user, "trial_used", False)):
+            return EntitlementResult(
+                allowed=False,
+                reason_code="trial_expired",
+                message="Gói dùng thử đã hết hạn. Vui lòng nâng cấp Basic, Pro, Agency hoặc Business để tiếp tục.",
+                plan_slug=TRIAL_PLAN_SLUG,
+                feature_key=feature_key,
+            )
+        return None
+
+    trial_check = check_trial_feature_allowed(db, user, feature_key, quantity=quantity)
+    if not trial_check.get("allowed"):
+        return EntitlementResult(
+            allowed=False,
+            reason_code=str(trial_check.get("code") or "denied"),
+            message=str(trial_check.get("message") or "Không được phép trong gói dùng thử."),
+            plan_slug=TRIAL_PLAN_SLUG,
+            feature_key=feature_key,
+        )
+    return EntitlementResult(
+        allowed=True,
+        reason_code="trial_3d",
+        message="Gói dùng thử 3 ngày — được phép.",
+        plan_slug=TRIAL_PLAN_SLUG,
+        feature_key=feature_key,
+    )
+
+
 def check_feature(
     db: Session,
     user: User,
     feature_key: str,
     quantity: int = 1,
 ) -> EntitlementResult:
+    """
+    Kiểm tra quyền feature (quota/plan):
+    1) Admin  2) Subscription paid  3) Free usage  4) Trial 3d  5) Deny.
+  Legacy api_access_enabled / BYOK không bypass.
+    """
     feature_key = str(feature_key or "").strip()
     if not feature_key:
         return EntitlementResult(
@@ -138,7 +305,7 @@ def check_feature(
         return EntitlementResult(
             allowed=True,
             reason_code="legacy_enforcement_off",
-            message="SAAS_ENFORCEMENT tắt — giữ hành vi legacy (trial / API / credits).",
+            message="SAAS_ENFORCEMENT tắt — giữ hành vi legacy.",
             plan_slug=resolve_effective_plan(db, user),
             subscription_id=(
                 sub.id
@@ -166,73 +333,172 @@ def check_feature(
             feature_key=feature_key,
         )
 
-    sub_result = _subscription_allows(db, user, feature_key, quantity)
-    if sub_result is not None and sub_result.allowed:
-        return sub_result
-    if sub_result is not None and not sub_result.allowed:
-        return sub_result
+    if _has_paid_active_subscription(db, user):
+        sub_result = _subscription_allows(db, user, feature_key, quantity)
+        if sub_result is not None:
+            return _apply_credit_requirement(db, user, feature_key, quantity, sub_result)
 
-    if api_access_enabled_for(user):
-        return EntitlementResult(
-            allowed=True,
-            reason_code="api_access",
-            message="Admin đã cấp quyền API — legacy bypass.",
-            plan_slug=resolve_effective_plan(db, user),
-            feature_key=feature_key,
-        )
+    free_usage_result = _free_usage_credit_allows(db, user, feature_key, quantity)
+    if free_usage_result is not None:
+        return free_usage_result
 
-    snap = trial_status_snapshot(
-        db, user.id, role=normalize_role(getattr(user, "role", None))
-    )
-    if snap.get("is_active"):
-        return EntitlementResult(
-            allowed=True,
-            reason_code="trial",
-            message=str(snap.get("message") or "Trial còn hiệu lực."),
-            plan_slug=resolve_effective_plan(db, user) or "free_trial",
-            feature_key=feature_key,
-        )
+    trial_result = _trial_3d_allows(db, user, feature_key, quantity)
+    if trial_result is not None:
+        return trial_result
 
-    if credits_svc.credits_enforced():
-        cost = _credit_cost_for_feature(feature_key, quantity)
-        if cost <= 0:
-            return EntitlementResult(
-                allowed=True,
-                reason_code="credits",
-                message="Credit enforcement bật — tính năng không trừ credit.",
-                feature_key=feature_key,
-            )
-        balance = int(getattr(user, "credit_balance", 0) or 0)
-        if balance >= cost:
-            return EntitlementResult(
-                allowed=True,
-                reason_code="credits",
-                message=f"Đủ credit ({balance} >= {cost}).",
-                quota_remaining=balance - cost,
-                feature_key=feature_key,
-            )
-        return EntitlementResult(
-            allowed=False,
-            reason_code="denied",
-            message="Không đủ credit.",
-            quota_remaining=balance,
-            feature_key=feature_key,
-        )
-
-    msg = (
-        sub_result.message
-        if sub_result is not None
-        else "Không có gói, trial, API access hoặc credit phù hợp."
-    )
+    sub, plan = _active_subscription_plan(db, user)
     return EntitlementResult(
         allowed=False,
         reason_code="denied",
-        message=msg,
-        plan_slug=resolve_effective_plan(db, user),
-        subscription_id=sub_result.subscription_id if sub_result else None,
-        quota_remaining=sub_result.quota_remaining if sub_result else None,
+        message=(
+            "Hết thời gian sử dụng miễn phí — vui lòng nâng cấp hoặc gia hạn gói."
+            if not has_active_free_usage(db, user.id)
+            else "Không có gói, trial hoặc credit phù hợp."
+        ),
+        plan_slug=plan.slug if plan else resolve_effective_plan(db, user),
+        subscription_id=sub.id if sub else None,
         feature_key=feature_key,
     )
+
+
+def can_use_ai(
+    db: Session,
+    user: User,
+    feature_key: str,
+    *,
+    estimated_credit_cost: int = 0,
+    quantity: int = 1,
+    denied_message: str | None = None,
+) -> dict[str, Any]:
+    """
+    Unified AI gate: feature entitlement + system API + credit.
+    Mọi user (trừ admin) dùng API hệ thống — không dùng key riêng.
+    """
+    from app.services.user_api_access import (
+        SYSTEM_API_NOT_CONFIGURED_MSG,
+        admin_system_llm_available,
+        resolve_effective_ai_plan_slug,
+    )
+
+    feature_key = str(feature_key or "content_ai_article").strip()
+    unit = max(0, int(estimated_credit_cost))
+    balance = credits_svc.get_available_balance(db, user.id)
+
+    if is_admin(user):
+        return {
+            "allowed": True,
+            "use_system_llm": True,
+            "charge_credits": False,
+            "unit_cost": 0,
+            "plan_slug": "admin",
+            "code": "ok",
+            "message": "",
+            "feature_key": feature_key,
+            "credit_balance": balance,
+            "entitlement": "admin",
+        }
+
+    feat = check_feature(db, user, feature_key, quantity=quantity)
+    if not feat.allowed:
+        return {
+            "allowed": False,
+            "use_system_llm": True,
+            "charge_credits": False,
+            "unit_cost": unit,
+            "code": feat.reason_code,
+            "message": feat.message,
+            "plan_slug": feat.plan_slug,
+            "feature_key": feature_key,
+            "credit_balance": balance,
+            "entitlement": feat.reason_code,
+        }
+
+    if not admin_system_llm_available(db):
+        return {
+            "allowed": False,
+            "use_system_llm": True,
+            "charge_credits": False,
+            "unit_cost": unit,
+            "code": "system_api_missing",
+            "message": SYSTEM_API_NOT_CONFIGURED_MSG,
+            "plan_slug": feat.plan_slug or resolve_effective_ai_plan_slug(db, user),
+            "feature_key": feature_key,
+            "credit_balance": balance,
+            "entitlement": feat.reason_code,
+        }
+
+    if credits_svc.credits_enforced():
+        credits_svc.ensure_plan_monthly_credits(db, user.id)
+        balance = credits_svc.get_available_balance(db, user.id)
+        need = unit if unit > 0 else _credit_cost_for_feature(feature_key, quantity)
+        if balance <= 0:
+            return {
+                "allowed": False,
+                "use_system_llm": True,
+                "charge_credits": False,
+                "unit_cost": need,
+                "code": "insufficient_credits",
+                "message": denied_message or "Tài khoản cần credit > 0 để sử dụng AI.",
+                "plan_slug": feat.plan_slug,
+                "feature_key": feature_key,
+                "credit_balance": balance,
+                "entitlement": feat.reason_code,
+            }
+        if need > 0 and balance < need:
+            return {
+                "allowed": False,
+                "use_system_llm": True,
+                "charge_credits": False,
+                "unit_cost": need,
+                "code": "insufficient_credits",
+                "message": f"Bạn cần {need} credit, tài khoản hiện có {balance} credit.",
+                "plan_slug": feat.plan_slug,
+                "feature_key": feature_key,
+                "credit_balance": balance,
+                "entitlement": feat.reason_code,
+            }
+
+    charge_unit = unit if unit > 0 else _credit_cost_for_feature(feature_key, quantity)
+    return {
+        "allowed": True,
+        "use_system_llm": True,
+        "charge_credits": charge_unit > 0 and credits_svc.credits_enforced(),
+        "unit_cost": charge_unit,
+        "plan_slug": feat.plan_slug or resolve_effective_ai_plan_slug(db, user),
+        "code": "ok",
+        "message": "",
+        "feature_key": feature_key,
+        "credit_balance": balance,
+        "entitlement": feat.reason_code,
+    }
+
+
+def ensure_ai_entitlement(
+    db: Session,
+    user: User,
+    feature_key: str,
+    *,
+    estimated_credit_cost: int = 0,
+    quantity: int = 1,
+    denied_message: str | None = None,
+) -> dict[str, Any]:
+    snap = can_use_ai(
+        db,
+        user,
+        feature_key,
+        estimated_credit_cost=estimated_credit_cost,
+        quantity=quantity,
+        denied_message=denied_message,
+    )
+    if snap.get("allowed"):
+        return snap
+    code = str(snap.get("code") or "denied")
+    http_status = (
+        status.HTTP_402_PAYMENT_REQUIRED
+        if code in ("insufficient_credits", "trial_need_credit", "trial_credit_cap")
+        else status.HTTP_403_FORBIDDEN
+    )
+    raise HTTPException(status_code=http_status, detail=snap)
 
 
 def assert_feature_allowed(
@@ -246,11 +512,25 @@ def assert_feature_allowed(
         return result
 
     status_code = status.HTTP_403_FORBIDDEN
-    if result.reason_code == "denied" and credits_svc.credits_enforced():
-        cost = _credit_cost_for_feature(feature_key, quantity)
-        balance = int(getattr(user, "credit_balance", 0) or 0)
-        if cost > 0 and balance < cost:
-            status_code = status.HTTP_402_PAYMENT_REQUIRED
+    if result.reason_code in ("insufficient_credits", "trial_need_credit"):
+        status_code = status.HTTP_402_PAYMENT_REQUIRED
+        if (
+            has_active_free_usage(db, user.id)
+            and not _has_paid_active_subscription(db, user)
+        ):
+            days = free_usage_days_remaining(db, user.id)
+            balance = credits_svc.get_available_balance(db, user.id)
+            raise HTTPException(
+                status_code=status_code,
+                detail={
+                    "code": "free_usage_need_credit",
+                    "message": free_usage_need_credit_message(days),
+                    "feature_key": result.feature_key,
+                    "free_usage_days_remaining": days,
+                    "quota_remaining": balance,
+                    "upgrade_url": "/account/billing",
+                },
+            )
 
     raise HTTPException(
         status_code=status_code,

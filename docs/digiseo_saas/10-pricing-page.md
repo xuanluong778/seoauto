@@ -1,6 +1,6 @@
 # Pricing Page Roadmap
 
-Tài liệu này mô tả trang pricing cho DigiSEO SaaS.
+Tài liệu này mô tả trang pricing cho Seoauto SaaS.
 
 ---
 

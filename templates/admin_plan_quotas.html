@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=8">
+    <link rel="stylesheet" href="/static/css/admin-credit-costs.css?v=1">
+    <link rel="stylesheet" href="/static/css/admin-plan-quotas.css?v=1">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=1">
+</head>
+<body class="ab-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+
+    <div id="admPqBlocked" class="adm-cc-blocked" hidden>
+        <h2>Không có quyền truy cập</h2>
+        <p>Chỉ tài khoản <strong>admin</strong> mới vào được trang này.</p>
+        <p><a href="/admin">← Quay lại Admin</a></p>
+    </div>
+
+    <div class="adm-cc-wrap" id="admPqApp" hidden>
+        {% include "partials/admin_shell_header.html" %}
+
+        <div class="ab-card adm-cc-toolbar">
+            <p class="ab-muted-text">
+                Quota tháng theo gói — lưu vào <code>usage_limits</code>. Credit wallet vẫn trừ riêng khi gọi API đắt.
+                Gói: <strong>Basic</strong> (starter), <strong>Pro</strong>, <strong>Agency</strong>, <strong>Business</strong>.
+            </p>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmPqRefresh">Làm mới</button>
+                <select id="admPqPlanFilter" class="adm-pq-plan-select" aria-label="Lọc gói">
+                    <option value="">Tất cả gói</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="ab-loading" id="admPqLoading">Đang tải quota…</div>
+        <div class="ab-error" id="admPqError" hidden></div>
+        <div id="admPqGrid" class="adm-pq-grid" hidden></div>
+    </div>
+
+    <div class="ab-toast" id="admPqToast" role="status" aria-live="polite" hidden></div>
+
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=1"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=6" defer></script>
+    <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+    <script src="/static/js/admin-plan-quotas.js?v=1"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

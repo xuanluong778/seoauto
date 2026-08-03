@@ -66,6 +66,18 @@ def normalize_settings(patch: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def read_settings(*, user_id: int) -> dict[str, Any]:
+    from app.services.user_data_pg.config import pg_fallback_json_enabled, pg_read_enabled
+
+    if pg_read_enabled("user_system_settings"):
+        try:
+            from app.services.user_data_pg import user_settings as pg_store
+
+            row = pg_store.read_user_settings(user_id)
+            if row is not None or not pg_fallback_json_enabled():
+                return normalize_settings(row) if row is not None else _defaults()
+        except Exception:
+            if not pg_fallback_json_enabled():
+                raise
     raw = _read_raw()
     users = raw.get("users")
     if isinstance(users, dict):
@@ -84,6 +96,15 @@ def write_settings(patch: dict[str, Any], *, user_id: int) -> dict[str, Any]:
     users[str(int(user_id))] = merged
     raw["users"] = users
     _write_raw(raw)
+    try:
+        from app.services.user_data_pg.config import pg_dual_write_enabled
+
+        if pg_dual_write_enabled("user_system_settings"):
+            from app.services.user_data_pg import user_settings as pg_store
+
+            pg_store.import_users_map({int(user_id): merged})
+    except Exception:
+        pass
     return merged
 
 

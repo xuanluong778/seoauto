@@ -23,21 +23,52 @@ def _host_brand(host: str) -> set[str]:
 def _expand_seeds(seeds: list[str]) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
+
+    def _add(phrase: str) -> None:
+        k = (phrase or "").strip()
+        if not k or len(k) < 2 or len(k) > 120:
+            return
+        low = k.lower()
+        if low in seen:
+            return
+        seen.add(low)
+        out.append(k)
+
+    max_expand = int(os.getenv("KEYWORD_RESEARCH_MAX_EXPAND", "80"))
     for s in seeds:
         k = (s or "").strip()
         if not k or len(k) < 2:
             continue
-        low = k.lower()
-        if low not in seen:
-            seen.add(low)
-            out.append(k)
-        for extra in (f"{k} review", f"{k} vs", f"best {k}", f"{k} price"):
-            el = extra.strip().lower()
-            if el not in seen and len(el) < 120:
-                seen.add(el)
-                out.append(extra.strip())
-        if len(out) >= int(os.getenv("KEYWORD_RESEARCH_MAX_EXPAND", "48")):
-            break
+        _add(k)
+        for extra in (
+            f"{k} review",
+            f"{k} vs",
+            f"best {k}",
+            f"{k} price",
+            f"dịch vụ {k}",
+            f"{k} tại nhà",
+            f"{k} giá",
+            f"{k} báo giá",
+            f"{k} tphcm",
+            f"{k} hà nội",
+            f"{k} gần đây",
+            f"{k} uy tín",
+            f"{k} chuyên nghiệp",
+            f"cách {k}",
+            f"chi phí {k}",
+            f"{k} tận nơi",
+            f"thợ {k}",
+            f"{k} 24h",
+            f"{k} nhanh",
+            f"dịch vụ {k} tphcm",
+            f"{k} quận 1",
+            f"{k} quận 7",
+            f"so sánh {k}",
+            f"review {k}",
+        ):
+            _add(extra)
+            if len(out) >= max_expand:
+                return out
     return out
 
 
@@ -48,6 +79,7 @@ def run_keyword_research(
     domain: str | None = None,
     gsc_queries: list[dict[str, Any]] | None = None,
     pages: list[dict[str, Any]] | None = None,
+    force_expand: bool = False,
 ) -> list[dict[str, Any]]:
     """
     Returns rows: ``keyword``, ``search_volume`` (optional), ``difficulty`` (0–1 estimate),
@@ -59,7 +91,8 @@ def run_keyword_research(
     if domain and not seeds:
         seeds = [domain.replace("www.", "")]
 
-    expanded = _expand_seeds(seeds) if os.getenv("KEYWORD_RESEARCH_EXPAND", "1").lower() in ("1", "true", "yes") else seeds
+    expand_on = force_expand or os.getenv("KEYWORD_RESEARCH_EXPAND", "1").lower() in ("1", "true", "yes")
+    expanded = _expand_seeds(seeds) if expand_on else list(seeds)
 
     collected = collect_keywords(
         user_keywords=expanded,

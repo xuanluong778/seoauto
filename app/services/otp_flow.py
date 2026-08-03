@@ -73,6 +73,10 @@ def validate_otp_for_register(email_norm: str, raw_otp: str, db: Session) -> Otp
     return row
 
 
+# Tránh spam Gmail + vô hiệu OTP cũ khi bấm liên tục «Nhận mã OTP».
+_OTP_RESEND_COOLDOWN_SEC = 60
+
+
 def send_login_otp(email: str, db: Session) -> None:
     from app.services.admin_auth import skips_otp_for_user
 
@@ -87,6 +91,27 @@ def send_login_otp(email: str, db: Session) -> None:
     cfg = get_smtp_settings()
     otp_len = max(4, min(cfg["otp_length"], 10))
     expire_sec = max(60, min(cfg["otp_expire_seconds"], 3600))
+
+    recent = (
+        db.query(OtpLogin)
+        .filter(OtpLogin.email == email_norm, OtpLogin.used.is_(False))
+        .order_by(OtpLogin.created_at.desc())
+        .first()
+    )
+    if recent is not None:
+        created = _expires_at_utc(recent.created_at)
+        age_sec = (datetime.now(timezone.utc) - created).total_seconds()
+        if age_sec < _OTP_RESEND_COOLDOWN_SEC and datetime.now(timezone.utc) <= _expires_at_utc(
+            recent.expires_at
+        ):
+            wait = max(1, int(_OTP_RESEND_COOLDOWN_SEC - age_sec))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Mã OTP đã được gửi — kiểm tra Gmail (cả thư mục Spam/Promotions). "
+                    f"Gửi lại sau {wait} giây để tránh mã cũ bị hủy."
+                ),
+            )
 
     user = db.query(User).filter(User.email == email_norm).first()
     if not user:

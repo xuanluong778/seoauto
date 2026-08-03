@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rank Tracking — SEOAuto</title>
+    {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/keyword-research.css?v=1">
+    <link rel="stylesheet" href="/static/css/rank-tracking.css?v=2">
+</head>
+<body class="page-keyword-research page-rank-tracking">
+{% include "partials/digiseo_top_nav.html" %}
+<div class="kw-page-root max-w-7xl mx-auto pt-4 pb-16">
+    <div class="kw-page-shell">
+    <div class="kw-white-panel bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
+        {% include "partials/digiseo_keyword_tools.html" %}
+
+        <div class="rt-panel-body p-4 sm:p-6">
+            <header class="rt-page-head">
+                <span class="rt-mode-pill" id="rtModeBadge">Rank Tracking</span>
+                <h1>Rank Tracking</h1>
+                <p class="rt-lead">Theo dõi thứ hạng Google theo domain và từ khóa — xem biến động vị trí theo thời gian.</p>
+            </header>
+
+            <div class="rt-layout">
+                <aside class="rt-sidebar">
+                    <div class="rt-card">
+                        <h2 class="rt-card-title">Dự án</h2>
+                        <form id="rtProjectForm" class="rt-form">
+                            <label>Tên project<input type="text" id="rtProjectName" placeholder="Website chính" autocomplete="off"></label>
+                            <label>Domain *<input type="text" id="rtProjectDomain" placeholder="seoauto.vn" required autocomplete="off"></label>
+                            <label>Location<input type="text" id="rtProjectLocation" value="Vietnam" autocomplete="off"></label>
+                            <label>Language<input type="text" id="rtProjectLanguage" value="Vietnamese" autocomplete="off"></label>
+                            <label>Device
+                                <select id="rtProjectDevice">
+                                    <option value="desktop">Desktop</option>
+                                    <option value="mobile">Mobile</option>
+                                    <option value="tablet">Tablet</option>
+                                </select>
+                            </label>
+                            <button type="submit" class="rt-btn rt-btn--primary">+ Tạo project</button>
+                        </form>
+                    </div>
+                    <div class="rt-card">
+                        <h2 class="rt-card-title">Danh sách project</h2>
+                        <div id="rtProjectList" class="rt-project-list"><p class="rt-empty">Chưa có project.</p></div>
+                    </div>
+                </aside>
+
+                <main class="rt-main">
+                    <div class="rt-toolbar">
+                        <div>
+                            <h2 class="rt-card-title" id="rtActiveProjectTitle">Chọn project</h2>
+                            <p class="rt-hint" id="rtActiveProjectMeta">Tạo hoặc chọn project để quản lý keyword.</p>
+                        </div>
+                        <div class="rt-toolbar-actions">
+                            <button type="button" class="rt-btn rt-btn--ghost" id="rtRefreshBtn">Làm mới</button>
+                            <button type="button" class="rt-btn rt-btn--primary" id="rtCheckNowBtn" disabled>Kiểm tra ngay</button>
+                        </div>
+                    </div>
+
+                    <div class="rt-stats" id="rtStats">
+                        <article class="rt-stat"><span class="rt-stat-label">Từ khóa</span><strong id="rtStatKeywords">0</strong></article>
+                        <article class="rt-stat"><span class="rt-stat-label">Có thứ hạng</span><strong id="rtStatRanked">0</strong></article>
+                        <article class="rt-stat"><span class="rt-stat-label">Không thấy</span><strong id="rtStatNotFound">0</strong></article>
+                        <article class="rt-stat"><span class="rt-stat-label">TB thứ hạng</span><strong id="rtStatAvg">—</strong></article>
+                        <article class="rt-stat"><span class="rt-stat-label">Tăng</span><strong id="rtStatUp" class="is-up">0</strong></article>
+                        <article class="rt-stat"><span class="rt-stat-label">Giảm</span><strong id="rtStatDown" class="is-down">0</strong></article>
+                    </div>
+
+                    <div class="rt-card">
+                        <h3 class="rt-card-title">Thêm keyword</h3>
+                        <form id="rtKeywordForm" class="rt-inline-form">
+                            <input type="text" id="rtKeywordInput" placeholder="Nhập từ khóa cần theo dõi" autocomplete="off" disabled>
+                            <button type="submit" class="rt-btn rt-btn--primary" disabled id="rtKeywordSubmit">Thêm</button>
+                        </form>
+                    </div>
+
+                    <div class="rt-card rt-table-card">
+                        <h3 class="rt-card-title">Bảng từ khóa</h3>
+                        <div class="rt-table-wrap">
+                            <table class="rt-table">
+                                <thead>
+                                    <tr>
+                                        <th>Từ khóa</th>
+                                        <th>Thứ hạng</th>
+                                        <th>Biến động</th>
+                                        <th>URL tốt nhất</th>
+                                        <th>Kiểm tra lần cuối</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rtKeywordTableBody">
+                                    <tr><td colspan="5" class="rt-empty">Chọn project để xem keyword.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+    </div>
+</div>
+
+<div class="rt-toast" id="rtToast" hidden role="status" aria-live="polite"></div>
+<script src="/static/js/rank-tracking.js?v=2" defer></script>
+{% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

@@ -1,15 +1,16 @@
-"""Role-based access: admin, user, editor, viewer."""
+"""Role-based access: super_admin, admin, user, editor, viewer."""
 
 from __future__ import annotations
 
 from fastapi import Depends, HTTPException, status
 
 from app.models.user import User
-from app.services.admin_auth import is_configured_admin_email
+from app.services.admin_auth import is_configured_admin_email, is_platform_admin
 from app.services.auth import get_current_user
 
-ROLES = frozenset({"admin", "user", "editor", "viewer"})
-WRITE_ROLES = frozenset({"admin", "user", "editor"})
+ROLES = frozenset({"super_admin", "admin", "user", "editor", "viewer"})
+ADMIN_ROLES = frozenset({"super_admin", "admin"})
+WRITE_ROLES = frozenset({"super_admin", "admin", "user", "editor"})
 STATUSES = frozenset({"active", "inactive", "banned"})
 
 
@@ -27,10 +28,31 @@ def is_user_active(user: User) -> bool:
     return normalize_status(getattr(user, "status", None)) == "active"
 
 
-def is_admin(user: User) -> bool:
-    if normalize_role(getattr(user, "role", None)) == "admin":
+def is_super_admin(user: User | None) -> bool:
+    if user is None:
+        return False
+    return normalize_role(getattr(user, "role", None)) == "super_admin"
+
+
+def is_admin_role_name(role: str | None) -> bool:
+    return normalize_role(role) in ADMIN_ROLES
+
+
+def is_admin(user: User | None) -> bool:
+    """Full SaaS / credit / feature bypass for admin & super_admin (role-based)."""
+    if user is None:
+        return False
+    if is_admin_role_name(getattr(user, "role", None)):
         return True
-    return is_configured_admin_email(str(getattr(user, "email", "") or ""))
+    email = str(getattr(user, "email", "") or "")
+    if is_configured_admin_email(email):
+        return True
+    return is_platform_admin(user)
+
+
+def has_unlimited_access(user: User | None) -> bool:
+    """Alias: skip plan expiry, site caps, and credit charges."""
+    return is_admin(user)
 
 
 def can_write(user: User) -> bool:
@@ -50,6 +72,6 @@ def require_admin_user(current_user: User = Depends(get_current_user)) -> User:
     if not is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chỉ admin mới được thực hiện thao tác này.",
+            detail="Bạn không có quyền thực hiện thao tác này.",
         )
     return current_user

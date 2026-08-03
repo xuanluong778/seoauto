@@ -1,17 +1,17 @@
-# DigiSEO Product Overview
+# Seoauto Product Overview
 
-Tài liệu này mô tả định hướng sản phẩm DigiSEO khi nâng cấp từ một SEO tool nội bộ thành một SaaS chuyên nghiệp.
+Tài liệu này mô tả định hướng sản phẩm Seoauto khi nâng cấp từ một SEO tool nội bộ thành một SaaS chuyên nghiệp.
 
 ---
 
 ## 1. Mục tiêu sản phẩm
 
-DigiSEO nên được định vị không chỉ là một công cụ SEO đơn lẻ, mà là một nền tảng SEO Automation SaaS.
+Seoauto nên được định vị không chỉ là một công cụ SEO đơn lẻ, mà là một nền tảng SEO Automation SaaS.
 
 Định vị đề xuất:
 
 ```txt
-DigiSEO là nền tảng SEO AI giúp chủ website, SEOer và agency:
+Seoauto là nền tảng SEO AI giúp chủ website, SEOer và agency:
 - Quét lỗi Technical SEO
 - Research và gom nhóm từ khóa
 - Tạo bài viết SEO bằng AI
@@ -44,13 +44,13 @@ Quét website
 Định hướng thương hiệu nên đi theo:
 
 ```txt
-DigiSEO - All-in-one SEO Automation SaaS cho cá nhân, chủ website và agency tại Việt Nam.
+Seoauto - All-in-one SEO Automation SaaS cho cá nhân, chủ website và agency tại Việt Nam.
 ```
 
 Hoặc:
 
 ```txt
-DigiSEO - Nền tảng SEO AI giúp audit website, nghiên cứu từ khóa, viết content và đăng bài WordPress tự động.
+Seoauto - Nền tảng SEO AI giúp audit website, nghiên cứu từ khóa, viết content và đăng bài WordPress tự động.
 ```
 
 ---

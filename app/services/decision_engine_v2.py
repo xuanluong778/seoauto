@@ -158,6 +158,8 @@ RULE_ID_BY_FN: dict[str, str] = {fn.__name__: fn.__name__.replace("evaluate_", "
 INDEX_CORE_RULES = frozenset(
     {
         "indexability_blocked",
+        "meta_robots_noindex",
+        "x_robots_tag_noindex",
         "indexability_signal_conflict",
         "http_status_non_200",
         "robots_meta_noindex_contradiction",
@@ -165,7 +167,10 @@ INDEX_CORE_RULES = frozenset(
         "js_seo_risk_high",
         "js_seo_risk_medium",
         "js_shell_missing_critical",
+        "canonical_points_to_bad_status",
         "canonical_points_to_non_indexable",
+        "canonical_scheme_mismatch",
+        "canonical_trailing_slash_mismatch",
         "canonical_low_similarity_mismatch",
         "google_may_ignore_canonical",
         "page_unlikely_indexed",
@@ -187,7 +192,10 @@ CANONICAL_RULES = frozenset(
         "canonical_cross_host",
         "canonical_self_mismatch",
         "canonical_missing_high_value",
+        "canonical_points_to_bad_status",
         "canonical_points_to_non_indexable",
+        "canonical_scheme_mismatch",
+        "canonical_trailing_slash_mismatch",
         "canonical_low_similarity_mismatch",
         "google_may_ignore_canonical",
     }

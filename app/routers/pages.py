@@ -16,30 +16,43 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import requests
 from bs4 import BeautifulSoup, NavigableString
 from dotenv import dotenv_values
 
-from app.db import get_db
+from app.db import get_db, SessionLocal
 from app.models.user import User
 from sqlalchemy.orm import Session
 
-from app.services.saas_pricing_service import get_pricing_plans
 from app.seo_pipeline.constants import CHECKLIST_TITLE_VI
 from app.services.auth import get_current_user
 from app.services.rbac import require_write_user
 from app.services.trial_access import require_active_trial
+from app.services.content_ai_entitlement import (
+    assert_content_ai_feature,
+    build_content_ai_usage,
+    feature_for_suggest_field,
+    record_content_ai_usage,
+)
+from app.services.cost_control.module_gates import content_ai_crawl_gate, content_ai_cse_gate, content_ai_llm_gate
+from app.schemas.saas import ContentAiUsageResponse
 from app.services.security_audit_log import log_audit_event
-from app.services.user_data_paths import user_upload_dir, user_upload_relative_path
 from app.services.user_scope import assert_job_access
+from app.services.seoauto_pricing_catalog import (
+    PRICING_COMPARE_ROWS,
+    _billing_article_addons_payload,
+    _billing_credit_addons_payload,
+    get_seoauto_pricing_cards,
+)
 from app.services.content_ai_project_store import (
     delete_content_ai_project,
     get_content_ai_project,
     list_content_ai_projects,
     save_content_ai_project,
+    update_content_ai_project_fields,
     upsert_bulk_setup_projects,
 )
 from app.services.content_ai_content_images import (
@@ -56,7 +69,8 @@ from app.services.content_ai_image_studio import (
 )
 from app.services.google_cse_images import import_remote_image_url
 from app.services.web_image_search import image_search_status, search_web_images
-from app.services.content_draft_builder import build_draft_payload, detect_search_intent, suggest_content_ai_field
+from app.services.content_ai_image_finder import search_contextual_images
+from app.services.content_draft_builder import build_draft_payload, detect_search_intent
 from app.services.llm_content_writer import (
     generate_content_ai_suggestion,
     generate_seo_article_json,
@@ -72,10 +86,12 @@ from app.services.wp_internal_link_scoring import (
 )
 from app.routers.settings_api import (
     HaravanConnectionBody,
+    WordPressCategoriesBody,
     WordPressConnectionBody,
     _check_haravan_site,
     _check_wp_site,
     _haravan_sync_blogs_count,
+    _resolve_wp_category_credentials,
     _wp_posts_count,
 )
 
@@ -96,11 +112,233 @@ def _load_technical_audit_catalog() -> dict[str, Any]:
         return {}
 
 
+def _is_llm_transient_error(exc: BaseException) -> bool:
+    """Network/DNS/timeouts — fall back to rule-based suggest instead of 502."""
+    msg = str(exc or "").lower()
+    needles = (
+        "nameresolution",
+        "name resolution",
+        "failed to resolve",
+        "temporary failure in name resolution",
+        "max retries exceeded",
+        "connection refused",
+        "connection reset",
+        "connection timed out",
+        "connect timeout",
+        "read timed out",
+        "readtimeout",
+        "network is unreachable",
+        "nodename nor servname",
+        "getaddrinfo failed",
+    )
+    return any(n in msg for n in needles)
+
+
+_BRIEF_SUGGEST_FIELDS = frozenset(
+    {
+        "title",
+        "meta_description",
+        "slug",
+        "tags",
+        "primary_keyword",
+        "secondary_keywords",
+        "outline_content",
+        "outline",
+        "target_website",
+    }
+)
+
+
+_SINGLE_WRITER_LLM_FIELDS = frozenset(
+    {
+        "title",
+        "meta_description",
+        "outline_content",
+        "content",
+        "slug",
+        "tags",
+        "secondary_keywords",
+    }
+)
+
+
+def _content_ai_llm_unavailable_detail(internal: str = "") -> dict[str, Any]:
+    import logging
+
+    from app.services.content_ai_knowledge_context import (
+        CONTENT_AI_LLM_UNAVAILABLE_CODE,
+        CONTENT_AI_LLM_UNAVAILABLE_MESSAGE,
+    )
+
+    if internal:
+        logging.getLogger(__name__).warning("content_ai_llm_unavailable: %s", internal[:500])
+    return {
+        "ok": False,
+        "code": CONTENT_AI_LLM_UNAVAILABLE_CODE,
+        "message": CONTENT_AI_LLM_UNAVAILABLE_MESSAGE,
+    }
+
+
+def _raise_content_ai_llm_unavailable(internal: str = "") -> None:
+    raise HTTPException(status_code=503, detail=_content_ai_llm_unavailable_detail(internal))
+
+
+def _map_content_ai_exc_to_http(exc: Exception) -> HTTPException:
+    from app.services.content_ai_knowledge_context import ContentAiLlmUnavailableError
+
+    if isinstance(exc, HTTPException):
+        return exc
+    if isinstance(exc, ContentAiLlmUnavailableError):
+        reason = str(getattr(exc, "internal_reason", "") or "").strip()
+        if reason in {"content_requires_kb_or_website", "no_kb_no_website"}:
+            return HTTPException(
+                status_code=400,
+                detail="Cần URL website hoặc cơ sở tri thức AI để gợi ý.",
+            )
+        return HTTPException(
+            status_code=503,
+            detail=_content_ai_llm_unavailable_detail(reason),
+        )
+    msg = str(exc or "").strip() or "Gợi ý AI thất bại. Vui lòng thử lại sau."
+    return HTTPException(status_code=502, detail=msg[:800])
+
+
+def _content_ai_suggest_fast_enabled(request: Request) -> bool:
+    q = (request.query_params.get("fast") or "").strip().lower()
+    if q in {"0", "false", "no", "off"}:
+        return False
+    if q in {"1", "true", "yes", "on"}:
+        return True
+    return os.getenv("CONTENT_AI_SUGGEST_FAST", "1").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _content_ai_suggest_force_llm(request: Request) -> bool:
+    return (request.query_params.get("llm") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _should_use_llm_for_suggest(
+    request: Request,
+    requested: str,
+    *,
+    llm_cfg: object | None,
+    llm_fields: set[str],
+) -> bool:
+    """Tab Viết bài SEO: luôn dùng LLM thật cho các field trong llm_fields."""
+    del request
+    return bool(llm_cfg) and requested in llm_fields
+
+
+def _resolve_use_llm_for_suggest(
+    request: Request,
+    requested: str,
+    *,
+    llm_cfg: object | None,
+    llm_fields: set[str],
+) -> bool:
+    """Single path for brief fast mode and LLM mode — avoids 503 when rule-based suggest is enough."""
+    return _should_use_llm_for_suggest(
+        request,
+        requested,
+        llm_cfg=llm_cfg,
+        llm_fields=llm_fields,
+    )
+
+
+def _content_ai_suggest_llm_gate(
+    db: Session,
+    user: User,
+    *,
+    field: str,
+    word_count: int | None = None,
+    word_count_mode: str | None = None,
+    billing: dict[str, Any] | None = None,
+    outline_content: str = "",
+    content: str = "",
+    title: str = "",
+    primary_keyword: str = "",
+) -> dict[str, Any]:
+    """Gói trả phí/trial: LLM hệ thống + trừ credit. Custom key khi được phép."""
+    from app.services.content_ai_credit_service import (
+        billing_flags_from_request,
+        quote_content_ai_write,
+    )
+    from app.services.content_ai_word_count_policy import (
+        precheck_word_count_for_gate,
+        resolve_content_target_word_count,
+    )
+    from app.services.cau_ai_fix_entitlement import PAID_LLM_FREE_MESSAGE
+    from app.services.user_api_access import load_llm_config_for_request, resolve_ai_llm_gate
+
+    requested_field = (field or "").strip().lower()
+    was_auto = False
+    if requested_field == "content":
+        prompt_wc, was_auto = resolve_content_target_word_count(
+            word_count,
+            word_count_mode,
+            user,
+            db,
+            primary_keyword=primary_keyword,
+            outline_content=outline_content,
+            title=title,
+        )
+        quote_wc = precheck_word_count_for_gate(user, prompt_wc, db)
+    else:
+        quote_wc = word_count
+        prompt_wc = word_count
+        was_auto = False
+
+    flags = billing_flags_from_request(
+        field=field,
+        outline_content=outline_content,
+        content=content,
+        billing=billing,
+        title=title,
+        primary_keyword=primary_keyword,
+    )
+    pre_quote = quote_content_ai_write(
+        db,
+        user,
+        field=field,
+        word_count=quote_wc,
+        flags=flags,
+        use_system_llm=True,
+    )
+    unit_cost = int(pre_quote.get("credit_cost") or 0)
+
+    gate = resolve_ai_llm_gate(
+        db, user, unit_cost=unit_cost, denied_message=PAID_LLM_FREE_MESSAGE,
+    )
+    if not gate.get("allowed"):
+        from fastapi import HTTPException, status
+
+        code = str(gate.get("code") or "denied")
+        http_status = status.HTTP_402_PAYMENT_REQUIRED if code == "insufficient_credits" else status.HTTP_403_FORBIDDEN
+        raise HTTPException(status_code=http_status, detail=gate)
+
+    use_system_llm = bool(gate.get("use_system_llm"))
+    quote = quote_content_ai_write(
+        db,
+        user,
+        field=field,
+        word_count=quote_wc,
+        flags=flags,
+        use_system_llm=use_system_llm,
+    )
+    unit_cost = int(quote.get("credit_cost") or 0)
+    return {
+        "allowed": True,
+        "use_system_llm": use_system_llm,
+        "charge_credits": bool(quote.get("charge_credits")) if not use_system_llm else bool(gate.get("charge_credits")),
+        "unit_cost": unit_cost,
+        "quote": quote,
+        "prompt_word_count": prompt_wc,
+        "target_word_count_mode": "auto" if was_auto else "manual",
+    }
+
+
 def _content_ai_llm_enabled_fields(llm_mode: str) -> set[str]:
     """
-    Một nguồn cấu hình: field nào dùng LLM theo CONTENT_AI_LLM_MODE.
-    Field không nằm trong tập này sẽ đi qua lớp rule (`suggest_content_ai_field`), trừ content body
-    (không còn sinh rule — chỉ LLM hoặc dán qua `content_ai_normalize_pasted_body`).
+    Một nguồn cấu hình: field nào dùng LLM theo CONTENT_AI_LLM_MODE (tab Viết bài SEO).
     """
     m = (llm_mode or "auto").strip().lower()
     if m not in {"off", "auto", "title_meta_only", "content_only"}:
@@ -108,10 +346,10 @@ def _content_ai_llm_enabled_fields(llm_mode: str) -> set[str]:
     if m == "off":
         return set()
     if m == "title_meta_only":
-        return {"title", "meta_description"}
+        return {"title", "meta_description", "slug", "tags", "secondary_keywords"}
     if m == "content_only":
-        return {"content", "outline_content"}
-    return {"title", "meta_description", "outline_content", "content"}
+        return {"content", "outline_content", "slug", "tags", "secondary_keywords"}
+    return set(_SINGLE_WRITER_LLM_FIELDS)
 
 
 @router.get("/tool", response_class=HTMLResponse)
@@ -129,30 +367,114 @@ def seo_tool_page(request: Request) -> HTMLResponse:
 @router.get("/tool/seo-score", response_class=HTMLResponse)
 def seo_url_scoreboard_page(request: Request) -> HTMLResponse:
     """Tab/dashboard chấm điểm SEO 1 URL + opportunity."""
-    return templates.TemplateResponse(request=request, name="seo_url_score.html", context={})
+    resp = templates.TemplateResponse(request=request, name="seo_url_score.html", context={})
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    return resp
 
 
 @router.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request) -> HTMLResponse:
+def settings_page(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
     """Trang cài đặt (tài khoản, API, AI, tích hợp…)."""
-    resp = templates.TemplateResponse(request=request, name="settings.html", context={})
+    from app.services.auth_request import optional_user_from_request
+    from app.services.user_api_access import may_manage_custom_api_keys
+
+    user = optional_user_from_request(request, db)
+    can_manage_api_keys = bool(user and may_manage_custom_api_keys(db, user))
+    resp = templates.TemplateResponse(
+        request=request,
+        name="settings.html",
+        context={"can_manage_api_keys": can_manage_api_keys},
+    )
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return resp
 
 
 @router.get("/pricing", response_class=HTMLResponse)
 def pricing_page(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    """Bảng giá SaaS — đọc từ DB, chưa thanh toán trực tuyến."""
+    """Bảng giá SEOAuto — UI SaaS."""
     return templates.TemplateResponse(
         request=request,
         name="pricing.html",
-        context={"plans": get_pricing_plans(db)},
+        context={
+            "plans": get_seoauto_pricing_cards(db),
+            "credit_addons": _billing_credit_addons_payload(),
+            "article_addons": _billing_article_addons_payload(),
+            "compare_rows": PRICING_COMPARE_ROWS,
+        },
     )
 
 
 @router.get("/content-ai", response_class=HTMLResponse)
 def content_ai_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request=request, name="content_ai.html", context={})
+
+
+@router.get("/social-auto", response_class=HTMLResponse)
+def social_auto_page(request: Request) -> HTMLResponse:
+    """Social Auto — demo UI (mock data, no backend)."""
+    return templates.TemplateResponse(request=request, name="social_auto.html", context={})
+
+
+@router.get("/index-control", response_class=HTMLResponse)
+def index_control_page(request: Request) -> HTMLResponse:
+    """Index Control — kiểm soát lập chỉ mục SEO (MVP UI)."""
+    return templates.TemplateResponse(request=request, name="index_control.html", context={})
+
+
+@router.get("/chatbot-cskh", response_class=HTMLResponse)
+def chatbot_cskh_page(request: Request) -> HTMLResponse:
+    """Chatbot CSKH — chatbot chăm sóc khách hàng theo gói."""
+    return templates.TemplateResponse(request=request, name="chatbot_cskh.html", context={})
+
+
+@router.get("/google-map-seo", response_class=HTMLResponse)
+def google_map_seo_page(request: Request) -> HTMLResponse:
+    """Google Map SEO — tối ưu Google Business Profile & Local SEO."""
+    return templates.TemplateResponse(request=request, name="google_map_seo.html", context={})
+
+
+@router.get("/google_map_seo", include_in_schema=False)
+def google_map_seo_page_alias() -> RedirectResponse:
+    return RedirectResponse(url="/google-map-seo", status_code=301)
+
+
+_WIDGET_JS = Path(__file__).resolve().parent.parent.parent / "static" / "chatbot" / "widget.js"
+
+
+@router.get("/chatbot/widget.js")
+def chatbot_embed_widget_js() -> FileResponse:
+    """Public embed script for customer websites."""
+    return FileResponse(
+        _WIDGET_JS,
+        media_type="application/javascript",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@router.get("/rank-tracking", response_class=RedirectResponse)
+def rank_tracking_page() -> RedirectResponse:
+    return RedirectResponse(url="/keywords/tools/rank-tracking", status_code=302)
+
+
+@router.get("/privacy", response_class=HTMLResponse)
+def privacy_page(request: Request) -> HTMLResponse:
+    """Chính sách bảo mật — yêu cầu Google OAuth verification."""
+    return templates.TemplateResponse(request=request, name="privacy.html", context={})
+
+
+@router.get("/terms", response_class=HTMLResponse)
+def terms_page(request: Request) -> HTMLResponse:
+    """Điều khoản sử dụng — yêu cầu Google OAuth verification."""
+    return templates.TemplateResponse(request=request, name="terms.html", context={})
+
+
+@router.get("/data-deletion", response_class=HTMLResponse)
+def data_deletion_page(request: Request) -> HTMLResponse:
+    """Hướng dẫn xóa dữ liệu Facebook / Social Auto — yêu cầu Meta App."""
+    return templates.TemplateResponse(request=request, name="data_deletion.html", context={})
 
 
 class ContentDraftRequest(BaseModel):
@@ -166,6 +488,7 @@ class ContentDraftRequest(BaseModel):
     secondary_keywords: list[str] | None = None
     outline_content: str | None = None
     target_word_count: int | None = None
+    image_source: str | None = None
     featured_image: str | None = None
     gallery_images: list[str] | None = None
     scheduled_at: str | None = None
@@ -226,19 +549,20 @@ async def content_ai_upload_image(
         raise HTTPException(status_code=400, detail="Chi ho tro file anh jpg/jpeg/png/webp/gif.")
 
     safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", Path(filename).stem).strip("-").lower() or "image"
-    target_name = f"{safe_stem}-{uuid4().hex[:8]}{suffix}"
-    target_dir = user_upload_dir(current_user.id, project_id=project_id)
-    target_file = target_dir / target_name
-
     data = await file.read()
-    target_file.write_bytes(data)
-    rel = user_upload_relative_path(project_id=project_id, filename=target_name)
-    return JSONResponse(
-        content={
-            "url": f"/api/user-files/{current_user.id}/{rel}",
-            "name": target_name,
-        }
-    )
+    from app.services.media_storage import save_private_image
+
+    try:
+        saved = save_private_image(
+            user_id=current_user.id,
+            data=data,
+            suffix=suffix,
+            stem=safe_stem,
+            project_id=project_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(content={"url": saved["url"], "name": saved["name"]})
 
 
 class GoogleImageSearchResponse(BaseModel):
@@ -266,9 +590,60 @@ def content_ai_google_images_search(
     q: str = "",
     num: int = 8,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
-    items, source = _web_image_search(q=q, num=num)
-    return JSONResponse(content={"items": items, "source": source})
+    """Tương thích UI cũ — vẫn dùng pipeline ngữ cảnh (không Bing scrape)."""
+    try:
+        with content_ai_cse_gate(db, current_user, action="image_search_context"):
+            data = search_contextual_images(
+                primary_keyword=str(q or "").strip(),
+                num=max(1, min(int(num or 8), 12)),
+                db=db,
+                user=current_user,
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(
+        content={
+            "items": data.get("items") or [],
+            "source": data.get("source") or "",
+            "query": data.get("query") or "",
+        }
+    )
+
+
+class GoogleImageSearchContextRequest(BaseModel):
+    primary_keyword: str = ""
+    title: str = ""
+    outline_content: str = ""
+    content_html: str = ""
+    section_heading: str = ""
+    q: str = ""
+    num: int = 8
+
+
+@router.post("/content-ai/google-images/search-context")
+def content_ai_google_images_search_context(
+    payload: GoogleImageSearchContextRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    try:
+        with content_ai_cse_gate(db, current_user, action="image_search_context"):
+            data = search_contextual_images(
+                primary_keyword=str(payload.primary_keyword or "").strip(),
+                title=str(payload.title or "").strip(),
+                outline=str(payload.outline_content or ""),
+                content_html=str(payload.content_html or ""),
+                section_heading=str(payload.section_heading or "").strip(),
+                manual_query=str(payload.q or "").strip(),
+                num=max(1, min(int(payload.num or 8), 12)),
+                db=db,
+                user=current_user,
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(content=data)
 
 
 class GoogleImageImportRequest(BaseModel):
@@ -281,7 +656,10 @@ def content_ai_google_images_import(
     current_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     try:
-        local_url = import_remote_image_url(str(payload.url or "").strip())
+        local_url = import_remote_image_url(
+            str(payload.url or "").strip(),
+            user_id=current_user.id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -297,6 +675,26 @@ def content_ai_projects(
 ) -> JSONResponse:
     return JSONResponse(
         content={"items": list_content_ai_projects(user_id=current_user.id, limit=max(1, min(limit, 500)))}
+    )
+
+
+@router.get("/content-ai/usage", response_model=ContentAiUsageResponse)
+def content_ai_usage(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ContentAiUsageResponse:
+    """Current Content AI quota snapshot for the usage widget."""
+    snap = build_content_ai_usage(db, current_user)
+    return ContentAiUsageResponse(
+        user_id=snap["user_id"],
+        usage_month=snap["usage_month"],
+        plan_slug=snap.get("plan_slug"),
+        plan_name=snap.get("plan_name"),
+        enforcement_enabled=bool(snap.get("enforcement_enabled")),
+        bypass_entitlement=bool(snap.get("bypass_entitlement")),
+        items=snap.get("items") or [],
+        any_warning=bool(snap.get("any_warning")),
+        any_over_quota=bool(snap.get("any_over_quota")),
     )
 
 
@@ -323,17 +721,100 @@ class ContentAiBulkStartRequest(BaseModel):
     wp_category_id: int | None = None
 
 
+class ContentAiDuplicateCheckRequest(BaseModel):
+    keyword: str | None = None
+    keywords: list[str] | None = None
+    target_website: str | None = None
+    exclude_project_id: str | None = None
+    refresh: bool = False
+
+
 @router.get("/content-ai/bulk-jobs/ping")
 def content_ai_bulk_jobs_ping() -> JSONResponse:
     return JSONResponse(content={"ok": True, "feature": "content_ai_bulk"})
 
 
+@router.get("/content-ai/duplicate-check/ping")
+def content_ai_duplicate_check_ping() -> JSONResponse:
+    return JSONResponse(content={"ok": True, "feature": "content_ai_duplicate_check"})
+
+
+@router.post("/content-ai/duplicate-check")
+def content_ai_duplicate_check(
+    payload: ContentAiDuplicateCheckRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Check Content AI + published-site articles for exact / same-intent duplicates."""
+    from app.services.content_ai_duplicate_detection import (
+        build_duplicate_check_meta,
+        check_keywords_for_duplicates,
+        invalidate_duplicate_corpus_cache,
+        _collect_live_site_articles,
+    )
+
+    if payload.refresh:
+        invalidate_duplicate_corpus_cache(int(current_user.id))
+
+    kws: list[str] = []
+    if payload.keywords:
+        kws.extend(str(k or "").strip() for k in payload.keywords if str(k or "").strip())
+    single = str(payload.keyword or "").strip()
+    if single and single not in kws:
+        kws.insert(0, single)
+    if not kws:
+        raise HTTPException(status_code=400, detail="Cần ít nhất một từ khóa.")
+    if len(kws) > 200:
+        raise HTTPException(status_code=400, detail="Tối đa 200 từ khóa mỗi lần kiểm tra.")
+
+    target_website = str(payload.target_website or "").strip()
+    role = str(getattr(current_user, "role", None) or "user")
+    live_site_count = 0
+    if target_website:
+        try:
+            live_site_count = len(
+                _collect_live_site_articles(
+                    user_id=int(current_user.id),
+                    target_website=target_website,
+                    search_keywords=kws,
+                    role=role,
+                )
+            )
+        except Exception:
+            live_site_count = 0
+
+    results = check_keywords_for_duplicates(
+        kws,
+        user_id=int(current_user.id),
+        db=db,
+        target_website=target_website,
+        exclude_project_id=str(payload.exclude_project_id or "").strip() or None,
+        role=role,
+        use_cache=not bool(payload.refresh),
+    )
+    meta = build_duplicate_check_meta(
+        user_id=int(current_user.id),
+        target_website=target_website,
+        role=role,
+        live_site_count=live_site_count,
+    )
+    return JSONResponse(
+        content={
+            "results": results,
+            "has_duplicates": any(bool(r.get("is_duplicate")) for r in results),
+            "meta": meta,
+        }
+    )
+
+
 @router.post("/content-ai/bulk-import/file")
 async def content_ai_bulk_import_file(
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
-    """Upload .xlsx / .txt / .csv → danh sách bulk items theo form Content AI."""
+    """Upload .xlsx / .txt / .csv → danh sách bulk items (mode=normal|clustered)."""
+    from app.services.content_ai_bulk_cluster_import import parse_clustered_upload
     from app.services.content_ai_bulk_import import parse_bulk_upload_file
 
     name = str(file.filename or "").strip()
@@ -344,6 +825,24 @@ async def content_ai_bulk_import_file(
         raise HTTPException(status_code=400, detail="File trống.")
     if len(raw) > 12_000_000:
         raise HTTPException(status_code=413, detail="File quá lớn (tối đa 12MB).")
+
+    mode = (request.query_params.get("mode") or "normal").strip().lower()
+    if mode in {"list"}:
+        mode = "normal"
+    if mode in {"group"}:
+        mode = "clustered"
+    if mode not in {"normal", "clustered"}:
+        mode = "normal"
+
+    if mode == "clustered":
+        try:
+            preview = parse_clustered_upload(filename=name, raw=raw)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Không đọc được file gom nhóm: {exc}") from exc
+        return JSONResponse(content=preview)
+
     try:
         items, fmt = parse_bulk_upload_file(filename=name, raw=raw)
     except ValueError as exc:
@@ -357,6 +856,7 @@ async def content_ai_bulk_import_file(
         )
     return JSONResponse(
         content={
+            "mode": "normal",
             "items": items,
             "meta": {"count": len(items), "format": fmt, "filename": name},
         }
@@ -413,15 +913,18 @@ def content_ai_bulk_setup_save(
 def content_ai_bulk_jobs_start(
     payload: ContentAiBulkStartRequest,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
     from app.services.job_store import (
         cleanup_expired,
         create_job,
         ensure_job_schema,
+        find_recent_job_by_fingerprint,
         get_job,
         mark_stale_jobs_failed,
         mark_stale_queued_failed,
     )
+    from app.services.idempotency_guard import build_idempotency_key, job_fingerprint
 
     from app.services.content_ai_bulk_parse import normalize_bulk_job_items
 
@@ -457,6 +960,40 @@ def content_ai_bulk_jobs_start(
     if len(keywords) > 200:
         raise HTTPException(status_code=400, detail="Tối đa 200 từ khóa mỗi lần chạy.")
 
+    from app.services.content_ai_duplicate_detection import check_keywords_for_duplicates
+
+    rejected_duplicates: list[dict[str, Any]] = []
+    dup_results = check_keywords_for_duplicates(
+        keywords,
+        user_id=int(current_user.id),
+        db=db,
+        target_website=str(payload.target_website or "").strip(),
+        role=str(getattr(current_user, "role", None) or "user"),
+    )
+    dup_by_kw = {
+        str(r.get("keyword") or "").strip().lower(): r
+        for r in dup_results
+        if r.get("is_duplicate")
+    }
+    if dup_by_kw:
+        kept_rows = [
+            r for r in bulk_rows if str(r.get("keyword") or "").strip().lower() not in dup_by_kw
+        ]
+        rejected_duplicates = list(dup_by_kw.values())
+        if not kept_rows:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "content_ai_duplicate",
+                    "message": "Tất cả từ khóa trùng bài đã có — không tạo job viết.",
+                    "rejected": rejected_duplicates,
+                },
+            )
+        bulk_rows = kept_rows
+        keywords = [r["keyword"] for r in bulk_rows]
+
+    assert_content_ai_feature(db, current_user, "content_ai_bulk_article", quantity=1)
+
     ensure_job_schema()
     cleanup_expired(ttl_seconds=int(os.getenv("JOB_TTL_SECONDS", "86400")))
     mark_stale_jobs_failed(stale_seconds=int(os.getenv("JOB_WATCHDOG_SECONDS", "900")))
@@ -476,8 +1013,58 @@ def content_ai_bulk_jobs_start(
         "brand_name": (payload.brand_name or "").strip(),
         "wp_category_id": wpc if wpc > 0 else 0,
     }
-    job = create_job(job_type="content_ai_bulk", message="Đã xếp hàng — chờ viết bài", payload=job_payload)
+    fp = job_fingerprint(job_payload)
+    job_payload["job_fingerprint"] = fp
+    existing = find_recent_job_by_fingerprint(current_user.id, "content_ai_bulk", fp)
+    if existing is not None:
+        job = existing
+        reuse_job = True
+    else:
+        job = create_job(job_type="content_ai_bulk", message="Đã xếp hàng — chờ viết bài", payload=job_payload)
+        reuse_job = False
     st = get_job(job.job_id)
+    record_content_ai_usage(
+        db,
+        current_user,
+        "content_ai_bulk_article",
+        quantity=1,
+        metadata={"job_id": job.job_id, "keyword_count": len(keywords)},
+        idempotency_key=build_idempotency_key("bulk-start", current_user.id, fp),
+    )
+    db.commit()
+
+    import threading
+
+    inline = (os.getenv("CONTENT_AI_BULK_INLINE", "1") or "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if inline and not reuse_job:
+
+        def _run_bulk_inline(jid: str, pl: dict[str, Any]) -> None:
+            from app.services.content_ai_bulk_runner import run_content_ai_bulk_job
+            from app.services.job_store import claim_job_by_id
+
+            claimed = claim_job_by_id(jid)
+            if claimed:
+                run_content_ai_bulk_job(jid, pl)
+
+        threading.Thread(
+            target=_run_bulk_inline,
+            args=(job.job_id, job_payload),
+            daemon=True,
+            name=f"content-ai-bulk-{job.job_id[:8]}",
+        ).start()
+
+    st = get_job(job.job_id)
+    note = "Job chạy trên server — có thể tắt trình duyệt/máy cá nhân nếu server (Laragon) vẫn bật."
+    if rejected_duplicates:
+        note = (
+            f"Đã bỏ {len(rejected_duplicates)} từ khóa trùng bài đã có. "
+            + note
+        )
     return JSONResponse(
         content={
             "job_id": job.job_id,
@@ -486,7 +1073,8 @@ def content_ai_bulk_jobs_start(
             "message": st.message if st else job.message,
             "keyword_count": len(keywords),
             "poll_url": f"/content-ai/bulk-jobs/{job.job_id}",
-            "note": "Job chạy trên server — có thể tắt trình duyệt/máy cá nhân nếu server (Laragon) vẫn bật.",
+            "note": note,
+            "rejected_duplicates": rejected_duplicates,
         }
     )
 
@@ -519,10 +1107,36 @@ def content_ai_bulk_job_status(
         "progress": st.progress,
         "message": st.message,
     }
-    if st.state == "SUCCESS" and st.result is not None:
+    if st.result is not None:
         out["result"] = st.result
     if st.state == "ERROR":
         out["error"] = st.error or "Unknown error"
+    return JSONResponse(content=out)
+
+
+@router.post("/content-ai/bulk-jobs/{job_id}/cancel")
+def content_ai_bulk_job_cancel(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    from app.services.job_store import cancel_job, ensure_job_schema, get_job
+
+    ensure_job_schema()
+    st = get_job(job_id)
+    if not st:
+        raise HTTPException(status_code=404, detail="Không tìm thấy job.")
+    assert_job_access(st.payload or {}, current_user.id)
+    cancelled = cancel_job(job_id, message="Đã dừng viết hàng loạt.")
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="Không tìm thấy job.")
+    out: dict[str, Any] = {
+        "job_id": cancelled.job_id,
+        "state": cancelled.state,
+        "progress": cancelled.progress,
+        "message": cancelled.message,
+    }
+    if cancelled.result is not None:
+        out["result"] = cancelled.result
     return JSONResponse(content=out)
 
 
@@ -534,6 +1148,32 @@ def content_ai_project_detail(
     project = get_content_ai_project(project_id, user_id=current_user.id)
     if not project:
         raise HTTPException(status_code=404, detail="Không tìm thấy dự án content.")
+    old_content = str(project.get("content") or "")
+    images_repaired = False
+    if old_content and "<img" in old_content.lower():
+        from app.services.content_ai_image_guard import repair_content_html_images
+
+        site = str(project.get("target_website") or "").strip().rstrip("/")
+        fixed = repair_content_html_images(
+            old_content,
+            site_base=site,
+            source="project_load",
+            probe_remote=True,
+        )
+        if fixed != old_content:
+            images_repaired = True
+            update_content_ai_project_fields(
+                project_id,
+                {"content": fixed},
+                user_id=current_user.id,
+            )
+            project = get_content_ai_project(project_id, user_id=current_user.id) or project
+            project["content"] = fixed
+            draft = project.get("draft_output")
+            if isinstance(draft, dict):
+                draft["content"] = fixed
+    if images_repaired:
+        project["images_repaired"] = True
     return JSONResponse(content=project)
 
 
@@ -569,10 +1209,12 @@ def content_ai_project_delete_post(
 def content_ai_project_generate_thumbnail(
     project_id: str,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
     """Tự động tìm ảnh theo ngữ cảnh + chèn vào content + thumbnail."""
     try:
-        out = fetch_and_attach_google_thumbnail(project_id, user_id=current_user.id)
+        with content_ai_cse_gate(db, current_user, action="project_thumbnail"):
+            out = fetch_and_attach_google_thumbnail(project_id, user_id=current_user.id, db=db, user=current_user)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -581,9 +1223,11 @@ def content_ai_project_generate_thumbnail(
 
 
 class ContentAiAutoInsertImagesRequest(BaseModel):
-    max_inline: int = 4
+    max_inline: int | None = None
+    word_count_target: int | None = None
     update_featured: bool = True
     force: bool = False
+    image_source: str | None = None
 
 
 @router.post("/content-ai/projects/{project_id}/auto-insert-images")
@@ -591,17 +1235,27 @@ def content_ai_project_auto_insert_images(
     project_id: str,
     payload: ContentAiAutoInsertImagesRequest | None = None,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
     """Tự động chèn ảnh minh họa vào bài (theo từ khóa, tiêu đề, các mục H2)."""
     body = payload or ContentAiAutoInsertImagesRequest()
+    from app.services.content_ai_image_rules import strategy_from_image_source
+
+    strategy = strategy_from_image_source(body.image_source)
     try:
-        out = auto_insert_images_to_project(
-            project_id,
-            user_id=current_user.id,
-            max_inline=max(0, min(int(body.max_inline or 4), 6)),
-            update_featured=bool(body.update_featured),
-            force=bool(body.force),
-        )
+        with content_ai_cse_gate(db, current_user, action="auto_insert_images"):
+            out = auto_insert_images_to_project(
+                project_id,
+                user_id=current_user.id,
+                max_inline=body.max_inline if body.max_inline is not None else None,
+                word_count_target=body.word_count_target,
+                update_featured=bool(body.update_featured),
+                require_featured=bool(body.update_featured),
+                force=bool(body.force),
+                image_strategy_override=strategy,
+                db=db,
+                user=current_user,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -660,17 +1314,30 @@ def content_ai_projects_auto_insert_images_batch(
 def content_ai_auto_insert_images_live(
     payload: ContentDraftRequest,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
     """Chèn ảnh cho bài đang soạn (chưa cần lưu project) — trả content HTML đã chèn ảnh."""
     from app.services.content_ai_content_images import enrich_project_with_context_images
+    from app.services.content_ai_image_rules import strategy_from_image_source
 
     project_like = payload.model_dump()
+    project_like["user_id"] = current_user.id
     if not str(project_like.get("content") or "").strip():
         raise HTTPException(status_code=400, detail="Content trống — không thể chèn ảnh.")
     if not str(project_like.get("primary_keyword") or "").strip():
         raise HTTPException(status_code=400, detail="Cần từ khóa chính.")
+    strategy = strategy_from_image_source(payload.image_source)
     try:
-        enriched = enrich_project_with_context_images(project_like, max_inline=4, update_featured=True)
+        with content_ai_cse_gate(db, current_user, action="auto_insert_images_live"):
+            enriched = enrich_project_with_context_images(
+                project_like,
+                max_inline=None,
+                word_count_target=int(project_like.get("target_word_count") or 0) or None,
+                update_featured=True,
+                image_strategy_override=strategy,
+                db=db,
+                user=current_user,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -691,13 +1358,35 @@ def content_ai_auto_insert_images_live(
 def content_ai_project_generate_thumbnail_ai(
     project_id: str,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
+    from app.services.llm_content_writer import load_llm_config_admin
+
+    assert_content_ai_feature(db, current_user, "image_generate", quantity=1)
     try:
-        out = generate_and_attach_project_thumbnail(project_id, user_id=current_user.id)
+        with content_ai_llm_gate(
+            db,
+            current_user,
+            action="thumbnail_ai",
+            field="content",
+            use_system_llm=True,
+            llm_cfg=load_llm_config_admin(),
+            feature_key="image_generate",
+            skip_credit_check=True,
+        ):
+            out = generate_and_attach_project_thumbnail(project_id, user_id=current_user.id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Tạo thumbnail AI thất bại: {exc}") from exc
+    record_content_ai_usage(
+        db,
+        current_user,
+        "image_generate",
+        quantity=1,
+        metadata={"project_id": project_id, "action": "thumbnail_ai"},
+    )
+    db.commit()
     return JSONResponse(content=out)
 
 
@@ -724,6 +1413,7 @@ class ContentAiStudioGenerateRequest(BaseModel):
     count: int = 3
     include_text: bool = False
     text_hint: str = ""
+    image_model: str | None = None
 
 
 @router.get("/content-ai/images/studio-presets")
@@ -737,10 +1427,24 @@ def content_ai_images_studio_presets(
 def content_ai_images_generate_professional(
     payload: ContentAiStudioGenerateRequest,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
     """AI Visual Content Studio — tạo 2–4 preview, không chèn vào bài."""
+    assert_content_ai_feature(db, current_user, "image_generate", quantity=1)
+    from app.services.llm_content_writer import load_llm_config_admin
+
     try:
-        out = generate_professional_previews(
+        with content_ai_llm_gate(
+            db,
+            current_user,
+            action="studio_generate",
+            field="content",
+            use_system_llm=True,
+            llm_cfg=load_llm_config_admin(),
+            feature_key="image_generate",
+            skip_credit_check=True,
+        ):
+            out = generate_professional_previews(
             user_id=current_user.id,
             title=payload.title,
             primary_keyword=payload.primary_keyword,
@@ -764,13 +1468,33 @@ def content_ai_images_generate_professional(
             include_text=bool(payload.include_text),
             text_hint=payload.text_hint,
             project_id=payload.project_id,
+            image_model=payload.image_model,
         )
     except ValueError as exc:
         msg = str(exc)
-        code = 503 if "OPENAI_API_KEY" in msg or "Model ảnh" in msg else 400
+        code = 503
+        if "OPENROUTER_API_KEY" in msg or "Thiếu OPENROUTER" in msg:
+            code = 503
+        elif "Model" in msg and "không" in msg:
+            code = 400
+        elif "401" in msg or "403" in msg or "429" in msg:
+            code = 502
+        else:
+            code = 400
         raise HTTPException(status_code=code, detail=msg) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Tạo ảnh AI thất bại: {exc}") from exc
+    record_content_ai_usage(
+        db,
+        current_user,
+        "image_generate",
+        quantity=1,
+        metadata={
+            "preview_count": len(out.get("previews") or []) if isinstance(out, dict) else 0,
+            "image_model": payload.image_model,
+        },
+    )
+    db.commit()
     return JSONResponse(content=out)
 
 
@@ -961,6 +1685,17 @@ def content_ai_project_export_gsheet(
     )
 
 
+class ContentAiBillingRequest(BaseModel):
+    include_research: bool = False
+    include_outline: bool = False
+    include_internal_links: bool = False
+    include_rewrite: bool = False
+    image_source: str | None = None
+    project_id: str | None = None
+    article_title: str | None = None
+    primary_keyword: str | None = None
+
+
 class ContentSuggestRequest(BaseModel):
     field: str
     title: str | None = None
@@ -973,6 +1708,19 @@ class ContentSuggestRequest(BaseModel):
     secondary_keywords: str | None = None
     outline_content: str | None = None
     target_word_count: int | None = None
+    target_word_count_mode: str | None = None
+    billing: ContentAiBillingRequest | None = None
+    ai_provider: str | None = "auto"
+
+
+class ContentAiLlmProvidersAdminPatch(BaseModel):
+    providers: dict[str, Any] | None = None
+    fallback_order: list[str] | None = None
+    auto_priority: list[str] | None = None
+    long_content_priority: list[str] | None = None
+    brief_field_priority: list[str] | None = None
+    long_content_word_threshold: int | None = None
+    plan_providers: dict[str, list[str]] | None = None
 
 
 class SeoArticleJsonRequest(BaseModel):
@@ -993,17 +1741,40 @@ class ContentPostprocessRequest(BaseModel):
     content_html: str
 
 
+class ContentEnforceWordCountRequest(BaseModel):
+    content_html: str
+    target_word_count: int | None = None
+    target_word_count_mode: str | None = None
+    title: str = ""
+    primary_keyword: str = ""
+    outline_content: str = ""
+
+
 class PublishChecklistRequest(BaseModel):
     title: str = ""
     meta_description: str = ""
     content_html: str = ""
     primary_keyword: str = ""
+    slug: str = ""
+    secondary_keywords: list[str] | None = None
+
+
+class SeoAutofixRequest(BaseModel):
+    title: str = ""
+    meta_description: str = ""
+    content_html: str = ""
+    primary_keyword: str = ""
+    slug: str = ""
+    secondary_keywords: list[str] | None = None
+    target_website: str = ""
+    mode: str = "single"  # single | severe | optimize_90
+    factor_ids: list[str] | None = None
 
 
 @router.post("/content-ai/publish-checklist")
 def content_ai_publish_checklist(
     payload: PublishChecklistRequest,
-    current_user: User = Depends(require_active_trial),
+    current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Checklist SEO trước publish — chỉ trả JSON cho UI, không ghi vào bài."""
     from app.services.content_ai_publish_checklist import evaluate_publish_checklist
@@ -1013,8 +1784,136 @@ def content_ai_publish_checklist(
         meta_description=payload.meta_description,
         content_html=payload.content_html,
         primary_keyword=payload.primary_keyword,
+        slug=payload.slug,
+        secondary_keywords=payload.secondary_keywords,
     )
     return JSONResponse(content=data)
+
+
+@router.post("/content-ai/auto-fix")
+def content_ai_auto_fix(
+    payload: SeoAutofixRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    """Preview AI Auto Fix theo SEO Core 30 — không ghi DB, chỉ trả patch + diff."""
+    from app.services.content_ai_seo_autofix import run_seo_autofix_preview
+
+    assert_content_ai_feature(db, current_user, "content_ai_article", quantity=1)
+    result = run_seo_autofix_preview(
+        user_id=current_user.id,
+        db=db,
+        user=current_user,
+        title=payload.title,
+        meta_description=payload.meta_description,
+        content_html=payload.content_html,
+        primary_keyword=payload.primary_keyword,
+        slug=payload.slug,
+        secondary_keywords=payload.secondary_keywords,
+        target_website=payload.target_website,
+        mode=payload.mode,
+        factor_ids=payload.factor_ids,
+    )
+    if result.get("success"):
+        record_content_ai_usage(
+            db,
+            current_user,
+            "content_ai_article",
+            quantity=1,
+            metadata={"action": "seo_autofix", "mode": payload.mode},
+        )
+    return JSONResponse(content=result)
+
+
+@router.post("/content-ai/enforce-word-count")
+def content_ai_enforce_word_count(
+    payload: ContentEnforceWordCountRequest,
+    current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Post-process HTML sau stream để đạt số từ mục tiêu (±10%)."""
+    from app.services.content_ai_word_count_policy import (
+        WordCountTimer,
+        build_word_count_response,
+        log_word_count_event,
+        resolve_content_target_word_count,
+    )
+    from app.services.user_api_access import load_llm_config_for_request
+
+    timer = WordCountTimer()
+    raw = str(payload.content_html or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="content_html is required")
+    validated_wc, was_auto = resolve_content_target_word_count(
+        payload.target_word_count,
+        payload.target_word_count_mode,
+        current_user,
+        db,
+        primary_keyword=payload.primary_keyword or "",
+        outline_content=payload.outline_content or "",
+        title=payload.title or "",
+    )
+    assert_content_ai_feature(db, current_user, "content_ai_article", quantity=1)
+
+    html = raw
+    try:
+        with content_ai_llm_gate(
+            db,
+            current_user,
+            action="enforce_word_count",
+            field="content",
+            use_system_llm=True,
+            llm_cfg=load_llm_config_for_request(db, current_user),
+            skip_credit_check=True,
+        ):
+            html, _stats = enforce_content_ai_word_count(
+                raw,
+                target_word_count=validated_wc,
+                title=payload.title or "",
+                primary_keyword=payload.primary_keyword or "",
+                outline_content=payload.outline_content or "",
+                use_system_llm=True,
+                user_id=int(current_user.id),
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning("content_ai_enforce_word_count_failed: %s", str(exc)[:500])
+        html = raw
+    wc_resp = build_word_count_response(
+        client_value=validated_wc if was_auto else payload.target_word_count,
+        user=current_user,
+        db=db,
+        html=html,
+    )
+    if was_auto:
+        wc_resp["target_word_count_mode"] = "auto"
+        wc_resp["requested_word_count"] = validated_wc
+    log_word_count_event(
+        user_id=int(current_user.id),
+        endpoint="/content-ai/enforce-word-count",
+        requested=int(wc_resp["requested_word_count"]),
+        validated=int(wc_resp["validated_word_count"]),
+        actual=int(wc_resp["actual_word_count"]),
+        status=str(wc_resp["word_count_status"]),
+        duration_ms=timer.elapsed_ms(),
+    )
+    record_content_ai_usage(
+        db,
+        current_user,
+        "content_ai_article",
+        quantity=1,
+        metadata={"action": "enforce_word_count", "word_count_ok": wc_resp.get("word_count_ok")},
+    )
+    db.commit()
+    return JSONResponse(
+        content={
+            "value": html,
+            **wc_resp,
+        }
+    )
 
 
 @router.post("/content-ai/postprocess-content")
@@ -1026,11 +1925,13 @@ def content_ai_postprocess_content(
     from app.services.content_blockquote_postprocess import postprocess_content_blockquotes, postprocess_stats
     from app.services.content_ai_publish_checklist import strip_publish_checklist_from_html
     from app.services.content_table_format import enhance_tables_in_html
+    from app.services.content_draft_builder import extract_clean_html_fragment, sanitize_leaked_json_ld_in_html
 
     raw = str(payload.content_html or "").strip()
     if not raw:
         raise HTTPException(status_code=400, detail="Thiếu content_html.")
-    out = postprocess_content_blockquotes(raw)
+    out = sanitize_leaked_json_ld_in_html(extract_clean_html_fragment(raw))
+    out = postprocess_content_blockquotes(out)
     out = strip_publish_checklist_from_html(out)
     out = enhance_tables_in_html(out)
     stats = postprocess_stats(out)
@@ -1041,20 +1942,32 @@ def content_ai_postprocess_content(
 def content_ai_article_json(
     payload: SeoArticleJsonRequest,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
     """
     Generate a full SEO article as a strict JSON payload.
     """
+    from app.services.llm_content_writer import load_llm_config_admin
+
+    assert_content_ai_feature(db, current_user, "content_ai_article", quantity=1)
     try:
-        data = generate_seo_article_json(
-            keyword=payload.keyword,
-            secondary_keywords=payload.secondary_keywords,
-            intent=payload.intent or "",
-            audience=payload.audience or "",
-            brand_name=payload.brand_name or "",
-            outline=payload.outline or "",
-            context_data=payload.context_data or "",
-        )
+        with content_ai_llm_gate(
+            db,
+            current_user,
+            action="article_json",
+            field="content",
+            use_system_llm=True,
+            llm_cfg=load_llm_config_admin(),
+        ):
+            data = generate_seo_article_json(
+                keyword=payload.keyword,
+                secondary_keywords=payload.secondary_keywords,
+                intent=payload.intent or "",
+                audience=payload.audience or "",
+                brand_name=payload.brand_name or "",
+                outline=payload.outline or "",
+                context_data=payload.context_data or "",
+            )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)[:900]) from exc
     return JSONResponse(content=data)
@@ -2547,6 +3460,7 @@ def content_ai_internal_link_candidates(
 def content_ai_internal_link_apply(
     payload: InternalLinkApplyRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
     content_html = str(payload.content_html or "").strip()
     if not content_html:
@@ -2589,21 +3503,37 @@ def content_ai_internal_link_apply(
     except Exception:
         llm_available = False
 
-    merged = apply_merged_internal_links(
-        content_html=content_html,
-        custom_links=checked_custom,
-        selected_posts=chosen,
-        current_url=str(payload.current_url or ""),
-        article_primary_keyword=pk_a,
-        article_secondary_keywords=sec_a,
-        use_llm_rewrite=use_llm,
-        llm_available=llm_available,
-        legacy_inject_fn=_inject_selected_internal_links,
-        target_website=str(payload.target_website or ""),
-        apply_mode=str(payload.apply_mode or "full"),
-        append_lead=str(payload.append_lead or "Tham khảo thêm:"),
-        confirmed_append_urls=payload.confirmed_append_urls,
-    )
+    def _run_apply() -> dict[str, Any]:
+        return apply_merged_internal_links(
+            content_html=content_html,
+            custom_links=checked_custom,
+            selected_posts=chosen,
+            current_url=str(payload.current_url or ""),
+            article_primary_keyword=pk_a,
+            article_secondary_keywords=sec_a,
+            use_llm_rewrite=use_llm,
+            llm_available=llm_available,
+            legacy_inject_fn=_inject_selected_internal_links,
+            target_website=str(payload.target_website or ""),
+            apply_mode=str(payload.apply_mode or "full"),
+            append_lead=str(payload.append_lead or "Tham khảo thêm:"),
+            confirmed_append_urls=payload.confirmed_append_urls,
+        )
+
+    if use_llm and llm_available:
+        from app.services.llm_content_writer import load_llm_config_admin
+
+        with content_ai_llm_gate(
+            db,
+            current_user,
+            action="internal_link_apply",
+            field="content",
+            use_system_llm=True,
+            llm_cfg=load_llm_config_admin(),
+        ):
+            merged = _run_apply()
+    else:
+        merged = _run_apply()
     updates = merged.get("updates") or []
     pending = merged.get("pending_append_offers") or []
     if not updates and not pending:
@@ -2628,17 +3558,28 @@ def content_ai_internal_link_apply(
 def content_ai_internal_link_row_hint(
     payload: InternalLinkRowHintRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
+    from app.services.llm_content_writer import load_llm_config_admin, suggest_internal_link_row_keywords
+
     try:
-        hints = suggest_internal_link_row_keywords(
-            article_primary_keyword=str(payload.article_primary_keyword or ""),
-            article_secondary_keywords=str(payload.article_secondary_keywords or ""),
-            target_post_title=str(payload.target_title or ""),
-            target_post_url=str(payload.target_link or ""),
-            target_categories=str(payload.target_categories or ""),
-            target_tags=str(payload.target_tags or ""),
-            content_snippet=str(payload.content_snippet or ""),
-        )
+        with content_ai_llm_gate(
+            db,
+            current_user,
+            action="internal_link_row_hint",
+            field="content",
+            use_system_llm=True,
+            llm_cfg=load_llm_config_admin(),
+        ):
+            hints = suggest_internal_link_row_keywords(
+                article_primary_keyword=str(payload.article_primary_keyword or ""),
+                article_secondary_keywords=str(payload.article_secondary_keywords or ""),
+                target_post_title=str(payload.target_title or ""),
+                target_post_url=str(payload.target_link or ""),
+                target_categories=str(payload.target_categories or ""),
+                target_tags=str(payload.target_tags or ""),
+                content_snippet=str(payload.content_snippet or ""),
+            )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)[:900]) from exc
     return JSONResponse(content=hints)
@@ -2687,62 +3628,94 @@ def _content_to_stream_chunks(value: str, *, chunk_size: int = 280) -> list[str]
     return [x for x in out if x.strip()]
 
 
-def _fallback_content_html_from_payload(payload: "ContentSuggestRequest") -> str:
-    """
-    Deterministic fallback when LLM returns empty output.
-    Always return non-empty clean HTML for field=content.
-    """
-    kw = (payload.primary_keyword or "").strip()
-    title = (payload.title or "").strip() or kw or "Nội dung dịch vụ"
-    outline = (payload.outline_content or "").strip()
-    notes = (payload.content or "").strip()
-    h2_items: list[str] = []
-    if outline:
-        for ln in outline.splitlines():
-            s = re.sub(r"^\s*#+\s*", "", str(ln or "").strip())
-            if len(s) >= 4:
-                h2_items.append(s)
-            if len(h2_items) >= 6:
-                break
-    if not h2_items:
-        h2_items = [
-            f"Nhu cầu phổ biến về {kw or 'dịch vụ'}",
-            "Dịch vụ cung cấp và phạm vi hỗ trợ",
-            "Bảng giá tham khảo và quy trình triển khai",
-            "Liên hệ đặt lịch nhanh",
-        ]
-    intro = (
-        f"Bạn đang cần {kw or 'dịch vụ'} nhanh, rõ chi phí và có người xử lý đúng lỗi ngay từ đầu. "
-        "Thông tin dưới đây giúp bạn chọn phương án phù hợp và đặt lịch ngay."
+@router.post("/content-ai/credit-quote")
+def content_ai_credit_quote(
+    payload: ContentSuggestRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Ước tính credit trước khi viết bài — dùng cho popup xác nhận."""
+    from app.services.content_ai_credit_service import preview_dict_for_confirm, quote_content_ai_write
+    from app.services.content_ai_credit_service import billing_flags_from_request
+    from app.services.content_ai_word_count_policy import precheck_word_count_for_gate
+    from app.services.rbac import is_admin
+    from app.services.user_api_access import load_llm_config_for_request, resolve_ai_llm_gate
+
+    billing_raw = payload.billing.model_dump() if payload.billing else None
+    llm_gate = resolve_ai_llm_gate(db, current_user, unit_cost=0)
+    use_system = bool(is_admin(current_user) or llm_gate.get("use_system_llm"))
+
+    field = payload.field or "content"
+    quote_wc = (
+        precheck_word_count_for_gate(current_user, payload.target_word_count, db)
+        if (field or "").strip().lower() == "content"
+        else payload.target_word_count
     )
-    html_parts = [f"<h1>{title}</h1>", f"<p><strong>{intro}</strong></p>"]
-    for idx, h2 in enumerate(h2_items, start=1):
-        html_parts.append(f"<h2>{h2}</h2>")
-        html_parts.append(
-            "<p>Chúng tôi tiếp nhận nhu cầu, kiểm tra hiện trạng và báo hướng xử lý trước khi thực hiện để bạn chủ động thời gian.</p>"
-        )
-        html_parts.append(
-            "<p>Quy trình ưu tiên minh bạch: xác nhận hạng mục, báo giá theo phạm vi thực tế, cập nhật tiến độ và nghiệm thu theo checklist.</p>"
-        )
-        if idx == 3:
-            html_parts.append(
-                "<table><tr><th>Hạng mục</th><th>Chi phí tham khảo</th></tr>"
-                "<tr><td>Kiểm tra - chẩn đoán</td><td>150.000 - 300.000đ</td></tr>"
-                "<tr><td>Bảo trì tối ưu</td><td>300.000 - 800.000đ</td></tr>"
-                "<tr><td>Sửa lỗi phần cứng/phần mềm</td><td>400.000 - 2.500.000đ</td></tr></table>"
-            )
-    html_parts.append("<h2>Checklist trước khi đặt lịch</h2>")
-    html_parts.append(
-        "<ul><li>Mô tả lỗi đang gặp và thời điểm bắt đầu.</li>"
-        "<li>Gửi ảnh/video hiện trạng nếu có.</li>"
-        "<li>Để lại số điện thoại/Zalo để kỹ thuật viên xác nhận.</li></ul>"
+
+    flags = billing_flags_from_request(
+        field=field,
+        outline_content=payload.outline_content or "",
+        content=payload.content or "",
+        billing=billing_raw,
+        project_id=(billing_raw or {}).get("project_id") if billing_raw else None,
+        title=payload.title or "",
+        primary_keyword=payload.primary_keyword or "",
     )
-    if notes:
-        html_parts.append(f"<p>{re.sub(r'<[^>]+>', ' ', notes)[:900]}</p>")
-    html_parts.append(
-        "<h2>Liên hệ ngay</h2><p>Gọi hotline hoặc nhắn Zalo để được tư vấn nhanh và đặt lịch theo khung giờ phù hợp.</p>"
+    quote = quote_content_ai_write(
+        db,
+        current_user,
+        field=field,
+        word_count=quote_wc,
+        flags=flags,
+        use_system_llm=use_system,
     )
-    return "\n".join(html_parts).strip()
+    preview = preview_dict_for_confirm(quote)
+    return JSONResponse(content={**quote, "preview": preview})
+
+
+@router.get("/content-ai/llm-providers")
+def content_ai_llm_providers_list(
+    current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    from app.services.content_ai_llm_providers import list_user_provider_choices
+    from app.services.entitlement_service import resolve_effective_plan
+
+    plan_slug = resolve_effective_plan(db, current_user)
+    return JSONResponse(
+        content={
+            "default": "auto",
+            "choices": list_user_provider_choices(plan_slug=plan_slug),
+        }
+    )
+
+
+@router.get("/content-ai/admin/llm-providers")
+def content_ai_admin_llm_providers_get(
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    from app.services.content_ai_llm_providers import admin_public_config
+    from app.services.rbac import is_admin
+
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    return JSONResponse(content=admin_public_config())
+
+
+@router.patch("/content-ai/admin/llm-providers")
+def content_ai_admin_llm_providers_patch(
+    payload: ContentAiLlmProvidersAdminPatch,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    from app.services.content_ai_llm_admin_config import write_config
+    from app.services.content_ai_llm_providers import admin_public_config
+    from app.services.rbac import is_admin
+
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    patch = payload.model_dump(exclude_unset=True)
+    write_config(patch)
+    return JSONResponse(content=admin_public_config())
 
 
 @router.post("/content-ai/suggest")
@@ -2750,33 +3723,104 @@ def content_ai_suggest(
     request: Request,
     payload: ContentSuggestRequest,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> Response:
-    from app.services.user_api_access import assert_user_may_use_api
+    from app.services.content_ai_credit_service import charge_content_ai_write, charge_content_ai_from_html
+    from app.services.content_ai_credit_service import billing_flags_from_request
+    from app.services.content_ai_request_cache import reset_request_cache
+    from app.services.content_ai_word_count_policy import (
+        WordCountTimer,
+        build_word_count_response,
+        log_word_count_event,
+        validate_target_word_count,
+    )
+    from app.services.content_ai_write_timing import (
+        ContentAiWriteTimer,
+        STEP_LLM,
+        STEP_PLAN_CREDIT,
+        STEP_RESPONSE,
+        STEP_VALIDATE,
+        STEP_WORD_COUNT,
+        bind_write_timer,
+    )
+    from app.services.user_api_access import load_llm_config_for_request
 
-    assert_user_may_use_api(current_user)
+    reset_request_cache()
+    req_hdr = (request.headers.get("X-Request-Id") or request.headers.get("X-Request-ID") or "").strip()
+    write_timer = ContentAiWriteTimer(
+        endpoint="/content-ai/suggest",
+        request_id=req_hdr or None,
+        user_id=int(current_user.id),
+    )
+    bind_write_timer(write_timer)
+    write_timer.mark(STEP_VALIDATE, field=(payload.field or "")[:32])
+    wc_timer = WordCountTimer()
+    billing_raw = payload.billing.model_dump() if payload.billing else None
+    llm_gate = _content_ai_suggest_llm_gate(
+        db,
+        current_user,
+        field=payload.field or "",
+        word_count=payload.target_word_count,
+        word_count_mode=payload.target_word_count_mode,
+        billing=billing_raw,
+        outline_content=payload.outline_content or "",
+        content=payload.content or "",
+        title=payload.title or "",
+        primary_keyword=payload.primary_keyword or "",
+    )
+    feature_key = feature_for_suggest_field(payload.field)
+    assert_content_ai_feature(db, current_user, feature_key, quantity=1)
+    write_timer.mark(STEP_PLAN_CREDIT, feature=feature_key)
+    write_timer.mark(STEP_PLAN_CREDIT, feature=feature_key)
     requested = (payload.field or "").strip().lower()
+    prompt_wc = llm_gate.get("prompt_word_count")
+    if prompt_wc is None and requested == "content":
+        prompt_wc = validate_target_word_count(payload.target_word_count, current_user, db)
     detected_intent = detect_search_intent(payload.primary_keyword or payload.title or "")
     if requested != "target_website" and not (payload.primary_keyword or "").strip():
         raise HTTPException(status_code=400, detail="Vui long nhap tu khoa chinh truoc khi goi y AI.")
-    # Prefer LLM when configured; rule-based chỉ còn cho title/meta/outline/tags/slug — không sinh HTML body content.
+    if requested == "content":
+        from app.services.content_ai_duplicate_detection import assert_keyword_not_duplicate
+
+        assert_keyword_not_duplicate(
+            payload.primary_keyword or "",
+            user_id=int(current_user.id),
+            db=db,
+            target_website=str(payload.target_website or "").strip(),
+            role=str(getattr(current_user, "role", None) or "user"),
+        )
     suggestion = ""
-    llm_cfg = None
-    try:
-        llm_cfg = load_llm_config()
-    except Exception:
-        llm_cfg = None
+    llm_cfg = load_llm_config_for_request(db, current_user)
     llm_mode = (os.getenv("CONTENT_AI_LLM_MODE", "auto") or "auto").strip().lower()
     if llm_mode not in {"off", "auto", "title_meta_only", "content_only"}:
         llm_mode = "auto"
     llm_fields = _content_ai_llm_enabled_fields(llm_mode)
-    if llm_mode == "auto" and requested == "content" and not llm_cfg:
-        raise HTTPException(
-            status_code=503,
-            detail="CONTENT_AI_LLM_MODE=auto: field content cần LLM (API key). Hệ thống không còn sinh HTML content bằng rule-based.",
-        )
-    use_llm = bool(llm_cfg) and requested in llm_fields
-    if use_llm:
-        try:
+    if not llm_cfg or llm_mode == "off":
+        _raise_content_ai_llm_unavailable("llm_not_configured")
+    if requested not in llm_fields and requested != "target_website":
+        raise HTTPException(status_code=400, detail=f"Field không hỗ trợ LLM: {requested}")
+
+    from app.services.content_ai_llm_providers import coerce_user_ai_provider
+    from app.services.entitlement_service import resolve_effective_plan
+
+    plan_slug = resolve_effective_plan(db, current_user)
+    ai_provider = coerce_user_ai_provider(payload.ai_provider, plan_slug=plan_slug)
+
+    suggestion = ""
+    llm_used = False
+    used_fallback = False
+    try:
+        with content_ai_llm_gate(
+            db,
+            current_user,
+            action="suggest",
+            field=requested,
+            use_system_llm=bool(llm_gate.get("use_system_llm")),
+            llm_cfg=llm_cfg,
+            credit_cost=int(llm_gate.get("unit_cost") or 0),
+            word_count=prompt_wc if requested == "content" else payload.target_word_count,
+        ):
+            write_timer.mark(STEP_LLM, field=requested)
             suggestion = generate_content_ai_suggestion(
                 field=payload.field,
                 title=payload.title or "",
@@ -2788,46 +3832,60 @@ def content_ai_suggest(
                 primary_keyword=payload.primary_keyword or "",
                 secondary_keywords=payload.secondary_keywords or "",
                 outline_content=payload.outline_content or "",
-                target_word_count=payload.target_word_count,
+                target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
+                user_id=int(current_user.id),
+                use_system_llm=bool(llm_gate.get("use_system_llm")),
+                ai_provider=ai_provider,
             )
-            if requested == "content" and not str(suggestion or "").strip():
-                suggestion = _fallback_content_html_from_payload(payload)
-        except Exception as exc:
-            # By default, DO NOT silently fall back; users expect "AI" to be the LLM.
-            allow_fallback = (request.query_params.get("fallback") or "").strip().lower() in {"1", "true", "yes"}
-            msg = str(exc)[:800]
-            if not allow_fallback:
-                raise HTTPException(
-                    status_code=502,
-                    detail=(
-                        "LLM call failed. "
-                        "Tip: kiểm tra quota/billing hoặc thử đổi sang ANTHROPIC_API_KEY. "
-                        f"Error: {msg}"
-                    ),
-                ) from exc
-            suggestion = _fallback_content_html_from_payload(payload) if requested == "content" else ""
-    if not suggestion:
-        if llm_mode == "auto" and requested == "content":
-            suggestion = _fallback_content_html_from_payload(payload)
-        else:
-            suggestion = suggest_content_ai_field(
-                field=payload.field,
-                title=payload.title or "",
-                content=payload.content or "",
-                target_website=payload.target_website or "",
-                slug=payload.slug or "",
-                tags=payload.tags or "",
-                meta_description=payload.meta_description or "",
-                primary_keyword=payload.primary_keyword or "",
-                secondary_keywords=payload.secondary_keywords or "",
-                outline_content=payload.outline_content or "",
-            )
-    if requested == "content" and not str(suggestion or "").strip():
-        suggestion = _fallback_content_html_from_payload(payload)
+            llm_used = bool(str(suggestion or "").strip())
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _map_content_ai_exc_to_http(exc) from exc
+
+    if not str(suggestion or "").strip():
+        _raise_content_ai_llm_unavailable("llm_empty_output")
     # Defensive: some providers may return multiple lines; normalize for single-line fields.
     if requested in {"title", "meta_description", "slug", "tags", "primary_keyword", "secondary_keywords", "target_website"}:
         parts = [x.strip() for x in str(suggestion or "").replace("\r", "").split("\n") if x.strip()]
         suggestion = parts[0] if parts else str(suggestion or "").strip()
+    if requested in {"title", "meta_description", "secondary_keywords"} and (payload.primary_keyword or "").strip():
+        from app.services.content_draft_builder import content_ai_finalize_brief_field_value
+
+        suggestion = content_ai_finalize_brief_field_value(
+            field=requested,
+            text=str(suggestion or ""),
+            pk=str(payload.primary_keyword or "").strip(),
+        )
+    charge_meta = None
+    if llm_gate.get("charge_credits") and str(suggestion or "").strip():
+        if requested == "content" and llm_used and not used_fallback:
+            charge_meta = charge_content_ai_from_html(
+                db,
+                current_user,
+                str(suggestion),
+                field="content",
+                use_system_llm=bool(llm_gate.get("use_system_llm")),
+                flags=billing_flags_from_request(
+                    field=requested,
+                    outline_content=payload.outline_content or "",
+                    content=payload.content or "",
+                    billing=billing_raw,
+                    title=payload.title or "",
+                    primary_keyword=payload.primary_keyword or "",
+                ),
+                llm_used=llm_used,
+                used_fallback=used_fallback,
+            )
+        else:
+            charge_meta = charge_content_ai_write(
+                db,
+                current_user,
+                llm_gate.get("quote") or {},
+                field=requested,
+                llm_used=llm_used,
+                used_fallback=used_fallback,
+            )
     fmt = (request.query_params.get("format") or "").strip().lower()
     if fmt == "text":
         return Response(content=str(suggestion or ""), media_type="text/plain; charset=utf-8")
@@ -2840,17 +3898,67 @@ def content_ai_suggest(
             kb_hit = get_relevant_knowledge_for_keyword(
                 pk_for_kb,
                 target_website=payload.target_website or "",
+                user_id=int(current_user.id),
             )
             knowledge_used = bool(kb_hit.get("found"))
         except Exception:
             knowledge_used = False
-    return JSONResponse(
-        content={
-            "value": suggestion,
-            "detected_intent": detected_intent,
-            "knowledge_used": knowledge_used,
-        }
+    record_content_ai_usage(
+        db,
+        current_user,
+        feature_key,
+        quantity=1,
+        metadata={"field": requested, "intent": detected_intent},
     )
+    db.commit()
+    resp_body: dict[str, Any] = {
+        "value": suggestion,
+        "detected_intent": detected_intent,
+        "knowledge_used": knowledge_used,
+    }
+    if charge_meta:
+        resp_body["credits_charged"] = int(charge_meta.get("charged") or 0)
+        resp_body["credit_request_id"] = charge_meta.get("request_id")
+    elif llm_used and llm_gate.get("charge_credits"):
+        resp_body["credits_charged"] = int(llm_gate.get("unit_cost") or 0)
+    if requested == "content":
+        was_auto = str(llm_gate.get("target_word_count_mode") or "") == "auto"
+        wc_client = int(prompt_wc or 0) if was_auto else payload.target_word_count
+        wc_resp = build_word_count_response(
+            client_value=wc_client,
+            user=current_user,
+            db=db,
+            html=str(suggestion or ""),
+        )
+        if was_auto:
+            wc_resp["target_word_count_mode"] = "auto"
+            wc_resp["requested_word_count"] = int(prompt_wc or wc_resp.get("validated_word_count") or 0)
+            wc_resp["validated_word_count"] = int(prompt_wc or wc_resp.get("validated_word_count") or 0)
+            wc_resp["word_count_target"] = wc_resp["validated_word_count"]
+        resp_body.update(wc_resp)
+        write_timer.mark(
+            STEP_WORD_COUNT,
+            actual=int(wc_resp.get("actual_word_count") or 0),
+            status=str(wc_resp.get("word_count_status") or ""),
+        )
+        log_word_count_event(
+            user_id=int(current_user.id),
+            endpoint="/content-ai/suggest",
+            requested=int(wc_resp["requested_word_count"]),
+            validated=int(wc_resp["validated_word_count"]),
+            actual=int(wc_resp["actual_word_count"]),
+            status=str(wc_resp["word_count_status"]),
+            duration_ms=wc_timer.elapsed_ms(),
+            request_id=(charge_meta or {}).get("request_id") or write_timer.request_id,
+        )
+    write_timer.mark(STEP_RESPONSE)
+    timing_summary = write_timer.finish()
+    resp_body["timing"] = {
+        "request_id": timing_summary["request_id"],
+        "total_ms": timing_summary["total_ms"],
+        "steps": timing_summary["steps"],
+    }
+    return JSONResponse(content=resp_body)
 
 
 @router.post("/content-ai/suggest-stream")
@@ -2858,17 +3966,46 @@ def content_ai_suggest_stream(
     request: Request,
     payload: ContentSuggestRequest,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
     """
     Stream suggestion progressively as SSE.
     This is UI-focused: we may generate full text then emit it line-by-line.
     """
-    from app.services.user_api_access import assert_user_may_use_api
-
-    assert_user_may_use_api(current_user)
+    billing_raw = payload.billing.model_dump() if payload.billing else None
+    llm_gate = _content_ai_suggest_llm_gate(
+        db,
+        current_user,
+        field=payload.field or "",
+        word_count=payload.target_word_count,
+        word_count_mode=payload.target_word_count_mode,
+        billing=billing_raw,
+        outline_content=payload.outline_content or "",
+        content=payload.content or "",
+        title=payload.title or "",
+        primary_keyword=payload.primary_keyword or "",
+    )
+    feature_key = feature_for_suggest_field(payload.field)
+    assert_content_ai_feature(db, current_user, feature_key, quantity=1)
     requested = (payload.field or "").strip().lower()
+    from app.services.content_ai_word_count_policy import validate_target_word_count
+
+    prompt_wc = llm_gate.get("prompt_word_count")
+    if prompt_wc is None and requested == "content":
+        prompt_wc = validate_target_word_count(payload.target_word_count, current_user, db)
     if requested != "target_website" and not (payload.primary_keyword or "").strip():
         raise HTTPException(status_code=400, detail="Vui long nhap tu khoa chinh truoc khi goi y AI.")
+    if requested == "content":
+        from app.services.content_ai_duplicate_detection import assert_keyword_not_duplicate
+
+        assert_keyword_not_duplicate(
+            payload.primary_keyword or "",
+            user_id=int(current_user.id),
+            db=db,
+            target_website=str(payload.target_website or "").strip(),
+            role=str(getattr(current_user, "role", None) or "user"),
+        )
+    from app.services.user_api_access import load_llm_config_for_request
 
     delay_ms_raw = (request.query_params.get("delay_ms") or "").strip()
     try:
@@ -2877,108 +4014,277 @@ def content_ai_suggest_stream(
         delay_ms = 10
     delay_ms = max(0, min(delay_ms, 120))
 
-    allow_fallback = (request.query_params.get("fallback") or "").strip().lower() in {"1", "true", "yes"}
+    def _emit_sse_delta(delta: str) -> str:
+        return f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
 
-    def _generate() -> str:
-        llm_cfg = None
+    def _emit_sse_done() -> str:
+        return "data: [DONE]\n\n"
+
+    def _emit_sse_error_payload(*, internal: str = "") -> str:
+        detail = _content_ai_llm_unavailable_detail(internal)
+        return f"data: {json.dumps(detail, ensure_ascii=False)}\n\n"
+
+    def _emit_sse_ping() -> str:
+        return f"data: {json.dumps({'ping': True}, ensure_ascii=False)}\n\n"
+
+    def _emit_sse_replace_html(html: str) -> str:
+        return f"data: {json.dumps({'replace_html': html}, ensure_ascii=False)}\n\n"
+
+    def _emit_sse_word_count_meta(meta: dict[str, Any]) -> str:
+        payload = {
+            "word_count_target": meta.get("word_count_target") or meta.get("validated_word_count"),
+            "word_count_actual": meta.get("word_count_actual") or meta.get("actual_word_count"),
+            "word_count_ok": bool(meta.get("word_count_ok")),
+        }
+        return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    def _sse_content_section_writer():
+        """Viết đủ outline theo từng H2 (đường chính khi có outline) — emit replace_html."""
+        from app.services.content_ai_credit_service import charge_content_ai_write
+        from app.services.content_ai_knowledge_context import ContentAiLlmUnavailableError
+        from app.services.content_ai_llm_providers import coerce_user_ai_provider
+        from app.services.content_ai_outline_engine import outline_h2_coverage, parse_outline_sections
+        from app.services.content_ai_word_count_policy import assess_word_count_meta
+        from app.services.cost_control.context import get_active_cost_gate, set_active_cost_gate
+        from app.services.entitlement_service import resolve_effective_plan
+
+        gate_db = SessionLocal()
+        gate_cm = None
         try:
-            llm_cfg = load_llm_config()
-        except Exception:
-            llm_cfg = None
+            llm_cfg_sw = load_llm_config_for_request(gate_db, current_user)
+            if not llm_cfg_sw:
+                yield _emit_sse_error_payload(internal="llm_not_configured")
+                return
+            yield _emit_sse_ping()
+            gate_cm = content_ai_llm_gate(
+                gate_db,
+                current_user,
+                action="suggest_stream",
+                field=requested,
+                use_system_llm=bool(llm_gate.get("use_system_llm")),
+                llm_cfg=llm_cfg_sw,
+                credit_cost=int(llm_gate.get("unit_cost") or 0),
+                word_count=prompt_wc if requested == "content" else payload.target_word_count,
+            )
+            gate_cm.__enter__()
+            gate_snapshot = get_active_cost_gate()
+            plan_slug = resolve_effective_plan(gate_db, current_user)
+            ai_provider = coerce_user_ai_provider(payload.ai_provider, plan_slug=plan_slug)
+            if gate_snapshot is not None:
+                set_active_cost_gate(gate_snapshot)
+            html = generate_content_ai_suggestion(
+                field="content",
+                title=payload.title or "",
+                content=payload.content or "",
+                target_website=payload.target_website or "",
+                slug=payload.slug or "",
+                tags=payload.tags or "",
+                meta_description=payload.meta_description or "",
+                primary_keyword=payload.primary_keyword or "",
+                secondary_keywords=payload.secondary_keywords or "",
+                outline_content=payload.outline_content or "",
+                target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
+                user_id=int(current_user.id),
+                use_system_llm=bool(llm_gate.get("use_system_llm")),
+                ai_provider=ai_provider,
+            )
+            html = str(html or "").strip()
+            if not html:
+                raise ContentAiLlmUnavailableError("llm_empty_content_html")
+            outline = str(payload.outline_content or "").strip()
+            if outline:
+                cov = outline_h2_coverage(outline, html)
+                import logging as _logging
+
+                _logging.getLogger(__name__).info(
+                    "content_ai_stream_section_writer coverage=%s/%s ratio=%.2f missing=%s",
+                    cov.get("covered"),
+                    cov.get("total"),
+                    float(cov.get("ratio") or 0),
+                    (cov.get("missing_sections") or [])[:6],
+                )
+            yield _emit_sse_replace_html(html)
+            wc_target = prompt_wc if requested == "content" else payload.target_word_count
+            if wc_target is not None:
+                yield _emit_sse_word_count_meta(assess_word_count_meta(html, int(wc_target)))
+            charge_db = SessionLocal()
+            try:
+                if llm_gate.get("charge_credits"):
+                    charge_content_ai_write(
+                        charge_db,
+                        current_user,
+                        llm_gate.get("quote") or {},
+                        field=requested,
+                        llm_used=True,
+                        used_fallback=False,
+                    )
+                record_content_ai_usage(
+                    charge_db,
+                    current_user,
+                    feature_key,
+                    quantity=1,
+                    metadata={
+                        "field": requested,
+                        "stream": True,
+                        "section_writer": True,
+                        "h2_count": len(parse_outline_sections(outline)),
+                    },
+                )
+                charge_db.commit()
+            finally:
+                charge_db.close()
+            yield _emit_sse_done()
+        except Exception as exc:
+            internal = getattr(exc, "internal_reason", None) or str(exc)[:500]
+            yield _emit_sse_error_payload(internal=str(internal))
+        finally:
+            if gate_cm is not None:
+                try:
+                    gate_cm.__exit__(None, None, None)
+                except ValueError:
+                    set_active_cost_gate(None)
+            gate_db.close()
+
+    def _sse_content_live():
+        """True LLM token streaming for field=content — không fallback rule-based."""
+        from app.services.content_ai_outline_engine import parse_outline_sections
+
+        # Có outline ≥2 H2 → bắt buộc section writer (tránh dừng giữa outline).
+        if len(parse_outline_sections(payload.outline_content or "")) >= 2:
+            yield from _sse_content_section_writer()
+            return
+
+        from app.services.content_ai_credit_service import charge_content_ai_write
+        from app.services.content_ai_knowledge_context import ContentAiLlmUnavailableError
+        from app.services.cost_control.context import get_active_cost_gate, set_active_cost_gate
+        from app.services.llm_content_writer import (
+            finalize_content_ai_stream_html,
+            iter_content_ai_content_stream_deltas,
+        )
+
+        gate_db = SessionLocal()
+        any_delta = False
+        gate_cm = None
+        stream_acc: list[str] = []
+        wc_meta: dict[str, Any] = {}
+        try:
+            llm_cfg_stream = load_llm_config_for_request(gate_db, current_user)
+            if not llm_cfg_stream:
+                yield _emit_sse_error_payload(internal="llm_not_configured")
+                return
+            yield _emit_sse_ping()
+            gate_cm = content_ai_llm_gate(
+                gate_db,
+                current_user,
+                action="suggest_stream",
+                field=requested,
+                use_system_llm=bool(llm_gate.get("use_system_llm")),
+                llm_cfg=llm_cfg_stream,
+                credit_cost=int(llm_gate.get("unit_cost") or 0),
+                word_count=prompt_wc if requested == "content" else payload.target_word_count,
+            )
+            gate_cm.__enter__()
+            gate_snapshot = get_active_cost_gate()
+            for delta in iter_content_ai_content_stream_deltas(
+                title=payload.title or "",
+                content=payload.content or "",
+                target_website=payload.target_website or "",
+                slug=payload.slug or "",
+                tags=payload.tags or "",
+                meta_description=payload.meta_description or "",
+                primary_keyword=payload.primary_keyword or "",
+                secondary_keywords=payload.secondary_keywords or "",
+                outline_content=payload.outline_content or "",
+                target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
+                user_id=int(current_user.id),
+                use_system_llm=bool(llm_gate.get("use_system_llm")),
+            ):
+                if gate_snapshot is not None:
+                    set_active_cost_gate(gate_snapshot)
+                if not str(delta or ""):
+                    continue
+                any_delta = True
+                stream_acc.append(str(delta))
+                yield _emit_sse_delta(str(delta))
+            if not any_delta:
+                raise ContentAiLlmUnavailableError("llm_stream_empty")
+            raw_html = "".join(stream_acc)
+            if gate_snapshot is not None:
+                set_active_cost_gate(gate_snapshot)
+            final_html, wc_meta = finalize_content_ai_stream_html(
+                raw_html,
+                target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
+                title=payload.title or "",
+                primary_keyword=payload.primary_keyword or "",
+                outline_content=payload.outline_content or "",
+                target_website=payload.target_website or "",
+                use_system_llm=bool(llm_gate.get("use_system_llm")),
+                user_id=int(current_user.id),
+            )
+            if str(final_html or "").strip() and str(final_html).strip() != str(raw_html).strip():
+                yield _emit_sse_replace_html(str(final_html))
+            if wc_meta:
+                yield _emit_sse_word_count_meta(wc_meta)
+            charge_db = SessionLocal()
+            try:
+                if llm_gate.get("charge_credits"):
+                    charge_content_ai_write(
+                        charge_db,
+                        current_user,
+                        llm_gate.get("quote") or {},
+                        field=requested,
+                        llm_used=True,
+                        used_fallback=False,
+                    )
+                record_content_ai_usage(
+                    charge_db,
+                    current_user,
+                    feature_key,
+                    quantity=1,
+                    metadata={"field": requested, "stream": True, "live": True},
+                )
+                charge_db.commit()
+            finally:
+                charge_db.close()
+            yield _emit_sse_done()
+        except Exception as exc:
+            internal = getattr(exc, "internal_reason", None) or str(exc)[:500]
+            yield _emit_sse_error_payload(internal=str(internal))
+        finally:
+            if gate_cm is not None:
+                try:
+                    gate_cm.__exit__(None, None, None)
+                except ValueError:
+                    set_active_cost_gate(None)
+            gate_db.close()
+
+    def _sse():
+        if requested != "content":
+            yield _emit_sse_error_payload(internal="stream_field_not_content")
+            return
+        llm_cfg = load_llm_config_for_request(db, current_user)
         llm_mode = (os.getenv("CONTENT_AI_LLM_MODE", "auto") or "auto").strip().lower()
         if llm_mode not in {"off", "auto", "title_meta_only", "content_only"}:
             llm_mode = "auto"
-        llm_fields = _content_ai_llm_enabled_fields(llm_mode)
-        if llm_mode == "auto" and requested == "content" and not llm_cfg:
-            raise RuntimeError(
-                "CONTENT_AI_LLM_MODE=auto: field content cần LLM (API key). Không sinh HTML content bằng rule-based."
-            )
-        use_llm = bool(llm_cfg) and requested in llm_fields
-        if use_llm:
-            try:
-                generated = generate_content_ai_suggestion(
-                    field=payload.field,
-                    title=payload.title or "",
-                    content=payload.content or "",
-                    target_website=payload.target_website or "",
-                    slug=payload.slug or "",
-                    tags=payload.tags or "",
-                    meta_description=payload.meta_description or "",
-                    primary_keyword=payload.primary_keyword or "",
-                    secondary_keywords=payload.secondary_keywords or "",
-                    outline_content=payload.outline_content or "",
-                    target_word_count=payload.target_word_count,
-                )
-                if requested == "content" and not str(generated or "").strip():
-                    generated = _fallback_content_html_from_payload(payload)
-                return generated
-            except Exception as exc:
-                if not allow_fallback:
-                    raise
-                if requested == "content":
-                    return _fallback_content_html_from_payload(payload)
-        if llm_mode == "auto" and requested == "content":
-            return _fallback_content_html_from_payload(payload)
-        out = suggest_content_ai_field(
-            field=payload.field,
-            title=payload.title or "",
-            content=payload.content or "",
-            target_website=payload.target_website or "",
-            slug=payload.slug or "",
-            tags=payload.tags or "",
-            meta_description=payload.meta_description or "",
-            primary_keyword=payload.primary_keyword or "",
-            secondary_keywords=payload.secondary_keywords or "",
-            outline_content=payload.outline_content or "",
-        )
-        if requested == "content" and not str(out or "").strip():
-            return _fallback_content_html_from_payload(payload)
-        return out
+        if not llm_cfg or llm_mode == "off":
+            yield _emit_sse_error_payload(internal="llm_not_configured")
+            return
+        yield from _sse_content_live()
 
-    def _sse():
-        try:
-            value = _generate()
-            if requested == "content" and not str(value or "").strip():
-                value = _fallback_content_html_from_payload(payload)
-            lines = _content_to_stream_chunks(value) if requested == "content" else [str(value or "")]
-            if requested == "content" and not lines:
-                value = _fallback_content_html_from_payload(payload)
-                lines = _content_to_stream_chunks(value)
-            total = max(1, len(lines))
-            yield f"event:meta\ndata:{json.dumps({'total': total})}\n\n"
-            buf: list[str] = []
-            for idx, line in enumerate(lines):
-                buf.append(line)
-                pct = int(round(((idx + 1) / total) * 100))
-                payload_obj = {"pct": pct, "line": line, "sofar": "\n".join(buf)}
-                yield f"event:chunk\ndata:{json.dumps(payload_obj, ensure_ascii=False)}\n\n"
-                if delay_ms:
-                    time.sleep(delay_ms / 1000.0)
-            yield f"event:done\ndata:{json.dumps({'ok': True, 'value': value}, ensure_ascii=False)}\n\n"
-        except Exception as exc:
-            if requested == "content":
-                value = _fallback_content_html_from_payload(payload)
-                lines = _content_to_stream_chunks(value)
-                total = max(1, len(lines))
-                yield f"event:meta\ndata:{json.dumps({'total': total})}\n\n"
-                buf: list[str] = []
-                for idx, line in enumerate(lines):
-                    buf.append(line)
-                    pct = int(round(((idx + 1) / total) * 100))
-                    payload_obj = {"pct": pct, "line": line, "sofar": "\n".join(buf)}
-                    yield f"event:chunk\ndata:{json.dumps(payload_obj, ensure_ascii=False)}\n\n"
-                    if delay_ms:
-                        time.sleep(delay_ms / 1000.0)
-                yield f"event:done\ndata:{json.dumps({'ok': True, 'value': value}, ensure_ascii=False)}\n\n"
-                return
-            msg = str(exc)[:1200]
-            yield f"event:error\ndata:{json.dumps({'ok': False, 'error': msg}, ensure_ascii=False)}\n\n"
-
-    return StreamingResponse(_sse(), media_type="text/event-stream; charset=utf-8")
+    return StreamingResponse(
+        _sse(),
+        media_type="text/event-stream; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 class OutlineReferenceRequest(BaseModel):
-    competitor_url: str
+    competitor_url: str = ""
+    url: str = ""  # alias tương thích modal CAU
 
 
 class OutlineRefreshRequest(BaseModel):
@@ -3038,6 +4344,55 @@ def _refresh_outline_with_synonyms(outline: str) -> str:
     return "\n".join(refreshed)
 
 
+_OUTLINE_NAV_JUNK = frozenset({
+    "danh mục",
+    "giỏ hàng",
+    "menu",
+    "tin tức",
+    "trang chủ",
+    "home",
+    "sản phẩm",
+    "liên hệ",
+})
+
+
+def _heading_nodes_for_competitor_outline(soup: BeautifulSoup) -> list:
+    scopes = (
+        ".object-detail.post h1, .object-detail.post h2, .object-detail.post h3",
+        ".post-detail h1, .post-detail h2, .post-detail h3",
+        "article h1, article h2, article h3",
+        ".entry-content h1, .entry-content h2, .entry-content h3",
+        ".post-content h1, .post-content h2, .post-content h3",
+        "[class*='post'] h1, [class*='post'] h2, [class*='post'] h3",
+        "main h1, main h2, main h3",
+    )
+    for sel in scopes:
+        nodes = soup.select(sel)
+        if len(nodes) >= 2:
+            return nodes
+    for sel in scopes:
+        nodes = soup.select(sel)
+        if nodes:
+            return nodes
+    return soup.select("h1, h2, h3")
+
+
+def _lines_from_competitor_headings(nodes: list) -> list[str]:
+    headings: list[str] = []
+    for node in nodes:
+        level = (node.name or "").lower()
+        text = re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
+        if not text or len(text) < 3:
+            continue
+        if text.lower() in _OUTLINE_NAV_JUNK:
+            continue
+        prefix = {"h1": "#", "h2": "##", "h3": "###"}.get(level, "##")
+        line = f"{prefix} {text}"
+        if line not in headings:
+            headings.append(line)
+    return headings
+
+
 def _extract_outline_fallback(soup: BeautifulSoup) -> list[str]:
     lines: list[str] = []
     title = ""
@@ -3074,16 +4429,20 @@ def _extract_outline_fallback(soup: BeautifulSoup) -> list[str]:
 def content_ai_outline_reference(
     payload: OutlineReferenceRequest,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
-    raw_url = (payload.competitor_url or "").strip()
+    raw_url = (payload.competitor_url or payload.url or "").strip()
     if not raw_url:
         raise HTTPException(status_code=400, detail="Vui lòng nhập link đối thủ.")
     parsed = urlparse(raw_url if "://" in raw_url else f"https://{raw_url}")
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise HTTPException(status_code=400, detail="Link đối thủ không hợp lệ.")
     url = parsed.geturl()
-    try:
-        resp = requests.get(
+    from app.services.cost_control.executor import execute_guarded_external
+    from app.services.cost_control.types import ExternalApiProvider
+
+    def _fetch_competitor() -> requests.Response:
+        return requests.get(
             url,
             timeout=18,
             headers={
@@ -3093,6 +4452,10 @@ def content_ai_outline_reference(
                 )
             },
         )
+
+    try:
+        with content_ai_crawl_gate(db, current_user, action="outline_reference", url=url):
+            resp = execute_guarded_external(ExternalApiProvider.CRAWL, "outline_reference", _fetch_competitor)
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=502,
@@ -3113,16 +4476,8 @@ def content_ai_outline_reference(
     soup = BeautifulSoup(resp.text or "", "html.parser")
     for tag in soup.find_all(["script", "style", "noscript"]):
         tag.decompose()
-    headings: list[str] = []
-    for node in soup.select("h1, h2, h3"):
-        level = (node.name or "").lower()
-        text = re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
-        if not text:
-            continue
-        prefix = {"h1": "#", "h2": "##", "h3": "###"}.get(level, "##")
-        line = f"{prefix} {text}"
-        if line not in headings:
-            headings.append(line)
+    heading_nodes = _heading_nodes_for_competitor_outline(soup)
+    headings = _lines_from_competitor_headings(heading_nodes)
     if not headings:
         headings = _extract_outline_fallback(soup)
     if not headings:
@@ -3406,7 +4761,9 @@ def _rewrite_inline_images_for_wp(
     content_html: str,
     logs: list[str],
 ) -> str:
-    raw = str(content_html or "").strip()
+    from app.services.content_ai_image_guard import is_usable_image_src, sanitize_content_html_images
+
+    raw = sanitize_content_html_images(str(content_html or "").strip(), source="wp_publish_rewrite")
     if not raw:
         return raw
     soup = BeautifulSoup(raw, "html.parser")
@@ -3415,9 +4772,16 @@ def _rewrite_inline_images_for_wp(
         return raw
     cache: dict[str, str | None] = {}
     replaced = 0
-    for img in imgs:
+    removed = 0
+    for img in list(imgs):
         src = str(img.get("src") or "").strip()
-        if not src:
+        if not src or not is_usable_image_src(src):
+            fig = img.find_parent("figure")
+            if fig:
+                fig.decompose()
+            else:
+                img.decompose()
+            removed += 1
             continue
         if src not in cache:
             cache[src] = _upload_media_from_src(session=session, wp_base=wp_base, src=src, logs=logs)
@@ -3425,7 +4789,14 @@ def _rewrite_inline_images_for_wp(
         if new_src:
             img["src"] = new_src
             replaced += 1
-    logs.append(f"[inline-media] replaced {replaced}/{len(imgs)} image src")
+        else:
+            fig = img.find_parent("figure")
+            if fig:
+                fig.decompose()
+            else:
+                img.decompose()
+            removed += 1
+    logs.append(f"[inline-media] replaced {replaced}/{len(imgs)} image src, removed {removed}")
     return str(soup)
 
 
@@ -3717,16 +5088,23 @@ def content_ai_wordpress_test_connection(
 
 @router.post("/content-ai/wordpress/categories")
 def content_ai_wordpress_categories(
-    payload: WordPressConnectionBody,
+    payload: WordPressCategoriesBody,
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Liệt kê category (wp/v2/categories) — dùng cho dropdown khi viết bulk / đăng bài."""
     from app.services.wp_categories import fetch_wordpress_categories
 
-    result = fetch_wordpress_categories(
+    url, username, app_password = _resolve_wp_category_credentials(
+        user_id=int(current_user.id),
+        wp_site_id=payload.wp_site_id,
         url=payload.url,
         username=payload.username,
         app_password=payload.app_password,
+    )
+    result = fetch_wordpress_categories(
+        url=url,
+        username=username,
+        app_password=app_password,
     )
     return JSONResponse(content=result)
 
@@ -3749,9 +5127,9 @@ def content_ai_wordpress_sync_posts(
     if count is None:
         return JSONResponse({"ok": False, "count": None, "message": msg})
     plugin_note = (
-        " DigiSEO SEO Helper đã cài."
+        " Seoauto SEO Helper đã cài."
         if check["plugin_installed"]
-        else " DigiSEO SEO Helper chưa cài — nên cài plugin để tối ưu SEO khi đăng bài."
+        else " Seoauto SEO Helper chưa cài — nên cài plugin để tối ưu SEO khi đăng bài."
     )
     return JSONResponse({"ok": True, "count": count, "message": msg + plugin_note})
 
@@ -3779,7 +5157,9 @@ def content_ai_publish_draft(
     request: Request,
     payload: WordpressDraftPublishRequest,
     current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
+    assert_content_ai_feature(db, current_user, "wp_publish", quantity=1)
     wp_base = _normalize_wp_base_url(payload.wp_url)
     username = (payload.username or "").strip()
     app_password = (payload.app_password or "").strip()
@@ -4003,6 +5383,15 @@ def content_ai_publish_draft(
         detail={"url": wp_base, "status": data.get("status")},
         request=request,
     )
+    record_content_ai_usage(
+        db,
+        current_user,
+        "wp_publish",
+        quantity=1,
+        metadata={"post_id": data.get("id"), "wp_url": wp_base},
+        idempotency_key=f"wp-publish:{data.get('id')}",
+    )
+    db.commit()
     return JSONResponse(
         content={
             "ok": True,

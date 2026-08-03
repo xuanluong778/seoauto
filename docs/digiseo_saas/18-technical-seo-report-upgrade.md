@@ -1,12 +1,12 @@
 # Technical SEO Report Upgrade
 
-Tài liệu này mô tả hướng nâng cấp Technical SEO report cho DigiSEO.
+Tài liệu này mô tả hướng nâng cấp Technical SEO report cho Seoauto.
 
 ---
 
 ## 1. Vai trò
 
-Technical SEO là module lõi và mạnh của DigiSEO.
+Technical SEO là module lõi và mạnh của Seoauto.
 
 Để bán cho agency/chủ website, cần báo cáo chuyên nghiệp hơn.
 
@@ -75,5 +75,5 @@ Thời gian ước tính
 ```txt
 Agency có thể gửi report cho khách hàng
 Chủ website hiểu cần sửa gì
-DigiSEO trở thành công cụ tạo báo cáo SEO chuyên nghiệp
+Seoauto trở thành công cụ tạo báo cáo SEO chuyên nghiệp
 ```

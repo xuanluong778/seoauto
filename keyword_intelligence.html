@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_theme_head.html" %}
+    <title>Keyword Intelligence</title>
+    <style>
+        :root { --text: #eef2ff; --muted: #cbd5e1; --line: rgba(255,255,255,.22); --card: rgba(255,255,255,.12); }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh; font-family: system-ui, sans-serif; color: var(--text);
+            background: linear-gradient(135deg, #050b18 0%, #0c1424 50%, #050b18 100%);
+        }
+        .wrap { max-width: 1200px; margin: 0 auto; padding: 16px 18px 48px; }
+        /* Top nav: static/css/digiseo-nav.css */
+        .nav-dd-menu { display: none; position: absolute; left: 0; top: calc(100% + 14px); min-width: 260px; flex-direction: column; gap: 4px; padding: 8px; border-radius: 12px; border: 1px solid var(--line); background: rgba(15,23,42,.96); box-shadow: 0 12px 32px rgba(0,0,0,.35); z-index: 50; }
+        .nav-dd:hover .nav-dd-menu, .nav-dd:focus-within .nav-dd-menu { display: flex; }
+        .nav-dd-menu a { display: block; padding: 10px 12px; border-radius: 8px; color: #fff; text-decoration: none; font-size: 14px; border: none; margin: 0; }
+        .nav-dd-menu a:hover { background: rgba(255,255,255,.12); }
+        .nav-dd-menu a.active { background: rgba(91,103,255,.35); }
+        h1 { font-size: 1.5rem; margin: 0 0 8px; }
+        .sub { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px; }
+        input, textarea, button {
+            width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+            background: rgba(15,23,42,.35); color: #fff; font-size: 14px;
+        }
+        button { width: auto; margin-top: 10px; cursor: pointer; font-weight: 600; background: rgba(91,103,255,.55); }
+        button:hover { filter: brightness(1.08); }
+        textarea { min-height: 72px; font-family: ui-monospace, monospace; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+        th, td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+        th { color: #c7d2fe; font-weight: 600; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+        .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.1); margin: 2px 4px 2px 0; font-size: 12px; }
+        .err { color: #fecaca; font-size: 13px; margin-top: 8px; }
+        pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; color: var(--muted); }
+
+        /* Seoauto bright-green accent overrides */
+        h1 { color: #00e676 !important; }
+        .nav-dd-menu a:hover { background: rgba(0, 230, 118, 0.12) !important; color: #00e676 !important; }
+        .nav-pro-badge {
+            display: inline-block;
+            margin-left: 6px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: linear-gradient(135deg, #f59e0b, #ea580c);
+            color: #111827;
+            vertical-align: middle;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+        {% include "partials/digiseo_nav.html" %}
+
+    <h1>Keyword Intelligence</h1>
+    <p class="sub ds-lead ds-lead--dark">Phân tích từ khóa, gom cụm theo ý định và xếp hạng ưu tiên.</p>
+
+    <div class="card">
+        <div class="grid2">
+            <div>
+                <label for="seed">Seed (một từ khóa chính)</label>
+                <input id="seed" type="text" placeholder="ví dụ: máy lọc không khí hepa" autocomplete="off">
+            </div>
+            <div>
+                <label for="urlctx">URL hoặc domain (ngữ cảnh thương hiệu)</label>
+                <input id="urlctx" type="text" placeholder="https://shop.example.com hoặc example.com">
+            </div>
+        </div>
+        <label for="seedsBulk">Thêm nhiều từ khóa (mỗi dòng một keyword)</label>
+        <textarea id="seedsBulk" placeholder="từ khóa 1&#10;từ khóa 2"></textarea>
+        <button type="button" id="btnRun">Chạy phân tích</button>
+        <div id="msg" class="err"></div>
+    </div>
+
+    <div class="card" id="panelIntent" hidden>
+        <h2 style="margin:0 0 8px;font-size:1.1rem;">Tóm tắt ý định tìm kiếm</h2>
+        <div id="intentPills"></div>
+    </div>
+
+    <div class="card" id="panelKw" hidden>
+        <h2 style="margin:0 0 8px;font-size:1.1rem;">Bảng từ khóa</h2>
+        <div style="overflow:auto;max-height:42vh;">
+            <table>
+                <thead><tr><th>Keyword</th><th>Intent</th><th>Độ khó (ước lượng)</th><th>Volume</th><th>Nguồn</th></tr></thead>
+                <tbody id="tbKw"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" id="panelClusters" hidden>
+        <h2 style="margin:0 0 8px;font-size:1.1rem;">Cụm từ khóa</h2>
+        <div id="clustersOut"></div>
+    </div>
+
+    <div class="card" id="panelOpp" hidden>
+        <h2 style="margin:0 0 8px;font-size:1.1rem;">Cơ hội ưu tiên</h2>
+        <div id="oppOut"></div>
+    </div>
+</div>
+<script>
+(function () {
+    const btn = document.getElementById("btnRun");
+    const msg = document.getElementById("msg");
+    function showErr(t) { msg.textContent = t || ""; }
+    function pill(txt) {
+        const s = document.createElement("span");
+        s.className = "pill";
+        s.textContent = txt;
+        return s;
+    }
+    btn.addEventListener("click", async function () {
+        showErr("");
+        const seed = document.getElementById("seed").value.trim();
+        const url = document.getElementById("urlctx").value.trim();
+        const bulk = document.getElementById("seedsBulk").value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        const seeds = [];
+        if (seed) seeds.push(seed);
+        bulk.forEach(k => { if (!seeds.includes(k)) seeds.push(k); });
+        const body = { seed_keyword: seed || null, url: url || null, seed_keywords: seeds };
+        btn.disabled = true;
+        try {
+            const r = await fetch("/api/keyword-intelligence", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.detail || r.statusText);
+            render(data);
+        } catch (e) {
+            showErr(String(e.message || e));
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    function render(data) {
+        const is = data.intent_summary || {};
+        const ip = document.getElementById("intentPills");
+        ip.innerHTML = "";
+        Object.keys(is).forEach(k => ip.appendChild(pill(k + ": " + (is[k] * 100).toFixed(1) + "%")));
+        document.getElementById("panelIntent").hidden = Object.keys(is).length === 0;
+
+        const tb = document.getElementById("tbKw");
+        tb.innerHTML = "";
+        (data.keywords || []).forEach(row => {
+            const tr = document.createElement("tr");
+            const diff = row.difficulty != null ? String(row.difficulty) : "—";
+            const vol = row.search_volume != null ? String(row.search_volume) : "—";
+            const src = (row.source || []).join(", ");
+            tr.innerHTML = "<td>" + escapeHtml(row.keyword) + "</td><td>" + escapeHtml(row.intent || "—") + "</td><td>" + diff + "</td><td>" + vol + "</td><td>" + escapeHtml(src) + "</td>";
+            tb.appendChild(tr);
+        });
+        document.getElementById("panelKw").hidden = (data.keywords || []).length === 0;
+
+        const co = document.getElementById("clustersOut");
+        co.innerHTML = "";
+        (data.clusters || []).forEach(c => {
+            const box = document.createElement("div");
+            box.style.marginBottom = "14px";
+            box.style.padding = "10px";
+            box.style.border = "1px solid rgba(255,255,255,.2)";
+            box.style.borderRadius = "10px";
+            const kws = (c.keywords || []).map(x => x.keyword).filter(Boolean).join(", ");
+            box.innerHTML = "<strong>" + escapeHtml(c.main_keyword || c.cluster_name || "") + "</strong> " +
+                "<span class=\"pill\">intent: " + escapeHtml(c.intent || "") + "</span>" +
+                "<span class=\"pill\">Độ trùng: " + (c.serp_overlap_score != null ? c.serp_overlap_score : "—") + "</span>" +
+                "<span class=\"pill\">size: " + (c.cluster_size || 0) + "</span>" +
+                "<div style=\"margin-top:6px;color:#cbd5e1;font-size:12px;\">" + escapeHtml(kws) + "</div>";
+            co.appendChild(box);
+        });
+        document.getElementById("panelClusters").hidden = (data.clusters || []).length === 0;
+
+        const oo = document.getElementById("oppOut");
+        oo.innerHTML = "";
+        (data.priority_opportunities || []).slice(0, 8).forEach(c => {
+            const d = document.createElement("div");
+            d.style.marginBottom = "10px";
+            d.innerHTML = "<strong>" + escapeHtml(c.main_keyword || "") + "</strong> — score <strong>" + (c.priority_score || 0) + "</strong><br>" +
+                "<span style=\"color:#cbd5e1;font-size:12px;\">" + escapeHtml(c.recommended_content_type || "") + "</span>";
+            oo.appendChild(d);
+        });
+        document.getElementById("panelOpp").hidden = (data.priority_opportunities || []).length === 0;
+    }
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+            return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+        });
+    }
+})();
+</script>
+<script>
+(() => {
+    try {
+        const path = (window.location && window.location.pathname) ? window.location.pathname.replace(/\/+$/, "") : "";
+        document.querySelectorAll('.nav a, nav[aria-label="Menu chính"] a').forEach((a) => {
+            const href = (a.getAttribute("href") || "").trim();
+            if (!href || href.startsWith("http")) return;
+            const h = href.replace(/\/+$/, "");
+            if (h && h === path) a.classList.add("active");
+        });
+        if (path === "/settings") {
+            document.querySelectorAll('a[href="/settings"]').forEach((b) => b.classList.add("active"));
+        }
+    } catch (_) {}
+})();
+</script>
+{% include "partials/digiseo_i18n.html" %}
+{% include "partials/digiseo_pricing_bundle.html" %}
+</body>
+</html>

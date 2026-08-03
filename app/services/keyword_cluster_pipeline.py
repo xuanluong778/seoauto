@@ -8,44 +8,28 @@ import os
 from typing import Any
 from urllib.parse import urlparse
 
+from app.services.cluster_content_map import build_content_map_summary, build_content_plans_from_clusters, enrich_cluster_for_content_map
 from app.services.intent_classifier import classify_keywords_batch
 from app.services.keyword_clustering_engine import build_keyword_clusters
 from app.services.keyword_intelligence import guess_brand_terms
 
+_REAL_VOLUME_SOURCES = frozenset({"api", "dataforseo", "api_cache", "google_ads"})
 
-def _cluster_entity_from_raw(c: dict[str, Any], idx: int) -> dict[str, Any]:
-    seen: set[str] = set()
-    variations: list[str] = []
-    for x in (c.get("keywords") or []):
-        kw = str(x.get("keyword") if isinstance(x, dict) else x or "").strip()
-        if not kw:
-            continue
-        low = kw.lower()
-        if low in seen:
-            continue
-        seen.add(low)
-        variations.append(kw)
-    primary = str(c.get("main_keyword") or c.get("cluster_name") or (variations[0] if variations else "")).strip()
-    if primary and primary.lower() not in seen:
-        variations.insert(0, primary)
-    total_volume = int(c.get("total_search_volume") or 0)
-    return {
-        "cluster_id": f"cluster_{idx + 1}",
-        "primary_keyword": primary,
-        "variations": variations,
-        "total_volume": total_volume,
-        "cluster_size": int(c.get("cluster_size") or len(variations)),
-        "intent": str(c.get("intent") or "informational"),
-        "cohesion_score": c.get("cohesion_score"),
-        "serp_overlap_score": float(c.get("serp_overlap_score") or 0.0),
-        "detail": {
-            "intent_source": c.get("intent_source"),
-            "serp_data_available": bool((c.get("explain") or {}).get("serp_data_available", True))
-            if isinstance(c.get("explain"), dict)
-            else True,
-            "explain": c.get("explain") if isinstance(c.get("explain"), dict) else {},
-        },
-    }
+
+def _volume_for_map(row: dict[str, Any]) -> int | None:
+    src = str(row.get("volume_source") or "").lower()
+    if src not in _REAL_VOLUME_SOURCES:
+        return None
+    try:
+        v = int(row.get("search_volume") or 0)
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
+
+
+def _cluster_entity_from_raw(c: dict[str, Any], idx: int, *, input_count: int) -> dict[str, Any]:
+    """Legacy shim — delegates to Content Map enricher."""
+    return enrich_cluster_for_content_map(c, idx=idx, input_keyword_count=input_count)
 
 
 def build_keyword_cluster_api_response(
@@ -74,9 +58,6 @@ def build_keyword_cluster_api_response(
         seen.add(low)
         cleaned.append(s)
 
-    # KEYWORD_CLUSTER_MAX_INPUT:
-    # - > 0: cap input list to that size (safety)
-    # - 0 or < 0: no cap (may be very slow for large N due to O(N^2) matrices)
     max_in = int(os.getenv("KEYWORD_CLUSTER_MAX_INPUT", "500"))
     truncated = False
     if max_in > 0:
@@ -102,8 +83,9 @@ def build_keyword_cluster_api_response(
         progress_hook=progress_hook,
     )
 
-    # Build a volume map from enriched keyword rows inside clusters_raw so the UI can
-    # render chart/tables without extra round-trips.
+    if progress_hook:
+        progress_hook(93, "Đang tổng hợp kết quả…")
+
     volumes: dict[str, int] = {}
     for c in clusters_raw or []:
         for r in (c.get("keywords") or []):
@@ -112,16 +94,17 @@ def build_keyword_cluster_api_response(
             kw = str(r.get("keyword") or "").strip()
             if not kw:
                 continue
-            try:
-                volumes[kw] = int(r.get("search_volume") or 0)
-            except Exception:
-                volumes[kw] = 0
-    volume_sum = int(sum(int(v or 0) for v in volumes.values()))
+            v = _volume_for_map(r)
+            if v is not None:
+                volumes[kw] = v
+    volume_sum = int(sum(volumes.values())) if volumes else None
 
-    # Re-classify cluster intent from SERP GT on main keyword when few members
+    skip_reclass = os.getenv("KEYWORD_CLUSTER_SKIP_INTENT_RECLASS", "1").lower() in ("1", "true", "yes")
     main_phrases = [str(c.get("main_keyword") or c.get("cluster_name") or "") for c in clusters_raw]
     main_phrases = [p for p in main_phrases if p]
-    if main_phrases:
+    if main_phrases and not skip_reclass:
+        if progress_hook:
+            progress_hook(96, "Đang phân loại intent…")
         hits = classify_keywords_batch(main_phrases, brand_terms=brand, max_serp_gt=min(20, len(main_phrases)))
         by_m = {str(r.get("keyword") or "").lower(): r for r in hits}
         for c in clusters_raw:
@@ -130,10 +113,21 @@ def build_keyword_cluster_api_response(
                 c["intent"] = str(by_m[mk].get("intent") or c.get("intent"))
                 c["intent_source"] = by_m[mk].get("source")
 
-    clusters: list[dict[str, Any]] = [_cluster_entity_from_raw(c, i) for i, c in enumerate(clusters_raw)]
+    clusters: list[dict[str, Any]] = [
+        _cluster_entity_from_raw(c, i, input_count=len(cleaned)) for i, c in enumerate(clusters_raw)
+    ]
+
+    if progress_hook:
+        progress_hook(100, "Hoàn tất")
+
+    summary = build_content_map_summary(clusters)
+    content_plans = build_content_plans_from_clusters(clusters)
 
     return {
         "clusters": clusters,
+        "content_plans": content_plans,
+        "volumes": volumes,
+        "content_map_summary": summary,
         "meta": {
             "entity": "cluster",
             "input_count": len(seen),
@@ -148,7 +142,8 @@ def build_keyword_cluster_api_response(
                 "language": serp_language or "",
                 "device": serp_device or "",
             },
-            "serp_overlap_note": "Pairwise SERP overlap (weighted URL + domain) + semantic + intent gate; cache key = serp_cache_digest on snapshots.",
             "cluster_strictness": cluster_strictness or os.getenv("KEYWORD_CLUSTER_STRICTNESS", "normal"),
+            "clustering_method": "serp_shared_url_count" if fetch_serp else "semantic_fallback_same_intent_topic",
+            "min_shared_urls_for_merge": int(os.getenv("KEYWORD_CLUSTER_SERP_MIN_SHARED_URLS", "3")),
         },
     }

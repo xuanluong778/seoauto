@@ -10,6 +10,15 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     otp: str = Field(min_length=4, max_length=12)
 
+    @field_validator("otp", mode="before")
+    @classmethod
+    def normalize_otp(cls, v: object) -> str:
+        if v is None:
+            return ""
+        if not isinstance(v, str):
+            v = str(v)
+        return v.strip().replace(" ", "")
+
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
@@ -52,6 +61,7 @@ class UserResponse(BaseModel):
     status: str = "active"
     api_access_enabled: bool = False
     use_admin_api_pool: bool = False
+    show_admin_nav: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -82,10 +92,29 @@ class CreditPackagesResponse(BaseModel):
 
 class CreditLedgerRow(BaseModel):
     id: int
+    source_type: str
+    amount: int
+    remaining_amount: int
+    expired_at: datetime | None = None
+    note: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CreditTransactionRow(BaseModel):
+    """Legacy consumption/grant audit log."""
+
+    id: int
     delta: int
     balance_after: int
     reason: str
     note: str | None
+    module: str | None = None
+    action: str | None = None
+    credit_used: int | None = None
+    request_id: str | None = None
+    source: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -99,6 +128,27 @@ class CreditGrantResult(BaseModel):
 
 class CreditLedgerListResponse(BaseModel):
     items: list[CreditLedgerRow]
+    balance: int = 0
+
+
+class CreditTransactionListResponse(BaseModel):
+    items: list[CreditTransactionRow]
+    balance: int = 0
+
+
+class CreditCostCatalogItem(BaseModel):
+    module: str
+    action: str
+    credit_cost: int
+    cache_discount_percent: int = 80
+    cache_zero_cost: bool = False
+    label: str | None = None
+    description: str | None = None
+
+
+class CreditCostCatalogResponse(BaseModel):
+    items: list[CreditCostCatalogItem]
+    credits_enabled: bool = False
 
 
 class MessageResponse(BaseModel):

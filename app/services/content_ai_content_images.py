@@ -1,198 +1,39 @@
+"""Content AI — tự lấy & chèn ảnh theo ngữ cảnh (bulk + single)."""
+
 from __future__ import annotations
 
 import re
-from html import escape, unescape
-from typing import Any
+from typing import Any, Callable
 
+from app.services.content_ai_image_finder import find_best_for_slot
+from app.services.content_ai_image_inserter import (
+    count_content_images,
+    extract_h2_headings,
+    inject_images_into_content_html,
+    prepare_content_html_for_images,
+)
+from app.services.content_ai_image_optimizer import optimize_remote_image
+from app.services.content_ai_image_rules import (
+    inline_image_count_for_word_count,
+    resolve_image_orientation,
+)
 from app.services.content_ai_project_store import _resolve_project_content
-from app.services.google_cse_images import import_remote_image_url
 from app.services.content_image_context import (
-    build_image_prompt_for_section,
-    build_image_search_query_for_section,
-    build_seo_image_generation_prompt,
     choose_image_placement,
+    extract_image_contexts_from_article,
     get_default_content_ai_image_style,
     suggest_image_alt_text,
     suggest_image_caption,
 )
-from app.services.image_relevance import (
-    pick_best_image_candidate,
-    score_image_relevance,
-)
-from app.services.web_image_search import search_web_images
 
 MAX_INLINE_IMAGES = 4
 MIN_WORDS_FOR_INLINE = 250
 
 
 def _strip_html_text(html: str) -> str:
-    s = re.sub(r"<[^>]+>", " ", html or "")
-    return re.sub(r"\s+", " ", unescape(s)).strip()
+    from app.services.content_ai_image_inserter import _strip_html_text as _s
 
-
-def extract_h2_headings(html: str, outline: str = "") -> list[str]:
-    out: list[str] = []
-    for m in re.finditer(r"<h2\b[^>]*>(.*?)</h2>", html or "", flags=re.I | re.S):
-        t = _strip_html_text(m.group(1))
-        if t and t not in out:
-            out.append(t)
-    for m in re.finditer(r"^##\s+(.+?)\s*$", outline or "", flags=re.M):
-        t = m.group(1).strip()
-        if t and t not in out:
-            out.append(t)
-    return out[:8]
-
-
-def collect_context_terms(
-    *,
-    primary_keyword: str,
-    title: str,
-    secondary_keywords: list[str] | None,
-    content_html: str,
-) -> list[str]:
-    terms: list[str] = []
-    for raw in (
-        primary_keyword,
-        title.split("|", 1)[0].strip() if title else "",
-        *(secondary_keywords or []),
-    ):
-        t = re.sub(r"\s+", " ", str(raw or "").strip())
-        if t and t.lower() not in {x.lower() for x in terms}:
-            terms.append(t)
-    text = _strip_html_text(content_html)
-    if text:
-        snippet = text[:280]
-        if snippet and snippet.lower() not in {x.lower() for x in terms}:
-            terms.append(snippet)
-    return terms
-
-
-def _figure_snippet(url: str, alt: str, caption: str = "") -> str:
-    alt_esc = escape(str(alt or "").strip()[:200])
-    cap = str(caption or "").strip()[:200]
-    cap_html = f"<figcaption>{escape(cap)}</figcaption>" if cap else ""
-    return (
-        f'<figure class="editor-image content-ai-inline-image">'
-        f'<img src="{url}" alt="{alt_esc}" loading="lazy" />{cap_html}</figure>'
-    )
-
-
-def prepare_content_html_for_images(content: str, outline: str = "") -> str:
-    """Chuẩn hóa HTML để có điểm neo chèn ảnh (h2 từ outline / markdown)."""
-    html = str(content or "").strip()
-    if not html:
-        return html
-    if not re.search(r"<\s*[a-z][^>]*>", html, flags=re.I):
-        blocks = [b.strip() for b in re.split(r"\n{2,}", html) if b.strip()]
-        parts: list[str] = []
-        for b in blocks:
-            if re.match(r"^#{1,6}\s+", b):
-                hm = re.match(r"^(#+)", b)
-                level = len(hm.group(1)) if hm else 2
-                text = re.sub(r"^#+\s*", "", b).strip()
-                tag = "h2" if level <= 2 else "h3"
-                parts.append(f"<{tag}>{escape(text)}</{tag}>")
-            elif re.match(r"^[-*]\s+", b):
-                items = re.findall(r"^[-*]\s+(.+)$", b, flags=re.M)
-                lis = "".join(f"<li>{escape(x)}</li>" for x in items)
-                parts.append(f"<ul>{lis}</ul>")
-            else:
-                parts.append(f"<p>{escape(b)}</p>")
-        html = "\n".join(parts)
-    if not re.search(r"<h2\b", html, flags=re.I):
-        html = re.sub(
-            r"^##\s+(.+?)\s*$",
-            lambda m: f"<h2>{escape(m.group(1).strip())}</h2>",
-            html,
-            flags=re.M,
-        )
-    h2s = extract_h2_headings(html, outline)
-    if h2s and not re.search(r"<h2\b", html, flags=re.I):
-        for h2 in reversed(h2s[:6]):
-            safe = re.escape(h2)
-            html = re.sub(
-                rf"(<h3\b[^>]*>\s*{safe}\s*</h3>)",
-                rf"<h2>{escape(h2)}</h2>\1",
-                html,
-                count=1,
-                flags=re.I,
-            )
-    return html
-
-
-def _paragraph_end_positions(html: str) -> list[int]:
-    return [m.end() for m in re.finditer(r"</p>", html, flags=re.I)]
-
-
-def inject_images_into_content_html(
-    html: str,
-    inserts: list[dict[str, Any]],
-) -> str:
-    """Chèn figure sau h2 (h2_index) hoặc sau đoạn văn (paragraph_index)."""
-    if not html or not inserts:
-        return html
-    h2_matches = list(re.finditer(r"<h2\b[^>]*>.*?</h2>", html, flags=re.I | re.S))
-    para_ends = _paragraph_end_positions(html)
-
-    for ins in sorted(
-        inserts,
-        key=lambda x: (-int(x.get("h2_index") or -1), -int(x.get("paragraph_index") or -1)),
-    ):
-        url = str(ins.get("url") or "").strip()
-        if not url:
-            continue
-        pos = -1
-        if "paragraph_index" in ins and para_ends:
-            pi = int(ins.get("paragraph_index") or 0)
-            if 0 <= pi < len(para_ends):
-                pos = para_ends[pi]
-        elif h2_matches:
-            idx = int(ins.get("h2_index") or 0)
-            if 0 <= idx < len(h2_matches):
-                pos = h2_matches[idx].end()
-        if pos < 0:
-            continue
-        window = html[pos : pos + 600]
-        if re.search(r"<img\b", window, flags=re.I):
-            continue
-        alt = str(ins.get("alt") or "").strip()
-        caption = str(ins.get("caption") or "").strip()
-        html = html[:pos] + _figure_snippet(url, alt, caption) + html[pos:]
-    return html
-
-
-def count_content_images(html: str) -> int:
-    return len(re.findall(r"<img\b", html or "", flags=re.I))
-
-
-def _search_candidates_for_slot(
-    *,
-    primary_keyword: str,
-    title: str,
-    section_heading: str = "",
-    section_content: str = "",
-    brand_name: str = "",
-    per_query: int = 15,
-) -> tuple[list[dict[str, Any]], str, str]:
-    """Tìm ảnh cho 1 vị trí (featured hoặc 1 mục H2)."""
-    query = build_image_search_query_for_section(
-        section_heading=section_heading,
-        section_content=section_content,
-        main_keyword=primary_keyword,
-        brand_name=brand_name,
-    )
-    terms = [
-        primary_keyword,
-        title.split("|", 1)[0].strip() if title else "",
-        section_heading,
-        (section_content or "")[:200],
-    ]
-    try:
-        items, source = search_web_images(q=query, num=per_query)
-    except ValueError:
-        return [], "", query
-    ranked = sorted(items, key=lambda it: -score_image_relevance(it, terms))
-    return ranked, source, query
+    return _s(html)
 
 
 def _image_strategy() -> str:
@@ -207,7 +48,33 @@ def _image_strategy() -> str:
         raw = str((dotenv_values(env) or {}).get("CONTENT_AI_IMAGE_STRATEGY") or "").strip().lower()
     if raw in ("ai", "web", "hybrid"):
         return raw
-    return "hybrid"
+    return "web"
+
+
+def _resolve_strategy(image_strategy_override: str | None = None) -> str:
+    raw = str(image_strategy_override or "").strip().lower()
+    if raw in ("web", "ai", "hybrid"):
+        return raw
+    return _image_strategy()
+
+
+def _slot_orientation(
+    *,
+    featured: bool,
+    industry: str,
+    keyword: str,
+    brand_name: str,
+    section_heading: str,
+) -> str:
+    if featured:
+        return "landscape"
+    resolved = resolve_image_orientation(
+        industry=industry,
+        keyword=keyword,
+        brand_name=brand_name,
+        section_heading=section_heading,
+    )
+    return resolved if resolved != "any" else "landscape"
 
 
 def _generate_slot_image_ai(
@@ -221,11 +88,15 @@ def _generate_slot_image_ai(
     industry: str = "",
     image_style: str = "",
     stem: str,
-) -> tuple[str, str]:
-    from app.services.content_ai_thumbnail import (
-        _openai_generate_image_bytes,
-        _save_image_bytes,
-    )
+    orientation: str = "any",
+    user_id: int | None = None,
+    project_id: str | None = None,
+    db=None,
+    user=None,
+) -> tuple[str, str, dict[str, Any]]:
+    from app.services.content_ai_openrouter_images import generate_image_bytes
+    from app.services.content_image_context import build_seo_image_generation_prompt
+    from app.services.content_ai_image_optimizer import save_optimized_image
 
     style = image_style or get_default_content_ai_image_style()
     prompt = build_seo_image_generation_prompt(
@@ -240,9 +111,53 @@ def _generate_slot_image_ai(
         language="vi",
         include_brand_logo=False,
     )
-    image_bytes = _openai_generate_image_bytes(prompt=prompt)
-    local_url = _save_image_bytes(image_bytes, stem=stem)
-    return local_url, prompt[:200]
+    image_model = None
+    if db is not None and user is not None:
+        from app.services.cost_control.module_gates import content_ai_llm_gate
+        from app.services.llm_content_writer import load_llm_config_admin
+
+        with content_ai_llm_gate(
+            db,
+            user,
+            action="image_ai_slot",
+            field="content",
+            use_system_llm=True,
+            llm_cfg=load_llm_config_admin(),
+            feature_key="image_generate",
+            skip_credit_check=True,
+        ):
+            image_bytes = generate_image_bytes(prompt=prompt)
+    else:
+        image_bytes = generate_image_bytes(prompt=prompt)
+    orient = orientation if orientation in ("landscape", "portrait") else (
+        "landscape" if "feat" in stem else "landscape"
+    )
+    opt = save_optimized_image(
+        image_bytes,
+        stem=stem,
+        orientation=orient,
+        prefer_landscape_crop=orient == "landscape",
+        user_id=user_id,
+        project_id=project_id,
+    )
+    if db is not None and user is not None:
+        from app.services.content_ai_entitlement import record_content_ai_usage
+
+        record_content_ai_usage(db, user, "image_generate", quantity=1)
+    meta = {
+        "provider": "openrouter_image",
+        "source_url": "",
+        "license": "AI generated",
+        "author": "",
+        "filename": opt.filename,
+        "alt": "",
+        "caption": "",
+        "role": "featured" if "feat" in stem else "inline",
+        "bytes": opt.bytes_size,
+        "width": opt.width,
+        "height": opt.height,
+    }
+    return opt.local_url, prompt[:200], meta
 
 
 def _pick_and_download_for_slot(
@@ -251,6 +166,7 @@ def _pick_and_download_for_slot(
     title: str,
     section_heading: str,
     section_content: str = "",
+    outline: str = "",
     brand_name: str = "",
     target_audience: str = "",
     industry: str = "",
@@ -258,53 +174,83 @@ def _pick_and_download_for_slot(
     stem: str,
     used_links: set[str],
     used_locals: set[str],
-) -> tuple[str, str, str, str]:
-    """Trả (local_url, remote_link, search_query, source)."""
-    strategy = _image_strategy()
-    query = build_image_search_query_for_section(
-        section_heading=section_heading,
-        section_content=section_content,
-        main_keyword=primary_keyword,
+    user_id: int | None = None,
+    project_id: str | None = None,
+    featured: bool = False,
+    image_strategy_override: str | None = None,
+    on_status: Callable[[str], None] | None = None,
+    db=None,
+    user=None,
+) -> tuple[str, str, str, str, dict[str, Any]]:
+    """Trả (local_url, remote_link, search_query, source, metadata)."""
+    strategy = _resolve_strategy(image_strategy_override)
+    orientation = _slot_orientation(
+        featured=featured,
+        industry=industry,
+        keyword=primary_keyword,
         brand_name=brand_name,
+        section_heading=section_heading,
     )
+    query = ""
 
     if strategy != "ai":
-        ranked, _source, query = _search_candidates_for_slot(
-            primary_keyword=primary_keyword,
+        if on_status:
+            on_status("Đang tìm ảnh…")
+        picked, source, query = find_best_for_slot(
+            keyword=primary_keyword,
             title=title,
             section_heading=section_heading,
             section_content=section_content,
+            outline=outline,
             brand_name=brand_name,
-            per_query=15,
-        )
-        picked = (
-            pick_best_image_candidate(
-                ranked,
-                primary_keyword=primary_keyword,
-                title=title,
-                section_heading=section_heading,
-            )
-            if ranked
-            else None
+            orientation=orientation,
+            db=db,
+            user=user,
         )
         if picked:
             link = str(picked.get("link") or "")
             if link in used_links:
-                for alt in ranked:
-                    alt_link = str(alt.get("link") or "")
-                    if alt_link and alt_link not in used_links:
-                        picked = alt
-                        link = alt_link
-                        break
-            local_url = _try_download_item(picked, stem=stem, used_locals=used_locals)
-            if local_url:
-                return local_url, link, query, _source or "web_image_search"
+                picked = None
+            if picked and link:
+                try:
+                    if on_status:
+                        on_status("Đang tối ưu ảnh…")
+                    opt = optimize_remote_image(
+                        link,
+                        stem=stem,
+                        orientation=orientation,
+                        prefer_landscape_crop=orientation == "landscape",
+                        user_id=user_id,
+                        project_id=project_id,
+                    )
+                    if opt.local_url in used_locals:
+                        return "", "", query, source or "", {}
+                    ctx = {"heading": section_heading, "content": section_content}
+                    meta = {
+                        "provider": picked.get("provider") or source,
+                        "source_url": picked.get("source_url") or link,
+                        "license": picked.get("license") or "",
+                        "author": picked.get("author") or "",
+                        "filename": opt.filename,
+                        "alt": suggest_image_alt_text(ctx, primary_keyword),
+                        "caption": suggest_image_caption(ctx),
+                        "role": "featured" if featured else "inline",
+                        "bytes": opt.bytes_size,
+                        "width": opt.width,
+                        "height": opt.height,
+                        "query": query,
+                    }
+                    return opt.local_url, link, query, source or "licensed_api", meta
+                except ValueError:
+                    pass
 
     if strategy == "web":
-        return "", "", query, ""
+        return "", "", query, "", {}
 
     try:
-        local_url, prompt_used = _generate_slot_image_ai(
+        if on_status:
+            on_status("Đang tạo ảnh AI…")
+        local_url, prompt_used, meta = _generate_slot_image_ai(
             primary_keyword=primary_keyword,
             title=title,
             section_heading=section_heading,
@@ -314,55 +260,48 @@ def _pick_and_download_for_slot(
             industry=industry,
             image_style=image_style,
             stem=stem,
+            orientation=orientation,
+            user_id=user_id,
+            project_id=project_id,
+            db=db,
+            user=user,
         )
         if local_url and local_url not in used_locals:
-            return local_url, "openai-generated", prompt_used or query, "openai_image"
-    except ValueError:
-        pass
-    return "", "", query, ""
-
-
-def _try_download_item(
-    it: dict[str, Any],
-    *,
-    stem: str,
-    used_locals: set[str],
-) -> str:
-    candidates: list[str] = []
-    for u in (str(it.get("thumbnail") or "").strip(), str(it.get("link") or "").strip()):
-        if u and u not in candidates:
-            candidates.append(u)
-    for src in candidates:
-        try:
-            local_url = import_remote_image_url(src, stem=stem)
-            if local_url in used_locals:
-                continue
-            return local_url
-        except ValueError:
-            continue
-    return ""
+            meta["query"] = prompt_used
+            return local_url, "openrouter-generated", prompt_used, "openrouter_image", meta
+    except ValueError as exc:
+        if strategy == "ai":
+            raise ValueError(str(exc)) from exc
+    return "", "", query, "", {}
 
 
 def enrich_project_with_context_images(
     project: dict[str, Any],
     *,
     max_inline: int | None = None,
+    word_count_target: int | None = None,
     update_featured: bool = True,
+    require_featured: bool = True,
     force: bool = False,
+    image_strategy_override: str | None = None,
+    on_status: Callable[[str], None] | None = None,
+    db=None,
+    user=None,
 ) -> dict[str, Any]:
-    """
-    Tìm ảnh khớp ngữ cảnh (từ khóa + tiêu đề + H2), gán featured_image và chèn ảnh vào content HTML.
-    """
     pk = str(project.get("primary_keyword") or "").strip()
-    title = str(project.get("title") or "").strip()
-    outline = str(project.get("outline_content") or "").strip()
+    title = str(project.get("title") or project.get("custom_title") or "").strip()
+    outline = str(project.get("outline_content") or project.get("custom_outline") or "").strip()
     secondary = project.get("secondary_keywords") or []
     if not isinstance(secondary, list):
         secondary = []
     raw_content = _resolve_project_content(project)
     content = prepare_content_html_for_images(raw_content, outline)
     word_count = len(_strip_html_text(content).split()) if content else 0
-    max_slots = max(0, min(int(max_inline or MAX_INLINE_IMAGES), 6))
+    if max_inline is None:
+        wc_basis = int(word_count_target or word_count or 0)
+        max_slots = inline_image_count_for_word_count(wc_basis)
+    else:
+        max_slots = max(0, min(int(max_inline), 6))
 
     if not pk:
         raise ValueError("Cần từ khóa chính để tìm ảnh đúng ngữ cảnh.")
@@ -370,50 +309,33 @@ def enrich_project_with_context_images(
     brand_name = str(project.get("brand_name") or project.get("target_website") or "").strip()
     target_audience = str(project.get("target_audience") or "").strip()
     industry = str(project.get("industry") or "").strip()
-    if pk and not brand_name:
-        try:
-            from app.services.content_ai_knowledge_context import get_relevant_knowledge_for_keyword
-
-            kb = get_relevant_knowledge_for_keyword(
-                pk,
-                target_website=str(project.get("target_website") or ""),
-            )
-            if kb.get("found"):
-                brand_name = str(kb.get("brand_name") or brand_name).strip()
-                if not target_audience:
-                    aud = str((kb.get("sections") or {}).get("audience") or "").strip()
-                    if aud:
-                        target_audience = aud[:400]
-                if not industry and kb.get("image_context"):
-                    industry = str(kb.get("image_context") or "")[:300]
-        except Exception:
-            pass
     image_style = get_default_content_ai_image_style()
     intro_content = _strip_html_text(content)[:500]
 
-    stem = re.sub(
-        r"[^a-zA-Z0-9_-]+",
-        "-",
-        pk or title or "content-img",
-    )[:40].strip("-") or "content-img"
-
+    stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", pk or title or "content-img")[:40].strip("-") or "content-img"
     used_links: set[str] = set()
     used_locals: set[str] = set()
     gallery: list[str] = list(project.get("gallery_images") or [])
     if not isinstance(gallery, list):
         gallery = []
+    image_assets: list[dict[str, Any]] = list(project.get("image_assets") or [])
+    if not isinstance(image_assets, list):
+        image_assets = []
 
     existing_featured = str(project.get("featured_image") or "").strip()
     featured_local = existing_featured if existing_featured and not force else ""
     used_query = ""
-    image_source = "web_image_search"
+    image_source = "licensed_api"
+    owner_id = int(project.get("user_id") or 0) or None
+    project_id = str(project.get("id") or "").strip() or None
 
     if update_featured and not featured_local:
-        local_url, link, used_query, src = _pick_and_download_for_slot(
+        local_url, link, used_query, src, meta = _pick_and_download_for_slot(
             primary_keyword=pk,
             title=title,
             section_heading=title or pk,
             section_content=intro_content,
+            outline=outline,
             brand_name=brand_name,
             target_audience=target_audience,
             industry=industry,
@@ -421,19 +343,27 @@ def enrich_project_with_context_images(
             stem=f"{stem}-feat",
             used_links=used_links,
             used_locals=used_locals,
+            user_id=owner_id,
+            project_id=project_id,
+            featured=True,
+            image_strategy_override=image_strategy_override,
+            on_status=on_status,
+            db=db,
+            user=user,
         )
         if src:
             image_source = src
         if local_url:
             featured_local = local_url
-            if link and link != "openai-generated":
+            if link and link not in ("openai-generated", "openrouter-generated"):
                 used_links.add(link)
             if local_url not in gallery:
                 gallery.insert(0, local_url)
-        if not featured_local and not existing_featured:
+            if meta:
+                image_assets.append({**meta, "url": local_url, "role": "featured"})
+        if not featured_local and not existing_featured and require_featured:
             raise ValueError(
-                "Không tìm được ảnh đại diện phù hợp chủ đề. "
-                "Kiểm tra OPENAI_API_KEY hoặc thêm PEXELS_API_KEY trong env.local."
+                "Không tìm được ảnh đại diện phù hợp. Cấu hình GOOGLE_CSE hoặc PEXELS/UNSPLASH/PIXABAY trong env.local."
             )
     elif update_featured and featured_local and featured_local not in gallery:
         gallery.insert(0, featured_local)
@@ -442,26 +372,21 @@ def enrich_project_with_context_images(
     existing_imgs = count_content_images(content)
     h2s = extract_h2_headings(content, outline)
     need_inline = force or existing_imgs < max(1, max_slots)
-    placements_used: list[dict[str, Any]] = []
 
     if content and word_count >= MIN_WORDS_FOR_INLINE and need_inline and max_slots > 0:
-        placements = choose_image_placement(
-            article_outline=outline,
-            article_html=content,
-            max_images=max_slots,
-        )
+        placements = choose_image_placement(article_outline=outline, article_html=content, max_images=max_slots)
         if placements:
-            placements_used = placements
             for pi, placement in enumerate(placements):
                 ctx = placement.get("context") or {}
                 h2 = str(ctx.get("heading") or "").strip()
                 section_body = str(ctx.get("content") or "").strip()
                 h2_index = int(placement.get("h2_index") or pi)
-                local_url, link, q_used, src = _pick_and_download_for_slot(
+                local_url, link, q_used, src, meta = _pick_and_download_for_slot(
                     primary_keyword=pk,
                     title=title,
                     section_heading=h2,
                     section_content=section_body,
+                    outline=outline,
                     brand_name=brand_name,
                     target_audience=target_audience,
                     industry=industry,
@@ -469,37 +394,51 @@ def enrich_project_with_context_images(
                     stem=f"{stem}-s{pi + 1}",
                     used_links=used_links,
                     used_locals=used_locals,
+                    user_id=owner_id,
+                    project_id=project_id,
+                    featured=False,
+                    image_strategy_override=image_strategy_override,
+                    on_status=on_status,
+                    db=db,
+                    user=user,
                 )
                 if q_used and not used_query:
                     used_query = q_used
                 if src:
                     image_source = src
                 if local_url:
-                    if link and link != "openai-generated":
+                    if link and link not in ("openai-generated", "openrouter-generated"):
                         used_links.add(link)
                     used_locals.add(local_url)
                     if local_url not in gallery:
                         gallery.append(local_url)
-                    alt = suggest_image_alt_text(ctx, pk)
-                    caption = suggest_image_caption(ctx)
+                    alt = meta.get("alt") or suggest_image_alt_text(ctx, pk)
+                    caption = meta.get("caption") or suggest_image_caption(ctx)
+                    if meta:
+                        image_assets.append({**meta, "url": local_url, "role": "inline"})
                     inline_inserts.append(
                         {
                             "h2_index": h2_index,
                             "url": local_url,
                             "alt": alt,
                             "caption": caption,
+                            "meta": meta,
                         }
                     )
         elif h2s:
-            slots = min(max_slots, len(h2s))
-            for hi in range(slots):
-                h2 = h2s[hi]
-                ctx = {"heading": h2, "content": ""}
-                local_url, link, q_used, src = _pick_and_download_for_slot(
+            section_map = {
+                str(c.get("heading") or "").strip().lower(): c
+                for c in extract_image_contexts_from_article(article_html=content, outline=outline)
+            }
+            for hi, h2 in enumerate(h2s[:max_slots]):
+                ctx = section_map.get(h2.strip().lower()) or {"heading": h2, "content": ""}
+                section_body = str(ctx.get("content") or "").strip()
+                local_url, link, q_used, src, meta = _pick_and_download_for_slot(
                     primary_keyword=pk,
                     title=title,
                     section_heading=h2,
-                    section_content="",
+                    section_content=section_body,
+                    outline=outline,
                     brand_name=brand_name,
                     target_audience=target_audience,
                     industry=industry,
@@ -507,79 +446,58 @@ def enrich_project_with_context_images(
                     stem=f"{stem}-s{hi + 1}",
                     used_links=used_links,
                     used_locals=used_locals,
+                    user_id=owner_id,
+                    project_id=project_id,
+                    image_strategy_override=image_strategy_override,
+                    on_status=on_status,
+                    db=db,
+                    user=user,
                 )
                 if q_used and not used_query:
                     used_query = q_used
                 if src:
                     image_source = src
                 if local_url:
-                    if link and link != "openai-generated":
+                    if link and link not in ("openai-generated", "openrouter-generated"):
                         used_links.add(link)
                     used_locals.add(local_url)
                     if local_url not in gallery:
                         gallery.append(local_url)
+                    if meta:
+                        image_assets.append({**meta, "url": local_url, "role": "inline"})
                     inline_inserts.append(
                         {
                             "h2_index": hi,
                             "url": local_url,
-                            "alt": suggest_image_alt_text(ctx, pk),
-                            "caption": suggest_image_caption(ctx),
+                            "alt": meta.get("alt") or suggest_image_alt_text(ctx, pk),
+                            "caption": meta.get("caption") or suggest_image_caption(ctx),
+                            "meta": meta,
                         }
                     )
-        else:
-            para_ends = _paragraph_end_positions(content)
-            if len(para_ends) >= 2:
-                n = min(slots, len(para_ends) - 1)
-                step = max(1, len(para_ends) // (n + 1))
-                indices = [min(i * step, len(para_ends) - 1) for i in range(1, n + 1)]
-                for si, pi in enumerate(indices[:slots]):
-                    ctx = {"heading": pk, "content": _strip_html_text(content)[:400]}
-                    local_url, link, q_used, src = _pick_and_download_for_slot(
-                        primary_keyword=pk,
-                        title=title,
-                        section_heading=pk,
-                        section_content=ctx["content"],
-                        brand_name=brand_name,
-                        target_audience=target_audience,
-                        industry=industry,
-                        image_style=image_style,
-                        stem=f"{stem}-p{si + 1}",
-                        used_links=used_links,
-                        used_locals=used_locals,
-                    )
-                    if q_used and not used_query:
-                        used_query = q_used
-                    if src:
-                        image_source = src
-                    if local_url:
-                        if link and link != "openai-generated":
-                            used_links.add(link)
-                        used_locals.add(local_url)
-                        if local_url not in gallery:
-                            gallery.append(local_url)
-                        inline_inserts.append(
-                            {
-                                "paragraph_index": pi,
-                                "url": local_url,
-                                "alt": suggest_image_alt_text(ctx, pk),
-                                "caption": suggest_image_caption(ctx),
-                            }
-                        )
 
-    new_content = content
-    if inline_inserts:
-        new_content = inject_images_into_content_html(content, inline_inserts)
+    if inline_inserts and on_status:
+        on_status("Đang chèn ảnh vào bài…")
+    new_content = inject_images_into_content_html(content, inline_inserts) if inline_inserts else content
+    from app.services.content_ai_image_guard import repair_content_html_images
+
+    site_base = str(project.get("target_website") or brand_name or "").strip().rstrip("/")
+    new_content = repair_content_html_images(
+        new_content,
+        site_base=site_base,
+        source="enrich_project_images",
+        probe_remote=False,
+    )
 
     return {
         "featured_image": featured_local or existing_featured,
         "content": new_content,
         "gallery_images": gallery,
+        "image_assets": image_assets,
         "used_query": used_query,
         "image_source": image_source,
         "inline_images_count": len(inline_inserts),
         "content_images_total": count_content_images(new_content),
         "content_prepared": content != raw_content,
-        "image_placements": len(placements_used),
     }
 
 
@@ -588,8 +506,14 @@ def auto_insert_images_to_project(
     *,
     user_id: int,
     max_inline: int | None = None,
+    word_count_target: int | None = None,
     update_featured: bool = True,
+    require_featured: bool = True,
     force: bool = False,
+    image_strategy_override: str | None = None,
+    on_status: Callable[[str], None] | None = None,
+    db=None,
+    user=None,
 ) -> dict[str, Any]:
     from app.services.content_ai_project_store import (
         get_content_ai_project,
@@ -607,12 +531,19 @@ def auto_insert_images_to_project(
     enriched = enrich_project_with_context_images(
         project,
         max_inline=max_inline,
+        word_count_target=word_count_target,
         update_featured=update_featured,
+        require_featured=require_featured,
         force=force,
+        image_strategy_override=image_strategy_override,
+        on_status=on_status,
+        db=db,
+        user=user,
     )
     fields: dict[str, Any] = {
         "content": enriched["content"],
         "gallery_images": enriched["gallery_images"],
+        "image_assets": enriched.get("image_assets") or [],
     }
     if enriched.get("featured_image"):
         fields["featured_image"] = enriched["featured_image"]
@@ -626,7 +557,182 @@ def auto_insert_images_to_project(
         "featured_image": enriched.get("featured_image") or "",
         "inline_images_count": enriched.get("inline_images_count") or 0,
         "content_images_total": enriched.get("content_images_total") or 0,
-        "source": enriched.get("image_source") or "web_image_search",
+        "source": enriched.get("image_source") or "licensed_api",
         "query": enriched.get("used_query") or "",
+        "image_assets": enriched.get("image_assets") or [],
         "project": full,
     }
+
+
+def bulk_fetch_images_for_projects(
+    project_ids: list[str],
+    *,
+    user_id: int,
+    max_inline: int = 4,
+    force: bool = False,
+    only_without_images: bool = True,
+    db=None,
+    user=None,
+) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    for pid in project_ids:
+        pid = str(pid or "").strip()
+        if not pid:
+            continue
+        try:
+            from app.services.content_ai_project_store import get_content_ai_project
+
+            row = get_content_ai_project(pid, user_id=user_id)
+            if not row:
+                errors.append({"project_id": pid, "error": "Không tìm thấy project."})
+                continue
+            if only_without_images:
+                html = _resolve_project_content(row)
+                if str(row.get("featured_image") or "").strip() and count_content_images(html) >= 1:
+                    results.append({"project_id": pid, "skipped": True, "reason": "already_has_images"})
+                    continue
+            out = auto_insert_images_to_project(
+                pid,
+                user_id=user_id,
+                max_inline=max_inline,
+                update_featured=True,
+                force=force,
+                db=db,
+                user=user,
+            )
+            results.append(
+                {
+                    "project_id": pid,
+                    "ok": True,
+                    "featured_image": out.get("featured_image"),
+                    "inline_images_count": out.get("inline_images_count"),
+                    "source": out.get("source"),
+                }
+            )
+        except Exception as exc:
+            errors.append({"project_id": pid, "error": str(exc)[:500]})
+    return {"ok": True, "results": results, "errors": errors, "count": len([r for r in results if r.get("ok")])}
+
+
+MAX_IMAGE_BYTES = 200 * 1024
+ALLOWED_IMAGE_FORMATS = frozenset({"JPEG", "WEBP", "JPG"})
+
+
+def _featured_asset(project: dict[str, Any]) -> dict[str, Any] | None:
+    assets = project.get("image_assets") or []
+    if not isinstance(assets, list):
+        return None
+    for a in assets:
+        if isinstance(a, dict) and str(a.get("role") or "") == "featured":
+            return a
+    return assets[0] if assets and isinstance(assets[0], dict) else None
+
+
+def compute_project_image_status(project: dict[str, Any] | None) -> dict[str, Any]:
+    """Trả status UI: none|ok|bad_format|too_large + metadata."""
+    if not project:
+        return {"status": "none", "error": "", "featured": None, "assets": []}
+    from app.services.content_ai_project_store import _resolve_project_content
+
+    content = _resolve_project_content(project)
+    if not str(content or "").strip():
+        return {"status": "none", "error": "Chưa có nội dung bài viết.", "featured": None, "assets": []}
+    featured_url = str(project.get("featured_image") or "").strip()
+    assets = [a for a in (project.get("image_assets") or []) if isinstance(a, dict)]
+    feat = _featured_asset(project) or {}
+    if not featured_url and not assets:
+        if count_content_images(content) > 0:
+            return {
+                "status": "ok",
+                "error": "",
+                "featured": {"url": "", "alt": "", "caption": ""},
+                "assets": assets,
+            }
+        return {"status": "none", "error": "", "featured": None, "assets": []}
+    fmt = str(feat.get("format") or "").upper().replace("JPG", "JPEG")
+    if fmt and fmt not in ALLOWED_IMAGE_FORMATS and fmt != "JPEG":
+        return {
+            "status": "bad_format",
+            "error": f"Định dạng {fmt} không được phép (chỉ JPG/WEBP).",
+            "featured": _pack_featured(feat, featured_url),
+            "assets": assets,
+        }
+    nbytes = int(feat.get("bytes") or 0)
+    if nbytes > MAX_IMAGE_BYTES:
+        return {
+            "status": "too_large",
+            "error": f"Ảnh {round(nbytes / 1024, 1)}KB vượt 200KB.",
+            "featured": _pack_featured(feat, featured_url),
+            "assets": assets,
+        }
+    return {
+        "status": "ok",
+        "error": "",
+        "featured": _pack_featured(feat, featured_url),
+        "assets": assets,
+    }
+
+
+def _pack_featured(feat: dict[str, Any], url: str) -> dict[str, Any]:
+    return {
+        "url": url or str(feat.get("url") or ""),
+        "alt": str(feat.get("alt") or ""),
+        "caption": str(feat.get("caption") or ""),
+        "source_url": str(feat.get("source_url") or ""),
+        "license": str(feat.get("license") or ""),
+        "author": str(feat.get("author") or ""),
+        "provider": str(feat.get("provider") or ""),
+        "format": str(feat.get("format") or ""),
+        "bytes": int(feat.get("bytes") or 0),
+        "filename": str(feat.get("filename") or ""),
+        "width": feat.get("width"),
+        "height": feat.get("height"),
+    }
+
+
+def bulk_image_status_for_projects(project_ids: list[str], *, user_id: int) -> dict[str, Any]:
+    from app.services.content_ai_project_store import get_content_ai_project
+
+    items: list[dict[str, Any]] = []
+    for pid in project_ids:
+        pid = str(pid or "").strip()
+        if not pid:
+            continue
+        row = get_content_ai_project(pid, user_id=user_id)
+        st = compute_project_image_status(row)
+        items.append({"project_id": pid, "keyword": str((row or {}).get("primary_keyword") or ""), **st})
+    return {"ok": True, "items": items}
+
+
+def clear_project_images(project_id: str, *, user_id: int) -> dict[str, Any]:
+    import re
+
+    from app.services.content_ai_project_store import (
+        _resolve_project_content,
+        get_content_ai_project,
+        update_content_ai_project_fields,
+    )
+
+    project = get_content_ai_project(project_id, user_id=user_id)
+    if not project:
+        raise ValueError("Không tìm thấy project.")
+    raw = _resolve_project_content(project)
+    cleaned = re.sub(
+        r'<figure[^>]*class="[^"]*content-ai-inline-image[^"]*"[^>]*>.*?</figure>',
+        "",
+        raw or "",
+        flags=re.I | re.S,
+    )
+    cleaned = re.sub(r"<figure[^>]*>.*?</figure>", "", cleaned, count=5, flags=re.I | re.S)
+    update_content_ai_project_fields(
+        project_id,
+        {
+            "featured_image": "",
+            "gallery_images": [],
+            "image_assets": [],
+            "content": cleaned,
+        },
+        user_id=user_id,
+    )
+    return {"ok": True, "project_id": project_id}

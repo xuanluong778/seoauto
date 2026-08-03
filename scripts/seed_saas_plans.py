@@ -20,6 +20,8 @@ from app.db import SessionLocal
 from app.models.plan import Plan
 from app.models.subscription import Subscription  # noqa: F401 — resolve Plan.subscriptions
 from app.models.usage_limit import UsageLimit
+from app.services.plan_quota_registry import iter_usage_limits
+from app.services.saas_hybrid_pricing import FREE_TRIAL_HYBRID_NOTE, HYBRID_PLAN_DEFAULTS
 
 PLANS: list[dict[str, Any]] = [
     {
@@ -33,7 +35,12 @@ PLANS: list[dict[str, Any]] = [
         "is_public": True,
         "sort_order": 0,
         "metadata_json": json.dumps(
-            {"trial_days": 5, "note": "Yêu cầu API key cá nhân", "byok": True},
+            {
+                "trial_days": 5,
+                "note": FREE_TRIAL_HYBRID_NOTE,
+                "byok": True,
+                "hybrid_demo": True,
+            },
             ensure_ascii=False,
         ),
     },
@@ -52,7 +59,7 @@ PLANS: list[dict[str, Any]] = [
     {
         "slug": "starter",
         "name": "Basic",
-        "price_amount": 250_000,
+        "price_amount": HYBRID_PLAN_DEFAULTS["starter"]["month_price"],
         "currency": "VND",
         "billing_cycle": "monthly",
         "is_active": True,
@@ -62,7 +69,7 @@ PLANS: list[dict[str, Any]] = [
     {
         "slug": "pro",
         "name": "Pro",
-        "price_amount": 415_000,
+        "price_amount": HYBRID_PLAN_DEFAULTS["pro"]["month_price"],
         "currency": "VND",
         "billing_cycle": "monthly",
         "is_active": True,
@@ -72,12 +79,23 @@ PLANS: list[dict[str, Any]] = [
     {
         "slug": "agency",
         "name": "Agency",
-        "price_amount": 748_333,
+        "price_amount": HYBRID_PLAN_DEFAULTS["agency"]["month_price"],
         "currency": "VND",
         "billing_cycle": "monthly",
         "is_active": True,
         "is_public": True,
         "sort_order": 3,
+    },
+    {
+        "slug": "business",
+        "name": "Business",
+        "description": "Công ty, team lớn",
+        "price_amount": HYBRID_PLAN_DEFAULTS["business"]["month_price"],
+        "currency": "VND",
+        "billing_cycle": "monthly",
+        "is_active": True,
+        "is_public": True,
+        "sort_order": 4,
     },
     {
         "slug": "unlimited",
@@ -91,38 +109,8 @@ PLANS: list[dict[str, Any]] = [
     },
 ]
 
-# (plan_slug, feature_key, limit_value, period, is_hard_limit)
-USAGE_LIMITS: list[tuple[str, str, int, str, bool]] = [
-    # Free Trial 5 ngày — BYOK (catalog / admin; enforcement off)
-    ("free_trial_5d", "wordpress_site", 1, "lifetime", True),
-    ("free_trial_5d", "content_ai_article", 25, "lifetime", True),
-    ("free_trial_5d", "content_ai_article", 5, "daily", True),
-    ("free_trial_5d", "technical_audit", 5, "lifetime", True),
-    ("free_trial_5d", "keyword_research", 3000, "lifetime", True),
-    ("free_trial_5d", "keyword_cluster", 500, "lifetime", True),
-    ("free_trial_5d", "image_generate", 20, "lifetime", True),
-    ("free_trial_5d", "internal_link", 0, "lifetime", True),
-    ("free_trial_5d", "google_search_console", 0, "lifetime", True),
-    ("free_trial_5d", "content_ai_bulk_article", 0, "lifetime", True),
-    ("free_trial_5d", "wp_publish", 0, "lifetime", True),
-    ("starter", "content_ai_article", 50, "monthly", True),
-    ("starter", "wordpress_site", 3, "monthly", True),
-    ("starter", "keyword_research", 5000, "monthly", True),
-    ("starter", "technical_audit", 30, "monthly", True),
-    ("starter", "internal_link", 1, "monthly", True),
-    ("starter", "google_search_console", 1, "monthly", True),
-    ("pro", "content_ai_article", 100, "monthly", True),
-    ("pro", "wordpress_site", 10, "monthly", True),
-    ("pro", "keyword_research", 5000, "monthly", True),
-    ("pro", "technical_audit", 100, "monthly", True),
-    ("pro", "internal_link", 1, "monthly", True),
-    ("agency", "content_ai_article", 500, "monthly", True),
-    ("agency", "wordpress_site", 50, "monthly", True),
-    ("agency", "keyword_research", 5000, "monthly", True),
-    ("agency", "technical_audit", 500, "monthly", True),
-    ("agency", "internal_link", 1, "monthly", True),
-    ("agency", "content_ai_bulk_article", 1, "monthly", True),
-]
+# (plan_slug, feature_key, limit_value, period, is_hard_limit) — from plan_quota_registry
+USAGE_LIMITS: list[tuple[str, str, int, str, bool]] = iter_usage_limits()
 
 PLAN_LIMIT_KEYS: dict[str, frozenset[tuple[str, str]]] = {
     slug: frozenset((fk, period) for ps, fk, _, period, _ in USAGE_LIMITS if ps == slug)

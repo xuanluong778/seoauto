@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Keyword Clustering</title>
-    <script src="/static/js/digiseo-i18n.js"></script>
+    {% include "partials/digiseo_seo_head.html" %}
     {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/keyword-cluster-saas.css?v=10">
     <style>
         :root { --text: #eef2ff; --muted: #cbd5e1; --line: rgba(255,255,255,.22); --card: rgba(255,255,255,.12); }
         * { box-sizing: border-box; }
@@ -83,7 +83,7 @@
         .chart-card { background: rgba(15,23,42,.35); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
         .chart-wrap { width: 100%; overflow-x: auto; }
 
-        /* DigiSEO bright-green accent overrides */
+        /* Seoauto bright-green accent overrides */
         h1 { color: #00e676 !important; }
         .nav-dd-menu a:hover { background: rgba(0, 230, 118, 0.12) !important; color: #00e676 !important; }
         .nav-pro-badge {
@@ -101,67 +101,71 @@
     </style>
 </head>
 <body>
+<div id="kcToastHost" aria-live="polite" aria-atomic="true"></div>
 <aside class="sidebar" aria-label="Dự án keyword">
     <div class="sidebar-main">
         <h3 class="sb-title">Dự án keyword</h3>
-        <p class="sb-hint">Sau khi gom nhóm xong, dự án sẽ tự lưu và xuất hiện ở đây. Reload (F5) không mất dữ liệu.</p>
+        <p class="sb-hint">Dự án được lưu tự động sau khi gom nhóm xong.</p>
         <ul class="sb-list" id="clusterProjectList"></ul>
     </div>
 </aside>
 <main class="tool-main">
 <div class="wrap">
     {% include "partials/digiseo_top_nav.html" %}
+    {% include "partials/digiseo_keyword_tools.html" %}
     <div id="creditBanner" style="display:none;margin-bottom:14px;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.45;"></div>
 
-    <h1>Keyword Clustering</h1>
-    <p class="sub">API: <code style="color:#c4b5fd;">POST /keywords/cluster</code> — hybrid (semantic + SERP overlap có trọng số + intent gate). Tuỳ chọn <code>cluster_strictness</code>: strict | normal | loose.</p>
+    <h1>Gom nhóm từ khóa</h1>
+    <p class="sub ds-lead ds-lead--dark">Gom từ khóa thành cụm chủ đề theo ý định tìm kiếm.</p>
 
     <div class="card">
+        <label for="projectName">Tên dự án</label>
+        <input id="projectName" type="text" maxlength="255" placeholder="Ví dụ: Entity tháng 7, Dịch vụ SEO Q3…" style="margin-bottom:12px;">
         <label for="kws">Danh sách từ khóa (mỗi dòng một keyword)</label>
         <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:6px 0 6px;">
             <input id="excel" type="file" accept=".xlsx" style="width:auto;" />
             <button type="button" id="btnExcel" class="toggle">Upload Excel (.xlsx)</button>
-            <span style="font-size:12px;color:#cbd5e1;">Ưu tiên cột “keyword / từ khóa” (nếu có)</span>
+            <span style="font-size:12px;color:#cbd5e1;">Hỗ trợ .xlsx</span>
         </div>
-        <textarea id="kws" placeholder="best laptop&#10;top laptops for work&#10;laptop comparison"></textarea>
+        <textarea id="kws" placeholder="ví dụ:&#10;đào tạo seo&#10;khóa học seo&#10;seo là gì"></textarea>
         <div id="progress" class="card" style="padding:10px 12px; margin-top:10px; display:none;">
             <div style="height:8px;border-radius:999px;background:rgba(255,255,255,.15);overflow:hidden;">
                 <div id="bar" style="height:100%;width:0%;background:rgba(91,103,255,.85);transition:width .2s ease;"></div>
             </div>
             <div style="display:flex;justify-content:space-between;gap:10px;margin-top:6px;">
-                <div id="progText" style="font-size:12px;color:#cbd5e1;">Đang gom nhóm…</div>
+                <div id="progStatus" class="kc-progress-status">Đang xử lý…</div>
                 <div id="progPct" style="font-size:12px;color:#e2e8f0;font-weight:700;">0%</div>
             </div>
         </div>
-        <label style="margin-top:10px;"><input type="checkbox" id="fetchSerp" checked style="width:auto;margin-right:8px;">Fetch SERP cho overlap (bật = chuẩn)</label>
+        <label style="margin-top:10px;"><input type="checkbox" id="fetchSerp" checked style="width:auto;margin-right:8px;">Phân tích kết quả Google</label>
         <div style="margin-top:10px;">
-            <label for="strictness">Độ chặt cluster</label>
+            <label for="strictness">Độ chặt gom nhóm</label>
             <select id="strictness" style="max-width:220px;">
-                <option value="normal">normal</option>
-                <option value="strict">strict</option>
-                <option value="loose">loose</option>
+                <option value="normal">Vừa phải</option>
+                <option value="strict">Chặt</option>
+                <option value="loose">Rộng</option>
             </select>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px;">
             <div>
-                <label for="country">Quốc gia (gl)</label>
+                <label for="country">Quốc gia</label>
                 <input id="country" type="text" value="vn" maxlength="8" placeholder="vn">
             </div>
             <div>
-                <label for="language">Ngôn ngữ (hl)</label>
+                <label for="language">Ngôn ngữ</label>
                 <input id="language" type="text" value="vi" maxlength="8" placeholder="vi">
             </div>
             <div>
                 <label for="device">Thiết bị</label>
                 <select id="device">
-                    <option value="desktop">desktop</option>
-                    <option value="mobile">mobile</option>
+                    <option value="desktop">Máy tính</option>
+                    <option value="mobile">Di động</option>
                 </select>
             </div>
         </div>
-        <label for="brandUrl" style="margin-top:10px;">URL / domain ngữ cảnh thương hiệu (tuỳ chọn)</label>
+        <label for="brandUrl" style="margin-top:10px;">URL / domain (tuỳ chọn)</label>
         <input id="brandUrl" type="text" placeholder="https://mysite.com">
-        <button type="button" id="btnCluster">Chạy clustering</button>
+        <button type="button" id="btnCluster">Chạy gom nhóm</button>
         <button type="button" id="btnReset" class="toggle">Làm mới</button>
         <button type="button" id="btnXlsx">Export Excel</button>
         <button type="button" id="btnSheets">Export Google Sheets</button>
@@ -169,14 +173,148 @@
     </div>
 
     <div class="card" id="panel" hidden>
-        <div class="chart-card" id="topicChartCard" hidden>
-            <div class="sub" style="margin:0 0 10px;">Biểu đồ tổng volume theo topic</div>
-            <div class="chart-wrap" id="topicChartWrap"></div>
+        <div id="kcSkeleton" class="kc-skeleton-wrap" hidden aria-hidden="true">
+            <div class="kc-skeleton-summary">
+                <div class="kc-skeleton-card"></div>
+                <div class="kc-skeleton-card"></div>
+                <div class="kc-skeleton-card"></div>
+                <div class="kc-skeleton-card"></div>
+            </div>
+            <div class="kc-skeleton-grid">
+                <div class="kc-skeleton-block"></div>
+                <div class="kc-skeleton-block"></div>
+                <div class="kc-skeleton-block"></div>
+            </div>
         </div>
-        <div id="meta" class="sub" style="margin-bottom:12px;"></div>
-        <div id="clusters"></div>
+        <div id="kcResultsBody">
+        <div class="kc-summary">
+            <div class="kc-sum-card"><span>Tổng cụm</span><strong id="kcSumClusters">0</strong></div>
+            <div class="kc-sum-card"><span>Tổng từ khóa</span><strong id="kcSumKeywords">0</strong></div>
+            <div class="kc-sum-card"><span>Tổng volume</span><strong id="kcSumVolume">—</strong></div>
+            <div class="kc-sum-card"><span>Số bài có thể tạo</span><strong id="kcSumArticles">0</strong></div>
+        </div>
+        <div class="kc-chart-card" id="kcChartCard" hidden>
+            <p class="kc-chart-title">Top cụm theo volume</p>
+            <div id="kcChartWrap"></div>
+        </div>
+        <nav class="kc-tabs" role="tablist" aria-label="Kết quả gom nhóm">
+            <button type="button" class="kc-tab is-active" role="tab" id="kcTabClusters" aria-selected="true" aria-controls="kcPaneClusters" data-tab="clusters">Cụm từ khóa</button>
+            <button type="button" class="kc-tab" role="tab" id="kcTabContentMap" aria-selected="false" aria-controls="kcPaneContentMap" data-tab="contentmap">Bản đồ nội dung</button>
+        </nav>
+        <div id="kcPaneClusters" class="kc-tab-pane is-active" role="tabpanel" aria-labelledby="kcTabClusters">
+        <div class="kc-toolbar">
+            <div class="kc-toolbar-meta">
+                <label class="kc-check"><input type="checkbox" id="kcSelectAll" /> Chọn tất cả</label>
+                · <span id="kcSelectedCount">0 cụm đã chọn</span>
+            </div>
+            <button type="button" class="kc-btn kc-btn--primary" id="kcBtnBulkWrite" disabled>Viết hàng loạt</button>
+        </div>
+        <div id="meta" class="sub" style="margin-bottom:8px;" hidden></div>
+        <div id="kcClusterGrid" class="kc-grid"></div>
+        </div>
+        <div id="kcPaneContentMap" class="kc-tab-pane" role="tabpanel" aria-labelledby="kcTabContentMap" hidden>
+            <div class="kc-toolbar">
+                <div class="kc-toolbar-meta">
+                    <label class="kc-check"><input type="checkbox" id="kcMapSelectAll" /> Chọn tất cả</label>
+                    · <span id="kcMapSelectedCount">0 kế hoạch đã chọn</span>
+                </div>
+                <button type="button" class="kc-btn kc-btn--primary" id="kcMapBulkWrite" disabled>Gửi sang Content AI Bulk</button>
+            </div>
+            <div class="kc-map-table-wrap">
+                <table class="kc-map-table">
+                    <thead>
+                        <tr>
+                            <th class="kc-col-check">Chọn</th>
+                            <th>Chủ đề</th>
+                            <th>Keyword chính</th>
+                            <th class="kc-col-num">Volume</th>
+                            <th>Intent</th>
+                            <th>Loại bài</th>
+                            <th class="kc-col-num">Ưu tiên</th>
+                            <th class="kc-col-actions">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kcContentMapBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div id="clusters" hidden aria-hidden="true"></div>
+        </div>
     </div>
 </div>
+
+<div id="kcDrawerBackdrop" class="kc-cluster-modal-backdrop" aria-hidden="true"></div>
+<div id="kcDrawer" class="kc-cluster-modal" role="dialog" aria-modal="true" aria-labelledby="kcDrawerTitle" aria-hidden="true">
+    <div class="kc-cluster-modal__header">
+        <h2 id="kcDrawerTitle" class="kc-cluster-modal__title">Chi tiết cụm từ khóa</h2>
+        <button type="button" class="kc-cluster-modal__close" id="kcDrawerClose" aria-label="Đóng">&times;</button>
+    </div>
+    <div class="kc-cluster-modal__summary">
+        <div class="kc-cluster-stat">
+            <span class="kc-cluster-stat__label">Topic</span>
+            <strong id="kcDrawerTopic" class="kc-cluster-stat__value">—</strong>
+        </div>
+        <div class="kc-cluster-stat">
+            <span class="kc-cluster-stat__label">Total volume</span>
+            <strong id="kcDrawerVolume" class="kc-cluster-stat__value">—</strong>
+        </div>
+        <div class="kc-cluster-stat">
+            <span class="kc-cluster-stat__label">Total keyword</span>
+            <strong id="kcDrawerKwCount" class="kc-cluster-stat__value">—</strong>
+        </div>
+        <div class="kc-cluster-stat">
+            <span class="kc-cluster-stat__label">Intent</span>
+            <strong id="kcDrawerIntent" class="kc-cluster-stat__value kc-cluster-stat__intent">—</strong>
+        </div>
+    </div>
+    <div id="kcDrawerIntentWarn" class="kc-cluster-warn" hidden></div>
+    <div class="kc-cluster-modal__body">
+        <table class="kc-cluster-table no-digiseo-table">
+            <thead>
+                <tr>
+                    <th>Keyword</th>
+                    <th class="num">Volume</th>
+                    <th class="num">Matching point</th>
+                </tr>
+            </thead>
+            <tbody id="kcDrawerTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="kcBriefBackdrop" class="kc-modal-backdrop" aria-hidden="true"></div>
+<div id="kcBriefModal" class="kc-modal kc-brief-modal" aria-hidden="true" role="dialog" aria-labelledby="kcBriefTitle">
+    <div class="kc-modal-head">
+        <h2 id="kcBriefTitle">Sửa brief nội dung</h2>
+        <button type="button" class="kc-btn kc-btn--ghost" id="kcBriefClose">Đóng</button>
+    </div>
+    <div class="kc-modal-body">
+        <input type="hidden" id="kcBriefPlanId" value="" />
+        <label class="kc-brief-field">Tiêu đề đề xuất<input type="text" id="kcBriefTitleInput" /></label>
+        <label class="kc-brief-field">Loại bài<input type="text" id="kcBriefContentType" /></label>
+        <label class="kc-brief-field">Số từ mục tiêu<input type="number" id="kcBriefWordCount" min="800" max="4500" step="100" /></label>
+        <label class="kc-brief-field">Mô tả meta<textarea id="kcBriefMeta" rows="2"></textarea></label>
+        <label class="kc-brief-field">Dàn ý<textarea id="kcBriefOutline" rows="8"></textarea></label>
+    </div>
+    <div class="kc-modal-foot">
+        <button type="button" class="kc-btn kc-btn--ghost" id="kcBriefCancel">Hủy</button>
+        <button type="button" class="kc-btn kc-btn--primary" id="kcBriefSave">Lưu brief</button>
+    </div>
+</div>
+
+<div id="kcMapBackdrop" class="kc-modal-backdrop" aria-hidden="true"></div>
+<div id="kcContentMapModal" class="kc-modal" aria-hidden="true" role="dialog" aria-labelledby="kcMapTitle">
+    <div class="kc-modal-head">
+        <h2 id="kcMapTitle">Xem trước bản đồ nội dung</h2>
+        <button type="button" class="kc-btn kc-btn--ghost" id="kcMapClose">Đóng</button>
+    </div>
+    <div class="kc-modal-body" id="kcMapList"></div>
+    <div class="kc-modal-foot">
+        <button type="button" class="kc-btn kc-btn--ghost" id="kcMapClose2">Hủy</button>
+        <button type="button" class="kc-btn kc-btn--primary" id="kcMapSubmit">Gửi sang Content AI</button>
+    </div>
+</div>
+<script src="/static/js/keyword-cluster-saas.js?v=10"></script>
 <script>
 (function () {
     var lastClusters = null;
@@ -185,7 +323,19 @@
     var lastVolumeMap = {};
 
     function getSeoToken() {
-        try { return sessionStorage.getItem("seo_token") || ""; } catch (_e) { return ""; }
+        if (typeof window.DigiSeoGetAuthToken === "function") {
+            return window.DigiSeoGetAuthToken() || "";
+        }
+        try {
+            var t = (localStorage.getItem("seo_token") || "").trim();
+            if (t) return t;
+            t = (sessionStorage.getItem("seo_token") || "").trim();
+            if (t) return t;
+        } catch (_e) {}
+        try {
+            var m = document.cookie.match(/(?:^|;\s*)seo_token=([^;]*)/);
+            return m ? decodeURIComponent(m[1].replace(/\+/g, " ")).trim() : "";
+        } catch (_e2) { return ""; }
     }
     function authHeaders(json) {
         var h = {};
@@ -195,7 +345,7 @@
         return h;
     }
     function formatApiError(data, status) {
-        if (!data) return "HTTP " + status;
+        if (!data) return "Không thể xử lý yêu cầu.";
         if (Array.isArray(data.detail)) {
             return data.detail.map(function (x) { return (x.msg || x.type || "") + (x.loc ? " (" + x.loc.join(".") + ")" : ""); }).join("; ");
         }
@@ -207,7 +357,7 @@
             return m;
         }
         if (typeof data.detail === "string") return data.detail;
-        return "HTTP " + status;
+        return "Không thể xử lý yêu cầu.";
     }
     async function refreshCreditsBanner() {
         var b = document.getElementById("creditBanner");
@@ -221,10 +371,27 @@
                 b.style.border = "1px solid rgba(251,191,36,.9)";
                 b.style.background = "rgba(254,243,199,.95)";
                 b.style.color = "#78350f";
-                b.textContent = "Credit đang bật: đăng nhập trên trang chủ để gọi API clustering / volume.";
+                b.textContent = "Đăng nhập để sử dụng gom nhóm và tra volume.";
                 return;
             }
-            var me = await fetch("/auth/me", { headers: { Authorization: "Bearer " + t }, cache: "no-store" }).then(function (r) { return r.json(); });
+            var me = null;
+            if (typeof window.DigiSeoFetchAuthMe === "function") {
+                me = await window.DigiSeoFetchAuthMe();
+            } else {
+                me = await fetch("/auth/me", {
+                    credentials: "same-origin",
+                    headers: { Authorization: "Bearer " + t },
+                    cache: "no-store"
+                }).then(function (r) { return r.ok ? r.json() : null; });
+            }
+            if (!me || !me.email) {
+                b.style.display = "block";
+                b.style.border = "1px solid rgba(251,191,36,.9)";
+                b.style.background = "rgba(254,243,199,.95)";
+                b.style.color = "#78350f";
+                b.textContent = "Đăng nhập để sử dụng gom nhóm và tra volume.";
+                return;
+            }
             b.style.display = "block";
             b.style.border = "1px solid rgba(52,211,153,.85)";
             b.style.background = "rgba(209,250,229,.95)";
@@ -244,20 +411,35 @@
         } catch (e) { return ""; }
     }
 
+    function showToast(message, type) {
+        if (window.KcSaaS && typeof window.KcSaaS.showToast === "function") {
+            window.KcSaaS.showToast(message, type || "info");
+            return;
+        }
+        var m = document.getElementById("msg");
+        if (m) m.textContent = String(message || "");
+    }
+
     function setProgress(on) {
         var p = document.getElementById("progress");
         if (!p) return;
         p.style.display = on ? "block" : "none";
     }
 
-    function setPct(pct, msg) {
+    function setPct(pct, msg, state) {
         var b = document.getElementById("bar");
-        var t = document.getElementById("progText");
+        var statusEl = document.getElementById("progStatus");
         var p = document.getElementById("progPct");
         var x = Math.max(0, Math.min(100, Number(pct) || 0));
         if (b) b.style.width = x + "%";
         if (p) p.textContent = Math.round(x) + "%";
-        if (t && msg) t.textContent = String(msg);
+        var label = (window.KcSaaS && typeof window.KcSaaS.friendlyStatus === "function")
+            ? window.KcSaaS.friendlyStatus(msg, x, state)
+            : (msg || "Đang xử lý…");
+        if (statusEl) {
+            statusEl.textContent = label;
+            statusEl.classList.toggle("is-done", x >= 100 || label === "Hoàn tất");
+        }
     }
 
     function esc(s) {
@@ -266,18 +448,56 @@
         });
     }
 
+    function normalizeKeywords(list) {
+        var seen = {};
+        var out = [];
+        (list || []).forEach(function (k) {
+            if (k == null) return;
+            var s = String(k).trim();
+            if (!s) return;
+            var key = s.toLowerCase();
+            if (seen[key]) return;
+            seen[key] = true;
+            out.push(s);
+        });
+        return out;
+    }
+
+    function consumeResearchPrefill() {
+        var keys = ["keyword_clustering_prefill", "seoauto_cluster_keywords_prefill"];
+        for (var i = 0; i < keys.length; i++) {
+            try {
+                var raw = sessionStorage.getItem(keys[i]);
+                if (!raw) continue;
+                sessionStorage.removeItem(keys[i]);
+                var pre = JSON.parse(raw);
+                var kws = normalizeKeywords(pre && Array.isArray(pre.keywords) ? pre.keywords : []);
+                if (!kws.length) continue;
+                return { keywords: kws, pre: pre || {} };
+            } catch (_e) {}
+        }
+        return null;
+    }
+
+    function getProjectNameValue() {
+        var el = document.getElementById("projectName");
+        return el ? String(el.value || "").trim() : "";
+    }
+
     function clearResultUi() {
         lastClusters = null;
         lastKeywords = null;
         currentProjectId = null;
         lastVolumeMap = {};
         try { localStorage.removeItem("kw_cluster_current_project_id"); } catch (e) {}
+        var pn = document.getElementById("projectName");
+        if (pn) pn.value = "";
         var panel = document.getElementById("panel");
         if (panel) panel.hidden = true;
         var host = document.getElementById("clusters");
         if (host) host.innerHTML = "";
         var meta = document.getElementById("meta");
-        if (meta) meta.textContent = "";
+        if (meta) { meta.textContent = ""; meta.hidden = true; }
         var ch = document.getElementById("topicChartCard");
         if (ch) ch.hidden = true;
         var cw = document.getElementById("topicChartWrap");
@@ -304,7 +524,7 @@
             }
             if (!r.ok) {
                 if (r.status === 404) {
-                    throw new Error("Endpoint sidebar chưa có trên server đang chạy. Hãy tắt server và chạy lại `run.bat` để cập nhật.");
+                    throw new Error("Không tải được danh sách dự án. Vui lòng thử lại.");
                 }
                 throw new Error(d.detail || "Không tải được lịch sử");
             }
@@ -313,7 +533,7 @@
             if (!items.length) {
                 var li0 = document.createElement("li");
                 li0.className = "sb-empty";
-                li0.textContent = "Chưa có dự án clustering. Hãy nhập keyword và bấm «Chạy clustering».";
+                li0.textContent = "Chưa có dự án. Kết quả gom nhóm sẽ được lưu tự động tại đây.";
                 ul.appendChild(li0);
                 return;
             }
@@ -323,16 +543,7 @@
                 li.setAttribute("data-id", it.id);
                 var t = document.createElement("div");
                 t.className = "sb-domain";
-                t.textContent = it.keywords_label || ("Project #" + it.id);
-                var m = document.createElement("div");
-                m.className = "sb-meta";
-                var metaBits = [];
-                if (it.created_at) metaBits.push(fmtVi(it.created_at));
-                metaBits.push("SERP: " + (it.fetch_serp ? "on" : "off"));
-                if (it.cluster_strictness) metaBits.push("strictness: " + it.cluster_strictness);
-                if (it.country) metaBits.push("gl: " + it.country);
-                if (it.language) metaBits.push("hl: " + it.language);
-                m.textContent = metaBits.join(" · ");
+                t.textContent = it.project_name || ("Dự án #" + it.id);
                 var actions = document.createElement("div");
                 actions.className = "sb-actions";
                 var bOpen = document.createElement("button");
@@ -348,7 +559,6 @@
                 actions.appendChild(bOpen);
                 actions.appendChild(bDel);
                 li.appendChild(t);
-                li.appendChild(m);
                 li.appendChild(actions);
                 ul.appendChild(li);
             });
@@ -357,7 +567,8 @@
             ul.innerHTML = "";
             var liE = document.createElement("li");
             liE.className = "sb-empty";
-            liE.textContent = "Lỗi tải sidebar: " + String(e.message || e);
+            liE.textContent = "Không tải được danh sách dự án.";
+            showToast("Không tải được danh sách dự án.", "error");
             ul.appendChild(liE);
         }
     }
@@ -449,17 +660,19 @@
         var data = payload || {};
         lastClusters = data.clusters || [];
         lastVolumeMap = data.volumes || lastVolumeMap || {};
+        if (window.KcSaaS && typeof window.KcSaaS.render === "function") {
+            window.KcSaaS.render(data);
+            return;
+        }
         var meta = data.meta || {};
-        document.getElementById("meta").textContent = "Clusters: " + (meta.cluster_count || 0) +
-            (meta.truncated ? " (đã cắt còn tối đa " + meta.max_input + " keyword)" : "") +
-            " · SERP fetch: " + (meta.fetch_serp ? "on" : "off") +
-            (meta.cluster_strictness ? " · strictness: " + meta.cluster_strictness : "") +
-            (meta.search_volume_sum != null ? " · Tổng volume: " + fmtNum(meta.search_volume_sum) : "");
+        var metaEl = document.getElementById("meta");
+        if (metaEl) { metaEl.textContent = ""; metaEl.hidden = true; }
         var host = document.getElementById("clusters");
         host.innerHTML = "";
         var topicsForChart = [];
         lastClusters.forEach(function (c, idx) {
-            var kwsAll = (c.keywords || []);
+            var kwsAll = (c.keywords || c.variations || []);
+            var mainKw = c.main_keyword || c.primary_keyword || ("Cluster " + (idx + 1));
             var totalVol = 0;
             kwsAll.forEach(function (k) {
                 var v = lastVolumeMap && lastVolumeMap[k] != null ? (lastVolumeMap[k] || 0) : 0;
@@ -471,17 +684,17 @@
             card.className = "cluster-card";
             var serp = c.serp_overlap_score != null ? c.serp_overlap_score : "—";
             var h = document.createElement("h3");
-            h.textContent = c.main_keyword || ("Cluster " + (idx + 1));
+            h.textContent = mainKw;
             var pills = document.createElement("div");
-            var ct = c.suggested_content_type ? "<span class=\"pill\">content: " + esc(c.suggested_content_type) + "</span>" : "";
-            var pt = c.primary_serp_page_type ? "<span class=\"pill\">SERP: " + esc(c.primary_serp_page_type) + "</span>" : "";
-            pills.innerHTML = "<span class=\"pill\">intent: " + esc(c.intent || "") + "</span>" +
-                "<span class=\"pill\">keywords: " + (c.cluster_size || (c.keywords || []).length) + "</span>" +
-                "<span class=\"pill\">SERP overlap: " + esc(String(serp)) + "</span>" + ct + pt;
+            var ct = c.suggested_content_type ? "<span class=\"pill\">Loại bài</span>" : "";
+            var pt = c.primary_serp_page_type ? "<span class=\"pill\">Trang SERP</span>" : "";
+            pills.innerHTML = "<span class=\"pill\">" + esc(c.intent || "Informational") + "</span>" +
+                "<span class=\"pill\">" + (c.cluster_size || (c.keywords || c.variations || []).length) + " từ khóa</span>" +
+                "<span class=\"pill\">Tin cậy " + esc(String(c.confidence_score != null ? Math.round(c.confidence_score) : "—")) + "</span>" + ct + pt;
             var ul = document.createElement("ul");
             ul.className = "kw-list";
             ul.hidden = true;
-            (c.keywords || []).forEach(function (k) {
+            (c.keywords || c.variations || []).forEach(function (k) {
                 var li = document.createElement("li");
                 li.textContent = k;
                 ul.appendChild(li);
@@ -489,10 +702,10 @@
             var toggleBtn = document.createElement("button");
             toggleBtn.type = "button";
             toggleBtn.className = "toggle";
-            toggleBtn.textContent = "Xem tất cả keywords";
+            toggleBtn.textContent = "Xem chi tiết";
             toggleBtn.addEventListener("click", function () {
                 ul.hidden = !ul.hidden;
-                toggleBtn.textContent = ul.hidden ? "Xem tất cả keywords" : "Thu gọn";
+                toggleBtn.textContent = ul.hidden ? "Xem chi tiết" : "Thu gọn";
             });
             card.appendChild(h);
             card.appendChild(pills);
@@ -500,9 +713,9 @@
             // bảng 3 cột: keyword (main/sub), phân loại, volume
             var table = document.createElement("table");
             table.className = "topic-table";
-            table.innerHTML = "<thead><tr><th>Từ khóa (chính/phụ)</th><th>Phân Loại</th><th style=\"text-align:right;\">Volume seach</th></tr></thead>";
+            table.innerHTML = "<thead><tr><th>Từ khóa</th><th>Phân loại</th><th style=\"text-align:right;\">Volume</th></tr></thead>";
             var tbody = document.createElement("tbody");
-            var mainKw = c.main_keyword || ("Cluster " + (idx + 1));
+            var mainKw = c.main_keyword || c.primary_keyword || ("Cluster " + (idx + 1));
             var intent = c.intent || "";
             function addRow(role, kw) {
                 var tr = document.createElement("tr");
@@ -555,6 +768,8 @@
             lastKeywords = kws;
             document.getElementById("kws").value = kws.join("\n");
             if (d.project) {
+                var pnEl = document.getElementById("projectName");
+                if (pnEl) pnEl.value = d.project.project_name || "";
                 document.getElementById("fetchSerp").checked = !!d.project.fetch_serp;
                 document.getElementById("country").value = d.project.country || "vn";
                 document.getElementById("language").value = d.project.language || "vi";
@@ -571,14 +786,15 @@
                 res.volumes = lastVolumeMap;
             }
             renderClustersFromPayload(res);
+            showToast("Đã mở dự án.", "success");
         } catch (e) {
-            msg.textContent = String(e.message || e);
+            showToast(String(e.message || e), "error");
         }
     }
 
     async function deleteClusterProject(projectId) {
         if (!projectId) return;
-        if (!confirm("Xóa project clustering này?")) return;
+        if (!confirm("Bạn có chắc muốn xóa dự án này? Hành động này không thể hoàn tác.")) return;
         var msg = document.getElementById("msg");
         msg.textContent = "";
         try {
@@ -587,14 +803,14 @@
                 headers: authHeaders(),
             });
             var d = await r.json().catch(function () { return {}; });
-            if (!r.ok) throw new Error(d.detail || "Xóa lỗi");
+            if (!r.ok) throw new Error("Không thể xóa dự án.");
             if (String(currentProjectId || "") === String(projectId)) {
                 clearResultUi();
             }
             await loadClusterProjectList();
-            msg.textContent = "Đã xóa project.";
+            showToast("Đã xóa dự án.", "success");
         } catch (e) {
-            msg.textContent = String(e.message || e);
+            showToast(String(e.message || e), "error");
         }
     }
 
@@ -603,6 +819,7 @@
             if (!resultPayload.volumes) resultPayload.volumes = lastVolumeMap || {};
             var saveBody = {
                 keywords: lastKeywords || [],
+                project_name: getProjectNameValue() || null,
                 fetch_serp: !!runBody.fetch_serp,
                 country: runBody.country || "vn",
                 language: runBody.language || "vi",
@@ -619,6 +836,10 @@
             var d = await r.json().catch(function () { return {}; });
             if (!r.ok) throw new Error(formatApiError(d, r.status) || "Không lưu được project");
             currentProjectId = d.project_id;
+            if (d.project_name) {
+                var pnSave = document.getElementById("projectName");
+                if (pnSave) pnSave.value = d.project_name;
+            }
             try { localStorage.setItem("kw_cluster_current_project_id", String(currentProjectId)); } catch (e) {}
             await loadClusterProjectList();
             setActiveProjectInSidebar(currentProjectId);
@@ -658,10 +879,10 @@
                 return;
             }
             document.getElementById("kws").value = kws.join("\n");
-            msg.textContent = "Đã nhập " + kws.length + " keyword từ Excel.";
+            showToast("Đã nhập " + kws.length + " từ khóa từ Excel.", "success");
             refreshCreditsBanner();
         } catch (e) {
-            msg.textContent = (e && e.message) ? e.message : "Upload lỗi";
+            showToast((e && e.message) ? e.message : "Không thể đọc file Excel.", "error");
         } finally {
             var btn2 = document.getElementById("btnExcel");
             btn2.disabled = false;
@@ -673,13 +894,14 @@
         var msg = document.getElementById("msg");
         msg.textContent = "";
         var lines = document.getElementById("kws").value.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
-        if (!lines.length) { msg.textContent = "Nhập ít nhất một keyword."; return; }
+        if (!lines.length) { showToast("Nhập ít nhất một từ khóa.", "error"); return; }
         lastKeywords = lines;
         var btn = document.getElementById("btnCluster");
         var oldText = btn.textContent;
         btn.disabled = true;
         btn.textContent = "Đang gom nhóm…";
         setProgress(true);
+        if (window.KcSaaS && typeof window.KcSaaS.setLoading === "function") window.KcSaaS.setLoading(true);
         var body = {
             keywords: lines,
             fetch_serp: document.getElementById("fetchSerp").checked,
@@ -691,7 +913,7 @@
         var bu = document.getElementById("brandUrl").value.trim();
         if (bu) body.url = bu;
         try {
-            setPct(1, "Đang gom nhóm…");
+            setPct(1, "Đang gom nhóm…", "RUNNING");
             var r = await fetch("/keywords/cluster/async", {
                 method: "POST",
                 headers: authHeaders(true),
@@ -699,7 +921,7 @@
             });
             var queued = await r.json();
             if (!r.ok) {
-                msg.textContent = formatApiError(queued, r.status) || "Lỗi";
+                showToast(formatApiError(queued, r.status) || "Không thể bắt đầu gom nhóm.", "error");
                 if (r.status === 401 || r.status === 402) refreshCreditsBanner();
                 return;
             }
@@ -719,8 +941,8 @@
             for (;;) {
                 var pr = await fetch(pollUrl, { headers: authHeaders() });
                 var st = await pr.json();
-                if (!pr.ok) throw new Error(st.detail || "Không poll được tiến trình");
-                setPct(st.progress, st.message || "Đang xử lý…");
+                if (!pr.ok) throw new Error("Không theo dõi được tiến trình.");
+                setPct(st.progress, st.message || "", st.state);
                 var now2 = Date.now();
                 var progNow = Number(st.progress) || 0;
                 var msgNow = String(st.message || "");
@@ -736,28 +958,24 @@
                     if (!queuedFirstSeenAt) queuedFirstSeenAt = now;
                     if (!queuedWarnAt && (now - queuedFirstSeenAt) > 10000) {
                         queuedWarnAt = now;
-                        msg.textContent = "Worker chưa chạy, mở run_worker.bat để xử lý job (job đang chờ hàng đợi).";
                     }
                 } else {
-                    // Clear queued warning once worker starts running
                     if (queuedWarnAt) {
                         queuedWarnAt = 0;
                         queuedFirstSeenAt = 0;
-                        msg.textContent = "";
                     }
                 }
                 if (st.state === "SUCCESS") { done = true; result = st.result; break; }
-                if (st.state === "ERROR") throw new Error(st.error || "Job lỗi");
-                // Stop waiting only when clearly stuck (no updates) or beyond hard cap.
+                if (st.state === "ERROR") throw new Error("Gom nhóm thất bại. Vui lòng thử lại.");
                 if ((now2 - startedAt) > maxTotalMs) {
-                    throw new Error("Quá thời gian chờ (quá lâu). Trạng thái cuối: " + stateNow + " · " + progNow + "% · " + (msgNow || "—"));
+                    throw new Error("Quá thời gian chờ. Vui lòng thử lại với ít từ khóa hơn.");
                 }
                 if ((now2 - lastChangeAt) > staleMs) {
-                    throw new Error("Job không cập nhật > 5 phút. Trạng thái cuối: " + stateNow + " · " + progNow + "% · " + (msgNow || "—") + ". Nếu bật SERP thì hãy tắt SERP hoặc kiểm tra worker.");
+                    throw new Error("Quá thời gian chờ. Thử giảm số từ khóa hoặc tắt phân tích Google.");
                 }
                 await new Promise(function (res) { setTimeout(res, 900); });
             }
-            if (!done || !result) throw new Error("Job chưa trả kết quả. Trạng thái cuối: " + (lastState || "—") + " · " + (lastProg >= 0 ? lastProg : "—") + "%.");
+            if (!done || !result) throw new Error("Chưa nhận được kết quả. Vui lòng thử lại.");
 
             var data = result;
             // Prefer volumes shipped by backend; fallback to batch endpoint for older payloads.
@@ -774,14 +992,17 @@
             }
             renderClustersFromPayload(data);
             await saveClusterProject(body, data);
+            setPct(100, "Hoàn tất", "SUCCESS");
+            showToast("Gom nhóm hoàn tất.", "success");
             refreshCreditsBanner();
         } catch (e) {
-            msg.textContent = (e && e.message) ? e.message : "Lỗi khi gọi API.";
+            showToast((e && e.message) ? e.message : "Có lỗi xảy ra.", "error");
         } finally {
             btn.disabled = false;
             btn.textContent = oldText;
             setProgress(false);
-            setPct(0, "");
+            setPct(0, "", "");
+            if (window.KcSaaS && typeof window.KcSaaS.setLoading === "function") window.KcSaaS.setLoading(false);
         }
     });
 
@@ -790,7 +1011,7 @@
     }
 
     document.getElementById("btnXlsx").addEventListener("click", async function () {
-        if (!lastClusters) { document.getElementById("msg").textContent = "Chạy clustering trước."; return; }
+        if (!lastClusters) { showToast("Chạy gom nhóm trước khi xuất file.", "error"); return; }
         // flat rows: main/sub/classification/volume
         var rows = [];
         (lastClusters || []).forEach(function (c) {
@@ -812,9 +1033,9 @@
             var t = await r.text();
             try {
                 var j = t ? JSON.parse(t) : {};
-                document.getElementById("msg").textContent = (j && j.detail) ? j.detail : ("Export lỗi (HTTP " + r.status + ")");
+                showToast((j && j.detail) ? "Không thể xuất file." : "Không thể xuất file.", "error");
             } catch (e) {
-                document.getElementById("msg").textContent = (t && t.trim()) ? t.slice(0, 200) : ("Export lỗi (HTTP " + r.status + ")");
+                showToast("Không thể xuất file.", "error");
             }
             return;
         }
@@ -824,24 +1045,27 @@
         a.download = "keyword_clusters.xlsx";
         a.click();
         URL.revokeObjectURL(a.href);
+        showToast("Đã tải file Excel.", "success");
     });
 
     document.getElementById("btnSheets").addEventListener("click", async function () {
-        if (!lastClusters) { document.getElementById("msg").textContent = "Chạy clustering trước."; return; }
+        if (!lastClusters) { showToast("Chạy gom nhóm trước khi xuất Sheets.", "error"); return; }
         var kwRows = (lastKeywords || []).map(function (k) { return { keyword: k, intent: "", search_volume: {}, difficulty: "" }; });
         var r = await postExport("/keywords/export/sheets", { keywords: kwRows, clusters: lastClusters });
         var data = await r.json();
         if (!r.ok || !data.spreadsheet_url) {
-            document.getElementById("msg").textContent = data.detail || "Chưa cấu hình GOOGLE_SHEETS_SA_JSON.";
+            showToast("Không thể xuất Google Sheets. Vui lòng thử lại sau.", "error");
             return;
         }
         window.open(data.spreadsheet_url, "_blank");
+        showToast("Đã mở Google Sheets.", "success");
     });
 
     document.getElementById("btnReset").addEventListener("click", function () {
         var msg = document.getElementById("msg");
         msg.textContent = "";
         document.getElementById("kws").value = "";
+        document.getElementById("projectName").value = "";
         document.getElementById("excel").value = "";
         document.getElementById("fetchSerp").checked = true;
         document.getElementById("strictness").value = "normal";
@@ -853,16 +1077,30 @@
     });
 
     (async function initSidebar() {
-        await loadClusterProjectList();
-        var saved = null;
-        try { saved = localStorage.getItem("kw_cluster_current_project_id"); } catch (e) {}
-        if (saved) {
-            currentProjectId = saved;
-            setActiveProjectInSidebar(saved);
-            openClusterProject(saved);
+        var researchPrefill = consumeResearchPrefill();
+        if (researchPrefill) {
+            clearResultUi();
+            document.getElementById("kws").value = researchPrefill.keywords.join("\n");
+            document.getElementById("excel").value = "";
+            var pre = researchPrefill.pre;
+            if (pre.country) document.getElementById("country").value = pre.country;
+            if (pre.language) document.getElementById("language").value = pre.language;
+            if (pre.device) document.getElementById("device").value = pre.device;
+            showToast("Đã nhận " + researchPrefill.keywords.length + " từ khóa từ Keyword Research.", "success");
+            await loadClusterProjectList();
+        } else {
+            await loadClusterProjectList();
+            var saved = null;
+            try { saved = localStorage.getItem("kw_cluster_current_project_id"); } catch (e) {}
+            if (saved) {
+                currentProjectId = saved;
+                setActiveProjectInSidebar(saved);
+                await openClusterProject(saved);
+            }
         }
         await refreshCreditsBanner();
     })();
+    window.addEventListener("digiseo-auth-change", function () { refreshCreditsBanner(); });
 })();
 </script>
 </div>

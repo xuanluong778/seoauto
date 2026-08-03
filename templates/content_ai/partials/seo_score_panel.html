@@ -1,0 +1,57 @@
+    <div class="ca-seo-panel" id="contentAiSeoPanel">
+        <div class="ca-seo-panel-head">
+            <h2 id="caSeoScoreModalTitle">SEO Score</h2>
+            <div class="ca-seo-panel-head-actions">
+                <button type="button" class="mini-btn" id="btnSeoRefreshChecklist" title="Làm mới checklist">↻</button>
+                <button type="button" class="mini-btn ca-seo-score-close" id="btnSeoScoreClose" aria-label="Đóng">✕</button>
+            </div>
+        </div>
+
+        <div class="ca-seo-score-hero">
+            <div class="ca-seo-score-ring" id="caSeoScoreRing" aria-hidden="true">
+                <svg viewBox="0 0 100 100"><circle class="ca-score-bg" cx="50" cy="50" r="42"/><circle class="ca-score-fill" id="caSeoScoreArc" cx="50" cy="50" r="42" stroke-dasharray="263.9" stroke-dashoffset="263.9"/></svg>
+                <div class="ca-seo-score-num"><span id="caSeoScoreValue">—</span><small>/ 100</small></div>
+            </div>
+            <p class="ca-seo-grade-label" id="caSeoGradeLabel">—</p>
+        </div>
+
+        <div class="ca-seo-empty" id="caSeoEmpty">Nhập content để xem điểm SEO và checklist.</div>
+
+        <div class="ca-seo-tabs-wrap" id="caSeoTabsWrap" hidden>
+            <nav class="ca-seo-tabs" role="tablist" aria-label="SEO Score">
+                <button type="button" class="ca-seo-tab active" role="tab" aria-selected="true" data-seo-tab="overview">Tổng quan</button>
+                <button type="button" class="ca-seo-tab" role="tab" aria-selected="false" data-seo-tab="fix">Cần sửa <span class="ca-seo-tab-badge" id="caSeoFixBadge" hidden>0</span></button>
+                <button type="button" class="ca-seo-tab" role="tab" aria-selected="false" data-seo-tab="detail">Chi tiết</button>
+            </nav>
+            <div class="ca-seo-tab-panels">
+                <div class="ca-seo-tab-panel" id="caSeoTabOverview" data-seo-panel="overview" role="tabpanel"></div>
+                <div class="ca-seo-tab-panel" id="caSeoTabFix" data-seo-panel="fix" role="tabpanel" hidden></div>
+                <div class="ca-seo-tab-panel" id="caSeoTabDetail" data-seo-panel="detail" role="tabpanel" hidden></div>
+            </div>
+        </div>
+
+        <ul class="ca-seo-checklist ca-seo-checklist--legacy" id="contentAiSeoChecklist" hidden aria-hidden="true"></ul>
+
+        <p class="ca-seo-publish-warn" id="caSeoPublishWarn" hidden role="alert">
+            Điểm SEO dưới 75 — nên tối ưu thêm trước khi Publish.
+        </p>
+
+        <div class="ca-seo-autofix-bar" id="caSeoAutofixBar" hidden>
+            <button type="button" class="btn secondary ca-seo-autofix-btn" id="btnSeoAutofixSevere">AI sửa lỗi nghiêm trọng</button>
+            <button type="button" class="btn secondary ca-seo-autofix-btn" id="btnSeoAutofix90">AI tối ưu lên 90+</button>
+            <button type="button" class="btn ghost ca-seo-autofix-btn" id="btnSeoAutofixUndo" disabled>Hoàn tác</button>
+        </div>
+
+        <div class="ca-seo-autofix-busy" id="caSeoAutofixBusy" hidden aria-live="polite" aria-busy="false">
+            <div class="ca-seo-autofix-busy-inner">
+                <div class="ca-seo-autofix-loading-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div class="ca-seo-autofix-loading-fill" id="caSeoAutofixLoadingFill"></div>
+                </div>
+                <p class="ca-seo-autofix-loading-text" id="caSeoAutofixLoadingText">Đang phân tích và sửa bằng AI…</p>
+            </div>
+        </div>
+
+        <div class="ca-seo-actions">
+            <button type="button" class="mini-btn" id="btnSeoScrollPublish">Đi tới Publish</button>
+        </div>
+    </div>

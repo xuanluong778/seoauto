@@ -1,6 +1,6 @@
 # Monitoring & Logging
 
-Tài liệu này mô tả hệ thống monitoring và logging cần có cho DigiSEO SaaS.
+Tài liệu này mô tả hệ thống monitoring và logging cần có cho Seoauto SaaS.
 
 ---
 

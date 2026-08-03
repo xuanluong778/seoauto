@@ -15,6 +15,7 @@ class KeywordClusterProject(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
+    project_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     keywords_label: Mapped[str] = mapped_column(String(2000), nullable=False)
     keywords_json: Mapped[str] = mapped_column(Text, nullable=False)
 

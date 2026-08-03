@@ -1,0 +1,98 @@
+/* Credit purchase popup — reuse account-billing dark theme */
+:root {
+    --ab-bg: #050b18;
+    --ab-panel: rgba(15, 23, 42, 0.92);
+    --ab-line: rgba(255, 255, 255, 0.12);
+    --ab-text: #e2e8f0;
+    --ab-muted: #94a3b8;
+    --ab-accent: #00e676;
+    --ab-accent-dim: rgba(0, 230, 118, 0.12);
+}
+#dcmCreditModal.ab-aff-modal,
+#dcmPayModal.ab-aff-modal {
+    z-index: 10060;
+    padding: 16px;
+}
+#dcmCreditModal .dcm-credit-modal-box {
+    max-width: 640px;
+    width: min(640px, calc(100vw - 32px));
+    color: var(--ab-text, #e2e8f0);
+    background: var(--ab-panel, rgba(15, 23, 42, 0.96));
+    border: 1px solid var(--ab-line, rgba(255, 255, 255, 0.12));
+}
+#dcmCreditModal .dcm-credit-lead {
+    margin: -4px 0 12px;
+}
+#dcmPayModal.ab-aff-modal {
+    padding: 10px 12px;
+}
+#dcmPayModal .ab-aff-modal-box.ab-payment-modal {
+    max-width: 440px;
+    width: min(440px, calc(100vw - 24px));
+    max-height: calc(100dvh - 20px);
+    overflow: hidden;
+    padding: 12px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    color: var(--ab-text, #e2e8f0);
+    background: var(--ab-panel, rgba(15, 23, 42, 0.96));
+    border: 1px solid var(--ab-line, rgba(255, 255, 255, 0.12));
+}
+
+/* Bảng gói credit — giữ dark theme, không bị digiseo-tables override */
+#dcmCreditModal .ab-addon-table {
+    background: transparent;
+    color: var(--ab-text);
+}
+#dcmCreditModal .ab-addon-table thead th {
+    background: rgba(15, 23, 42, 0.85);
+    color: var(--ab-text);
+}
+#dcmCreditModal .ab-addon-table tbody td {
+    color: var(--ab-text);
+    background: rgba(255, 255, 255, 0.02);
+}
+#dcmCreditModal .ab-addon-price {
+    color: var(--ab-accent);
+    font-weight: 800;
+}
+
+/* Nút Chọn — nổi bật xanh lá */
+#dcmCreditModal .ab-addon-action .dcm-select-btn,
+#dcmCreditModal .ab-addon-action .ab-btn {
+    background: var(--ab-accent) !important;
+    color: #042015 !important;
+    border: none !important;
+    font-weight: 700 !important;
+    min-width: 72px;
+    box-shadow: 0 2px 10px rgba(0, 230, 118, 0.35);
+}
+#dcmCreditModal .ab-addon-action .dcm-select-btn:hover,
+#dcmCreditModal .ab-addon-action .ab-btn:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 14px rgba(0, 230, 118, 0.45);
+}
+
+/* QR VietQR trong popup thanh toán */
+#dcmPayModal .ab-payment-qr {
+    text-align: center;
+    margin: 10px 0 12px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #fff;
+}
+#dcmPayModal .ab-payment-qr img {
+    display: block;
+    width: 200px;
+    height: 200px;
+    max-width: min(200px, 72vw);
+    max-height: min(200px, 32vh);
+    margin: 6px auto 0;
+    object-fit: contain;
+    border-radius: 6px;
+}
+#dcmPayModal .ab-payment-qr .ab-muted-text {
+    color: #64748b;
+    font-size: 0.8rem;
+    margin: 0;
+}

@@ -1,0 +1,24 @@
+{% set seo = resolve_page_seo(request, seo_override if seo_override is defined else none) %}
+<title>{{ seo.title }}</title>
+<meta name="description" content="{{ seo.description }}">
+<link rel="canonical" href="{{ seo.canonical }}">
+<meta name="robots" content="{{ seo.robots }}">
+{% if seo.google_site_verification %}
+<meta name="google-site-verification" content="{{ seo.google_site_verification }}">
+{% endif %}
+<link rel="icon" type="image/png" href="/static/images/seoauto-logo.png?v=2">
+<link rel="apple-touch-icon" href="/static/images/seoauto-logo.png?v=2">
+<meta property="og:type" content="{{ seo.og_type }}">
+<meta property="og:title" content="{{ seo.og_title }}">
+<meta property="og:description" content="{{ seo.og_description }}">
+<meta property="og:url" content="{{ seo.og_url }}">
+<meta property="og:image" content="{{ seo.og_image }}">
+<meta property="og:site_name" content="{{ seo.og_site_name }}">
+<meta property="og:locale" content="vi_VN">
+<meta name="twitter:card" content="{{ seo.twitter_card }}">
+<meta name="twitter:title" content="{{ seo.og_title }}">
+<meta name="twitter:description" content="{{ seo.og_description }}">
+<meta name="twitter:image" content="{{ seo.og_image }}">
+{% for script in seo.json_ld_scripts %}
+<script type="application/ld+json">{{ script | safe }}</script>
+{% endfor %}

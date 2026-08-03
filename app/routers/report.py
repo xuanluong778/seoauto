@@ -8,6 +8,11 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from app.models.user import User
+from app.services.api_payload_optimizer import (
+    find_audit_issue,
+    paginate_list,
+    shape_audit_response,
+)
 from app.services.audit_store import (
     delete_audit,
     get_audit_for_user,
@@ -15,7 +20,7 @@ from app.services.audit_store import (
     list_audits,
     list_mine_recent_by_domain,
 )
-from app.services.auth import get_current_user, get_optional_current_user
+from app.services.auth import get_current_user
 from app.services.user_data_paths import user_action_plan_deploy_file, user_action_plan_notes_file
 from app.seo_pipeline.constants import CHECKLIST_TITLE_VI
 from app.services.report_builder import (
@@ -24,7 +29,9 @@ from app.services.report_builder import (
     GROUP_SOLUTIONS_VI,
     SEVERITY_LABEL_VI,
     STATUS_LABEL_VI,
+    audit_issues_summary,
     build_action_plan_rows,
+    build_audit_action_plan_rows,
     build_lean_action_plan,
     build_seo_report_from_file,
     load_deploy_links_map,
@@ -32,6 +39,7 @@ from app.services.report_builder import (
     parse_deploy_links_by_priority,
     parse_notes_by_priority,
     read_gsc_indexing_counts_raw,
+    resolve_audit_issues_for_export,
     save_deploy_links_map,
     save_gsc_indexing_counts_raw,
     save_notes_map,
@@ -64,7 +72,7 @@ def api_get_gsc_indexing_counts(current_user: User = Depends(get_current_user)) 
 
     path = user_gsc_indexing_counts_file(current_user.id)
     if not path.is_file():
-        return read_gsc_indexing_counts_raw(_PROJECT_ROOT)
+        return {}
     try:
         import json
 
@@ -108,7 +116,7 @@ def api_audit_latest(current_user: User = Depends(get_current_user)) -> JSONResp
 
 @router.get("/api/audit/runs")
 def api_audit_runs(
-    limit: int = Query(default=8, ge=1, le=40),
+    limit: int = Query(default=20, ge=1, le=40),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     return JSONResponse(content={"runs": list_audits(limit=limit, user_id=current_user.id)})
@@ -133,12 +141,25 @@ _AUDIT_ISSUE_CSV_FIELDS = [
 
 def _sev_rank(sev: str | None) -> int:
     s = str(sev or "").lower()
-    return {"high": 3, "medium": 2, "low": 1}.get(s, 0)
+    return {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(s, 0)
+
+
+def _collect_issue_urls(issue: dict) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for u in [str(issue.get("url") or "").strip(), *[
+        str(x or "").strip()
+        for x in (issue.get("urls") or issue.get("affected_urls") or issue.get("sample_urls") or [])
+    ]]:
+        if u and u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out
 
 
 def _group_audit_issues(run: dict) -> list[dict]:
     grouped: dict[str, dict] = {}
-    for issue in run.get("issues") or []:
+    for issue in resolve_audit_issues_for_export(run):
         if not isinstance(issue, dict):
             continue
         t = str(issue.get("type") or "").strip()
@@ -182,9 +203,9 @@ def _group_audit_issues(run: dict) -> list[dict]:
         msg = (issue.get("message") or "").strip()
         if msg and msg not in cur["messages"]:
             cur["messages"].append(msg)
-        u = (issue.get("url") or "").strip()
-        if u and u not in cur["urls"]:
-            cur["urls"].append(u)
+        for u in _collect_issue_urls(issue):
+            if u not in cur["urls"]:
+                cur["urls"].append(u)
         pt = (issue.get("page_type") or "").strip()
         if pt and pt not in cur["page_types"]:
             cur["page_types"].append(pt)
@@ -213,6 +234,92 @@ def _group_audit_issues(run: dict) -> list[dict]:
         )
     out.sort(key=lambda x: (-_sev_rank(x.get("severity")), str(x.get("type") or "")))
     return out
+
+
+def _audits_this_month(user_id: int) -> int:
+    from datetime import datetime, timezone
+
+    ym = datetime.now(timezone.utc).strftime("%Y-%m")
+    return sum(
+        1
+        for run in list_audits(limit=40, user_id=user_id)
+        if str(run.get("at") or "").startswith(ym)
+    )
+
+
+def _build_dashboard_action_items(
+    latest_audit: dict | None,
+    grouped_issues: list[dict],
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    if latest_audit:
+        for pf in (latest_audit.get("priority_fixes") or [])[:6]:
+            if not isinstance(pf, dict):
+                continue
+            items.append(
+                {
+                    "title": str(pf.get("title") or pf.get("message") or pf.get("type") or "Ưu tiên sửa"),
+                    "detail": str(pf.get("message") or pf.get("problem") or pf.get("explanation") or ""),
+                    "fix": str(pf.get("fix") or pf.get("remediation") or pf.get("suggested_fix") or ""),
+                    "priority": str(pf.get("priority") or pf.get("severity") or "high").lower(),
+                }
+            )
+    if not items:
+        for g in grouped_issues[:5]:
+            items.append(
+                {
+                    "title": str(g.get("type") or "Issue"),
+                    "detail": str(g.get("message") or ""),
+                    "fix": str(g.get("remediation") or g.get("suggested_fix") or ""),
+                    "priority": str(g.get("severity") or "medium").lower(),
+                }
+            )
+    return items
+
+
+def _build_dashboard_context(
+    *,
+    current_user: User | None,
+    latest_audit: dict | None,
+    grouped_issues: list[dict],
+) -> dict[str, Any]:
+    logged_in = current_user is not None
+    uid = int(current_user.id) if current_user else 0
+    ts = (latest_audit or {}).get("technical_summary") or {}
+    health = ts.get("health_score")
+    la = latest_audit or {}
+    snapshot: dict[str, Any] | None = None
+    if la:
+        snapshot = {
+            "id": str(la.get("id") or la.get("audit_id") or ""),
+            "domain": str(la.get("domain") or ""),
+            "source_url": str(la.get("source_url") or ""),
+            "at": str(la.get("at") or ""),
+            "pages_scanned": int(la.get("pages_scanned") or 0),
+            "technical_summary": ts if isinstance(ts, dict) else {},
+            "issue_count": int(
+                ts.get("total_technical_issues")
+                if ts.get("total_technical_issues") is not None
+                else len(la.get("issues") or [])
+            ),
+            "priority_fixes": (la.get("priority_fixes") or [])[:8],
+        }
+    return {
+        "logged_in": logged_in,
+        "user_email": str(current_user.email) if current_user and current_user.email else "",
+        "recent_audits": list_mine_recent_by_domain(uid, limit=8) if logged_in else [],
+        "action_items": _build_dashboard_action_items(latest_audit, grouped_issues),
+        "audits_this_month": _audits_this_month(uid) if logged_in else 0,
+        "latest_health_score": health if health is not None else None,
+        "latest_domain": str(la.get("domain") or ""),
+        "latest_issue_count": int(
+            ts.get("total_technical_issues")
+            if ts.get("total_technical_issues") is not None
+            else len(la.get("issues") or [])
+        ),
+        "latest_audit_id": str(la.get("id") or la.get("audit_id") or ""),
+        "latest_audit_snapshot": snapshot,
+    }
 
 
 def _technical_audit_issues_csv(run: dict) -> str:
@@ -461,14 +568,65 @@ def api_audit_export_gsheet(
 
 # IMPORTANT: keep this route AFTER `/api/audit/mine` and `/api/audit/{audit_id}/export.*`
 # so that static paths like `/api/audit/mine` don't get captured by `{audit_id}`.
-@router.get("/api/audit/{audit_id}")
-def api_audit_get_one(
+@router.get("/api/audit/{audit_id}/issues")
+def api_audit_issues(
     audit_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     run = get_audit_for_user(audit_id, current_user.id)
     if not run:
         raise HTTPException(status_code=404, detail="Không tìm thấy bản quét.")
+    from app.services.api_payload_optimizer import collect_audit_issue_pool
+
+    pool = collect_audit_issue_pool(run)
+    items, total = paginate_list(pool, page, page_size)
+    return JSONResponse(
+        content={
+            "audit_id": audit_id,
+            "items": items,
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "has_more": page * page_size < total,
+        }
+    )
+
+
+@router.get("/api/audit/{audit_id}/issue-detail")
+def api_audit_issue_detail(
+    audit_id: str,
+    issue_id: str = Query(..., min_length=1),
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    run = get_audit_for_user(audit_id, current_user.id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bản quét.")
+    issue = find_audit_issue(run, issue_id)
+    if not issue:
+        raise HTTPException(status_code=404, detail="Không tìm thấy issue.")
+    return JSONResponse(content={"audit_id": audit_id, "issue": issue})
+
+
+@router.get("/api/audit/{audit_id}")
+def api_audit_get_one(
+    audit_id: str,
+    lite: bool = Query(default=False, description="Bỏ mảng GSC/crawl nặng; giữ dashboard v2 + summary"),
+    issues_page: int | None = Query(default=None, ge=1),
+    issues_page_size: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    run = get_audit_for_user(audit_id, current_user.id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bản quét.")
+    if lite or issues_page is not None:
+        run = shape_audit_response(
+            run,
+            lite=lite,
+            issues_page=issues_page,
+            issues_page_size=issues_page_size,
+        )
     return JSONResponse(content=run)
 
 
@@ -515,6 +673,7 @@ def get_action_plan(
         str(ck_path),
         group_filter=group,
         status_filter=status,
+        user_id=current_user.id,
     )
 
     notes_map = load_notes_map(notes_file)
@@ -613,6 +772,7 @@ def delete_action_plan_notes(
         str(ck_path),
         group_filter=group,
         status_filter=status,
+        user_id=current_user.id,
     )
     plan_items = build_lean_action_plan(
         report,
@@ -663,6 +823,7 @@ def export_report_csv(
         str(ck_path),
         group_filter=group,
         status_filter=status,
+        user_id=current_user.id,
     )
     rows = build_action_plan_rows(
         report,
@@ -699,6 +860,7 @@ def export_report_pdf(
         str(ck_path),
         group_filter=group,
         status_filter=status,
+        user_id=current_user.id,
     )
     rows = build_action_plan_rows(
         report,
@@ -759,22 +921,31 @@ def export_report_pdf(
     )
 
 
+def _resolve_report_audit(
+    current_user: User | None,
+    audit_id: str | None,
+) -> dict | None:
+    if not current_user:
+        return None
+    aid = str(audit_id or "").strip()
+    if aid:
+        row = get_audit_for_user(aid, current_user.id)
+        if row:
+            return row
+    return get_latest_audit(user_id=current_user.id)
+
+
 @router.get("/report")
 def report_page(
     request: Request,
     group: str | None = Query(default=None),
     status: str | None = Query(default=None),
-    current_user: User | None = Depends(get_optional_current_user),
+    audit_id: str | None = Query(default=None),
 ):
-    if current_user:
-        latest_audit = get_latest_audit(user_id=current_user.id)
-        notes_path = str(user_action_plan_notes_file(current_user.id))
-        deploy_path = str(user_action_plan_deploy_file(current_user.id))
-    else:
-        latest_audit = None
-        notes_path = str(user_action_plan_notes_file(0))
-        deploy_path = str(user_action_plan_deploy_file(0))
-    latest_audit_grouped_issues = _group_audit_issues(latest_audit or {})
+    """
+    SEO Dashboard shell. Security: never SSR per-user audit/quota/email — stale cookies
+    must not leak another user's data. Client loads private data via authenticated APIs only.
+    """
     tmpl_common = {
         "GROUP_SOLUTIONS_VI": GROUP_SOLUTIONS_VI,
         "GROUP_REFERENCES": GROUP_REFERENCES,
@@ -782,52 +953,32 @@ def report_page(
         "STATUS_LABEL_VI": STATUS_LABEL_VI,
         "CHECKLIST_TITLE_VI": CHECKLIST_TITLE_VI,
     }
-    checklist_path = technical_checklist_path()
-    if not checklist_path:
-        empty = {"summary": {}, "priorities": [], "items": [], "groups": []}
-        ctx = {
-            "report": empty,
-            "report_full": empty,
-            "error": "Technical-SEO.txt was not found.",
-            "selected_group": group or "",
-            "selected_status": status or "",
-            "latest_audit": latest_audit,
-            "action_plan_rows": [],
-            "latest_audit_grouped_issues": latest_audit_grouped_issues,
-        }
-        ctx.update(tmpl_common)
-        return templates.TemplateResponse(
-            request=request,
-            name="report.html",
-            context=ctx,
-        )
-
-    # Full file (no query filters): drives the «đầy đủ» action-plan table. Filters alone used to
-    # empty `items` when e.g. status=needs_fix but all rows are «Chưa rõ» → unknown → blank table.
-    report_full = build_seo_report_from_file(str(checklist_path), group_filter=None, status_filter=None)
-    report = build_seo_report_from_file(
-        str(checklist_path),
-        group_filter=group,
-        status_filter=status,
-    )
-    action_plan_rows = build_action_plan_rows(
-        report_full,
-        notes_map=load_notes_map(notes_path),
-        deploy_map=load_deploy_links_map(deploy_path),
+    dashboard = _build_dashboard_context(
+        current_user=None,
+        latest_audit=None,
+        grouped_issues=[],
     )
     ctx = {
-        "report": report,
-        "report_full": report_full,
+        "report": {"summary": {}, "groups": []},
+        "report_full": {"summary": {}, "groups": []},
         "error": "",
         "selected_group": group or "",
         "selected_status": status or "",
-        "latest_audit": latest_audit,
-        "action_plan_rows": action_plan_rows,
-        "latest_audit_grouped_issues": latest_audit_grouped_issues,
+        "selected_audit_id": str(audit_id or "").strip(),
+        "latest_audit": None,
+        "action_plan_rows": [],
+        "latest_audit_grouped_issues": [],
+        "dashboard": dashboard,
+        "report_from_audit": False,
+        "audit_summary": {},
     }
     ctx.update(tmpl_common)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request=request,
         name="report.html",
         context=ctx,
     )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Vary"] = "Cookie, Authorization"
+    return response

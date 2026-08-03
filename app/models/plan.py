@@ -26,8 +26,8 @@ class Plan(Base):
     billing_cycle: Mapped[str] = mapped_column(
         String(16), nullable=False, server_default=text("'monthly'")
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("1"))
-    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("1"))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

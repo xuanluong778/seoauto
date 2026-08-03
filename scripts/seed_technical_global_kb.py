@@ -16,8 +16,8 @@ from app.services.technical_knowledge import GLOBAL_TECHNICAL_KB_ID
 KB_ID = GLOBAL_TECHNICAL_KB_ID
 CHECKLIST = Path("data/checklist-technical-seo-so-do-tri-thuc.txt")
 HEADER = (
-    "# SƠ ĐỒ TRI THỨC — DigiSEO (GLOBAL)\n\n"
-    "Knowledge graph dùng chung cho mọi website DigiSEO.\n\n"
+    "# SƠ ĐỒ TRI THỨC — Seoauto (GLOBAL)\n\n"
+    "Knowledge graph dùng chung cho mọi website Seoauto.\n\n"
 )
 
 
@@ -28,7 +28,7 @@ def main() -> None:
     # Chỉ thêm/cập nhật checklist — không xóa tài liệu global khác trong KB.
     import_text(
         KB_ID,
-        "Sơ đồ tri thức — DigiSEO (Global)",
+        "Sơ đồ tri thức — Seoauto (Global)",
         HEADER + text,
         embed=False,
     )

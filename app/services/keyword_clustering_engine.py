@@ -82,10 +82,11 @@ def build_keyword_clusters(
 
         enrich_hybrid_cluster_for_planning(c)
 
-        serp_avg = float(c.get("serp_similarity_avg") or 0.0)
+        serp_avg = float(c.get("serp_overlap_score") or c.get("serp_similarity_avg") or 0.0)
 
         c["serp_overlap_score"] = round(serp_avg, 4)
-
+        c["shared_urls_count"] = c.get("shared_urls_count")
+        c["warning"] = c.get("warning")
         c["cluster_size"] = len(c.get("keywords") or [])
 
         kws = c.get("keywords") or []

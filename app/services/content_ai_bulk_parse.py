@@ -6,9 +6,12 @@ import re
 from typing import Any
 
 
-def _normalize_word_count(value: Any, *, default: int = 1000) -> int:
+def _normalize_word_count(value: Any, *, default: int | None = None) -> int | None:
+    raw = str(value or "").strip().lower()
+    if not raw or raw in {"auto", "ai", "none"}:
+        return default
     try:
-        n = int(value or 0)
+        n = int(float(raw.replace(",", "")))
     except (TypeError, ValueError):
         n = 0
     if n < 200:
@@ -118,6 +121,10 @@ def _coerce_wp_category_id(val: Any) -> int:
     return n if n > 0 else 0
 
 
+def _coerce_target_website(val: Any) -> str:
+    return str(val or "").strip()
+
+
 def normalize_bulk_job_items(
     *,
     keywords: list[str] | None = None,
@@ -148,6 +155,7 @@ def normalize_bulk_job_items(
                 "search_volume": max(0, sv),
                 "content_type": str(row.get("content_type") or "").strip(),
                 "competitor_url": str(row.get("competitor_url") or "").strip(),
+                "target_website": _coerce_target_website(row.get("target_website")),
                 "target_word_count": _normalize_word_count(row.get("target_word_count")),
                 "secondary_keywords": _coerce_secondary_keywords(row.get("secondary_keywords")),
                 "wp_category_id": _coerce_wp_category_id(row.get("wp_category_id")),
@@ -175,6 +183,7 @@ def normalize_bulk_job_items(
                     "search_volume": max(0, sv),
                     "content_type": str(it.get("content_type") or "").strip(),
                     "competitor_url": str(it.get("competitor_url") or "").strip(),
+                    "target_website": _coerce_target_website(it.get("target_website")),
                     "target_word_count": _normalize_word_count(it.get("target_word_count")),
                     "secondary_keywords": _coerce_secondary_keywords(it.get("secondary_keywords")),
                     "wp_category_id": _coerce_wp_category_id(it.get("wp_category_id")),
@@ -199,7 +208,8 @@ def normalize_bulk_job_items(
                     "search_volume": 0,
                     "content_type": "",
                     "competitor_url": "",
-                    "target_word_count": 1000,
+                    "target_website": "",
+                    "target_word_count": None,
                     "secondary_keywords": [],
                     "wp_category_id": 0,
                 }

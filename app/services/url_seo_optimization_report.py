@@ -5,9 +5,769 @@ BEFORE/AFTER mẫu, outline gợi ý, checklist hành động.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+
+TITLE_RECOMMENDED_LENGTH = {"min": 50, "max": 60}
+META_RECOMMENDED_LENGTH = {"min": 140, "max": 160}
+
+EVIDENCE_FIELD_DEFAULTS: dict[str, Any] = {
+    "issue_id": None,
+    "group_key": None,
+    "current_value": None,
+    "current_length": None,
+    "recommended_value": None,
+    "recommended_length": None,
+    "evidence": {},
+    "affected_element": None,
+    "page_field": None,
+    "can_ai_fix": False,
+    "can_apply": False,
+}
+
+AI_FIX_PAGE_FIELD_ALIASES: dict[str, str] = {
+    "headings": "heading",
+    "images": "image_alt",
+}
+
+TITLE_LEN_RANGE = (30, 60)
+META_LEN_RANGE = (120, 160)
+
+_ISSUE_TYPE_PAGE_FIELD: dict[str, str] = {
+    "missing_title": "title",
+    "title_length": "title",
+    "title_missing": "title",
+    "kw_in_title": "title",
+    "keyword_not_in_title": "title",
+    "missing_meta": "meta_description",
+    "meta_missing": "meta_description",
+    "meta_length": "meta_description",
+    "missing_h1": "headings",
+    "multiple_h1": "headings",
+    "h1_missing": "headings",
+    "h1_single": "headings",
+    "h1_multiple": "headings",
+    "h2_structure": "headings",
+    "heading_hierarchy": "headings",
+    "images_missing_alt": "images",
+    "alt_text": "images",
+    "images_present": "images",
+    "image_optimization": "images",
+    "no_ld_json": "schema",
+    "schema_errors": "schema",
+    "structured_data": "schema",
+    "schema_valid": "schema",
+    "low_internal": "links",
+    "internal_links": "links",
+    "external_links": "links",
+    "anchor_diversity": "links",
+    "internal_links": "links",
+    "external_links": "links",
+    "links_data": "links",
+    "primary_in_body": "intro",
+    "word_count": "content_section",
+    "helpful_content": "content_section",
+    "uniqueness": "content_section",
+}
+
+_GROUP_PAGE_FIELD: dict[str, str] = {
+    "title_meta_slug": "title",
+    "heading": "heading",
+    "image_seo": "image_alt",
+    "schema": "schema",
+    "links": "links",
+    "content_quality": "content_section",
+    "keyword_semantic": "intro",
+}
+
+
+def _normalize_tokens(text: str) -> set[str]:
+    return {t for t in re.findall(r"[a-z0-9\u00c0-\u024f]+", (text or "").lower()) if len(t) >= 2}
+
+
+def _keyword_in_text(keyword: str, text: str) -> bool:
+    kw = str(keyword or "").strip().lower()
+    if not kw:
+        return False
+    hay = (text or "").lower()
+    if kw in hay:
+        return True
+    kt = _normalize_tokens(kw)
+    tt = _normalize_tokens(hay)
+    return bool(kt) and len(kt & tt) >= max(1, min(2, len(kt)))
+
+
+def _title_issue_details(
+    title: str,
+    *,
+    primary_keyword: str = "",
+    headings: dict[str, Any] | None = None,
+    meta: str = "",
+) -> dict[str, Any]:
+    tl = len(title or "")
+    issues: list[str] = []
+    if not str(title or "").strip():
+        issues.append("missing")
+    else:
+        if tl < TITLE_LEN_RANGE[0]:
+            issues.append("too_short")
+        elif tl > TITLE_LEN_RANGE[1]:
+            issues.append("too_long")
+        pk = str(primary_keyword or "").strip()
+        if pk and not _keyword_in_text(pk, title):
+            issues.append("missing_keyword")
+        h1_list = list((headings or {}).get("h1") or [])
+        if h1_list and title.strip().lower() == str(h1_list[0]).strip().lower():
+            issues.append("duplicate_h1")
+        if meta and title.strip().lower() == str(meta).strip().lower():
+            issues.append("duplicate_meta")
+    return {
+        "current": title,
+        "length": tl,
+        "recommended_range": {"min": TITLE_RECOMMENDED_LENGTH["min"], "max": TITLE_RECOMMENDED_LENGTH["max"]},
+        "issues": issues,
+        "primary_keyword": primary_keyword or None,
+    }
+
+
+def _meta_issue_details(title: str, meta: str, *, primary_keyword: str = "") -> dict[str, Any]:
+    ml = len(meta or "")
+    issues: list[str] = []
+    if not str(meta or "").strip():
+        issues.append("missing")
+    else:
+        if ml < META_LEN_RANGE[0]:
+            issues.append("too_short")
+        elif ml > META_LEN_RANGE[1]:
+            issues.append("too_long")
+        pk = str(primary_keyword or "").strip()
+        if pk and not _keyword_in_text(pk, meta):
+            issues.append("missing_keyword")
+        if title and meta.strip().lower() == str(title).strip().lower():
+            issues.append("duplicate_title")
+    return {
+        "current": meta,
+        "length": ml,
+        "recommended_range": {"min": META_RECOMMENDED_LENGTH["min"], "max": META_RECOMMENDED_LENGTH["max"]},
+        "issues": issues,
+        "primary_keyword": primary_keyword or None,
+    }
+
+
+def _heading_issue_details(headings: dict[str, Any]) -> dict[str, Any]:
+    h1 = list(headings.get("h1") or [])
+    h2 = list(headings.get("h2") or [])
+    h3 = list(headings.get("h3") or [])
+    problematic: list[dict[str, Any]] = []
+    if not h1:
+        problematic.append({"level": "h1", "text": "", "issue": "missing_h1"})
+    elif len(h1) > 1:
+        for text in h1:
+            problematic.append({"level": "h1", "text": text, "issue": "multiple_h1"})
+    if not h2:
+        problematic.append({"level": "h2", "text": "", "issue": "missing_h2"})
+    if h1 and not h2 and len(h3) > 2:
+        for text in h3[:5]:
+            problematic.append({"level": "h3", "text": text, "issue": "skipped_h2"})
+    return {
+        "h1": h1,
+        "h2": h2[:15],
+        "h3": h3[:15],
+        "h1_count": len(h1),
+        "h2_count": len(h2),
+        "h3_count": len(h3),
+        "problematic_headings": problematic,
+    }
+
+
+def _weak_links_from_profile(link_profile: dict[str, Any], links: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    weak: list[dict[str, Any]] = []
+    for row in list(link_profile.get("broken_links") or [])[:15]:
+        weak.append({**row, "issue": "broken"})
+    anchor_counts: dict[str, int] = {}
+    for row in links:
+        anchor = str(row.get("anchor") or "").strip().lower()
+        if anchor:
+            anchor_counts[anchor] = anchor_counts.get(anchor, 0) + 1
+    for row in links:
+        anchor = str(row.get("anchor") or "").strip()
+        href = str(row.get("href") or row.get("url") or "")
+        reasons: list[str] = []
+        if not anchor:
+            reasons.append("empty_anchor")
+        elif len(anchor) <= 2 or anchor.lower() in ("click here", "xem thêm", "here", "read more"):
+            reasons.append("weak_anchor")
+        elif anchor_counts.get(anchor.lower(), 0) > 2:
+            reasons.append("duplicate_anchor")
+        if reasons:
+            weak.append(
+                {
+                    "href": href[:500],
+                    "anchor": anchor[:300],
+                    "is_internal": row.get("is_internal"),
+                    "context": row.get("context") or row.get("section_heading") or "",
+                    "issue": reasons[0],
+                    "issues": reasons,
+                }
+            )
+        if len(weak) >= 20:
+            break
+    return weak[:20]
+
+
+def _schema_preview(ld_blocks: list[dict[str, Any]], schema_validation: dict[str, Any] | None) -> dict[str, Any]:
+    blocks: list[dict[str, Any]] = []
+    for node in ld_blocks[:8]:
+        if not isinstance(node, dict):
+            continue
+        atype = node.get("@type")
+        if isinstance(atype, list):
+            type_label = ", ".join(str(x) for x in atype[:4])
+        else:
+            type_label = str(atype or "Unknown")
+        blocks.append(
+            {
+                "type": type_label,
+                "name": str(node.get("name") or node.get("headline") or "")[:200],
+                "url": str(node.get("url") or "")[:300],
+            }
+        )
+    valid = bool((schema_validation or {}).get("valid")) if ld_blocks else False
+    status = "valid" if valid else ("invalid" if ld_blocks else "missing")
+    return {
+        "status": status,
+        "blocks_count": len(ld_blocks),
+        "blocks": blocks,
+        "errors": list((schema_validation or {}).get("errors") or [])[:8],
+        "warnings": list((schema_validation or {}).get("warnings") or [])[:8],
+    }
+
+
+def build_page_field_evidence(
+    *,
+    page_data: dict[str, Any],
+    content_pkg: dict[str, Any] | None = None,
+    ld_blocks: list[dict[str, Any]] | None = None,
+    schema_validation: dict[str, Any] | None = None,
+    normalized_url: str = "",
+    primary_keyword: str | None = None,
+) -> dict[str, Any]:
+    """Dữ liệu gốc đã quét từ URL — dùng gắn vào issues/checks."""
+    pd = page_data or {}
+    cp = content_pkg or {}
+    pk = str(primary_keyword or "").strip()
+    title = str(pd.get("title") or "")
+    meta = str(pd.get("meta_description") or "")
+    headings = pd.get("headings") or {
+        "h1": list(pd.get("h1_texts") or cp.get("h1_texts") or []),
+        "h2": list(pd.get("h2_texts") or cp.get("h2_texts") or []),
+        "h3": list(pd.get("h3_texts") or cp.get("h3_texts") or []),
+    }
+    heading_details = _heading_issue_details(headings if isinstance(headings, dict) else {})
+    images = list(pd.get("images") or [])
+    images_missing_alt = [row for row in images if row.get("missing_alt")]
+    links = list(pd.get("links") or [])
+    link_profile = dict(pd.get("link_profile") or {})
+    if link_profile.get("links"):
+        links = list(link_profile.get("links") or links)
+    internal_count = int(link_profile.get("internal_links_count") if link_profile else sum(1 for row in links if row.get("is_internal")))
+    external_count = int(
+        link_profile.get("external_links_count")
+        if link_profile
+        else sum(1 for row in links if not row.get("is_internal"))
+    )
+    weak_links = _weak_links_from_profile(link_profile, links)
+    schema = _schema_preview(list(ld_blocks or []), schema_validation)
+
+    intro_pkg = dict(pd.get("intro") or cp.get("intro") or {})
+    if not intro_pkg.get("text"):
+        intro_text = str(pd.get("intro_text") or cp.get("intro_text") or "")
+        if intro_text:
+            intro_pkg = {"text": intro_text, "length": len(intro_text), "word_count": len(intro_text.split())}
+    intro_text = str(intro_pkg.get("text") or "")
+    content_sections = list(pd.get("content_sections") or cp.get("content_sections") or [])
+
+    title_issues = _title_issue_details(title, primary_keyword=pk, headings=headings, meta=meta)
+    meta_issues = _meta_issue_details(title, meta, primary_keyword=pk)
+
+    title_rec = f"Title {TITLE_RECOMMENDED_LENGTH['min']}–{TITLE_RECOMMENDED_LENGTH['max']} ký tự, chứa keyword chính"
+    meta_rec = f"Meta description {META_RECOMMENDED_LENGTH['min']}–{META_RECOMMENDED_LENGTH['max']} ký tự, có CTA"
+
+    return {
+        "title": {
+            "page_field": "title",
+            "current_value": title,
+            "current_length": len(title),
+            "recommended_value": title_rec,
+            "recommended_length": dict(TITLE_RECOMMENDED_LENGTH),
+            "affected_element": "head > title",
+            "evidence": {
+                "tag": "title",
+                "text": title,
+                "issues": title_issues["issues"],
+                "issue_details": title_issues,
+            },
+            "can_ai_fix": True,
+            "can_apply": True,
+        },
+        "meta_description": {
+            "page_field": "meta_description",
+            "current_value": meta,
+            "current_length": len(meta),
+            "recommended_value": meta_rec,
+            "recommended_length": dict(META_RECOMMENDED_LENGTH),
+            "affected_element": 'meta[name="description"]',
+            "evidence": {
+                "tag": "meta",
+                "content": meta,
+                "issues": meta_issues["issues"],
+                "issue_details": meta_issues,
+            },
+            "can_ai_fix": True,
+            "can_apply": True,
+        },
+        "headings": {
+            "page_field": "heading",
+            "current_value": headings,
+            "current_length": len(headings.get("h1") or []) + len(headings.get("h2") or []) + len(headings.get("h3") or []),
+            "recommended_value": "Một H1 duy nhất; H2/H3 phân cấp rõ",
+            "recommended_length": None,
+            "affected_element": "h1, h2, h3",
+            "evidence": {
+                **heading_details,
+                "check_id": None,
+            },
+            "can_ai_fix": True,
+            "can_apply": True,
+        },
+        "heading": {
+            "page_field": "heading",
+            "current_value": headings,
+            "current_length": len(headings.get("h1") or []) + len(headings.get("h2") or []) + len(headings.get("h3") or []),
+            "recommended_value": "Một H1 duy nhất; H2/H3 phân cấp rõ",
+            "recommended_length": None,
+            "affected_element": "h1, h2, h3",
+            "evidence": heading_details,
+            "can_ai_fix": True,
+            "can_apply": True,
+        },
+        "images": {
+            "page_field": "image_alt",
+            "current_value": images,
+            "current_length": len(images),
+            "recommended_value": "Mỗi ảnh thông tin cần alt mô tả; khai báo width/height",
+            "recommended_length": None,
+            "affected_element": "img",
+            "evidence": {
+                "total": len(images),
+                "missing_alt_count": len(images_missing_alt),
+                "missing_alt": images_missing_alt[:20],
+                "samples": images[:20],
+            },
+            "can_ai_fix": True,
+            "can_apply": False,
+        },
+        "image_alt": {
+            "page_field": "image_alt",
+            "current_value": images_missing_alt[:20] if images_missing_alt else images[:20],
+            "current_length": len(images_missing_alt) or len(images),
+            "recommended_value": "Alt mô tả ngữ cảnh ảnh, không nhồi keyword",
+            "recommended_length": None,
+            "affected_element": "img[alt]",
+            "evidence": {
+                "total": len(images),
+                "missing_alt_count": len(images_missing_alt),
+                "missing_alt": images_missing_alt[:20],
+                "samples": images[:20],
+            },
+            "can_ai_fix": True,
+            "can_apply": False,
+        },
+        "intro": {
+            "page_field": "intro",
+            "current_value": intro_text,
+            "current_length": len(intro_text),
+            "recommended_value": "2–4 câu mở bài chứa keyword chính, trả lời intent người dùng",
+            "recommended_length": {"min": 120, "max": 600},
+            "affected_element": "p:first-of-type, p sau h1",
+            "evidence": {
+                **intro_pkg,
+                "primary_keyword": pk or None,
+                "missing_keyword": bool(pk and intro_text and not _keyword_in_text(pk, intro_text)),
+            },
+            "can_ai_fix": True,
+            "can_apply": False,
+        },
+        "content_section": {
+            "page_field": "content_section",
+            "current_value": content_sections,
+            "current_length": sum(int(s.get("word_count") or 0) for s in content_sections),
+            "recommended_value": "Section H2/H3 có ≥150 từ, bullet/FAQ nếu phù hợp",
+            "recommended_length": {"min": 150, "max": 1200},
+            "affected_element": "h2 + p, article section",
+            "evidence": {
+                "sections": content_sections[:12],
+                "section_count": len(content_sections),
+                "word_count": int(cp.get("word_count") or pd.get("word_count") or 0),
+                "content_depth": str(cp.get("content_depth") or "unknown"),
+            },
+            "can_ai_fix": True,
+            "can_apply": False,
+        },
+        "schema": {
+            "page_field": "schema",
+            "current_value": schema,
+            "current_length": schema.get("blocks_count"),
+            "recommended_value": "JSON-LD hợp lệ (Article/Product/Organization tùy loại trang)",
+            "recommended_length": None,
+            "affected_element": 'script[type="application/ld+json"]',
+            "evidence": schema,
+            "can_ai_fix": True,
+            "can_apply": False,
+        },
+        "links": {
+            "page_field": "links",
+            "current_value": links,
+            "current_length": len(links),
+            "recommended_value": "3–8 internal link contextual; anchor mô tả",
+            "recommended_length": None,
+            "affected_element": "a[href]",
+            "evidence": {
+                "total": len(links),
+                "internal_links_count": internal_count,
+                "external_links_count": external_count,
+                "broken_links": list(link_profile.get("broken_links") or [])[:20],
+                "weak_links": weak_links,
+                "anchor_texts": list(link_profile.get("anchor_texts") or [])[:30],
+                "nofollow_count": int(link_profile.get("nofollow_count") or 0),
+                "dofollow_count": int(link_profile.get("dofollow_count") or 0),
+                "link_opportunities": list(link_profile.get("link_opportunities") or [])[:8],
+                "partial_data": bool(link_profile.get("partial_data")),
+                "warning": link_profile.get("warning"),
+                "internal": [row for row in links if row.get("is_internal")][:25],
+                "external": [row for row in links if not row.get("is_internal")][:15],
+                "samples": links[:25],
+            },
+            "can_ai_fix": False,
+            "can_apply": False,
+        },
+        "canonical": {
+            "page_field": "canonical",
+            "current_value": str(pd.get("canonical") or ""),
+            "current_length": len(str(pd.get("canonical") or "")),
+            "recommended_value": normalized_url or "Self-referencing canonical",
+            "recommended_length": None,
+            "affected_element": 'link[rel="canonical"]',
+            "evidence": {"canonical": str(pd.get("canonical") or ""), "url": normalized_url},
+            "can_ai_fix": False,
+            "can_apply": True,
+        },
+    }
+
+
+def _resolve_page_field(item: dict[str, Any], *, group_key: str | None = None) -> str | None:
+    item_id = str(item.get("id") or item.get("type") or item.get("check_id") or "")
+    if item_id in _ISSUE_TYPE_PAGE_FIELD:
+        pf = _ISSUE_TYPE_PAGE_FIELD[item_id]
+        return AI_FIX_PAGE_FIELD_ALIASES.get(pf, pf)
+    if group_key and group_key in _GROUP_PAGE_FIELD:
+        pf = _GROUP_PAGE_FIELD[group_key]
+        return AI_FIX_PAGE_FIELD_ALIASES.get(pf, pf)
+    pillar = str(item.get("pillar") or "")
+    pillar_map = {
+        "structure": "title",
+        "ctr": "title",
+        "ux_readability": "image_alt",
+        "schema": "schema",
+        "links": "links",
+        "helpful_content": "content_section",
+        "content_depth": "content_section",
+        "keyword_semantic": "intro",
+    }
+    pf = pillar_map.get(pillar)
+    return AI_FIX_PAGE_FIELD_ALIASES.get(pf, pf) if pf else None
+
+
+def _apply_check_specific_evidence(
+    out: dict[str, Any],
+    *,
+    check_id: str,
+    field_evidence: dict[str, Any],
+    primary_keyword: str = "",
+) -> dict[str, Any]:
+    """Bổ sung evidence theo từng check — dữ liệu thật cho AI fix."""
+    ev = dict(out.get("evidence") or {})
+    pf = str(out.get("page_field") or "")
+    pk = str(primary_keyword or "").strip()
+
+    if pf == "title" or check_id in ("title_missing", "title_length", "kw_in_title", "keyword_not_in_title", "missing_title"):
+        title_ev = field_evidence.get("title") or {}
+        details = dict((title_ev.get("evidence") or {}).get("issue_details") or {})
+        ev["issue_details"] = details
+        ev["issues"] = list(details.get("issues") or [])
+        if check_id == "title_missing":
+            ev["issues"] = ["missing"]
+        elif check_id == "kw_in_title" and pk and not _keyword_in_text(pk, str(out.get("current_value") or "")):
+            ev["issues"] = list(set(ev.get("issues") or []) | {"missing_keyword"})
+        elif check_id == "title_length":
+            tl = int(out.get("current_length") or len(str(out.get("current_value") or "")))
+            extra: list[str] = []
+            if tl < TITLE_LEN_RANGE[0]:
+                extra.append("too_short")
+            elif tl > TITLE_LEN_RANGE[1]:
+                extra.append("too_long")
+            ev["issues"] = list(dict.fromkeys(list(ev.get("issues") or []) + extra))
+        out["current_value"] = out.get("current_value") if out.get("current_value") not in (None, "") else title_ev.get("current_value")
+        out["current_length"] = out.get("current_length") or title_ev.get("current_length")
+
+    elif pf == "meta_description" or check_id in ("meta_missing", "meta_length", "missing_meta"):
+        meta_ev = field_evidence.get("meta_description") or {}
+        details = dict((meta_ev.get("evidence") or {}).get("issue_details") or {})
+        ev["issue_details"] = details
+        ev["issues"] = list(details.get("issues") or [])
+        if check_id == "meta_missing":
+            ev["issues"] = ["missing"]
+        elif check_id == "meta_length":
+            ml = int(out.get("current_length") or len(str(out.get("current_value") or "")))
+            extra = []
+            if ml < META_LEN_RANGE[0]:
+                extra.append("too_short")
+            elif ml > META_LEN_RANGE[1]:
+                extra.append("too_long")
+            ev["issues"] = list(dict.fromkeys(list(ev.get("issues") or []) + extra))
+        out["current_value"] = out.get("current_value") if out.get("current_value") not in (None, "") else meta_ev.get("current_value")
+        out["current_length"] = out.get("current_length") or meta_ev.get("current_length")
+
+    elif pf in ("heading", "headings") or check_id.startswith("h1_") or check_id in (
+        "h1_missing",
+        "h1_multiple",
+        "h1_single",
+        "h2_structure",
+        "heading_hierarchy",
+        "missing_h1",
+        "multiple_h1",
+    ):
+        heading_ev = field_evidence.get("heading") or field_evidence.get("headings") or {}
+        heading_details = dict(heading_ev.get("evidence") or {})
+        ev.update(heading_details)
+        ev["check_id"] = check_id
+        problematic = list(heading_details.get("problematic_headings") or [])
+        if check_id in ("h1_missing", "missing_h1"):
+            ev["problematic_headings"] = [p for p in problematic if p.get("issue") == "missing_h1"] or [
+                {"level": "h1", "text": "", "issue": "missing_h1"}
+            ]
+        elif check_id in ("h1_multiple", "multiple_h1"):
+            ev["problematic_headings"] = [p for p in problematic if p.get("issue") == "multiple_h1"]
+        elif check_id == "h2_structure":
+            ev["problematic_headings"] = [p for p in problematic if p.get("issue") == "missing_h2"]
+        out["page_field"] = "heading"
+        out["current_value"] = out.get("current_value") or heading_ev.get("current_value")
+
+    elif pf in ("image_alt", "images") or check_id in ("alt_text", "images_missing_alt"):
+        img_ev = field_evidence.get("image_alt") or field_evidence.get("images") or {}
+        img_evidence = dict(img_ev.get("evidence") or {})
+        missing = list(img_evidence.get("missing_alt") or [])
+        ev.update(img_evidence)
+        ev["check_id"] = check_id
+        if missing:
+            ev["target_images"] = missing[:10]
+            out["current_value"] = missing[:10]
+        out["page_field"] = "image_alt"
+
+    elif pf == "links" or check_id in ("internal_links", "external_links", "anchor_diversity", "low_internal", "links_data"):
+        links_ev = field_evidence.get("links") or {}
+        link_evidence = dict(links_ev.get("evidence") or {})
+        ev.update(link_evidence)
+        ev["check_id"] = check_id
+        if check_id == "anchor_diversity":
+            ev["weak_links"] = list(link_evidence.get("weak_links") or [])[:10]
+        elif check_id == "internal_links":
+            ev["featured_links"] = list(link_evidence.get("internal") or link_evidence.get("samples") or [])[:10]
+        elif check_id == "external_links":
+            ev["featured_links"] = list(link_evidence.get("external") or [])[:10]
+        out["current_value"] = out.get("current_value") or links_ev.get("current_value")
+
+    elif pf == "intro" or check_id == "primary_in_body":
+        intro_ev = field_evidence.get("intro") or {}
+        ev.update(dict(intro_ev.get("evidence") or {}))
+        ev["check_id"] = check_id
+        out["current_value"] = out.get("current_value") or intro_ev.get("current_value")
+        out["current_length"] = out.get("current_length") or intro_ev.get("current_length")
+
+    elif pf == "content_section" or check_id in ("word_count", "helpful_content", "uniqueness"):
+        sec_ev = field_evidence.get("content_section") or {}
+        ev.update(dict(sec_ev.get("evidence") or {}))
+        ev["check_id"] = check_id
+        out["current_value"] = out.get("current_value") or sec_ev.get("current_value")
+        out["current_length"] = out.get("current_length") or sec_ev.get("current_length")
+
+    out["evidence"] = ev
+    return out
+
+
+def enrich_item_with_evidence(
+    item: dict[str, Any],
+    field_evidence: dict[str, Any],
+    *,
+    group_key: str | None = None,
+    primary_keyword: str | None = None,
+) -> dict[str, Any]:
+    """Gắn dữ liệu gốc vào issue/check — giữ nguyên field cũ nếu đã có."""
+    out = dict(item)
+    for key, default in EVIDENCE_FIELD_DEFAULTS.items():
+        out.setdefault(key, default)
+
+    check_id = str(item.get("id") or item.get("type") or item.get("check_id") or "")
+    out["issue_id"] = check_id or out.get("issue_id")
+    out["group_key"] = group_key or out.get("group_key") or str(item.get("group") or "")
+
+    page_field = _resolve_page_field(item, group_key=group_key)
+    if not page_field:
+        return out
+
+    src = field_evidence.get(page_field) or field_evidence.get(AI_FIX_PAGE_FIELD_ALIASES.get(page_field, "")) or {}
+    if not src and page_field == "heading":
+        src = field_evidence.get("headings") or {}
+    if not src and page_field == "image_alt":
+        src = field_evidence.get("images") or {}
+    if not src:
+        out["page_field"] = page_field
+        return out
+
+    for key in (
+        "current_value",
+        "current_length",
+        "recommended_value",
+        "recommended_length",
+        "evidence",
+        "affected_element",
+        "page_field",
+    ):
+        if out.get(key) in (None, "", {}, []):
+            val = src.get(key)
+            if val is not None:
+                out[key] = val
+
+    for flag in ("can_ai_fix", "can_apply"):
+        if flag in src:
+            out[flag] = bool(src[flag])
+
+    out["page_field"] = AI_FIX_PAGE_FIELD_ALIASES.get(str(out.get("page_field") or page_field), page_field)
+
+    out = _apply_check_specific_evidence(
+        out,
+        check_id=check_id,
+        field_evidence=field_evidence,
+        primary_keyword=str(primary_keyword or ""),
+    )
+
+    # evidence luôn merge thêm id/type để UI trace
+    ev = dict(out.get("evidence") or {})
+    if item.get("id"):
+        ev.setdefault("check_id", item.get("id"))
+    if item.get("type"):
+        ev.setdefault("issue_type", item.get("type"))
+    if out.get("issue_id"):
+        ev.setdefault("issue_id", out.get("issue_id"))
+    if out.get("group_key"):
+        ev.setdefault("group_key", out.get("group_key"))
+    out["evidence"] = ev
+    return out
+
+
+def attach_evidence_to_scoreboard(scoreboard: dict[str, Any]) -> dict[str, Any]:
+    """Gắn dữ liệu gốc cho issues, checks 10 nhóm và page_snapshot."""
+    page_data = dict(scoreboard.get("page_snapshot") or {})
+    # page_snapshot có thể chưa đủ — merge từ fetch path nếu có
+    for key in ("title", "meta_description", "canonical", "h1_count", "h2_count", "headings", "images", "links"):
+        if key not in page_data and scoreboard.get(key) is not None:
+            page_data[key] = scoreboard.get(key)
+
+    content_pkg = scoreboard.get("_content_pkg") or {}
+    ld_blocks = list(scoreboard.get("_ld_blocks") or [])
+    schema_validation = scoreboard.get("_schema_validation") or {}
+    normalized_url = str(scoreboard.get("normalized_url") or scoreboard.get("url") or "")
+    ten_board = dict(scoreboard.get("ten_group_scoreboard") or {})
+    primary_keyword = str(
+        ten_board.get("primary_keyword")
+        or scoreboard.get("primary_keyword")
+        or (scoreboard.get("serp") or {}).get("keyword")
+        or ""
+    ).strip() or None
+
+    field_evidence = build_page_field_evidence(
+        page_data=page_data,
+        content_pkg=content_pkg,
+        ld_blocks=ld_blocks,
+        schema_validation=schema_validation,
+        normalized_url=normalized_url,
+        primary_keyword=primary_keyword,
+    )
+
+    scoreboard["page_evidence"] = field_evidence
+    links_ev = field_evidence.get("links") or {}
+    if isinstance(links_ev, dict) and links_ev.get("evidence"):
+        scoreboard["link_profile"] = links_ev["evidence"]
+    scoreboard["issues"] = [
+        enrich_item_with_evidence(issue, field_evidence, primary_keyword=primary_keyword)
+        for issue in list(scoreboard.get("issues") or [])
+    ]
+
+    ten = dict(scoreboard.get("ten_group_scoreboard") or {})
+    groups = []
+    for group in list(ten.get("groups") or []):
+        g = dict(group)
+        gid = str(g.get("id") or "")
+        g["checks"] = [
+            enrich_item_with_evidence(check, field_evidence, group_key=gid, primary_keyword=primary_keyword)
+            for check in list(g.get("checks") or [])
+        ]
+        groups.append(g)
+    if groups:
+        ten["groups"] = groups
+        scoreboard["ten_group_scoreboard"] = ten
+
+    priority_fixes = []
+    for fix in list(ten.get("priority_fixes") or []):
+        priority_fixes.append(
+            enrich_item_with_evidence(
+                fix,
+                field_evidence,
+                group_key=str(fix.get("group") or ""),
+                primary_keyword=primary_keyword,
+            )
+        )
+    if priority_fixes:
+        ten["priority_fixes"] = priority_fixes
+        scoreboard["ten_group_scoreboard"] = ten
+
+    snap = dict(scoreboard.get("page_snapshot") or {})
+    snap.update(
+        {
+            "title": field_evidence["title"]["current_value"],
+            "title_length": field_evidence["title"]["current_length"],
+            "meta_description": field_evidence["meta_description"]["current_value"],
+            "meta_length": field_evidence["meta_description"]["current_length"],
+            "headings": field_evidence["headings"]["current_value"],
+            "intro": field_evidence.get("intro", {}).get("current_value"),
+            "intro_text": field_evidence.get("intro", {}).get("current_value"),
+            "content_sections": (field_evidence.get("content_section") or {}).get("current_value") or [],
+            "images": field_evidence["images"]["evidence"],
+            "links": field_evidence["links"]["evidence"],
+            "link_profile": field_evidence["links"]["evidence"],
+            "schema": field_evidence["schema"]["current_value"],
+        }
+    )
+    scoreboard["page_snapshot"] = snap
+
+    # cleanup internal keys
+    scoreboard.pop("_content_pkg", None)
+    scoreboard.pop("_ld_blocks", None)
+    scoreboard.pop("_schema_validation", None)
+    return scoreboard
+
 
 # Tài liệu tham khảo theo loại issue (mỗi dòng = 1 URL khi hiển thị)
 REF_LINKS_BY_TYPE: dict[str, str] = {
@@ -476,6 +1236,25 @@ def build_url_seo_optimization_report(scoreboard: dict[str, Any]) -> dict[str, A
     issues_raw = list(scoreboard.get("issues") or [])
     wmap = {p["pillar"]: p["weighted_gap"] for p in pillar_gaps}
 
+    field_evidence = scoreboard.get("page_evidence")
+    if not field_evidence:
+        snap = dict(scoreboard.get("page_snapshot") or {})
+        ten_board = dict(scoreboard.get("ten_group_scoreboard") or {})
+        primary_keyword = str(
+            ten_board.get("primary_keyword")
+            or scoreboard.get("primary_keyword")
+            or (scoreboard.get("serp") or {}).get("keyword")
+            or ""
+        ).strip() or None
+        field_evidence = build_page_field_evidence(
+            page_data=snap,
+            content_pkg=scoreboard.get("_content_pkg") or {},
+            ld_blocks=list(scoreboard.get("_ld_blocks") or []),
+            schema_validation=scoreboard.get("_schema_validation") or {},
+            normalized_url=str(scoreboard.get("normalized_url") or scoreboard.get("url") or ""),
+            primary_keyword=primary_keyword,
+        )
+
     enriched: list[dict[str, Any]] = []
     for it in issues_raw:
         p = str(it.get("pillar") or "")
@@ -483,16 +1262,20 @@ def build_url_seo_optimization_report(scoreboard: dict[str, Any]) -> dict[str, A
         c = {**ctx, "issue_message": it.get("message")}
         pb = _playbook(typ, p, c)
         enriched.append(
-            {
-                **it,
-                "missing": pb.get("missing"),
-                "root_cause": pb.get("root_cause"),
-                "actions": pb.get("actions"),
-                "before_example": pb.get("before_example"),
-                "after_example": pb.get("after_example"),
-                "outline_suggestion": pb.get("outline_suggestion"),
-                "pillar_weighted_gap": wmap.get(p, 0.0),
-            }
+            enrich_item_with_evidence(
+                {
+                    **it,
+                    "missing": pb.get("missing"),
+                    "root_cause": pb.get("root_cause"),
+                    "actions": pb.get("actions"),
+                    "before_example": pb.get("before_example"),
+                    "after_example": pb.get("after_example"),
+                    "outline_suggestion": pb.get("outline_suggestion"),
+                    "pillar_weighted_gap": wmap.get(p, 0.0),
+                },
+                field_evidence,
+                primary_keyword=str(ctx.get("keyword") or ""),
+            )
         )
 
     enriched.sort(

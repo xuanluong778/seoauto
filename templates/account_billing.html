@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=4">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=21">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=2">
+</head>
+<body class="ab-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+
+    <div class="ab-wrap">
+        <div class="ab-head-row">
+            <div class="ab-head">
+                <h1>Tài khoản &amp; Thanh toán</h1>
+                <p>Quản lý hồ sơ, gói dịch vụ, hóa đơn và chương trình Affiliate.</p>
+            </div>
+            <a class="ab-sys-link" href="/settings">Cài đặt hệ thống (AI, API, xuất bản) →</a>
+        </div>
+
+        <nav class="ab-tabs" aria-label="Tài khoản và thanh toán">
+            <button type="button" class="ab-tab is-active" data-ab-tab="profile">Tổng quan</button>
+            <button type="button" class="ab-tab" data-ab-tab="plans">Gói dịch vụ</button>
+            <button type="button" class="ab-tab" data-ab-tab="invoices">Hóa đơn</button>
+            <button type="button" class="ab-tab" data-ab-tab="payment">Thanh toán</button>
+            <button type="button" class="ab-tab" data-ab-tab="affiliate">Giới thiệu &amp; Hoa hồng</button>
+        </nav>
+
+        <section class="ab-panel is-active" id="abPanelProfile" data-ab-panel="profile">
+            <div class="ab-loading" id="abOverviewLoading">Đang tải tổng quan gói &amp; credit…</div>
+            <div class="ab-error" id="abOverviewError" hidden></div>
+            <div id="abOverviewBody" hidden>
+                <div class="ab-alerts" id="abBillingAlerts" hidden aria-live="polite"></div>
+
+                <div class="ab-card ab-overview-hero">
+                    <div class="ab-plan-summary-head">
+                        <div>
+                            <h2>Gói &amp; credit hiện tại</h2>
+                            <p class="ab-muted-text" id="abOverviewSub">Theo dõi gói, credit và quota theo tháng.</p>
+                        </div>
+                        <span class="ab-badge" id="abOverviewStatusBadge">—</span>
+                    </div>
+                    <div class="ab-grid ab-plan-kpi" id="abOverviewKpi"></div>
+                    <p class="ab-locked-banner" id="abLockedBanner" hidden></p>
+                    <p class="ab-free-usage-banner" id="abFreeUsageBanner" hidden>
+                        <span id="abFreeUsageBannerText"></span>
+                        <button type="button" class="ab-btn ab-btn--inline" id="btnAbFreeUsageBuyCredit" hidden>Mua credit</button>
+                    </p>
+                    <div class="ab-actions">
+                        <button type="button" class="ab-btn" id="btnAbOverviewBuyCredit">Mua thêm credit</button>
+                        <button type="button" class="ab-btn secondary" id="btnAbOverviewUpgrade">Nâng cấp gói</button>
+                        <a class="ab-btn secondary" href="/pricing">Bảng giá</a>
+                    </div>
+                </div>
+
+                <div class="ab-card" id="abCreditWalletCard">
+                    <h3 class="ab-section-title">Ví credit</h3>
+                    <div class="ab-grid ab-credit-wallet" id="abCreditWalletGrid"></div>
+                </div>
+
+                <div class="ab-card" id="abExpiringCard" hidden>
+                    <h3 class="ab-section-title">Credit sắp hết hạn</h3>
+                    <p class="ab-muted-text">Ưu tiên dùng các bucket có ngày hết hạn gần nhất.</p>
+                    <div class="ab-expiring-list" id="abExpiringList"></div>
+                </div>
+
+                <div class="ab-card" id="abTopModuleCard" hidden>
+                    <h3 class="ab-section-title">Module dùng nhiều credit nhất</h3>
+                    <p class="ab-muted-text" id="abTopModuleSub">Thống kê trong tháng hiện tại.</p>
+                    <div class="ab-top-module" id="abTopModuleBody"></div>
+                </div>
+
+                <div class="ab-card">
+                    <h3 class="ab-section-title">Quota đã dùng theo module</h3>
+                    <p class="ab-muted-text" id="abQuotaMonthLabel">Tháng hiện tại</p>
+                    <div class="ab-quota-list" id="abQuotaList">
+                        <div class="ab-empty ab-empty-inline" id="abQuotaEmpty" hidden>Chưa có quota theo gói — đăng ký gói để theo dõi.</div>
+                    </div>
+                </div>
+
+                <div class="ab-card">
+                    <h3 class="ab-section-title">Lịch sử trừ credit</h3>
+                    <p class="ab-muted-text">Các lần trừ credit gần đây (không bao gồm chi phí nội bộ hệ thống).</p>
+                    <div class="ab-table-wrap">
+                        <table class="ab-data-table" id="abCreditHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Thời gian</th>
+                                    <th scope="col">Tác vụ</th>
+                                    <th scope="col" class="ab-num">Credit</th>
+                                    <th scope="col" class="ab-num">Còn lại</th>
+                                </tr>
+                            </thead>
+                            <tbody id="abCreditHistoryBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="ab-empty ab-empty-inline" id="abCreditHistoryEmpty" hidden>Chưa có lịch sử trừ credit.</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="ab-panel" id="abPanelPlans" data-ab-panel="plans">
+            <div class="ab-card ab-plan-summary-card">
+                <div class="ab-loading" id="abPlansLoading">Đang tải thông tin gói…</div>
+                <div id="abPlansSummary" hidden>
+                    <div class="ab-plan-summary-head">
+                        <div>
+                            <h2>Gói dịch vụ hiện tại</h2>
+                            <p class="ab-muted-text" id="abPlansSummarySub">Theo dõi quota và nâng cấp khi cần.</p>
+                        </div>
+                        <span class="ab-badge" id="abPlansStatusBadge">—</span>
+                    </div>
+                    <div class="ab-grid ab-plan-kpi" id="abPlansKpi"></div>
+                    <div class="ab-alerts ab-alerts-compact" id="abPlansAlerts" hidden aria-live="polite"></div>
+                    <div class="ab-actions">
+                        <button type="button" class="ab-btn" id="btnAbScrollPlans">Nâng cấp gói</button>
+                        <button type="button" class="ab-btn secondary" id="btnAbPlansBuyCredit">Mua thêm credit</button>
+                        <a class="ab-btn secondary" href="/pricing">Xem bảng giá đầy đủ</a>
+                    </div>
+                </div>
+                <div class="ab-error" id="abPlansError" hidden></div>
+            </div>
+
+            <nav class="ab-subtabs ab-plans-subtabs" aria-label="Gói và mua thêm">
+                <button type="button" class="ab-subtab is-active" data-plans-subtab="packages">Gói SaaS</button>
+                <button type="button" class="ab-subtab" data-plans-subtab="credit">Mua thêm credit</button>
+                <button type="button" class="ab-subtab" data-plans-subtab="articles">Mua thêm bài viết AI</button>
+            </nav>
+
+            <div class="ab-plans-panel is-active" data-plans-panel="packages">
+                <div class="ab-card">
+                    <h3 class="ab-section-title">Chọn gói phù hợp</h3>
+                    <p class="ab-muted-text">4 gói Starter, Pro, Agency, Business — rút gọn từ trang bảng giá.</p>
+                    <div class="ab-billing-toggle" role="group" aria-label="Chu kỳ thanh toán">
+                        <button type="button" class="ab-billing-btn is-active" data-ab-billing="monthly" aria-pressed="true">Tháng</button>
+                        <button type="button" class="ab-billing-btn" data-ab-billing="semi_annual" aria-pressed="false">6 tháng</button>
+                        <button type="button" class="ab-billing-btn" data-ab-billing="yearly" aria-pressed="false">Năm</button>
+                    </div>
+                    <p class="ab-billing-semi-note" id="abBillingSemiNote" hidden>Trả tiền 5 tháng, dùng 6 tháng, tặng thêm 1 tháng credit</p>
+                    <p class="ab-billing-semi-note" id="abBillingYearNote" hidden>Trả 12 tháng, dùng 14 tháng, tặng thêm 2 tháng credit</p>
+                    <div class="ab-plans-grid" id="abPlansGrid">
+                        <div class="ab-loading">Đang tải gói…</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ab-plans-panel" data-plans-panel="credit">
+                <div class="ab-card">
+                    <h3 class="ab-section-title">Gói mua thêm credit</h3>
+                    <p class="ab-muted-text">Bổ sung credit khi gói hiện tại không đủ cho tác vụ SEO.</p>
+                    <div class="ab-addon-table-wrap">
+                        <table class="ab-addon-table no-digiseo-table" id="abCreditAddonTable">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Giá</th>
+                                    <th scope="col">Credit nhận được</th>
+                                    <th scope="col"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="abCreditAddonBody"></tbody>
+                        </table>
+                    </div>
+                    <ul class="ab-addon-notes" id="abCreditAddonNotes"></ul>
+                    <div class="ab-actions">
+                        <button type="button" class="ab-btn" id="btnAbBuyCredit">Mua thêm credit</button>
+                        <span class="ab-muted-text ab-addon-hint">Chọn gói trong bảng hoặc bấm nút trên để thanh toán chuyển khoản.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ab-plans-panel" data-plans-panel="articles">
+                <div class="ab-card">
+                    <h3 class="ab-section-title">Gói mua thêm bài viết AI</h3>
+                    <p class="ab-muted-text">Áp dụng khi bạn dùng API AI riêng — chỉ tăng quota bài viết trên nền tảng.</p>
+                    <div class="ab-addon-table-wrap">
+                        <table class="ab-addon-table" id="abArticleAddonTable">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Quota thêm</th>
+                                    <th scope="col">Giá / tháng</th>
+                                    <th scope="col"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="abArticleAddonBody"></tbody>
+                        </table>
+                    </div>
+                    <ul class="ab-addon-notes" id="abArticleAddonNotes"></ul>
+                    <div class="ab-actions">
+                        <button type="button" class="ab-btn secondary" id="btnAbBuyArticles">Mua thêm bài viết</button>
+                        <span class="ab-muted-text ab-addon-hint">Chọn gói trong bảng để thanh toán chuyển khoản.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="ab-panel" id="abPanelInvoices" data-ab-panel="invoices">
+            <div class="ab-card">
+                <h2>Hóa đơn</h2>
+                <div class="ab-empty" id="abInvoicesEmpty">
+                    <div class="ab-empty-icon">📄</div>
+                    <p>Chưa có hóa đơn. Hóa đơn sẽ hiện sau khi thanh toán gói dịch vụ.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="ab-panel" id="abPanelPayment" data-ab-panel="payment">
+            <div class="ab-card">
+                <h2>Lịch sử thanh toán SePay</h2>
+                <p class="ab-muted-text">Các đơn chuyển khoản qua SePay — trạng thái và kích hoạt gói/credit.</p>
+                <div class="ab-loading" id="abPaymentHistoryLoading">Đang tải lịch sử…</div>
+                <div class="ab-error" id="abPaymentHistoryError" hidden></div>
+                <div class="ab-table-wrap" id="abPaymentHistoryWrap" hidden>
+                    <table class="ab-data-table" id="abPaymentHistoryTable">
+                        <thead>
+                            <tr>
+                                <th scope="col">Mã đơn</th>
+                                <th scope="col">Sản phẩm</th>
+                                <th scope="col" class="ab-num">Số tiền</th>
+                                <th scope="col">Trạng thái</th>
+                                <th scope="col">Ngày</th>
+                            </tr>
+                        </thead>
+                        <tbody id="abPaymentHistoryBody"></tbody>
+                    </table>
+                </div>
+                <div class="ab-empty" id="abPaymentHistoryEmpty" hidden>
+                    <div class="ab-empty-icon">💳</div>
+                    <p>Chưa có đơn thanh toán. Mua gói hoặc credit trong tab Gói dịch vụ.</p>
+                </div>
+                <div class="ab-actions">
+                    <a class="ab-btn secondary" href="/account-billing?tab=plans">Mở Gói dịch vụ</a>
+                    <a class="ab-btn secondary" href="/pricing">Xem bảng giá</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="ab-panel" id="abPanelAffiliate" data-ab-panel="affiliate">
+            <div id="abAffNotRegistered" class="ab-card ab-aff-onboard" hidden>
+                <div class="ab-aff-onboard-icon" aria-hidden="true">🤝</div>
+                <h2>Affiliate 30%</h2>
+                <p class="ab-aff-onboard-lead">Kiếm <strong>30% hoa hồng</strong> khi giới thiệu khách mua gói SEOAuto. Cookie theo dõi <span class="ab-tooltip" title="Khách truy cập link của bạn sẽ được ghi nhận trong 60 ngày.">60 ngày</span>.</p>
+                <ul class="ab-aff-onboard-list">
+                    <li>Chia sẻ link cá nhân của bạn</li>
+                    <li>Nhận hoa hồng khi khách thanh toán gói</li>
+                    <li>Rút tiền về tài khoản ngân hàng</li>
+                </ul>
+                <button type="button" class="ab-btn ab-btn-lg" id="btnAffRegister">Đăng ký Affiliate</button>
+            </div>
+
+            <div id="abAffRegistered" hidden>
+                <div class="ab-aff-header">
+                    <div>
+                        <h2 class="ab-aff-title">Chương trình Affiliate</h2>
+                        <p class="ab-aff-sub">Hoa hồng <strong id="affCommissionRate">30%</strong> · 
+                            <span class="ab-tip" tabindex="0" data-tip="Khách truy cập link của bạn được ghi nhận trong 60 ngày kể từ lần click đầu.">Theo dõi <span id="affCookieDays">60</span> ngày</span>
+                        </p>
+                    </div>
+                    <span class="ab-badge" id="affAccountStatusBadge">—</span>
+                </div>
+
+                <nav class="ab-subtabs" aria-label="Affiliate">
+                    <button type="button" class="ab-subtab is-active" data-aff-tab="overview">Tổng quan</button>
+                    <button type="button" class="ab-subtab" data-aff-tab="link">Link giới thiệu</button>
+                    <button type="button" class="ab-subtab" data-aff-tab="referrals">Khách đã giới thiệu</button>
+                    <button type="button" class="ab-subtab" data-aff-tab="commissions">Hoa hồng</button>
+                    <button type="button" class="ab-subtab" data-aff-tab="payout">Rút tiền</button>
+                    <button type="button" class="ab-subtab ab-subtab-admin" data-aff-tab="admin-registrations" id="affAdminRegTab" hidden>Quản lý đăng ký</button>
+                    <button type="button" class="ab-subtab ab-subtab-admin" data-aff-tab="admin-payouts" id="affAdminPayoutTab" hidden>Yêu cầu rút tiền</button>
+                </nav>
+
+                <!-- Tổng quan -->
+                <div class="ab-aff-panel is-active" data-aff-panel="overview">
+                    <div class="ab-aff-hero ab-card">
+                        <div class="ab-aff-hero-label">Link giới thiệu của bạn</div>
+                        <div class="ab-copy-row ab-copy-row-hero">
+                            <input type="text" id="affOverviewLink" readonly aria-label="Link giới thiệu" />
+                            <button type="button" class="ab-btn ab-btn-copy" id="btnAffCopyOverview">
+                                <span class="ab-btn-copy-icon" aria-hidden="true">📋</span> Copy link
+                            </button>
+                        </div>
+                        <p class="ab-aff-hero-hint">Chia sẻ link này để bạn bè đăng ký — hệ thống tự ghi nhận click và đăng ký.</p>
+                    </div>
+                    <div class="ab-card ab-aff-kpi-card">
+                        <h3 class="ab-section-title">Tóm tắt thu nhập</h3>
+                        <div class="ab-kpi-row" id="affKpiRow"></div>
+                    </div>
+                    <div class="ab-card">
+                        <h3 class="ab-section-title">Chi tiết hoạt động</h3>
+                        <div class="ab-skeleton" id="affOverviewSkeleton" hidden>
+                            <div class="ab-skeleton-grid"></div>
+                        </div>
+                        <div class="ab-empty ab-empty-inline" id="affOverviewEmptyClicks" hidden>
+                            <div class="ab-empty-icon">👆</div>
+                            <p><strong>Chưa có lượt click</strong></p>
+                            <p class="ab-muted-text">Copy link và chia sẻ để bắt đầu theo dõi lượt truy cập.</p>
+                        </div>
+                        <div class="ab-grid ab-stat-grid" id="affOverviewStats"></div>
+                        <div class="ab-actions ab-actions-overview">
+                            <button type="button" class="ab-btn ab-btn-copy secondary" id="btnAffCopyOverview2">
+                                <span aria-hidden="true">📋</span> Copy link
+                            </button>
+                            <button type="button" class="ab-btn secondary" data-aff-goto="commissions">Xem hoa hồng</button>
+                            <button type="button" class="ab-btn" id="btnAffRequestPayout">Yêu cầu rút tiền</button>
+                        </div>
+                        <p id="affStatusNote" class="ab-status-note"></p>
+                    </div>
+                </div>
+
+                <!-- Link giới thiệu -->
+                <div class="ab-aff-panel" data-aff-panel="link">
+                    <div class="ab-aff-link-layout">
+                        <div class="ab-card">
+                            <h3 class="ab-section-title">Mã &amp; Link</h3>
+                            <label class="ab-field-label">Mã giới thiệu</label>
+                            <div class="ab-copy-row">
+                                <input type="text" id="affCode" readonly aria-label="Mã referral" />
+                                <button type="button" class="ab-btn ab-btn-copy" id="btnAffCopyCode">Copy mã</button>
+                            </div>
+                            <label class="ab-field-label" style="margin-top:14px;">Link đầy đủ</label>
+                            <div class="ab-copy-row">
+                                <input type="text" id="affLink" readonly aria-label="Link giới thiệu đầy đủ" />
+                                <button type="button" class="ab-btn ab-btn-copy" id="btnAffCopyLink">Copy link</button>
+                            </div>
+                        </div>
+                        <div class="ab-card ab-qr-card">
+                            <h3 class="ab-section-title">QR Code</h3>
+                            <p class="ab-muted-text">Quét để mở link giới thiệu trên điện thoại.</p>
+                            <div class="ab-qr-wrap" id="affQrWrap">
+                                <img id="affQrImg" alt="QR code link giới thiệu" width="180" height="180" hidden />
+                                <div class="ab-qr-placeholder" id="affQrPlaceholder">Đang tạo QR…</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ab-card">
+                        <h3 class="ab-section-title">Tạo link theo nguồn</h3>
+                        <p class="ab-muted-text">Thêm thông tin nguồn để biết khách đến từ đâu (Facebook, email, v.v.).</p>
+                        <div class="ab-form-grid">
+                            <div>
+                                <label class="ab-field-label" for="affUtmSource">Nguồn</label>
+                                <input type="text" id="affUtmSource" placeholder="facebook" />
+                            </div>
+                            <div>
+                                <label class="ab-field-label" for="affUtmMedium">Kênh</label>
+                                <input type="text" id="affUtmMedium" placeholder="social" />
+                            </div>
+                            <div>
+                                <label class="ab-field-label" for="affUtmCampaign">Chiến dịch</label>
+                                <input type="text" id="affUtmCampaign" placeholder="thang6-2026" />
+                            </div>
+                        </div>
+                        <label class="ab-field-label" for="affUtmPreview">Link sau khi thêm thông tin</label>
+                        <div class="ab-copy-row">
+                            <input type="text" id="affUtmPreview" readonly aria-label="Preview link UTM" />
+                            <button type="button" class="ab-btn ab-btn-copy" id="btnAffCopyUtm">Copy link</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Khách đã giới thiệu -->
+                <div class="ab-aff-panel" data-aff-panel="referrals">
+                    <div class="ab-card">
+                        <h3 class="ab-section-title">Khách đã giới thiệu</h3>
+                        <div class="ab-loading" id="affReferralsLoading" hidden>Đang tải danh sách…</div>
+                        <div class="ab-error" id="affReferralsError" hidden></div>
+                        <div class="ab-table-wrap" id="affReferralsTableWrap">
+                            <table class="ab-table" id="affReferralsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Ngày đăng ký</th>
+                                        <th>Khách hàng</th>
+                                        <th>Trạng thái</th>
+                                        <th>Gói đã mua</th>
+                                        <th>Thanh toán đầu</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="ab-mobile-cards" id="affReferralsCards"></div>
+                        <div class="ab-empty" id="affReferralsEmpty" hidden>
+                            <div class="ab-empty-icon">👥</div>
+                            <p><strong>Chưa có khách giới thiệu</strong></p>
+                            <p class="ab-muted-text">Khi có người đăng ký qua link của bạn, danh sách sẽ hiện tại đây.</p>
+                            <button type="button" class="ab-btn ab-btn-copy" data-aff-goto="link">Lấy link giới thiệu</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hoa hồng -->
+                <div class="ab-aff-panel" data-aff-panel="commissions">
+                    <div class="ab-card">
+                        <h3 class="ab-section-title">Hoa hồng</h3>
+                        <div class="ab-loading" id="affCommissionsLoading" hidden>Đang tải hoa hồng…</div>
+                        <div class="ab-error" id="affCommissionsError" hidden></div>
+                        <div class="ab-table-wrap" id="affCommissionsTableWrap">
+                            <table class="ab-table" id="affCommissionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Ngày</th>
+                                        <th>Khách hàng</th>
+                                        <th>Giá trị đơn</th>
+                                        <th>Hoa hồng</th>
+                                        <th>Trạng thái</th>
+                                        <th>Ghi chú</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="ab-mobile-cards" id="affCommissionsCards"></div>
+                        <div class="ab-empty" id="affCommissionsEmpty" hidden>
+                            <div class="ab-empty-icon">💰</div>
+                            <p><strong>Chưa có hoa hồng</strong></p>
+                            <p class="ab-muted-text">Hoa hồng 30% sẽ hiện khi khách giới thiệu thanh toán thành công.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rút tiền -->
+                <div class="ab-aff-panel" data-aff-panel="payout">
+                    <div class="ab-card">
+                        <h3 class="ab-section-title">Số dư</h3>
+                        <div class="ab-grid ab-stat-grid ab-payout-stats" id="affPayoutBalances"></div>
+                        <p class="ab-muted-text" id="affMinPayoutNote"></p>
+                        <div class="ab-actions">
+                            <button type="button" class="ab-btn" id="btnAffRequestPayoutTab">Yêu cầu rút tiền</button>
+                        </div>
+                    </div>
+                    <div class="ab-card">
+                        <h3 class="ab-section-title">Thông tin ngân hàng</h3>
+                        <form class="ab-form" id="affBankForm">
+                            <label class="ab-field-label" for="affBankName">Tên ngân hàng</label>
+                            <input type="text" id="affBankName" required placeholder="VD: Vietcombank" autocomplete="organization" />
+                            <label class="ab-field-label" for="affBankOwner">Chủ tài khoản</label>
+                            <input type="text" id="affBankOwner" required placeholder="Họ tên trên thẻ" autocomplete="name" />
+                            <label class="ab-field-label" for="affBankNumber">Số tài khoản</label>
+                            <input type="text" id="affBankNumber" required placeholder="Số tài khoản" inputmode="numeric" autocomplete="off" />
+                            <p class="ab-muted-text" id="affBankMasked"></p>
+                            <button type="submit" class="ab-btn secondary">Lưu thông tin</button>
+                        </form>
+                    </div>
+                    <div class="ab-card">
+                        <h3 class="ab-section-title">Lịch sử rút tiền</h3>
+                        <div class="ab-loading" id="affPayoutsLoading" hidden>Đang tải lịch sử…</div>
+                        <div class="ab-error" id="affPayoutsError" hidden></div>
+                        <div class="ab-table-wrap" id="affPayoutsTableWrap">
+                            <table class="ab-table" id="affPayoutsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Ngày yêu cầu</th>
+                                        <th>Số tiền</th>
+                                        <th>Trạng thái</th>
+                                        <th>Ghi chú</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="ab-mobile-cards" id="affPayoutsCards"></div>
+                        <div class="ab-empty" id="affPayoutsEmpty" hidden>
+                            <div class="ab-empty-icon">🏦</div>
+                            <p><strong>Chưa có yêu cầu rút tiền</strong></p>
+                            <p class="ab-muted-text">Khi số dư đủ điều kiện, bạn có thể gửi yêu cầu rút tiền.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin: danh sách user đăng ký AFF -->
+                <div class="ab-aff-panel" data-aff-panel="admin-registrations" id="affAdminRegPanel">
+                    <div class="ab-card ab-admin-aff-banner">
+                        <p><strong>Quản trị Affiliate</strong> — Duyệt tài khoản user đăng ký chương trình giới thiệu.</p>
+                        <a class="ab-sys-link" href="/admin/affiliate">Mở trang quản lý đầy đủ (hoa hồng, rút tiền, gian lận) →</a>
+                    </div>
+                    <div class="ab-card">
+                        <div class="ab-admin-aff-toolbar">
+                            <input type="search" id="affAdminRegSearch" placeholder="Tìm email hoặc mã giới thiệu…" aria-label="Tìm affiliate" />
+                            <select id="affAdminRegStatus" aria-label="Lọc trạng thái">
+                                <option value="">Tất cả trạng thái</option>
+                                <option value="active">Hoạt động</option>
+                                <option value="review">Cần xem xét</option>
+                                <option value="suspended">Tạm khóa</option>
+                            </select>
+                            <button type="button" class="ab-btn secondary" id="btnAffAdminRegRefresh">Làm mới</button>
+                        </div>
+                        <div class="ab-loading" id="affAdminRegLoading" hidden>Đang tải danh sách…</div>
+                        <div class="ab-error" id="affAdminRegError" hidden></div>
+                        <div class="ab-table-wrap" id="affAdminRegTableWrap">
+                            <table class="ab-table" id="affAdminRegTable">
+                                <thead>
+                                    <tr>
+                                        <th>Ngày đăng ký</th>
+                                        <th>Email</th>
+                                        <th>Mã giới thiệu</th>
+                                        <th>Trạng thái</th>
+                                        <th>Click</th>
+                                        <th>Đăng ký</th>
+                                        <th>Trả phí</th>
+                                        <th>Hoa hồng</th>
+                                        <th>Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="ab-mobile-cards" id="affAdminRegCards"></div>
+                        <div class="ab-empty" id="affAdminRegEmpty" hidden>
+                            <div class="ab-empty-icon">📋</div>
+                            <p><strong>Chưa có đăng ký affiliate</strong></p>
+                            <p class="ab-muted-text">Khi user bấm «Đăng ký Affiliate», thông tin sẽ hiển thị tại đây.</p>
+                        </div>
+                        <div class="ab-pager" id="affAdminRegPager" hidden></div>
+                    </div>
+                </div>
+
+                <!-- Admin: yêu cầu rút tiền -->
+                <div class="ab-aff-panel" data-aff-panel="admin-payouts" id="affAdminPayoutPanel">
+                    <div class="ab-card ab-admin-aff-banner">
+                        <p><strong>Duyệt rút tiền Affiliate</strong> — Duyệt yêu cầu → chuyển khoản → đánh dấu đã thanh toán.</p>
+                    </div>
+                    <div class="ab-card">
+                        <div class="ab-admin-aff-toolbar">
+                            <input type="search" id="affAdminPayoutSearch" placeholder="Tìm email affiliate…" aria-label="Tìm payout" />
+                            <select id="affAdminPayoutStatus" aria-label="Lọc trạng thái payout">
+                                <option value="requested">Chờ duyệt</option>
+                                <option value="">Tất cả trạng thái</option>
+                                <option value="processing">Đang xử lý</option>
+                                <option value="paid">Đã thanh toán</option>
+                                <option value="rejected">Từ chối</option>
+                            </select>
+                            <button type="button" class="ab-btn secondary" id="btnAffAdminPayoutRefresh">Làm mới</button>
+                        </div>
+                        <div class="ab-loading" id="affAdminPayoutLoading" hidden>Đang tải yêu cầu rút tiền…</div>
+                        <div class="ab-error" id="affAdminPayoutError" hidden></div>
+                        <div class="ab-table-wrap" id="affAdminPayoutTableWrap">
+                            <table class="ab-table" id="affAdminPayoutTable">
+                                <thead>
+                                    <tr>
+                                        <th>Affiliate</th>
+                                        <th>Số tiền</th>
+                                        <th>Ngân hàng</th>
+                                        <th>Trạng thái</th>
+                                        <th>Ngày yêu cầu</th>
+                                        <th>Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="ab-mobile-cards" id="affAdminPayoutCards"></div>
+                        <div class="ab-empty" id="affAdminPayoutEmpty" hidden>
+                            <div class="ab-empty-icon">🏦</div>
+                            <p><strong>Chưa có yêu cầu rút tiền</strong></p>
+                        </div>
+                        <div class="ab-pager" id="affAdminPayoutPager" hidden></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ab-loading" id="abAffLoading">Đang tải Affiliate…</div>
+            <div class="ab-error" id="abAffError" hidden></div>
+        </section>
+    </div>
+
+    <div class="ab-toast" id="abToast" role="status" aria-live="polite" hidden></div>
+
+    <div class="ab-aff-modal" id="affAdminRegDetailModal" role="dialog" aria-modal="true" aria-labelledby="affAdminRegDetailTitle" hidden>
+        <div class="ab-aff-modal-box">
+            <h3 id="affAdminRegDetailTitle">Chi tiết Affiliate</h3>
+            <div id="affAdminRegDetailBody"></div>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAffAdminRegDetailClose">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="ab-aff-modal" id="affAdminPayoutPaidModal" role="dialog" aria-modal="true" hidden>
+        <div class="ab-aff-modal-box">
+            <h3>Xác nhận đã chuyển khoản</h3>
+            <p class="ab-muted-text" id="affAdminPayoutPaidDesc"></p>
+            <label class="ab-field-label" for="affAdminPayoutRef">Mã giao dịch</label>
+            <input type="text" id="affAdminPayoutRef" placeholder="FT… / mã chuyển khoản" />
+            <label class="ab-field-label" for="affAdminPayoutNote">Ghi chú</label>
+            <textarea id="affAdminPayoutNote" rows="3" placeholder="Ghi chú (tùy chọn)"></textarea>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAffAdminPayoutPaidCancel">Hủy</button>
+                <button type="button" class="ab-btn" id="btnAffAdminPayoutPaidConfirm">Xác nhận</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="ab-aff-modal" id="abPaymentModal" role="dialog" aria-modal="true" aria-labelledby="abPaymentModalTitle" hidden>
+        <div class="ab-aff-modal-box ab-payment-modal">
+            <div class="ab-payment-head">
+                <h3 id="abPaymentModalTitle">Thanh toán chuyển khoản</h3>
+                <button type="button" class="ab-payment-close" id="btnAbPaymentClose" aria-label="Đóng">&times;</button>
+            </div>
+            <div class="ab-payment-body" id="abPaymentBody">
+                <div class="ab-payment-loading" id="abPaymentLoading">
+                    <div class="ab-payment-spinner" aria-hidden="true"></div>
+                    <p>Đang tạo đơn thanh toán…</p>
+                </div>
+                <div id="abPaymentContent" hidden>
+                    <div class="ab-payment-product">
+                        <span class="ab-payment-label">Sản phẩm</span>
+                        <strong id="abPayProductName">—</strong>
+                    </div>
+                    <dl class="ab-payment-totals">
+                        <div class="ab-payment-totals-row">
+                            <dt>Giá chưa VAT</dt>
+                            <dd id="abPayBase">—</dd>
+                        </div>
+                        <div class="ab-payment-totals-row">
+                            <dt>VAT <span id="abPayVatPct">10</span>%</dt>
+                            <dd id="abPayVat">—</dd>
+                        </div>
+                        <div class="ab-payment-totals-row is-total">
+                            <dt>Tổng thanh toán</dt>
+                            <dd id="abPayAmount" class="ab-payment-amount">—</dd>
+                        </div>
+                    </dl>
+                    <div class="ab-payment-warn" id="abPayWarn">
+                        <strong>Quan trọng:</strong> Chuyển khoản đúng <em>nội dung</em> bên dưới. Sai nội dung có thể chậm xác nhận hoặc không kích hoạt tự động.
+                    </div>
+                    <dl class="ab-payment-grid">
+                        <dt>Ngân hàng</dt>
+                        <dd id="abPayBank">—</dd>
+                        <dt>Chủ tài khoản</dt>
+                        <dd id="abPayHolder">—</dd>
+                        <dt>Số tài khoản</dt>
+                        <dd class="ab-payment-copy-row">
+                            <code id="abPayAccount">—</code>
+                            <button type="button" class="ab-btn secondary ab-btn-sm" id="btnAbCopyAccount">Copy</button>
+                        </dd>
+                        <dt>Nội dung CK</dt>
+                        <dd class="ab-payment-copy-row">
+                            <code id="abPayTransfer">—</code>
+                            <button type="button" class="ab-btn secondary ab-btn-sm" id="btnAbCopyTransfer">Copy</button>
+                        </dd>
+                    </dl>
+                    <div class="ab-payment-qr" id="abPayQrWrap" hidden>
+                        <p class="ab-muted-text">Quét mã QR để chuyển khoản nhanh</p>
+                        <img id="abPayQrImg" alt="QR thanh toán" width="200" height="200" />
+                    </div>
+                    <div class="ab-payment-status" id="abPayStatus">
+                        <span class="ab-payment-status-dot" aria-hidden="true"></span>
+                        <span id="abPayStatusText">Đang chờ thanh toán…</span>
+                    </div>
+                    <p class="ab-muted-text ab-payment-expire" id="abPayExpire"></p>
+                </div>
+                <div class="ab-payment-success" id="abPaymentSuccess" hidden>
+                    <div class="ab-payment-success-icon" aria-hidden="true">✓</div>
+                    <h4>Đã thanh toán, gói đã được kích hoạt</h4>
+                    <p class="ab-muted-text" id="abPaySuccessDetail"></p>
+                </div>
+                <div class="ab-payment-expired" id="abPaymentExpired" hidden>
+                    <div class="ab-payment-expired-icon" aria-hidden="true">⏱</div>
+                    <h4>Đơn thanh toán đã hết hạn</h4>
+                    <p class="ab-muted-text">Vui lòng tạo đơn mới để tiếp tục thanh toán.</p>
+                    <button type="button" class="ab-btn" id="btnAbPaymentRetry">Tạo đơn mới</button>
+                </div>
+                <div class="ab-payment-contact" id="abPaymentContact" hidden>
+                    <p id="abPayContactMsg"></p>
+                    <button type="button" class="ab-btn secondary" id="btnAbPaymentContactClose">Đóng</button>
+                </div>
+                <div class="ab-error" id="abPaymentError" hidden></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ab-aff-modal" id="affAdminPayoutRejectModal" role="dialog" aria-modal="true" hidden>
+        <div class="ab-aff-modal-box">
+            <h3>Từ chối yêu cầu rút tiền</h3>
+            <label class="ab-field-label" for="affAdminPayoutRejectReason">Lý do</label>
+            <textarea id="affAdminPayoutRejectReason" rows="4" placeholder="Nhập lý do từ chối…"></textarea>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAffAdminPayoutRejectCancel">Hủy</button>
+                <button type="button" class="ab-btn" id="btnAffAdminPayoutRejectConfirm">Từ chối</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=4"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=8" defer></script>
+    <script src="/static/js/digiseo-social-auto-nav.js?v=1" defer></script>
+    <script src="/static/js/digiseo-mobile-nav.js?v=7" defer></script>
+    <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+    <script src="/static/js/sepay-payment-flow.js?v=1"></script>
+    <script src="/static/js/account-billing.js?v=23"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

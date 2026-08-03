@@ -4,23 +4,35 @@ RAG context from AI Knowledge Base / Sơ đồ tri thức for Content AI (outlin
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 from urllib.parse import urlparse
+
+_LOG = logging.getLogger(__name__)
 
 from app.services.ai_knowledge_docs import _document_full_text, _parse_knowledge_sections, _read_store
 from app.services.ai_knowledge_store import get_default_base, list_bases
 from app.services.content_draft_builder import content_ai_has_local_service_signal
 
 _SECTION_ALIASES: dict[str, tuple[str, ...]] = {
-    "brand_profile": ("brand profile", "hồ sơ thương hiệu", "thương hiệu"),
+    "brand_profile": ("brand profile", "hồ sơ thương hiệu", "thương hiệu", "thông tin công ty", "giới thiệu"),
     "services": ("core services", "dịch vụ chính", "dịch vụ"),
     "audience": ("target audience", "đối tượng khách"),
     "search_intent": ("search intent", "ý định tìm kiếm"),
     "pain_points": ("pain points", "nỗi đau"),
     "trust_factors": ("trust factors", "yếu tố tạo niềm tin", "niềm tin"),
     "process": ("service process", "quy trình dịch vụ", "quy trình"),
-    "pricing": ("pricing knowledge", "kiến thức về giá", "bảng giá", "chi phí"),
+    "pricing": (
+        "pricing knowledge",
+        "kiến thức về giá",
+        "bảng giá",
+        "chi phí",
+        "giá dịch vụ",
+        "báo giá",
+        "mức giá",
+        "giá tham khảo",
+    ),
     "local_seo": ("local seo", "khu vực phục vụ", "local"),
     "semantic_keywords": ("seo keyword", "cụm từ khóa", "semantic"),
     "topic_graph": ("topic graph", "sơ đồ chủ đề"),
@@ -28,7 +40,8 @@ _SECTION_ALIASES: dict[str, tuple[str, ...]] = {
     "faq": ("faq knowledge", "câu hỏi thường gặp"),
     "content_rules": ("content rules", "quy tắc viết content"),
     "image_context": ("image context", "tri thức tạo ảnh"),
-    "cta": ("cta", "liên hệ", "hotline", "zalo"),
+    "cta": ("cta", "liên hệ", "hotline", "zalo", "sđt", "sdt", "điện thoại", "phone", "contact"),
+    "general": ("tổng quan", "overview", "general", "thông tin chung"),
 }
 
 _LOCAL_REQUIRED_H2 = [
@@ -104,22 +117,222 @@ def _match_section_key(title: str) -> str:
     return ""
 
 
-def resolve_kb_for_target(target_website: str = "", *, user_id: int | None = None) -> dict[str, Any] | None:
-    if user_id is None:
+def _resolve_user_id(user_id: int | None) -> int | None:
+    if user_id is not None:
+        return int(user_id)
+    try:
+        from app.core.user_context import get_request_user_id
+
+        uid = get_request_user_id()
+        return int(uid) if uid is not None else None
+    except Exception:
         return None
-    bases = [b for b in list_bases(user_id=user_id) if b.get("enabled", True)]
-    if not bases:
+
+
+def _user_has_content_project_on_website(user_id: int | None, host: str) -> bool:
+    """User có project Content AI trỏ tới website (legacy KB orphan)."""
+    if not host or user_id is None:
+        return False
+    try:
+        from app.services.content_ai_project_store import list_content_ai_projects
+    except Exception:
+        return False
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    for row in list_content_ai_projects(user_id=uid, limit=80):
+        rh = _norm_site(str(row.get("target_website") or ""))
+        if not rh:
+            continue
+        if rh == host or host in rh or rh in host:
+            return True
+    return False
+
+
+def _kb_owner_user_id(kb_row: dict[str, Any]) -> int:
+    try:
+        return int(kb_row.get("user_id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _resolve_kb_by_website_fallback(
+    host: str,
+    *,
+    user_id: int | None = None,
+) -> tuple[dict[str, Any] | None, str]:
+    """
+    Khớp KB theo website_url chuẩn hóa.
+    Không trả KB thuộc user khác (trừ legacy orphan + user có project cùng website).
+    """
+    if not host:
+        return None, "no_target_website"
+    try:
+        from app.services.ai_knowledge_store import _normalize, _read_all
+        from app.services.user_scope import belongs_to_user, is_legacy_orphan
+    except Exception:
+        return None, "kb_store_unavailable"
+    uid = _resolve_user_id(user_id)
+    ranked: list[tuple[int, dict[str, Any], str]] = []
+    for raw in _read_all():
+        row = _normalize(raw)
+        if not row.get("enabled", True) or str(row.get("scope") or "") != "user":
+            continue
+        bh = _norm_site(row.get("website_url") or "")
+        if not bh:
+            continue
+        if bh != host and host not in bh and bh not in host:
+            continue
+        owner = _kb_owner_user_id(row)
+        orphan = is_legacy_orphan(raw) or bool(row.get("legacy_orphan"))
+        if uid is not None:
+            if owner > 0 and owner != uid and not orphan:
+                continue
+            if orphan and owner <= 0 and not _user_has_content_project_on_website(uid, host):
+                continue
+            if owner > 0 and owner == uid:
+                pass
+            elif not belongs_to_user(raw, uid) and not (orphan and _user_has_content_project_on_website(uid, host)):
+                continue
+        score = 0
+        if bh == host:
+            score += 10
+        if uid is not None and belongs_to_user(raw, uid):
+            score += 100
+        if row.get("is_default"):
+            score += 5
+        if not orphan:
+            score += 20
+        reason = "website_match_owned" if belongs_to_user(raw, uid or 0) else "website_match_legacy_project"
+        ranked.append((score, row, reason))
+    if not ranked:
+        return None, f"no_kb_for_host:{host}"
+    ranked.sort(key=lambda x: (-x[0], str(x[1].get("name") or "").lower()))
+    best = ranked[0]
+    return best[1], best[2]
+
+
+def resolve_kb_for_target(
+    target_website: str = "",
+    *,
+    user_id: int | None = None,
+) -> dict[str, Any] | None:
+    """Ưu tiên KB riêng của user; không dùng KB global kế thừa làm KB chính."""
+    uid = _resolve_user_id(user_id)
+    if uid is None:
         return None
     host = _norm_site(target_website)
-    if host:
+    bases = [
+        b
+        for b in list_bases(user_id=uid)
+        if b.get("enabled", True) and b.get("scope") == "user" and not b.get("is_inherited")
+    ]
+    if host and bases:
         for b in bases:
             if _norm_site(b.get("website_url") or "") == host:
+                _LOG.info(
+                    "content_ai_kb_resolved kb_id=%s reason=website_exact user_id=%s host=%s",
+                    b.get("id"),
+                    uid,
+                    host,
+                )
                 return b
         for b in bases:
             bh = _norm_site(b.get("website_url") or "")
             if bh and (host in bh or bh in host):
+                _LOG.info(
+                    "content_ai_kb_resolved kb_id=%s reason=website_partial user_id=%s host=%s",
+                    b.get("id"),
+                    uid,
+                    host,
+                )
                 return b
-    return get_default_base(user_id=user_id)
+    default = get_default_base(user_id=uid) if bases else None
+    if default and not host:
+        _LOG.info("content_ai_kb_resolved kb_id=%s reason=user_default user_id=%s", default.get("id"), uid)
+        return default
+    fallback, fb_reason = _resolve_kb_by_website_fallback(host, user_id=uid)
+    if fallback:
+        _LOG.info(
+            "content_ai_kb_resolved kb_id=%s reason=%s user_id=%s host=%s",
+            fallback.get("id"),
+            fb_reason,
+            uid,
+            host,
+        )
+        return fallback
+    if not host:
+        _LOG.info("content_ai_kb_not_found user_id=%s reason=no_host_no_match", uid)
+    elif not bases:
+        _LOG.info("content_ai_kb_not_found user_id=%s host=%s reason=no_user_bases", uid, host)
+    else:
+        _LOG.info("content_ai_kb_not_found user_id=%s host=%s reason=website_no_match", uid, host)
+    return default
+
+
+def _parse_content_ai_knowledge_sections(text: str) -> list[dict[str, str]]:
+    """
+    Parse sơ đồ tri thức Content AI: hỗ trợ cả «=== title ===» và banner
+    «====\\nTITLE\\n====» (định dạng phổ biến trong file import KB).
+    """
+    sections: list[dict[str, str]] = []
+    lines = str(text or "").splitlines()
+    banner_re = re.compile(r"^=+\s*$")
+    single_re = re.compile(r"^=+\s*(.+?\S.+?)\s*=+$|^===+\s*(.+?\S.+?)\s*===+$")
+    title = "Tổng quan"
+    body_lines: list[str] = []
+    i = 0
+
+    def _flush() -> None:
+        nonlocal title, body_lines
+        body = "\n".join(body_lines).strip()
+        if body or sections:
+            sections.append({"title": title, "body": body})
+        body_lines = []
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if banner_re.match(stripped):
+            if i + 2 < len(lines):
+                mid = lines[i + 1].strip()
+                if mid and banner_re.match(lines[i + 2].strip()):
+                    _flush()
+                    title = mid
+                    i += 3
+                    continue
+            i += 1
+            continue
+        m = single_re.match(stripped)
+        if m:
+            label = (m.group(1) or m.group(2) or "").strip()
+            if label:
+                _flush()
+                title = label
+                i += 1
+                continue
+        body_lines.append(line)
+        i += 1
+    _flush()
+    return [s for s in sections if s.get("body") or len(sections) == 1]
+
+
+_PRICE_NUMBER_RE = re.compile(r"\d[\d.,\s]*(?:đ|vnđ|vnd)\b", re.I)
+
+
+def _kb_text_has_price_numbers(text: str) -> bool:
+    return bool(_PRICE_NUMBER_RE.search(str(text or "")))
+
+
+def _is_pricing_document(doc: dict[str, Any], full_text: str) -> bool:
+    label = " ".join(
+        str(doc.get(key) or "").lower() for key in ("title", "filename")
+    )
+    if any(x in label for x in ("bảng giá", "bang-gia", "bang gia", "báo giá", "pricing")):
+        return True
+    body = str(full_text or "")
+    return bool(re.search(r"\|\s*giá", body, re.I)) and _kb_text_has_price_numbers(body)
 
 
 def _score_chunk(text: str, query_tokens: set[str], keyword: str) -> int:
@@ -169,21 +382,84 @@ def _search_kb_chunks(kb_id: str, keyword: str, *, limit: int = 16) -> list[dict
     return hits[: max(1, min(limit, 24))]
 
 
+def _fallback_all_kb_chunks(kb_id: str, *, limit: int = 16) -> list[dict[str, Any]]:
+    """Khi từ khóa không khớp chunk — vẫn lấy ngữ cảnh KB theo website."""
+    hits: list[dict[str, Any]] = []
+    for doc in _read_store(kb_id).get("documents") or []:
+        if not isinstance(doc, dict):
+            continue
+        title = str(doc.get("title") or doc.get("filename") or "")
+        for ch in doc.get("chunks") or []:
+            if not isinstance(ch, dict):
+                continue
+            text = str(ch.get("text") or "").strip()
+            if not text:
+                continue
+            hits.append(
+                {
+                    "document_id": doc.get("id"),
+                    "document_title": title,
+                    "chunk_index": ch.get("index"),
+                    "snippet": text[:480],
+                    "score": 1,
+                    "section_key": _match_section_key(text[:120]) or "general",
+                }
+            )
+    return hits[: max(1, min(limit, 24))]
+
+
 def _merge_sections_from_docs(kb_id: str) -> dict[str, str]:
     out: dict[str, str] = {}
+    pricing_docs: list[str] = []
     for doc in _read_store(kb_id).get("documents") or []:
         if not isinstance(doc, dict):
             continue
         full = _document_full_text(doc)
-        for sec in _parse_knowledge_sections(full):
+        if not full.strip():
+            continue
+        if _is_pricing_document(doc, full):
+            pricing_docs.append(full.strip())
+        parsed = _parse_content_ai_knowledge_sections(full)
+        if not parsed:
+            parsed = _parse_knowledge_sections(full)
+        for sec in parsed:
             key = _match_section_key(sec.get("title") or "")
             body = str(sec.get("body") or "").strip()
-            if not key or not body:
+            if not body:
                 continue
+            if not key:
+                key = "general"
             if key in out:
                 out[key] = (out[key] + "\n\n" + body).strip()
             else:
                 out[key] = body
+        if full.strip() and not parsed:
+            out["general"] = (out.get("general", "") + "\n\n" + full.strip()).strip()
+    for pd in pricing_docs:
+        label = "=== BẢNG GIÁ CHÍNH THỨC (tài liệu KB) ==="
+        block = f"{label}\n{pd}"
+        if "pricing" in out:
+            if pd not in out["pricing"]:
+                out["pricing"] = (out["pricing"] + "\n\n" + block).strip()
+        else:
+            out["pricing"] = block
+    if not out:
+        joined: list[str] = []
+        for doc in _read_store(kb_id).get("documents") or []:
+            if not isinstance(doc, dict):
+                continue
+            full = _document_full_text(doc)
+            if full.strip():
+                joined.append(full.strip())
+        if joined:
+            out["general"] = _truncate("\n\n".join(joined), 12000)
+    elif out.get("pricing") and _kb_text_has_price_numbers(out["pricing"]):
+        # Ghi đè hướng dẫn «không bịa giá» khi KB đã có bảng giá số thật.
+        out["pricing"] = (
+            "BẮT BUỘC dùng giá cụ thể từ bảng giá bên dưới trong HTML (<table>); "
+            "KHÔNG ghi «Cần bổ sung dữ liệu» cho dịch vụ đã có giá.\n\n"
+            + out["pricing"]
+        ).strip()
     return out
 
 
@@ -275,17 +551,52 @@ def get_relevant_knowledge_for_keyword(
         "kb_name": "",
         "outline_type": _classify_outline_type(pk),
     }
-    if not pk:
-        return empty
-
-    kb = resolve_kb_for_target(target_website, user_id=user_id)
+    uid = _resolve_user_id(user_id)
+    host = _norm_site(target_website)
+    kb = resolve_kb_for_target(target_website, user_id=uid)
     if not kb:
+        reason = "no_kb_match"
+        if not uid:
+            reason = "missing_user_id"
+        elif not host:
+            reason = "missing_target_website"
+        _LOG.info(
+            "content_ai_kb_miss keyword=%s user_id=%s host=%s reason=%s",
+            pk[:80],
+            uid,
+            host,
+            reason,
+        )
+        empty["kb_resolve_reason"] = reason
         return empty
 
     kb_id = str(kb.get("id") or "")
-    hits = _search_kb_chunks(kb_id, pk, limit=limit_hits)
+    hits = _search_kb_chunks(kb_id, pk, limit=limit_hits) if pk else []
+    if not hits:
+        hits = _fallback_all_kb_chunks(kb_id, limit=limit_hits)
     sections = _merge_sections_from_docs(kb_id)
+    # Bổ sung ngữ cảnh từ KB global kế thừa (ưu tiên thấp hơn KB riêng).
+    if uid is not None:
+        for gb in list_bases(user_id=uid):
+            if not gb.get("enabled", True) or not gb.get("is_inherited"):
+                continue
+            gid = str(gb.get("id") or "")
+            if not gid or gid == kb_id:
+                continue
+            for gh in _search_kb_chunks(gid, pk, limit=max(4, limit_hits // 2)):
+                hits.append({**gh, "score": int(gh.get("score") or 0) // 2, "source": "inherited"})
+            gsec = _merge_sections_from_docs(gid)
+            for key, body in gsec.items():
+                if key not in sections:
+                    sections[key] = body
     if not hits and not sections:
+        _LOG.warning(
+            "content_ai_kb_empty_docs kb_id=%s keyword=%s user_id=%s",
+            kb_id,
+            pk[:80],
+            uid,
+        )
+        empty["kb_resolve_reason"] = "kb_has_no_documents"
         return empty
 
     brand = str(kb.get("brand_name") or kb.get("name") or "").strip()
@@ -314,6 +625,16 @@ def get_relevant_knowledge_for_keyword(
             cta = m.group(0).strip()
             break
 
+    used_sections = [k for k, v in sections.items() if str(v or "").strip()]
+    _LOG.info(
+        "content_ai_kb_hit kb_id=%s kb_name=%s user_id=%s host=%s sections=%s",
+        kb_id,
+        kb.get("name"),
+        uid,
+        host,
+        used_sections,
+    )
+
     return {
         "found": True,
         "keyword": pk,
@@ -331,8 +652,14 @@ def get_relevant_knowledge_for_keyword(
         "content_rules": sections.get("content_rules") or "",
         "outline_pattern": sections.get("outline_pattern") or "",
         "image_context": sections.get("image_context") or "",
-        "no_invented_pricing": "không tự bịa" in (sections.get("pricing") or "").lower()
-        or "không tự bịa" in (sections.get("content_rules") or "").lower(),
+        "no_invented_pricing": not _kb_text_has_price_numbers(sections.get("pricing") or "")
+        and (
+            "không tự bịa" in (sections.get("pricing") or "").lower()
+            or "không tự bịa" in (sections.get("content_rules") or "").lower()
+        ),
+        "has_pricing_numbers": _kb_text_has_price_numbers(sections.get("pricing") or ""),
+        "kb_sections_used": used_sections,
+        "kb_resolve_reason": "matched",
     }
 
 
@@ -364,17 +691,20 @@ def build_outline_context_from_knowledge(knowledge: dict[str, Any], *, max_chars
         "content_rules",
         "cta",
         "image_context",
+        "general",
     )
     for key in order:
         body = str(sec.get(key) or "").strip()
         if not body:
             continue
         label = key.replace("_", " ").upper()
-        parts.append(f"=== {label} ===\n{_truncate(body, 2200)}")
+        cap = 5800 if key == "pricing" else 2200
+        parts.append(f"=== {label} ===\n{_truncate(body, cap)}")
     if knowledge.get("semantic_keywords"):
         parts.append("=== SEMANTIC KEYWORDS (gợi ý) ===\n" + ", ".join(knowledge["semantic_keywords"][:25]))
     blob = "\n\n".join(parts).strip()
-    return _truncate(blob, max_chars)
+    cap = max(max_chars, 14000) if sec.get("pricing") else max_chars
+    return _truncate(blob, cap)
 
 
 def build_content_prompt_with_knowledge(
@@ -394,9 +724,10 @@ def build_content_prompt_with_knowledge(
 
     common = (
         "\n\n=== KNOWLEDGE BASE (bắt buộc ưu tiên, không bịa) ===\n"
-        f"- Thương hiệu: {brand}. Chỉ dùng thông tin có trong KNOWLEDGE_BASE SOURCE.\n"
+        f"- Thương hiệu: {brand}. BẮT BUỘC dùng thông tin có trong KNOWLEDGE_BASE SOURCE (giá, SĐT/hotline, quy trình, FAQ, CTA).\n"
         "- KHÔNG tự bịa giá cố định, thời gian bảo hành, % cam kết, case study, số liệu nếu KB không có.\n"
-        "- Thiếu số liệu → ghi «Cần bổ sung dữ liệu» (ngắn), không placeholder.\n"
+        "- KHÔNG ghi «Cần bổ sung dữ liệu» nếu thông tin đã có trong KNOWLEDGE_BASE/SOURCE (bảng giá, liên hệ, hồ sơ thương hiệu…).\n"
+        "- Chỉ ghi «Cần bổ sung dữ liệu» khi một chi tiết cụ thể hoàn toàn không có trong toàn bộ SOURCE.\n"
         "- Không outline/bài sơ sài chỉ «định nghĩa / lợi ích / tiêu chí lựa chọn».\n"
     )
     if rules:
@@ -422,10 +753,19 @@ def build_content_prompt_with_knowledge(
                 f"Q: {x.get('question','')}\nA: {_truncate(x.get('answer',''), 280)}"
                 for x in faq[:6]
             )
+        pricing_blob = str((knowledge.get("sections") or {}).get("pricing") or "")
+        pricing_hint = ""
+        if _kb_text_has_price_numbers(pricing_blob):
+            pricing_hint = (
+                "\n- Bảng giá trong SOURCE (=== PRICING ===): BẮT BUỘC chép giá VNĐ vào <table> HTML;"
+                " không placeholder «Cần bổ sung dữ liệu» cho dòng đã có giá trong KB.\n"
+            )
         return (
             common
             + f"- Viết đúng dịch vụ/khu vực/CTA của {brand}; giọng chuyên nghiệp, rõ ràng.\n"
-            "- Mở bài nêu đúng pain point; có quy trình, yếu tố chi phí (không bịa giá), trust, FAQ, CTA.\n"
+            "- Mở bài nêu đúng pain point; có quy trình, yếu tố chi phí, trust, FAQ, CTA.\n"
+            "- Khi có OUTLINE_SOURCE: phủ 100% H2/H3; mỗi H2 đủ nội dung; ưu tiên giá/hotline/FAQ từ KB.\n"
+            + pricing_hint
             + (f"\nFAQ từ KB (tham khảo):\n{faq_hint}\n" if faq_hint else "")
         )
 
@@ -472,6 +812,140 @@ def build_outline_from_knowledge_rule(knowledge: dict[str, Any], *, title: str =
     if brand and not any("chọn" in x.lower() for x in lines):
         lines.append(f"<h2>Vì sao nên chọn {brand}?</h2>")
     return "\n".join(lines)
+
+
+CONTENT_AI_LLM_UNAVAILABLE_CODE = "CONTENT_AI_LLM_UNAVAILABLE"
+CONTENT_AI_LLM_UNAVAILABLE_MESSAGE = (
+    "Hệ thống đang nâng cấp tính năng, mong bạn thông cảm chúng tôi sẽ quay trở lại sớm nhất !"
+)
+
+
+class ContentAiLlmUnavailableError(Exception):
+    """LLM không khả dụng hoặc thiếu dữ liệu nguồn thật (website/KB) cho tab Viết bài SEO."""
+
+    code = CONTENT_AI_LLM_UNAVAILABLE_CODE
+
+    def __init__(self, internal_reason: str = "") -> None:
+        self.internal_reason = str(internal_reason or "").strip()
+        super().__init__(CONTENT_AI_LLM_UNAVAILABLE_MESSAGE)
+
+
+def gather_single_writer_source_context(
+    *,
+    primary_keyword: str,
+    target_website: str = "",
+    content: str = "",
+    outline_content: str = "",
+    title: str = "",
+    user_id: int | None = None,
+) -> dict[str, Any]:
+    """Thu thập KB + text website (cache trong request khi có)."""
+    from app.services.content_ai_request_cache import cache_get_or_set
+
+    pk = str(primary_keyword or "").strip()
+    site = str(target_website or "").strip()
+    knowledge: dict[str, Any] | None = None
+    kb_found = False
+    if pk:
+        try:
+            knowledge = cache_get_or_set(
+                f"kb:validate:{pk.lower()}:{site.lower()}",
+                lambda: get_relevant_knowledge_for_keyword(
+                    pk,
+                    target_website=site,
+                    user_id=user_id,
+                ),
+            )
+            kb_found = bool(knowledge and knowledge.get("found"))
+        except Exception:
+            knowledge = None
+            kb_found = False
+
+    website_text = ""
+    # Không crawl website ở bước validate — tránh chặn trước khi gọi LLM (crawl trong generate khi cần).
+    has_website_data = bool(site)
+
+    notes = str(content or "").strip()
+    outline = str(outline_content or "").strip()
+    brief_title = str(title or "").strip()
+    return {
+        "knowledge": knowledge,
+        "kb_found": kb_found,
+        "website_text": website_text,
+        "website_text_len": len(website_text),
+        "has_website_data": has_website_data,
+        "has_user_brief": len(notes) >= 30 or len(outline) >= 30 or len(brief_title) >= 8,
+    }
+
+
+def assert_single_writer_source_ready(
+    *,
+    primary_keyword: str,
+    target_website: str = "",
+    content: str = "",
+    outline_content: str = "",
+    title: str = "",
+    field: str = "",
+    user_id: int | None = None,
+) -> dict[str, Any]:
+    """
+  Tab Viết bài SEO: bắt buộc có dữ liệu thật từ website crawl và/hoặc KB trước khi gọi LLM.
+  """
+    f = str(field or "").strip().lower()
+    pk = str(primary_keyword or "").strip()
+    # Gợi ý brief (title/meta/tags…): chỉ cần từ khóa — bỏ lookup KB để phản hồi nhanh.
+    if f in {
+        "title",
+        "meta_description",
+        "slug",
+        "tags",
+        "primary_keyword",
+        "secondary_keywords",
+    } and pk:
+        site = str(target_website or "").strip()
+        notes = str(content or "").strip()
+        outline = str(outline_content or "").strip()
+        brief_title = str(title or "").strip()
+        return {
+            "knowledge": None,
+            "kb_found": False,
+            "website_text": "",
+            "website_text_len": 0,
+            "has_website_data": bool(site),
+            "has_user_brief": len(notes) >= 30 or len(outline) >= 30 or len(brief_title) >= 8,
+        }
+
+    ctx = gather_single_writer_source_context(
+        primary_keyword=primary_keyword,
+        target_website=target_website,
+        content=content,
+        outline_content=outline_content,
+        title=title,
+        user_id=user_id,
+    )
+    site = str(target_website or "").strip()
+    if f in {"target_website"}:
+        return ctx
+    if ctx["kb_found"] or ctx["has_website_data"]:
+        return ctx
+    # Đã nhập URL website — không chặn chờ crawl validate (LLM tự lấy context khi cần).
+    if site and f in {"content", "outline_content"}:
+        return ctx
+    if f in {"content", "outline_content"}:
+        raise ContentAiLlmUnavailableError("content_requires_kb_or_website")
+    # Tiêu đề, meta, slug… chỉ cần từ khóa chính — không bắt buộc crawl website/KB.
+    if f in {
+        "title",
+        "meta_description",
+        "slug",
+        "tags",
+        "primary_keyword",
+        "secondary_keywords",
+    } and pk:
+        return ctx
+    if ctx["has_user_brief"]:
+        return ctx
+    raise ContentAiLlmUnavailableError("no_kb_no_website")
 
 
 # Aliases (API naming parity with product docs)

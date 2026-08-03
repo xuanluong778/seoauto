@@ -1,0 +1,135 @@
+{
+  "domain": "example.com",
+  "source_url": "https://example.com",
+  "pages_scanned": 12,
+  "audit_id": "test-v2-001",
+  "technical_dashboard_v2": {
+    "schema_version": 2,
+    "domain": "example.com",
+    "pages_scanned": 12,
+    "scan_mode": "crawl_only",
+    "technical_health_score": 72,
+    "summary": {
+      "critical": 1,
+      "warning": 2,
+      "opportunity": 1,
+      "total": 4
+    },
+    "issues": [
+      {
+        "issue_id": "robots_disallow_all",
+        "issue_type": "robots_disallow_all",
+        "title": "Robots.txt chặn toàn bộ site",
+        "description": "User-agent: * Disallow: /",
+        "severity": "critical",
+        "category": "robots",
+        "nav_group": "crawlability",
+        "source": "crawl",
+        "confidence": 0.95,
+        "affected_urls": ["https://example.com/"],
+        "sample_urls": ["https://example.com/"],
+        "evidence": [{"kind": "robots_txt", "text": "Disallow: /"}],
+        "why_it_matters": "Google không thể crawl nội dung.",
+        "how_to_fix": "Sửa robots.txt, bỏ Disallow: /.",
+        "priority_score": 98
+      },
+      {
+        "issue_id": "missing_title",
+        "issue_type": "missing_title",
+        "title": "Thiếu thẻ title",
+        "severity": "warning",
+        "category": "onpage",
+        "nav_group": "onpage",
+        "source": "crawl",
+        "confidence": 0.88,
+        "affected_urls": ["https://example.com/page-a"],
+        "sample_urls": ["https://example.com/page-a"],
+        "evidence": [{"kind": "html", "text": "No <title> tag"}],
+        "why_it_matters": "Title ảnh hưởng CTR và index.",
+        "how_to_fix": "Thêm title duy nhất cho mỗi trang.",
+        "priority_score": 75
+      },
+      {
+        "issue_id": "broken_internal_link",
+        "issue_type": "broken_internal_link",
+        "title": "Liên kết nội bộ 404",
+        "severity": "warning",
+        "category": "website",
+        "nav_group": "internal_links",
+        "source": "crawl",
+        "confidence": 0.92,
+        "affected_urls": ["https://example.com/broken"],
+        "sample_urls": ["https://example.com/broken"],
+        "evidence": [{"kind": "http_status", "value": 404, "url": "https://example.com/broken"}],
+        "why_it_matters": "Lãng phí crawl budget.",
+        "how_to_fix": "Sửa hoặc redirect URL hỏng.",
+        "priority_score": 80
+      },
+      {
+        "issue_id": "missing_meta_description",
+        "issue_type": "missing_meta_description",
+        "title": "Thiếu meta description",
+        "severity": "opportunity",
+        "category": "onpage",
+        "nav_group": "onpage",
+        "source": "hybrid",
+        "confidence": 0.7,
+        "affected_urls": ["https://example.com/page-b"],
+        "sample_urls": ["https://example.com/page-b"],
+        "evidence": [{"kind": "html", "text": "meta description empty"}],
+        "why_it_matters": "Snippet kém hấp dẫn trên SERP.",
+        "how_to_fix": "Viết meta description 120–160 ký tự.",
+        "priority_score": 40
+      }
+    ],
+    "priority_issues": [
+      {
+        "issue_id": "robots_disallow_all",
+        "issue_type": "robots_disallow_all",
+        "title": "Robots.txt chặn toàn bộ site",
+        "severity": "critical",
+        "nav_group": "crawlability",
+        "source": "crawl",
+        "confidence": 0.95,
+        "affected_urls": ["https://example.com/"],
+        "evidence": [{"kind": "robots_txt", "text": "Disallow: /"}],
+        "why_it_matters": "Google không thể crawl nội dung.",
+        "how_to_fix": "Sửa robots.txt, bỏ Disallow: /.",
+        "priority_score": 98
+      },
+      {
+        "issue_id": "broken_internal_link",
+        "issue_type": "broken_internal_link",
+        "title": "Liên kết nội bộ 404",
+        "severity": "warning",
+        "nav_group": "internal_links",
+        "source": "crawl",
+        "confidence": 0.92,
+        "affected_urls": ["https://example.com/broken"],
+        "evidence": [{"kind": "http_status", "value": 404}],
+        "why_it_matters": "Lãng phí crawl budget.",
+        "how_to_fix": "Sửa hoặc redirect URL hỏng.",
+        "priority_score": 80
+      }
+    ],
+    "nav_group_summaries": [
+      {"group": "indexability", "issue_count": 0, "open_issues": 0, "worst_severity": "passed"},
+      {"group": "crawlability", "issue_count": 1, "open_issues": 1, "worst_severity": "critical"},
+      {"group": "onpage", "issue_count": 2, "open_issues": 2, "worst_severity": "warning"},
+      {"group": "internal_links", "issue_count": 1, "open_issues": 1, "worst_severity": "warning"},
+      {"group": "performance", "issue_count": 0, "open_issues": 0, "worst_severity": "passed"},
+      {"group": "structured_data", "issue_count": 0, "open_issues": 0, "worst_severity": "passed"},
+      {"group": "security_http", "issue_count": 0, "open_issues": 0, "worst_severity": "passed"},
+      {"group": "ux_mobile", "issue_count": 0, "open_issues": 0, "worst_severity": "passed"},
+      {"group": "gsc_insights", "issue_count": 0, "open_issues": 0, "worst_severity": "passed"}
+    ],
+    "passed_checks": [
+      {"issue_id": "https_protocol", "title": "HTTPS redirect passed", "nav_group": "security_http", "source": "crawl"},
+      {"issue_id": "sitemap_xml", "title": "XML sitemap found", "nav_group": "indexability", "source": "crawl"}
+    ]
+  },
+  "issues": [],
+  "normalized_issues": [],
+  "priority_fixes": [],
+  "passed_checks": []
+}

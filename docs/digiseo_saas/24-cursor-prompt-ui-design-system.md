@@ -1,11 +1,11 @@
 # Cursor Prompt - UI Design System
 
-Dùng prompt này trong Cursor để chuẩn hóa UI/UX cho DigiSEO.
+Dùng prompt này trong Cursor để chuẩn hóa UI/UX cho Seoauto.
 
 ---
 
 ```txt
-Tôi muốn chuẩn hóa UI/UX cho DigiSEO để nhìn chuyên nghiệp như SaaS thật.
+Tôi muốn chuẩn hóa UI/UX cho Seoauto để nhìn chuyên nghiệp như SaaS thật.
 
 Bối cảnh:
 - Frontend hiện tại dùng Jinja2 SSR + HTML/CSS/JS

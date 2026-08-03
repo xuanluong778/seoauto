@@ -1,6 +1,6 @@
 # Production Database Roadmap
 
-Tài liệu này mô tả việc chuyển DigiSEO từ SQLite sang PostgreSQL để phù hợp với SaaS production.
+Tài liệu này mô tả việc chuyển Seoauto từ SQLite sang PostgreSQL để phù hợp với SaaS production.
 
 ---
 

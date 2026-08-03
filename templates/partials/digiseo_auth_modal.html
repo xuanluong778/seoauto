@@ -1,44 +1,49 @@
     <div class="auth-modal" id="authModal" hidden>
         <div class="auth-panel">
-            <div class="auth-tabs" role="tablist" aria-label="Đăng nhập hoặc đăng ký">
-                <button type="button" class="auth-tab active" id="authTabLogin" data-auth-tab="login" role="tab" aria-selected="true">Đăng nhập</button>
-                <button type="button" class="auth-tab" id="authTabRegister" data-auth-tab="register" role="tab" aria-selected="false">Đăng ký</button>
-            </div>
-            <div id="authPanelLogin" class="auth-tab-panel" role="tabpanel">
-            <p id="authLoginHint">Nhập email và mật khẩu đã đăng ký để đăng nhập.</p>
-            <input type="email" id="authEmail" placeholder="Email đăng nhập" autocomplete="username">
-            <div class="pw-wrap">
-                <input type="password" id="authPassword" placeholder="Mật khẩu" minlength="8" autocomplete="current-password">
-                <button type="button" class="pw-toggle" id="btnTogglePw" title="Hiện/ẩn mật khẩu" aria-label="Hiện mật khẩu">👁</button>
-            </div>
-            <button type="button" class="auth-switch-link" id="linkGoRegister">Chưa có tài khoản? Đăng ký</button>
-            <button type="button" id="btnSubmitAuth" class="btn-submit">Đăng nhập</button>
-            </div>
-
-            <div id="authPanelRegister" class="auth-tab-panel" role="tabpanel" hidden>
-                <p>Tạo tài khoản Gmail: nhận OTP → nhập OTP → đặt mật khẩu → bấm <strong>Đăng ký</strong>.</p>
-                <input type="email" id="regEmail" placeholder="Email Gmail" autocomplete="email">
-                <p class="modal-hint">Chỉ Gmail (@gmail.com) nhận được mã OTP.</p>
-                <button type="button" id="btnRegOtpSend" class="btn-outline">Nhận mã OTP (gửi về Gmail)</button>
-                <input type="text" id="regOtp" placeholder="Mã OTP trong email" inputmode="numeric" autocomplete="one-time-code">
-                <label class="pw-label" for="regPassword">Tiêu chí mật khẩu</label>
-                <ul id="regPwRules" class="pw-rules" aria-live="polite">
-                    <li id="reg-rule-len">Ít nhất 8 ký tự</li>
-                    <li id="reg-rule-up">Ít nhất 1 chữ hoa (A–Z)</li>
-                    <li id="reg-rule-low">Ít nhất 1 chữ thường (a–z)</li>
-                    <li id="reg-rule-num">Ít nhất 1 chữ số (0–9)</li>
-                </ul>
-                <div class="pw-wrap">
-                    <input type="password" id="regPassword" placeholder="Mật khẩu mới" minlength="8" autocomplete="new-password">
-                    <button type="button" class="pw-toggle" id="btnToggleRegPw" title="Hiện/ẩn mật khẩu" aria-label="Hiện mật khẩu">👁</button>
+            <div class="auth-panel__head">
+                <div class="auth-tabs" role="tablist" aria-label="Đăng nhập hoặc đăng ký">
+                    <button type="button" class="auth-tab active" id="authTabLogin" data-auth-tab="login" role="tab" aria-selected="true">Đăng nhập</button>
+                    <button type="button" class="auth-tab" id="authTabRegister" data-auth-tab="register" role="tab" aria-selected="false">Đăng ký</button>
                 </div>
-                <button type="button" class="auth-switch-link" id="linkGoLogin">Đã có tài khoản? Đăng nhập</button>
-                <button type="button" id="btnSubmitRegister" class="btn-submit">Đăng ký</button>
             </div>
+            <div class="auth-panel__scroll">
+                <div id="authPanelLogin" class="auth-tab-panel" role="tabpanel">
+                    <p id="authLoginHint">Nhập email và mật khẩu đã đăng ký để đăng nhập.</p>
+                    <input type="email" id="authEmail" placeholder="Email đăng nhập" autocomplete="username">
+                    <div class="pw-wrap">
+                        <input type="password" id="authPassword" placeholder="Mật khẩu" minlength="8" autocomplete="current-password">
+                        <button type="button" class="pw-toggle" id="btnTogglePw" title="Hiện/ẩn mật khẩu" aria-label="Hiện mật khẩu">👁</button>
+                    </div>
+                    <button type="button" class="auth-switch-link" id="linkGoRegister">Chưa có tài khoản? Đăng ký</button>
+                    <button type="button" id="btnSubmitAuth" class="btn-submit">Đăng nhập</button>
+                </div>
 
-            <div id="modalAuthMsg" class="modal-auth-msg"></div>
-            <div style="height:8px;"></div>
-            <button type="button" id="btnGoogleLogin" class="btn-outline">Đăng nhập với Google</button>
-            <button type="button" id="btnCloseModal" class="modal-close">Đóng</button>
+                <div id="authPanelRegister" class="auth-tab-panel" role="tabpanel" hidden>
+                    <p>Tạo tài khoản Gmail: nhận OTP → nhập OTP → đặt mật khẩu → bấm <strong>Đăng ký</strong>.</p>
+                    <input type="email" id="regEmail" placeholder="Email Gmail" autocomplete="email">
+                    <p class="modal-hint">Chỉ Gmail (@gmail.com) nhận được mã OTP.</p>
+                    <button type="button" id="btnRegOtpSend" class="btn-outline">Nhận mã OTP (gửi về Gmail)</button>
+                    <input type="text" id="regOtp" placeholder="Mã OTP trong email" inputmode="numeric" autocomplete="one-time-code">
+                    <label class="pw-label" for="regPassword">Tiêu chí mật khẩu</label>
+                    <ul id="regPwRules" class="pw-rules" aria-live="polite">
+                        <li id="reg-rule-len">Ít nhất 8 ký tự</li>
+                        <li id="reg-rule-up">Ít nhất 1 chữ hoa (A–Z)</li>
+                        <li id="reg-rule-low">Ít nhất 1 chữ thường (a–z)</li>
+                        <li id="reg-rule-num">Ít nhất 1 chữ số (0–9)</li>
+                    </ul>
+                    <div class="pw-wrap">
+                        <input type="password" id="regPassword" placeholder="Mật khẩu mới" minlength="8" autocomplete="new-password">
+                        <button type="button" class="pw-toggle" id="btnToggleRegPw" title="Hiện/ẩn mật khẩu" aria-label="Hiện mật khẩu">👁</button>
+                    </div>
+                    <button type="button" class="auth-switch-link" id="linkGoLogin">Đã có tài khoản? Đăng nhập</button>
+                    <button type="button" id="btnSubmitRegister" class="btn-submit">Đăng ký</button>
+                </div>
+
+                <div id="modalAuthMsg" class="modal-auth-msg"></div>
+            </div>
+            <div class="auth-panel__foot">
+                <button type="button" id="btnGoogleLogin" class="btn-outline">Đăng nhập với Google</button>
+                <button type="button" id="btnCloseModal" class="modal-close">Đóng</button>
+            </div>
         </div>
     </div>

@@ -1,0 +1,88 @@
+/**
+ * SEOAuto — mobile responsive base (≤820px).
+ * Không cuộn ngang viewport; bảng cuộn trong wrapper riêng.
+ */
+@media (max-width: 820px) {
+    html {
+        overflow-x: hidden !important;
+        max-width: 100%;
+    }
+
+    html body {
+        overflow-x: hidden !important;
+        max-width: 100vw;
+    }
+
+    img,
+    video,
+    iframe,
+    svg {
+        max-width: 100%;
+        height: auto;
+    }
+
+    /* Bảng rộng — cuộn trong khung, không kéo cả trang */
+    .table-scroll,
+    .table-wrap.table-scroll-sticky,
+    .issues-table-wrap,
+    .table-wrap:not(.no-mobile-scroll):not(.kw-table-body-scroll),
+    .overflow-x-auto {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+
+    /* Report dashboard KPI */
+    body.page-report .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    body.page-report .main {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+
+    body.page-report .toolbar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Keyword toolbar */
+    .kw-white-panel #toolbar {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+
+    .kw-white-panel #toolbar > div {
+        width: 100%;
+    }
+
+    /* Content AI */
+    body.page-content-ai .wrap {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    /* Pricing toolbar */
+    .digiseo-pricing-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .digiseo-toggle-group {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* User dock — không che nội dung giữa màn hình */
+    .digiseo-user-dock-wrap:not(.is-sidebar),
+    .global-user-dock-wrap {
+        width: min(168px, calc(100vw - 80px));
+    }
+}
+
+@media (max-width: 480px) {
+    body.page-report .grid {
+        grid-template-columns: 1fr !important;
+    }
+}

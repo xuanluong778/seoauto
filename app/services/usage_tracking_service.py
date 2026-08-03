@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.monthly_usage import MonthlyUsage
 from app.models.usage_event import UsageEvent
+from app.models.user_quota_addon import UserQuotaAddon
 from app.services import plan_service, subscription_service
 
 
@@ -20,6 +21,20 @@ def _utc_now() -> datetime:
 def current_usage_month(*, dt: datetime | None = None) -> str:
     dt = dt or _utc_now()
     return dt.strftime("%Y-%m")
+
+
+def _active_quota_bonus(db: Session, user_id: int, feature_key: str) -> int:
+    now = _utc_now()
+    rows = (
+        db.query(UserQuotaAddon)
+        .filter(
+            UserQuotaAddon.user_id == int(user_id),
+            UserQuotaAddon.feature_key == feature_key,
+            UserQuotaAddon.expires_at > now,
+        )
+        .all()
+    )
+    return sum(int(r.bonus_limit or 0) for r in rows)
 
 
 def get_monthly_usage(
@@ -64,7 +79,8 @@ def get_quota_remaining(
         return None
 
     used = get_monthly_usage(db, user_id, feature_key)
-    return max(0, int(limit_row.limit_value) - used)
+    bonus = _active_quota_bonus(db, user_id, feature_key)
+    return max(0, int(limit_row.limit_value) + bonus - used)
 
 
 def record_successful_usage(
@@ -154,4 +170,10 @@ def record_successful_usage(
             row.plan_id = plan_id
 
     db.flush()
+    try:
+        from app.services.saas_trial_service import record_trial_feature_success
+
+        record_trial_feature_success(db, user_id, feature_key, quantity=qty)
+    except Exception:
+        pass
     return event

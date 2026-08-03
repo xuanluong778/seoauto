@@ -2,7 +2,7 @@
 
 ## Tên dự án
 
-**SEO Technical Tool** (thương hiệu UI: **DigiSEO**)
+**Seoauto**
 
 ## Kiến trúc
 

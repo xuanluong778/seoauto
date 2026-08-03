@@ -1,11 +1,11 @@
 # Cursor Prompt - SaaS Foundation
 
-Dùng prompt này trong Cursor để bắt đầu xây nền SaaS cho DigiSEO.
+Dùng prompt này trong Cursor để bắt đầu xây nền SaaS cho Seoauto.
 
 ---
 
 ```txt
-Tôi muốn nâng cấp DigiSEO từ SEO tool nội bộ thành SaaS chuyên nghiệp.
+Tôi muốn nâng cấp Seoauto từ SEO tool nội bộ thành SaaS chuyên nghiệp.
 
 Bối cảnh:
 - Backend FastAPI + SQLAlchemy

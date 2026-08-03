@@ -1,0 +1,43 @@
+        <aside class="top-fixed-bar ca-sidebar-rail" id="topFixedBar" aria-label="Menu Content AI">
+            <div class="top-fixed-inner">
+                <div class="ca-sidebar-brand">Content AI</div>
+
+                <nav class="ca-vsteps" id="contentAiSingleSteps" data-ca-steps-view="single" aria-label="Quy trình viết bài">
+                    <button type="button" class="ca-hstep-item" data-ca-step="research" data-ca-step-modal="research"><span class="ca-hstep-num">1</span><span class="ca-hstep-label">Brief</span></button>
+                    <span class="ca-vstep-arrow" aria-hidden="true"></span>
+                    <button type="button" class="ca-hstep-item" data-ca-step="outline" data-ca-step-modal="outline"><span class="ca-hstep-num">2</span><span class="ca-hstep-label">Outline</span></button>
+                    <span class="ca-vstep-arrow" aria-hidden="true"></span>
+                    <button type="button" class="ca-hstep-item" data-ca-step="content" data-ca-scroll="#previewShell"><span class="ca-hstep-num">3</span><span class="ca-hstep-label">Viết bài</span></button>
+                    <span class="ca-vstep-arrow" aria-hidden="true"></span>
+                    <button type="button" class="ca-hstep-item" data-ca-step="links" data-ca-step-modal="links"><span class="ca-hstep-num">4</span><span class="ca-hstep-label">Internal Link</span></button>
+                    <span class="ca-vstep-arrow" aria-hidden="true"></span>
+                    <button type="button" class="ca-hstep-item" data-ca-step="media" data-ca-step-modal="media"><span class="ca-hstep-num">5</span><span class="ca-hstep-label">Ảnh</span></button>
+                    <span class="ca-vstep-arrow" aria-hidden="true"></span>
+                    <button type="button" class="ca-hstep-item" data-ca-step="publish" data-ca-step-modal="publish"><span class="ca-hstep-num">6</span><span class="ca-hstep-label">Publish</span></button>
+                </nav>
+
+                <nav class="ca-vsteps" id="contentAiBulkSteps" data-ca-steps-view="bulk" aria-label="Quy trình bulk" hidden>
+                    <button type="button" class="ca-hstep-item" data-ca-step="bulk-import" data-ca-scroll="#bulkImportSection"><span class="ca-hstep-num">1</span><span class="ca-hstep-label">Import</span></button>
+                    <span class="ca-vstep-arrow" aria-hidden="true"></span>
+                    <button type="button" class="ca-hstep-item" data-ca-step="bulk-setup" data-ca-scroll="#bulkTargetWebsite"><span class="ca-hstep-num">2</span><span class="ca-hstep-label">Cài đặt</span></button>
+                    <span class="ca-vstep-arrow" aria-hidden="true"></span>
+                    <button type="button" class="ca-hstep-item" data-ca-step="bulk-run" data-ca-scroll="#btnBulkWriteStart"><span class="ca-hstep-num">3</span><span class="ca-hstep-label">Bắt đầu viết</span></button>
+                    <span class="ca-vstep-arrow" aria-hidden="true"></span>
+                    <button type="button" class="ca-hstep-item" data-ca-step="bulk-review" data-ca-scroll="#caBulkStatusWrap"><span class="ca-hstep-num">4</span><span class="ca-hstep-label">Review</span></button>
+                </nav>
+
+                <button type="button" class="ca-studio-trigger" id="btnOpenCaStudioPanel" aria-haspopup="dialog" aria-controls="caStudioOverlay" aria-expanded="false">
+                    <span class="ca-studio-trigger-icon" aria-hidden="true">✦</span>
+                    <span class="ca-studio-trigger-text">
+                        <strong>Content AI Studio</strong>
+                        <span class="ca-studio-trigger-plan" id="caStudioTriggerPlan">Gói: —</span>
+                    </span>
+                </button>
+
+                <div class="ca-sidebar-foot">
+                    <button class="btn reset-btn ca-sidebar-reset" type="button" id="btnResetForm">Làm mới form</button>
+                </div>
+            </div>
+            <datalist id="wpUrlHistory"></datalist>
+            <datalist id="wpUserHistory"></datalist>
+        </aside>

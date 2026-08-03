@@ -25,11 +25,15 @@ _bearer_optional = HTTPBearer(auto_error=False)
 
 
 def get_token_optional(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
 ) -> str | None:
-    if not credentials or not credentials.credentials:
-        return None
-    return credentials.credentials
+    if credentials and credentials.credentials:
+        t = credentials.credentials.strip()
+        if t:
+            return t
+    cookie = (request.cookies.get("seo_token") or "").strip()
+    return cookie or None
 
 
 def user_from_token(db: Session, token: str) -> User:
@@ -60,7 +64,7 @@ def _raise_if_user_blocked(user: User) -> None:
         )
 
 
-def register_user(payload: UserCreate, db: Session) -> None:
+def register_user(payload: UserCreate, db: Session) -> User:
     email = payload.email.strip().lower()
     existing = db.query(User).filter(User.email == email).first()
     skip_otp = skips_otp_for_user(existing, email) or is_configured_admin_email(email)
@@ -73,6 +77,7 @@ def register_user(payload: UserCreate, db: Session) -> None:
             detail="Email đã được đăng ký. Hãy đăng nhập.",
         )
 
+    user: User
     if row is not None:
         row.used = True
     if existing:
@@ -80,6 +85,7 @@ def register_user(payload: UserCreate, db: Session) -> None:
         existing.has_password = True
         if skip_otp:
             ensure_admin_user_fields(existing)
+        user = existing
     else:
         user = User(
             email=email,
@@ -92,8 +98,11 @@ def register_user(payload: UserCreate, db: Session) -> None:
             ensure_admin_user_fields(user)
         db.add(user)
         db.flush()
+    if user.has_password:
         apply_signup_bonus_if_configured(db, user)
     db.commit()
+    db.refresh(user)
+    return user
 
 
 def login_user(
@@ -101,6 +110,7 @@ def login_user(
     password: str,
     db: Session,
     otp: str | None = None,
+    request: Request | None = None,
 ) -> TokenResponse:
     email = email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
@@ -144,6 +154,10 @@ def login_user(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Không thể hoàn tất kích hoạt tài khoản.",
                 )
+            if request is not None:
+                from app.services.affiliate_service import try_attach_referral_from_request
+
+                try_attach_referral_from_request(request, user, db)
         token = create_access_token(user_id=user.id)
         return TokenResponse(access_token=token, token_type="bearer")
 
@@ -191,7 +205,10 @@ def get_current_user(
     return user_from_token(db, token)
 
 
-def get_billing_user(token: str | None = Depends(get_token_optional), db: Session = Depends(get_db)) -> User | None:
+def get_billing_user(
+    token: str | None = Depends(get_token_optional),
+    db: Session = Depends(get_db),
+) -> User | None:
     if not credits_enforced():
         return None
     if not token:

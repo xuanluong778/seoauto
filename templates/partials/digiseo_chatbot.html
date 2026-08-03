@@ -1,18 +1,36 @@
-{# Floating chatbot — bottom right; avatar: /static/img/digiseo-chatbot-avatar.png #}
+{# Chatbot AI — Tab Chat (mặc định) + workflow tabs #}
 <div id="digiseoChatbotRoot" class="digiseo-chatbot-root" aria-hidden="true">
     <div class="digiseo-chatbot-panel" id="digiseoChatbotPanel" role="dialog" aria-labelledby="digiseoChatbotTitle" aria-modal="false">
         <header class="digiseo-chatbot-head">
-            <img class="digiseo-chatbot-avatar" src="/static/img/digiseo-chatbot-avatar.png" width="44" height="44" alt="" aria-hidden="true">
+            <img class="digiseo-chatbot-avatar" src="/static/img/digiseo-chatbot-avatar.png" width="40" height="40" alt="" aria-hidden="true">
             <div class="digiseo-chatbot-head-text">
-                <strong id="digiseoChatbotTitle">Trợ lý DigiSEO</strong>
-                <span class="digiseo-chatbot-status"><span class="digiseo-chatbot-status-dot" aria-hidden="true"></span> Đang trực tuyến</span>
+                <strong id="digiseoChatbotTitle">Chatbot AI</strong>
+                <span class="digiseo-chatbot-status"><span class="digiseo-chatbot-status-dot" aria-hidden="true"></span> Seoauto Assistant</span>
             </div>
-            <button type="button" class="digiseo-chatbot-close" id="digiseoChatbotClose" aria-label="Đóng chat">×</button>
+            <button type="button" class="digiseo-chatbot-close" id="digiseoChatbotClose" aria-label="Đóng">×</button>
         </header>
-        <div class="digiseo-chatbot-messages" id="digiseoChatbotMessages" role="log" aria-live="polite"></div>
-        <div class="digiseo-chatbot-quick" id="digiseoChatbotQuick" aria-label="Câu hỏi nhanh"></div>
-        <footer class="digiseo-chatbot-foot">
-            <textarea class="digiseo-chatbot-input" id="digiseoChatbotInput" rows="1" placeholder="Nhập câu hỏi…" maxlength="4000" aria-label="Tin nhắn"></textarea>
+
+        <nav class="gcb-tabs" id="gcbTabs" role="tablist" aria-label="Chatbot AI tabs"></nav>
+
+        <div class="gcb-body" id="gcbBody">
+            <div class="gcb-workspace">
+                <div class="gcb-guest" id="gcbGuest" hidden>
+                    <p>Vui lòng <a href="/login">đăng nhập</a> để chạy workflow AI. Tab <strong>Chat</strong> vẫn dùng được để hỏi FAQ.</p>
+                </div>
+                <div class="gcb-panels" id="gcbPanels"></div>
+            </div>
+        </div>
+
+        <footer class="digiseo-chatbot-foot" id="digiseoChatbotFoot" hidden>
+            <button type="button" class="digiseo-chatbot-mic" id="digiseoChatbotMic" title="Ghi âm giọng nói" aria-label="Ghi âm giọng nói" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+            </button>
+            <textarea class="digiseo-chatbot-input" id="digiseoChatbotInput" rows="1" placeholder="Nhập câu hỏi…" maxlength="4000" aria-label="Tin nhắn chatbot"></textarea>
             <button type="button" class="digiseo-chatbot-send" id="digiseoChatbotSend" aria-label="Gửi">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
@@ -20,7 +38,7 @@
             </button>
         </footer>
     </div>
-    <button type="button" class="digiseo-chatbot-fab" id="digiseoChatbotFab" aria-label="Mở trợ lý chat" title="Chat với DigiSEO">
+    <button type="button" class="digiseo-chatbot-fab" id="digiseoChatbotFab" aria-label="Mở Chatbot AI" title="Chatbot AI">
         <img src="/static/img/digiseo-chatbot-avatar.png" width="56" height="56" alt="">
     </button>
 </div>

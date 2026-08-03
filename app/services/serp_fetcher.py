@@ -674,6 +674,71 @@ def _snap_has_urls(s: dict[str, Any] | None) -> bool:
     return bool(s) and bool(s.get("serp_urls"))
 
 
+def _fetch_dataforseo(keyword: str, *, top_n: int, locale: dict[str, str]) -> dict[str, Any] | None:
+    """DataForSEO Google Organic Live Advanced — primary SERP provider when configured."""
+    try:
+        from app.services import dataforseo_client
+
+        if not dataforseo_client.is_dataforseo_enabled() or dataforseo_client.get_basic_auth() is None:
+            return None
+    except Exception:
+        return None
+
+    loc_name = (os.getenv("DATAFORSEO_LOCATION_NAME") or "").strip()
+    if not loc_name:
+        loc_name = {
+            "vn": "Vietnam",
+            "us": "United States",
+            "gb": "United Kingdom",
+        }.get(locale["country"], "Vietnam")
+
+    lang_name = (os.getenv("DATAFORSEO_LANGUAGE_NAME") or "").strip()
+    if not lang_name:
+        lang_name = {
+            "vi": "Vietnamese",
+            "en": "English",
+        }.get(locale["language"][:2], "Vietnamese")
+
+    depth = max(10, min(100, int(top_n or 10) + 5))
+    res = dataforseo_client.google_serp_live_advanced(
+        keyword,
+        location_name=loc_name,
+        language_name=lang_name,
+        device=locale["device"],
+        depth=depth,
+    )
+    if res.get("mock") and res.get("fallback_mock"):
+        return None
+
+    items = res.get("items") or []
+    urls: list[str] = []
+    titles: list[str] = []
+    snippets: list[str] = []
+    for it in items:
+        if str(it.get("type") or "").lower() != "organic":
+            continue
+        u = normalize_serp_url(str(it.get("url") or ""))
+        if not u or u in urls:
+            continue
+        urls.append(u)
+        titles.append(str(it.get("title") or "")[:200])
+        snippets.append(str(it.get("description") or it.get("snippet") or "")[:300])
+        if len(urls) >= top_n:
+            break
+
+    if not urls:
+        return None
+
+    return {
+        "keyword": keyword,
+        "serp_urls": urls[:top_n],
+        "titles": titles[:top_n],
+        "snippets": snippets[:top_n],
+        "features": {},
+        "source": "dataforseo",
+    }
+
+
 def _fetch_chain(keyword: str, *, top_n: int, locale: dict[str, str]) -> dict[str, Any] | None:
     primary = (os.getenv("SERP_PROXY_URL") or "").strip()
     fallback = (os.getenv("SERP_FALLBACK_PROXY_URL") or "").strip()
@@ -685,7 +750,9 @@ def _fetch_chain(keyword: str, *, top_n: int, locale: dict[str, str]) -> dict[st
 
     for prov in parts:
         cand: dict[str, Any] | None = None
-        if prov == "custom" and primary:
+        if prov == "dataforseo":
+            cand = _fetch_dataforseo(keyword, top_n=top_n, locale=locale)
+        elif prov == "custom" and primary:
             cand = try_custom(primary)
         elif prov == "serpapi":
             cand = _fetch_serpapi(keyword, top_n=top_n, locale=locale)
@@ -846,9 +913,9 @@ def fetch_serp_for_keyword(
 
     if use_cache:
         hit = _redis_get_v2(digest)
-        if hit:
+        if hit and _snap_has_urls(hit):
             return hit
-        if digest in _MEM_SERP:
+        if digest in _MEM_SERP and _snap_has_urls(_MEM_SERP[digest]):
             return _MEM_SERP[digest]
 
     raw = _fetch_chain(kw, top_n=top_n, locale=loc)
@@ -864,7 +931,7 @@ def fetch_serp_for_keyword(
     snap = _finalize_snap(snap, locale=loc)
     _maybe_persist_serp_snapshot(snap, loc)
 
-    if use_cache:
+    if use_cache and _snap_has_urls(snap):
         _redis_set_v2(digest, snap)
         if len(_MEM_SERP) < int(os.getenv("SERP_MEMORY_CACHE_MAX", "500")):
             _MEM_SERP[digest] = snap

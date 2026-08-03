@@ -1,4 +1,4 @@
-"""DigiSEO floating chatbot — FAQ, Knowledge Base, page context, LLM."""
+"""Seoauto floating chatbot — FAQ, Knowledge Base, page context, LLM."""
 
 from __future__ import annotations
 
@@ -11,6 +11,10 @@ from typing import Any
 
 import requests
 
+from app.services.chatbot_command_parser import (
+    parse_chatbot_command,
+)
+from app.services.chatbot_workflow_service import handle_workflow_intent
 from app.services.ai_knowledge_docs import search_kb
 from app.services.ai_knowledge_store import get_default_base, list_bases
 from app.services.product_knowledge import (
@@ -35,6 +39,7 @@ _RATE_MAX_PER_WINDOW = 20
 
 _history_lock = Lock()
 _sessions: dict[str, deque[dict[str, str]]] = defaultdict(lambda: deque(maxlen=_MAX_HISTORY))
+_session_owners: dict[str, int | None] = {}
 _rate_lock = Lock()
 _rate_buckets: dict[str, deque[float]] = defaultdict(deque)
 
@@ -43,7 +48,7 @@ _FAQ: list[dict[str, str]] = [
         "id": "pricing",
         "q": "Giá phần mềm bao nhiêu?",
         "a": (
-            "DigiSEO có **Basic, Pro, Agency, Unlimited** (6 tháng / 1 năm / 2 năm / Vĩnh viễn).\n"
+            "Seoauto có **Basic, Pro, Agency, Unlimited** (6 tháng / 1 năm / 2 năm / Vĩnh viễn).\n"
             "Ví dụ **Pro 6 tháng: 2.490.000đ** (GSC, 100 bài AI/tháng).\n"
             "Xem **Upgrade plan** hoặc Cài đặt → **View pricing**."
         ),
@@ -111,13 +116,13 @@ _PAGE_FOCUS: dict[str, str] = {
     ),
     "settings": (
         "Trang Cài đặt: ưu tiên khóa API, nhà cung cấp AI, Knowledge Base, "
-        "bảng giá gói DigiSEO (Upgrade plan / View pricing), trial, credit, tài khoản."
+        "bảng giá gói Seoauto (Upgrade plan / View pricing), trial, credit, tài khoản."
     ),
     "dashboard": "Trang Dashboard: ưu tiên đọc báo cáo audit, lọc checklist, xuất CSV.",
     "keywords": "Trang Từ khóa: ưu tiên nghiên cứu từ khóa, gom nhóm cluster.",
     "schema": "Trang Schema: ưu tiên JSON-LD, schema generator.",
     "default": (
-        "Hỗ trợ chung Technical SEO + Content SEO trong DigiSEO; "
+        "Hỗ trợ chung Technical SEO + Content SEO trong Seoauto; "
         "có thể trả lời giá gói theo Knowledge Base Giá & Gói."
     ),
 }
@@ -169,14 +174,32 @@ def check_rate_limit(*, user_id: int | None, client_ip: str) -> bool:
     return True
 
 
-def get_or_create_session(session_id: str | None) -> str:
+def get_or_create_session(session_id: str | None, *, user_id: int | None = None) -> str:
     sid = str(session_id or "").strip()
     if not sid or len(sid) > 64 or not re.match(r"^[a-zA-Z0-9_-]+$", sid):
         sid = uuid.uuid4().hex
+    with _history_lock:
+        if sid not in _session_owners:
+            _session_owners[sid] = int(user_id) if user_id is not None else None
     return sid
 
 
-def get_history(session_id: str) -> list[dict[str, str]]:
+def _session_owner(session_id: str) -> int | None:
+    with _history_lock:
+        return _session_owners.get(session_id)
+
+
+def assert_session_access(session_id: str, user_id: int | None) -> None:
+    """Chặn đọc lịch sử chat của user/session khác."""
+    owner = _session_owner(session_id)
+    if owner is None:
+        return
+    if user_id is None or int(owner) != int(user_id):
+        raise PermissionError("Không có quyền xem lịch sử phiên chat này.")
+
+
+def get_history(session_id: str, *, user_id: int | None = None) -> list[dict[str, str]]:
+    assert_session_access(session_id, user_id)
     with _history_lock:
         return list(_sessions.get(session_id, []))
 
@@ -255,15 +278,15 @@ def _user_context_block(user: Any | None) -> str:
 def _build_system_prompt(*, page_key: str, kb_blob: str, user_blob: str) -> str:
     focus = _PAGE_FOCUS.get(page_key, _PAGE_FOCUS["default"])
     faq_lines = "\n".join(f"- {x['q']}" for x in _FAQ)
-    return f"""Bạn là trợ lý DigiSEO — hỗ trợ Technical SEO và Content SEO.
+    return f"""Bạn là trợ lý Seoauto — hỗ trợ Technical SEO và Content SEO.
 
 QUY TẮC BẮT BUỘC:
 - Trả lời tiếng Việt, ngắn gọn, thân thiện.
-- Được phép nêu **giá gói DigiSEO** theo KNOWLEDGE BASE «Giá & Gói» / bảng giá chính thức trong ngữ cảnh.
+- Được phép nêu **giá gói Seoauto** theo KNOWLEDGE BASE «Giá & Gói» / bảng giá chính thức trong ngữ cảnh.
 - KHÔNG bịa giá ngoài KB; không nêi số credit / trạng thái của user khác; API key/token không được hiển thị.
 - Số credit của chính user đang chat (nếu có trong ngữ cảnh) có thể nhắc khi họ hỏi tài khoản.
 - KHÔNG hiển thị hoặc đoán API key; nếu user hỏi key → hướng dẫn vào Cài đặt.
-- Nếu KNOWLEDGE BASE có bảng giá / gói DigiSEO → trả lời giá cụ thể, KHÔNG dùng câu «chưa có dữ liệu».
+- Nếu KNOWLEDGE BASE có bảng giá / gói Seoauto → trả lời giá cụ thể, KHÔNG dùng câu «chưa có dữ liệu».
 - Chỉ khi thật sự không có thông tin trong KB/FAQ → trả: «{NO_DATA_MSG}»
 - Không khẳng định kết quả audit cụ thể nếu user chưa chạy quét trên /tool.
 
@@ -331,6 +354,7 @@ def process_message(
     user_id: int | None = None,
     client_ip: str = "",
     session_id: str | None = None,
+    chat_mode: bool = False,
 ) -> dict[str, Any]:
     safe_msg = sanitize_user_text(message)
     if not safe_msg:
@@ -346,14 +370,8 @@ def process_message(
             "session_id": get_or_create_session(session_id),
         }
 
-    sid = get_or_create_session(session_id)
+    sid = get_or_create_session(session_id, user_id=uid)
     page_key = detect_page_context(page_path)
-
-    faq_hit = match_faq(safe_msg)
-    pricing_reply = resolve_pricing_reply(safe_msg)
-    kb_blob = _kb_context_for_user(uid, safe_msg, page_key=page_key)
-    user_blob = _user_context_block(user)
-    system = _build_system_prompt(page_key=page_key, kb_blob=kb_blob, user_blob=user_blob)
 
     hist = list(history or [])[-12:]
     for h in hist:
@@ -361,6 +379,49 @@ def process_message(
             append_history(sid, str(h["role"]), str(h.get("content") or "")[:2000])
 
     append_history(sid, "user", safe_msg)
+
+    workflow = parse_chatbot_command(safe_msg, history=hist, session_id=sid)
+
+    if chat_mode:
+        from app.services.chatbot_chat_mode import chat_mode_workflow_response
+
+        suggested = chat_mode_workflow_response(
+            message=safe_msg,
+            workflow=workflow,
+            session_id=sid,
+            page_context=page_key,
+        )
+        if suggested:
+            append_history(sid, "assistant", str(suggested.get("reply") or ""))
+            return suggested
+
+    if workflow.is_workflow:
+        from app.db import SessionLocal
+
+        db = SessionLocal()
+        try:
+            reply, workflow_out = handle_workflow_intent(
+                db,
+                user_id=uid,
+                session_id=sid,
+                workflow=workflow,
+            )
+        finally:
+            db.close()
+        append_history(sid, "assistant", reply)
+        out: dict[str, Any] = {
+            "reply": reply,
+            "session_id": sid,
+            "page_context": page_key,
+            "workflow": workflow_out,
+        }
+        return out
+
+    faq_hit = match_faq(safe_msg)
+    pricing_reply = resolve_pricing_reply(safe_msg)
+    kb_blob = _kb_context_for_user(uid, safe_msg, page_key=page_key)
+    user_blob = _user_context_block(user)
+    system = _build_system_prompt(page_key=page_key, kb_blob=kb_blob, user_blob=user_blob)
 
     if pricing_reply:
         reply = pricing_reply
@@ -370,7 +431,7 @@ def process_message(
         cfg = load_llm_config_admin()
         if not cfg:
             reply = pricing_reply or faq_hit or (
-                "Xin chào! Tôi là trợ lý DigiSEO.\n\n"
+                "Xin chào! Tôi là trợ lý Seoauto.\n\n"
                 + (faq_hit or "")
                 + "\n\nChatbot dùng **khóa API admin** (OPENAI_API_KEY / ANTHROPIC_API_KEY trong env.local). "
                 "Admin cần cấu hình env.local rồi khởi động lại server."
@@ -410,7 +471,10 @@ def process_message(
 
     reply = _scrub_secrets(reply.strip() or NO_DATA_MSG)
     append_history(sid, "assistant", reply)
-    return {"reply": reply, "session_id": sid, "page_context": page_key}
+    out: dict[str, Any] = {"reply": reply, "session_id": sid, "page_context": page_key}
+    if chat_mode:
+        out["chat_mode"] = True
+    return out
 
 
 def list_quick_prompts() -> list[dict[str, str]]:

@@ -28,11 +28,11 @@
 {%- endif -%}
 {%- endmacro %}
 <head>
-    <script src="/static/js/digiseo-i18n.js"></script>
-    {% include "partials/digiseo_theme_head.html" %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Technical SEO Report</title>
+    {% include "partials/digiseo_seo_head.html" %}
+    {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/report-dashboard.css?v=2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -62,24 +62,86 @@
                 linear-gradient(135deg, #050b18 0%, #0c1424 50%, #050b18 100%);
         }
         .layout { min-height: 100vh; }
+        :root {
+            --report-sidebar-w: 288px;
+            --report-bp-tablet: 1024px;
+            --report-bp-mobile: 640px;
+        }
         .sidebar {
             position: fixed;
             left: 0;
             top: 0;
             bottom: 0;
-            width: 288px;
+            width: var(--report-sidebar-w);
             max-width: 38vw;
-            flex: 0 0 288px;
+            flex: 0 0 var(--report-sidebar-w);
             padding: calc(var(--digiseo-nav-fixed-offset, 76px) + 16px) 12px 16px 14px;
-            background: rgba(15, 23, 42, 0.88);
-            border-right: none;
+            background: rgba(15, 23, 42, 0.92);
+            border-right: 1px solid var(--line);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             overflow-x: hidden;
             overflow-y: auto;
-            z-index: 25;
+            z-index: 120;
             overscroll-behavior: contain;
+            transition: transform 0.28s ease;
         }
+        .sidebar-close {
+            display: none;
+            position: absolute;
+            top: calc(var(--digiseo-nav-fixed-offset, 76px) + 8px);
+            right: 10px;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: rgba(30, 41, 59, 0.9);
+            color: #e2e8f0;
+            font-size: 1.35rem;
+            line-height: 1;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .report-projects-toggle {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            margin: 0 0 14px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(15, 23, 42, 0.75);
+            color: #e2e8f0;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            text-align: left;
+        }
+        .report-projects-toggle:hover {
+            border-color: rgba(0, 230, 118, 0.45);
+            color: #00e676;
+        }
+        .report-projects-toggle .badge {
+            margin-left: auto;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 9px;
+            border-radius: 999px;
+            background: rgba(0, 230, 118, 0.15);
+            color: #86efac;
+        }
+        .report-sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 110;
+            background: rgba(2, 6, 23, 0.62);
+            backdrop-filter: blur(2px);
+        }
+        body.report-sidebar-open { overflow: hidden; }
+        body.report-sidebar-open .report-sidebar-backdrop { display: block; }
         .sidebar h3 {
             margin: 0 0 6px;
             font-size: 0.95rem;
@@ -103,6 +165,8 @@
             cursor: pointer;
         }
         .sb-domain { font-weight: 700; font-size: 0.88rem; word-break: break-all; color: #fff; }
+        a.sb-domain-link { text-decoration: none; color: inherit; display: block; }
+        a.sb-domain-link:hover { color: #00e676; }
         .sb-meta { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
         .sb-actions {
             display: grid;
@@ -135,13 +199,14 @@
         }
         .sb-empty { font-size: 0.8rem; color: var(--muted); padding: 8px 4px; line-height: 1.5; }
         .main {
-            margin-left: 288px;
+            margin-left: var(--report-sidebar-w);
             min-height: 100vh;
             padding: 22px 24px 36px;
-            max-width: calc(100vw - 288px);
+            max-width: calc(100vw - var(--report-sidebar-w));
+            min-width: 0;
         }
         .container {
-            max-width: 1100px;
+            max-width: min(1200px, 100%);
             margin: 0 auto;
             color: var(--report-fg);
             width: 100%;
@@ -190,7 +255,15 @@
         body.page-report .container > h2 {
             color: #ffffff;
         }
-        .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .grid-report-kpi {
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        }
         .card { background: #fff; border-radius: 10px; padding: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
         .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
         .table-wrap { background: #fff; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); overflow: hidden; }
@@ -513,25 +586,415 @@
         }
         .issue-url { font-size: 12px; word-break: break-all; color: #4b5563; margin-top: 4px; }
         .cell-pre { white-space: pre-wrap; word-break: break-word; }
-        @media (max-width: 900px) {
-            .sidebar {
-                position: relative;
-                width: 100%;
-                max-width: none;
-                height: auto;
-                max-height: 42vh;
-                padding-top: 16px;
-                border-right: none;
-                border-bottom: 1px solid var(--line);
+
+        /* Bảng báo cáo — scroll ngang (tablet/desktop) + card list (mobile) */
+        .report-responsive-wrap {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+        .table-scroll-hint {
+            display: none;
+            margin: 0 0 8px;
+            padding: 8px 12px;
+            font-size: 0.78rem;
+            color: #94a3b8;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            text-align: center;
+        }
+        .report-responsive-wrap .table-wrap.table-scroll-sticky {
+            border-radius: 10px;
+        }
+        @media (max-width: 1024px) {
+            .table-scroll-hint { display: block; }
+        }
+        @media (max-width: 639px) {
+            .table-scroll-hint { display: none; }
+            .report-responsive-wrap .table-wrap.table-scroll-sticky {
+                max-height: none;
+                overflow: visible;
+                background: transparent;
+                box-shadow: none;
+                border: none;
             }
+            .report-responsive-wrap .audit-issues-wrap {
+                border-width: 1px;
+                box-shadow: none;
+            }
+            table.report-card-table {
+                min-width: 0 !important;
+                width: 100% !important;
+                table-layout: auto !important;
+            }
+            table.report-card-table thead { display: none; }
+            table.report-card-table tbody tr {
+                display: block;
+                margin-bottom: 12px;
+                padding: 4px 0;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                background: #fff;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+            }
+            table.report-card-table tbody tr:has(td[colspan]) {
+                display: table-row;
+                border: none;
+                box-shadow: none;
+                background: #eef2ff;
+            }
+            table.report-card-table tbody td {
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                padding: 10px 12px;
+                border: none !important;
+                border-bottom: 1px solid #f3f4f6 !important;
+                position: static !important;
+                left: auto !important;
+                box-shadow: none !important;
+                background: #fff !important;
+            }
+            table.report-card-table tbody td:last-child { border-bottom: none !important; }
+            table.report-card-table tbody td::before {
+                content: attr(data-label);
+                flex: 0 0 34%;
+                max-width: 38%;
+                font-size: 0.68rem;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+                color: #64748b;
+                line-height: 1.35;
+                padding-top: 2px;
+            }
+            table.report-card-table tbody td > * { flex: 1 1 auto; min-width: 0; }
+            table.report-card-table .td-sol,
+            table.report-card-table .checklist-cell,
+            table.report-card-table .col-ap-checklist,
+            table.report-card-table .col-ap-solution {
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+            }
+            table.report-card-table .report-issue-type-row { flex-wrap: wrap; }
+        }
+
+        /* —— SaaS SEO Dashboard (đầu trang /report) —— */
+        .dash-saas {
+            margin-bottom: 28px;
+            color: var(--text);
+        }
+        .dash-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .dash-header h1 {
+            margin: 0 0 6px;
+            font-size: 1.55rem;
+            font-weight: 800;
+            color: #00e676 !important;
+        }
+        .dash-header .dash-sub {
+            margin: 0;
+            font-size: 0.9rem;
+            color: var(--muted);
+            max-width: 52ch;
+            line-height: 1.45;
+        }
+        .dash-header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .dash-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 0.84rem;
+            font-weight: 700;
+            text-decoration: none;
+            border: 1px solid var(--line);
+            background: rgba(15, 23, 42, 0.65);
+            color: #e2e8f0;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .dash-btn:hover { border-color: rgba(0, 230, 118, 0.45); color: #00e676; }
+        .dash-btn.primary {
+            background: linear-gradient(90deg, #059669, #34d399);
+            border-color: transparent;
+            color: #fff;
+        }
+        .dash-btn.primary:hover { filter: brightness(1.08); color: #fff; }
+        .dash-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .dash-kpi {
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px 16px;
+            min-height: 88px;
+        }
+        .dash-kpi-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        .dash-kpi-value {
+            font-size: 1.55rem;
+            font-weight: 800;
+            line-height: 1.15;
+            color: #f8fafc;
+        }
+        .dash-kpi-hint {
+            margin-top: 6px;
+            font-size: 0.72rem;
+            color: #94a3b8;
+            line-height: 1.35;
+        }
+        .dash-kpi.warn { border-color: rgba(253, 230, 138, 0.35); }
+        .dash-kpi.good { border-color: rgba(134, 239, 172, 0.35); }
+        .dash-mid-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .dash-panel {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px;
+            min-height: 200px;
+        }
+        .dash-panel h2 {
+            margin: 0 0 12px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #e0e7ff;
+        }
+        .dash-action-list, .dash-audit-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .dash-action-list li {
+            display: flex;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.82rem;
+        }
+        .dash-action-list li:last-child { border-bottom: none; }
+        .dash-action-pri {
+            flex-shrink: 0;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 3px 7px;
+            border-radius: 6px;
+            height: fit-content;
+            text-transform: uppercase;
+        }
+        .dash-action-pri.high, .dash-action-pri.critical { background: rgba(248, 113, 113, 0.2); color: #fecaca; }
+        .dash-action-pri.medium { background: rgba(253, 230, 138, 0.15); color: #fde68a; }
+        .dash-action-pri.low { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+        .dash-action-body strong { display: block; color: #f1f5f9; margin-bottom: 2px; }
+        .dash-action-body span { color: #94a3b8; font-size: 0.78rem; }
+        .dash-audit-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .dash-audit-list li:last-child { border-bottom: none; }
+        .dash-audit-domain { font-weight: 700; font-size: 0.86rem; color: #f8fafc; word-break: break-all; }
+        .dash-audit-meta { font-size: 0.74rem; color: #94a3b8; margin-top: 4px; }
+        .dash-audit-score {
+            display: inline-block;
+            margin-top: 4px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(0, 230, 118, 0.12);
+            color: #86efac;
+        }
+        .dash-empty {
+            font-size: 0.84rem;
+            color: var(--muted);
+            line-height: 1.5;
+            margin: 0;
+        }
+        .dash-empty a { color: #93c5fd; }
+        .dash-quick-tools {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .dash-tool-card {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 14px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.06);
+            text-decoration: none;
+            color: inherit;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .dash-tool-card:hover {
+            border-color: rgba(0, 230, 118, 0.4);
+            background: rgba(0, 230, 118, 0.08);
+        }
+        .dash-tool-icon { font-size: 1.25rem; line-height: 1; }
+        .dash-tool-title { font-size: 0.82rem; font-weight: 700; color: #f1f5f9; }
+        .dash-tool-desc { font-size: 0.7rem; color: #94a3b8; line-height: 1.35; }
+        .dash-detail-report {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .dash-detail-collapse {
+            border: none;
+            margin: 0;
+            padding: 0;
+        }
+        .dash-detail-summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding: 12px 0;
+        }
+        .dash-detail-summary::-webkit-details-marker { display: none; }
+        .dash-detail-summary h2 {
+            margin: 0;
+            font-size: 1.15rem;
+            color: #fff !important;
+        }
+        .dash-detail-summary span {
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+        .dash-quota-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .dash-quota-chip {
+            font-size: 0.72rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(30, 41, 59, 0.8);
+            color: #cbd5e1;
+        }
+        .dash-quota-chip.low { border-color: rgba(253, 230, 138, 0.4); color: #fde68a; }
+        .dash-loading {
+            font-size: 0.82rem;
+            color: #94a3b8;
+            padding: 8px 0;
+            margin: 0;
+        }
+        .dash-gsc-panel { margin-bottom: 18px; }
+        .dash-gsc-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+        .dash-gsc-list li {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 0.8rem;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .dash-gsc-list .reason { color: #e2e8f0; flex: 1 1 auto; line-height: 1.35; }
+        .dash-gsc-list .count { font-weight: 800; color: #fde68a; flex-shrink: 0; }
+        .dash-gsc-meta {
+            font-size: 0.74rem;
+            color: #94a3b8;
+            margin: 0 0 10px;
+            line-height: 1.45;
+        }
+        .dash-audit-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .dash-audit-actions button {
+            padding: 4px 8px;
+            font-size: 0.68rem;
+            border-radius: 6px;
+            border: 1px solid var(--line);
+            background: rgba(15, 23, 42, 0.7);
+            color: #cbd5e1;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        /* Tablet: 2 cột */
+        @media (max-width: 1024px) {
+            .report-projects-toggle { display: flex; }
+            .sidebar-close { display: block; }
+            .sidebar {
+                transform: translateX(-105%);
+                max-width: min(320px, 92vw);
+                box-shadow: 8px 0 32px rgba(0, 0, 0, 0.35);
+            }
+            body.report-sidebar-open .sidebar { transform: translateX(0); }
             .main {
                 margin-left: 0;
                 max-width: 100%;
-                padding: 16px;
+                padding: 16px 14px 28px;
             }
+            .dash-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .dash-quick-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .toolbar label { width: 100%; }
+            .toolbar select, .toolbar button, .toolbar .btn-link { width: 100%; }
+        }
+        /* Mobile: 1 cột */
+        @media (max-width: 639px) {
+            .dash-kpi-grid { grid-template-columns: 1fr; }
+            .dash-mid-grid { grid-template-columns: 1fr; }
+            .dash-quick-tools { grid-template-columns: 1fr; }
+            .dash-header { flex-direction: column; }
+            .dash-header-actions { width: 100%; }
+            .dash-header-actions .dash-btn { flex: 1 1 auto; justify-content: center; }
+            .grid { grid-template-columns: 1fr; }
+            .container { padding: 0 2px; }
+            .dash-kpi-value { font-size: 1.35rem; }
         }
 
-        /* DigiSEO bright-green accent overrides */
+        /* Seoauto bright-green accent overrides */
         h1 { color: #00e676 !important; }
         .sb-item.active {
             color: #00e676 !important;
@@ -554,8 +1017,10 @@
     </style>
 </head>
 <body class="page-report">
+    <div class="report-sidebar-backdrop" id="reportSidebarBackdrop" hidden aria-hidden="true"></div>
     <div class="layout">
     <aside class="sidebar" id="projectSidebar" aria-label="Dự án đã quét">
+        <button type="button" class="sidebar-close" id="reportSidebarClose" aria-label="Đóng danh sách dự án">×</button>
         <h3>Dự án đã quét</h3>
         <p class="sb-hint">Mỗi domain chỉ hiển thị <strong>bản quét mới nhất</strong> (tối đa 8). Đăng nhập tại <a href="/tool" style="color:#93c5fd;">/tool</a> để xem đầy đủ, xuất Excel/Google Sheet và xóa dự án.</p>
         <ul id="sidebarProjectList" class="sb-list"></ul>
@@ -564,11 +1029,176 @@
     <div class="container">
         {% include "partials/digiseo_top_nav.html" %}
 
+        <button type="button" class="report-projects-toggle" id="reportProjectsToggle" aria-expanded="false" aria-controls="projectSidebar">
+            <span aria-hidden="true">📁</span>
+            <span>Dự án đã quét</span>
+            <span class="badge" id="reportProjectsBadge" hidden>0</span>
+        </button>
+
         {% if error %}
             <div class="error">{{ error }}</div>
         {% endif %}
 
+        {% set dash = dashboard if dashboard is defined else {} %}
+        <section class="dash-saas" id="dashSaas" aria-label="SaaS SEO Dashboard">
+            <header class="dash-header">
+                <div>
+                    <h1>SEO Dashboard</h1>
+                    <p class="dash-sub" id="dashWelcome">
+                        {% if dash.logged_in %}
+                        Xin chào{% if dash.user_email %}, <strong>{{ dash.user_email }}</strong>{% endif %} — tổng quan gói, quota và audit gần đây.
+                        {% else %}
+                        Đăng nhập tại <a href="/tool" style="color:#93c5fd;">/tool</a> để xem gói, quota và lịch sử đầy đủ.
+                        {% endif %}
+                    </p>
+                    <div class="dash-quota-strip" id="dashQuotaStrip" hidden></div>
+                </div>
+                <div class="dash-header-actions">
+                    <a class="dash-btn primary" href="/tool">Technical Analysis</a>
+                    <a class="dash-btn" href="/account-billing?tab=plans">Nâng cấp gói</a>
+                </div>
+            </header>
+
+            <div class="dash-kpi-grid" id="dashKpiGrid">
+                <article class="dash-kpi dash-kpi-hero {% if dash.latest_health_score is not none and dash.latest_health_score >= 70 %}good{% elif dash.latest_health_score is not none and dash.latest_health_score < 50 %}warn{% endif %}" id="dashKpiHealth">
+                    <div class="dash-kpi-label">SEO Health Score</div>
+                    <div class="dash-kpi-value" id="dashKpiHealthVal">{% if dash.latest_health_score is not none %}{{ dash.latest_health_score }}<span style="font-size:0.9rem;font-weight:600;color:#94a3b8;">/100</span>{% else %}—{% endif %}</div>
+                    <div class="dash-kpi-hint" id="dashKpiHealthHint">{% if dash.latest_domain %}{{ dash.latest_domain }}{% else %}Chưa có audit — quét tại /tool{% endif %}</div>
+                </article>
+                <article class="dash-kpi" id="dashKpiPlan">
+                    <div class="dash-kpi-label">Gói SaaS</div>
+                    <div class="dash-kpi-value" id="dashKpiPlanVal">—</div>
+                    <div class="dash-kpi-hint" id="dashKpiPlanHint">{% if dash.logged_in %}Đang tải…{% else %}Chưa đăng nhập{% endif %}</div>
+                </article>
+                <article class="dash-kpi" id="dashKpiCredits">
+                    <div class="dash-kpi-label">Credit / Quota</div>
+                    <div class="dash-kpi-value" id="dashKpiCreditsVal">—</div>
+                    <div class="dash-kpi-hint" id="dashKpiCreditsHint">Số dư hoặc hạn mức tháng</div>
+                </article>
+                <article class="dash-kpi">
+                    <div class="dash-kpi-label">Audit tháng này</div>
+                    <div class="dash-kpi-value" id="dashKpiAuditsMonth">{{ dash.audits_this_month if dash.audits_this_month is defined else 0 }}</div>
+                    <div class="dash-kpi-hint" id="dashKpiAuditsMonthHint">Lần quét Technical đã lưu</div>
+                </article>
+                <article class="dash-kpi" id="dashKpiCritHigh">
+                    <div class="dash-kpi-label">Critical / High</div>
+                    <div class="dash-kpi-value" id="dashKpiCritHighVal">—</div>
+                    <div class="dash-kpi-hint" id="dashKpiCritHighHint">Lỗi ưu tiên cao nhất</div>
+                </article>
+                <article class="dash-kpi" id="dashKpiGsc">
+                    <div class="dash-kpi-label">GSC Indexing</div>
+                    <div class="dash-kpi-value" id="dashKpiGscVal">—</div>
+                    <div class="dash-kpi-hint" id="dashKpiGscHint">Trang chưa lập chỉ mục</div>
+                </article>
+            </div>
+
+            <section class="dash-tech-summary" id="dashTechSummary" aria-label="Tóm tắt Technical Analysis">
+                <div class="dash-tech-summary-text">
+                    <h3 id="dashTechTitle">Technical Analysis</h3>
+                    <p id="dashTechDesc">{% if latest_audit %}Domain <strong>{{ latest_audit.domain or "—" }}</strong> — {{ latest_audit.pages_scanned or 0 }} trang, {{ dash.latest_issue_count if dash.latest_issue_count is defined else 0 }} lỗi.{% else %}Chưa có lần quét nào. Bắt đầu bằng Technical Analysis tại /tool.{% endif %}</p>
+                    <div class="dash-tech-pills" id="dashTechPills" hidden></div>
+                </div>
+                <a class="dash-btn primary" href="#dashDetailReport" id="dashTechDetailBtn">Xem chi tiết Technical Analysis</a>
+            </section>
+
+            <section class="dash-panel dash-gsc-panel" id="dashGscPanel" aria-label="Google Search Console indexing" hidden>
+                <h2>GSC — Lý do chưa lập chỉ mục</h2>
+                <p class="dash-gsc-meta" id="dashGscMeta"></p>
+                <ul class="dash-gsc-list" id="dashGscList"></ul>
+            </section>
+
+            <div class="dash-mid-grid">
+                <section class="dash-panel" id="dashActionCenter" aria-label="Top việc cần xử lý">
+                    <div class="dash-panel-title-row">
+                        <h2>Top 5 việc cần xử lý</h2>
+                        <a class="dash-panel-link" href="#dashDetailReport" id="dashActionViewAll">Xem checklist đầy đủ</a>
+                    </div>
+                    <ul class="dash-action-list" id="dashActionList">
+                        <li class="dash-loading" id="dashActionLoading">Đang tải action plan…</li>
+                    </ul>
+                    <p class="dash-empty" id="dashActionEmpty" hidden></p>
+                </section>
+
+                <section class="dash-panel" id="dashRecentAudits" aria-label="Recent Audits">
+                    <div class="dash-panel-title-row">
+                        <h2>Recent Audits</h2>
+                        <a class="dash-panel-link" href="/tool">Quét mới</a>
+                    </div>
+                    <ul class="dash-audit-list" id="dashRecentList">
+                        <li class="dash-loading" id="dashRecentLoading">Đang tải dự án gần đây…</li>
+                    </ul>
+                    <p class="dash-empty" id="dashRecentEmpty" hidden></p>
+                </section>
+            </div>
+
+            <section class="dash-panel" style="margin-bottom:16px;" aria-label="Affiliate" id="dashAffiliateSection">
+                <div class="ab-card" id="dashAffiliateCard" style="background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.35);border-radius:12px;padding:16px 18px;">
+                    <div id="dashAffiliateGuest">
+                        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
+                            <div>
+                                <h2 style="margin:0 0 6px;font-size:1.05rem;">Kiếm 30% hoa hồng khi giới thiệu SEOAuto</h2>
+                                <p style="margin:0;color:#94a3b8;font-size:0.88rem;">Chia sẻ link — khách đăng ký trong 60 ngày vẫn được tính cho bạn.</p>
+                            </div>
+                            <a class="acc-btn-outline" href="/account-billing?tab=affiliate" style="white-space:nowrap;">Bắt đầu kiếm hoa hồng</a>
+                        </div>
+                    </div>
+                    <div id="dashAffiliateStats" hidden>
+                        <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;">
+                            <div>
+                                <h2 style="margin:0 0 4px;font-size:1.05rem;">Chương trình giới thiệu</h2>
+                                <p style="margin:0;color:#94a3b8;font-size:0.85rem;" id="dashAffSubtitle">—</p>
+                            </div>
+                            <a class="acc-btn-outline" href="/account-billing?tab=affiliate" style="white-space:nowrap;">Quản lý Affiliate</a>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;" id="dashAffKpis"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="dash-panel" style="margin-bottom:0;" aria-label="Quick Tools">
+                <h2>Quick Tools</h2>
+                <div class="dash-quick-tools">
+                    <a class="dash-tool-card" href="/tool">
+                        <span class="dash-tool-icon" aria-hidden="true">🔍</span>
+                        <span class="dash-tool-title">Technical Analysis</span>
+                        <span class="dash-tool-desc">Quét website &amp; checklist SEO</span>
+                    </a>
+                    <a class="dash-tool-card" href="/content-ai">
+                        <span class="dash-tool-icon" aria-hidden="true">✍️</span>
+                        <span class="dash-tool-title">Content AI</span>
+                        <span class="dash-tool-desc">Viết &amp; tối ưu bài SEO</span>
+                    </a>
+                    <a class="dash-tool-card" href="/tool/seo-score">
+                        <span class="dash-tool-icon" aria-hidden="true">📊</span>
+                        <span class="dash-tool-title">SEO Score</span>
+                        <span class="dash-tool-desc">Chấm điểm 1 URL</span>
+                    </a>
+                    <a class="dash-tool-card" href="/keywords/tools/research">
+                        <span class="dash-tool-icon" aria-hidden="true">🔑</span>
+                        <span class="dash-tool-title">Keyword Research</span>
+                        <span class="dash-tool-desc">Nghiên cứu từ khóa</span>
+                    </a>
+                    <a class="dash-tool-card" href="/settings">
+                        <span class="dash-tool-icon" aria-hidden="true">⚙️</span>
+                        <span class="dash-tool-title">Settings / GSC</span>
+                        <span class="dash-tool-desc">Kết nối GSC &amp; WordPress</span>
+                    </a>
+                </div>
+            </section>
+        </section>
+
+        <section class="dash-detail-report" id="dashDetailReport">
+        <details class="dash-detail-collapse" id="dashDetailCollapse">
+            <summary class="dash-detail-summary">
+                <h2>Báo cáo chi tiết Technical Analysis</h2>
+                <span>Checklist đầy đủ · action plan · xuất CSV/PDF</span>
+            </summary>
+            <div class="dash-detail-body">
+
         <form method="get" action="/report" class="toolbar">
+            {% if selected_audit_id is defined and selected_audit_id %}
+            <input type="hidden" name="audit_id" value="{{ selected_audit_id }}">
+            {% endif %}
             <label>
                 Group:
                 <select name="group">
@@ -610,7 +1240,7 @@
             <button type="button" id="btnTopAuditGsheet">Xuất Google Sheet</button>
         </div>
         {% set ts = latest_audit.technical_summary or {} %}
-        <div class="grid" style="margin-bottom:18px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="grid grid-report-kpi" style="margin-bottom:18px;">
             <div class="card">
                 <div>Điểm sức khỏe Technical</div>
                 <div class="value">{% if ts.health_score is defined and ts.health_score is not none %}{{ ts.health_score }}<span style="font-size:14px;font-weight:600;color:#64748b;">/100</span>{% else %}—{% endif %}</div>
@@ -639,8 +1269,10 @@
                 <div class="value">{{ ts.internal_pages or 0 }}</div>
             </div>
         </div>
-        <div class="audit-issues-wrap table-wrap table-scroll-sticky">
-            <table class="wide sticky-matrix audit-scan-matrix">
+        <div class="report-responsive-wrap">
+        <p class="table-scroll-hint" aria-hidden="true">← Vuốt ngang để xem đủ cột bảng →</p>
+        <div class="audit-issues-wrap table-wrap table-scroll-sticky digiseo-table-scroll">
+            <table class="wide sticky-matrix audit-scan-matrix report-card-table">
                 <colgroup>
                     <col class="col-audit-checklist" />
                     <col class="col-audit-severity" />
@@ -717,8 +1349,13 @@
                 </tbody>
             </table>
         </div>
+        </div>
         <p style="color:var(--muted);font-size:13px;margin-bottom:28px;">
-            Các mục trên được soi theo checklist <strong>Technical-SEO.txt</strong> (Onpage, Robots, Sitemap, GSC, Images, HTTPS…).
+            {% if report_from_audit is defined and report_from_audit %}
+            Dữ liệu từ lần quét Technical của bạn (Onpage, Robots, Sitemap, GSC, Images, HTTPS…).
+            {% else %}
+            Các mục trên được soi theo checklist Technical (Onpage, Robots, Sitemap, GSC, Images, HTTPS…).
+            {% endif %}
             Chạy lại quét tại <a href="/tool">/tool</a> sau khi đăng nhập để cập nhật bảng này.
         </p>
         {% else %}
@@ -726,46 +1363,57 @@
         {% endif %}
 
         {% set rf = report_full if report_full is defined else report %}
+        {% set from_audit = report_from_audit if report_from_audit is defined else false %}
+        {% set summ = audit_summary if from_audit and audit_summary is defined else rf.summary %}
         <div class="grid">
+            {% if from_audit %}
+            <div class="card">
+                <div>Tổng lỗi phát hiện</div>
+                <div class="value">{{ summ.total_items or 0 }}</div>
+            </div>
+            <div class="card">
+                <div>Critical</div>
+                <div class="value">{{ summ.critical or 0 }}</div>
+            </div>
+            <div class="card">
+                <div>High</div>
+                <div class="value">{{ summ.high or 0 }}</div>
+            </div>
+            <div class="card">
+                <div>Medium / Low</div>
+                <div class="value">{{ (summ.medium or 0) + (summ.low or 0) }}</div>
+            </div>
+            {% else %}
             <div class="card">
                 <div>Total Items</div>
-                <div class="value">{{ rf.summary.total_items or 0 }}</div>
-                {% if report_full is defined and (selected_group or selected_status) %}
-                <div class="audit-meta" style="margin-top:6px;">Sau lọc: <strong>{{ report.summary.total_items or 0 }}</strong></div>
-                {% endif %}
+                <div class="value">{{ summ.total_items or 0 }}</div>
             </div>
             <div class="card">
                 <div>Good</div>
-                <div class="value">{{ rf.summary.good or 0 }}</div>
-                {% if report_full is defined and (selected_group or selected_status) %}
-                <div class="audit-meta" style="margin-top:6px;">Sau lọc: <strong>{{ report.summary.good or 0 }}</strong></div>
-                {% endif %}
+                <div class="value">{{ summ.good or 0 }}</div>
             </div>
             <div class="card">
                 <div>Needs Fix</div>
-                <div class="value">{{ rf.summary.needs_fix or 0 }}</div>
-                {% if report_full is defined and (selected_group or selected_status) %}
-                <div class="audit-meta" style="margin-top:6px;">Sau lọc: <strong>{{ report.summary.needs_fix or 0 }}</strong></div>
-                {% endif %}
+                <div class="value">{{ summ.needs_fix or 0 }}</div>
             </div>
             <div class="card">
                 <div>Unknown</div>
-                <div class="value">{{ rf.summary.unknown or 0 }}</div>
-                {% if report_full is defined and (selected_group or selected_status) %}
-                <div class="audit-meta" style="margin-top:6px;">Sau lọc: <strong>{{ report.summary.unknown or 0 }}</strong></div>
-                {% endif %}
+                <div class="value">{{ summ.unknown or 0 }}</div>
             </div>
+            {% endif %}
         </div>
-        {% if report_full is defined and (selected_group or selected_status) %}
+        {% if from_audit and latest_audit %}
         <p style="color:var(--muted);font-size:13px;margin:-8px 0 16px;">
-            Bảng <strong>đầy đủ</strong> bên dưới luôn liệt kê toàn bộ mục trong <code>Technical-SEO.txt</code>.
-            Bộ lọc Group/Status chỉ ảnh hưởng số «Sau lọc» và file xuất CSV/Google Sheet.
+            Dữ liệu từ lần quét <strong>{{ latest_audit.domain or latest_audit.source_url or "—" }}</strong>
+            ({{ latest_audit.at or "" }}). Chọn website khác ở sidebar «Dự án đã quét».
         </p>
         {% endif %}
 
-        <h2>Checklist Technical-SEO.txt (đầy đủ)</h2>
-        <div class="table-wrap table-scroll-sticky">
-            <table class="wide sticky-matrix action-plan-matrix">
+        <h2>{% if from_audit and latest_audit %}Checklist Technical — {{ latest_audit.domain or latest_audit.source_url or "Website" }}{% elif latest_audit %}Chưa có dữ liệu quét cho tài khoản này{% else %}Checklist Technical — đăng nhập để xem{% endif %}</h2>
+        <div class="report-responsive-wrap">
+        <p class="table-scroll-hint" aria-hidden="true">← Vuốt ngang để xem đủ cột bảng →</p>
+        <div class="table-wrap table-scroll-sticky digiseo-table-scroll">
+            <table class="wide sticky-matrix action-plan-matrix report-card-table">
                 <colgroup>
                     <col class="col-ap-c0" />
                     <col class="col-ap-c1" />
@@ -817,22 +1465,97 @@
                     {% else %}
                     <tr>
                         <td colspan="11" style="padding:20px;color:var(--muted);font-size:14px;">
-                            {% if error %}Không đọc được checklist (xem thông báo lỗi phía trên).{% else %}Không có dòng nào sau khi phân tích file checklist.
-                            Kiểm tra mỗi dòng có đủ cột <strong>CHECKLIST</strong>, <strong>ĐÁNH GIÁ</strong> và (khuyến nghị) <strong>DẪN CHỨNG</strong>, phân tách bằng <strong>tab</strong> hoặc <strong>ít nhất hai khoảng trắng</strong> liên tiếp giữa các cột.
-                            Bản mẫu: <code>data/Technical-SEO.txt</code> — hoặc đặt <code>Technical-SEO.txt</code> ở gốc dự án để thay thế.{% endif %}
+                            {% if from_audit and latest_audit %}
+                            Không có lỗi nào sau bộ lọc — hoặc website này đạt điểm tốt cho các hạng mục đã quét.
+                            {% elif from_audit %}
+                            Chưa có lần quét nào. <a href="/tool">Quét Technical Analysis</a> rồi quay lại đây.
+                            {% else %}
+                            <a href="/tool">Đăng nhập và quét website</a> tại /tool để xem checklist theo đúng domain của bạn (mỗi user chỉ thấy dữ liệu audit của mình).
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        </div>
+
+            </div>
+        </details>
+        </section>
     </div>
     </main>
     </div>
+    <script type="application/json" id="dashLatestSnapshot">null</script>
     <script>
-        const token = sessionStorage.getItem("seo_token") || "";
-        const latestAuditId = "{{ (latest_audit.id if latest_audit else '') }}";
+        function reportAuthToken() {
+            return typeof window.DigiSeoGetAuthToken === "function" ? window.DigiSeoGetAuthToken() : "";
+        }
+        let token = reportAuthToken();
+        const latestAuditId = "{{ (selected_audit_id if selected_audit_id is defined and selected_audit_id else '') }}";
+        const pageAuditId = latestAuditId;
         const sidebarProjectList = document.getElementById("sidebarProjectList");
+
+        function initReportSidebarOffcanvas() {
+            const toggle = document.getElementById("reportProjectsToggle");
+            const backdrop = document.getElementById("reportSidebarBackdrop");
+            const closeBtn = document.getElementById("reportSidebarClose");
+            function openSidebar() {
+                document.body.classList.add("report-sidebar-open");
+                if (toggle) toggle.setAttribute("aria-expanded", "true");
+                if (backdrop) {
+                    backdrop.hidden = false;
+                    backdrop.setAttribute("aria-hidden", "false");
+                }
+            }
+            function closeSidebar() {
+                document.body.classList.remove("report-sidebar-open");
+                if (toggle) toggle.setAttribute("aria-expanded", "false");
+                if (backdrop) {
+                    backdrop.hidden = true;
+                    backdrop.setAttribute("aria-hidden", "true");
+                }
+            }
+            if (toggle) toggle.addEventListener("click", openSidebar);
+            if (closeBtn) closeBtn.addEventListener("click", closeSidebar);
+            if (backdrop) backdrop.addEventListener("click", closeSidebar);
+            document.addEventListener("keydown", function (e) {
+                if (e.key === "Escape") closeSidebar();
+            });
+            window.addEventListener("resize", function () {
+                if (window.innerWidth > 1024) closeSidebar();
+            });
+        }
+
+        function enhanceReportTablesForMobile() {
+            document.querySelectorAll("table.report-card-table").forEach(function (table) {
+                const headers = [];
+                table.querySelectorAll("thead th").forEach(function (th) {
+                    headers.push((th.textContent || "").trim());
+                });
+                table.querySelectorAll("tbody tr").forEach(function (tr) {
+                    const cells = tr.querySelectorAll("td");
+                    if (cells.length === 1 && cells[0].hasAttribute("colspan")) return;
+                    cells.forEach(function (td, i) {
+                        if (!td.getAttribute("data-label") && headers[i]) {
+                            td.setAttribute("data-label", headers[i]);
+                        }
+                    });
+                });
+            });
+        }
+
+        function updateProjectsBadge(count) {
+            const badge = document.getElementById("reportProjectsBadge");
+            if (!badge) return;
+            const n = Number(count) || 0;
+            if (n > 0) {
+                badge.hidden = false;
+                badge.textContent = String(n);
+            } else {
+                badge.hidden = true;
+            }
+        }
 
         function setSidebarMessage(text) {
             sidebarProjectList.innerHTML = "";
@@ -870,6 +1593,7 @@
         async function loadSidebarProjects() {
             if (!token) {
                 setSidebarMessage("Đăng nhập ở /tool để xem và xóa dự án cũ.");
+                updateProjectsBadge(0);
                 return;
             }
             try {
@@ -880,15 +1604,19 @@
                 if (!r.ok) throw new Error(d.detail || "Không tải được danh sách dự án.");
                 const items = Array.isArray(d.items) ? d.items : [];
                 sidebarProjectList.innerHTML = "";
+                updateProjectsBadge(items.length);
                 if (!items.length) {
                     setSidebarMessage("Chưa có dự án nào được lưu.");
                     return;
                 }
                 for (const it of items) {
                     const li = document.createElement("li");
-                    li.className = "sb-item";
+                    const isActive = pageAuditId && String(it.id) === String(pageAuditId);
+                    li.className = "sb-item" + (isActive ? " active" : "");
+                    const domain = it.domain || it.source_url || "(unknown)";
+                    const viewUrl = "/report?audit_id=" + encodeURIComponent(String(it.id || ""));
                     li.innerHTML =
-                        '<div class="sb-domain">' + (it.domain || it.source_url || "(unknown)") + "</div>" +
+                        '<a class="sb-domain sb-domain-link" href="' + viewUrl + '">' + domain + "</a>" +
                         '<div class="sb-meta">' + (it.at || "").replace("T", " ").replace("+00:00", " UTC") +
                         " · " + (it.pages_scanned ?? "—") + " trang · " + (it.issue_count ?? 0) + " lỗi</div>";
 
@@ -930,8 +1658,647 @@
             if (bGs) bGs.onclick = () => downloadAuditExport(latestAuditId, "gsheet").catch((e) => alert(String(e.message || e)));
         }
 
+        initReportSidebarOffcanvas();
+        enhanceReportTablesForMobile();
         bindTopAuditExportButtons();
-        loadSidebarProjects();
+
+        function escHtml(s) {
+            const d = document.createElement("div");
+            d.textContent = s == null ? "" : String(s);
+            return d.innerHTML;
+        }
+
+        function safeNum(v, fallback) {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : (fallback != null ? fallback : 0);
+        }
+
+        function formatAuditWhen(at) {
+            const s = String(at || "").trim();
+            if (!s) return "—";
+            return s.replace("T", " ").replace("+00:00", " UTC").slice(0, 19);
+        }
+
+        function readLatestSnapshot() {
+            return null;
+        }
+
+        function resetDashboardUserData() {
+            const healthEl = document.getElementById("dashKpiHealthVal");
+            const healthHint = document.getElementById("dashKpiHealthHint");
+            const healthCard = document.getElementById("dashKpiHealth");
+            const critEl = document.getElementById("dashKpiCritHighVal");
+            const critHint = document.getElementById("dashKpiCritHighHint");
+            const critCard = document.getElementById("dashKpiCritHigh");
+            if (healthEl) healthEl.textContent = "—";
+            if (healthHint) healthHint.textContent = "Chưa có audit — quét tại /tool";
+            if (healthCard) healthCard.classList.remove("good", "warn");
+            if (critEl) critEl.textContent = "—";
+            if (critHint) critHint.textContent = "Lỗi ưu tiên cao nhất";
+            if (critCard) critCard.classList.remove("warn");
+            const title = document.getElementById("dashTechTitle");
+            const desc = document.getElementById("dashTechDesc");
+            if (title) title.textContent = "Technical Analysis";
+            if (desc) desc.textContent = "Chưa có lần quét nào. Bắt đầu bằng Technical Analysis tại /tool.";
+            const auditsMonth = document.getElementById("dashKpiAuditsMonth");
+            if (auditsMonth) auditsMonth.textContent = "0";
+            const welcome = document.getElementById("dashWelcome");
+            if (welcome) {
+                welcome.innerHTML = 'Đăng nhập tại <a href="/tool" style="color:#93c5fd;">/tool</a> để xem gói, quota và lịch sử đầy đủ.';
+            }
+        }
+
+        function openDetailReport() {
+            const det = document.getElementById("dashDetailCollapse");
+            if (det) {
+                det.open = true;
+                det.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        }
+
+        function applyAuditToKpis(audit) {
+            if (!audit || typeof audit !== "object") return;
+            const ts = audit.technical_summary && typeof audit.technical_summary === "object"
+                ? audit.technical_summary
+                : {};
+            const healthEl = document.getElementById("dashKpiHealthVal");
+            const healthHint = document.getElementById("dashKpiHealthHint");
+            const healthCard = document.getElementById("dashKpiHealth");
+            const critEl = document.getElementById("dashKpiCritHighVal");
+            const critHint = document.getElementById("dashKpiCritHighHint");
+            const critCard = document.getElementById("dashKpiCritHigh");
+            const hs = ts.health_score;
+            if (healthEl) {
+                if (hs != null && hs !== "") {
+                    healthEl.innerHTML = escHtml(String(hs)) + '<span style="font-size:0.9rem;font-weight:600;color:#94a3b8;">/100</span>';
+                } else {
+                    healthEl.textContent = "—";
+                }
+            }
+            if (healthHint) {
+                healthHint.textContent = String(audit.domain || audit.source_url || "Chưa có audit");
+            }
+            if (healthCard) {
+                healthCard.classList.remove("good", "warn");
+                const n = safeNum(hs, -1);
+                if (n >= 70) healthCard.classList.add("good");
+                else if (n >= 0 && n < 50) healthCard.classList.add("warn");
+            }
+            const sev = ts.issues_by_severity && typeof ts.issues_by_severity === "object" ? ts.issues_by_severity : {};
+            const critHigh = safeNum(sev.critical, 0) + safeNum(sev.high, 0);
+            const issueN = ts.total_technical_issues != null
+                ? safeNum(ts.total_technical_issues, 0)
+                : safeNum(audit.issue_count, 0);
+            if (critEl) critEl.textContent = critHigh > 0 ? String(critHigh) : (issueN > 0 ? "0" : "—");
+            if (critHint) {
+                const at = formatAuditWhen(audit.at);
+                critHint.textContent = critHigh > 0
+                    ? "Critical + High · tổng " + issueN + " lỗi"
+                    : (at !== "—" ? "Không có critical/high · " + issueN + " lỗi" : "Audit mới nhất");
+            }
+            if (critCard) {
+                critCard.classList.toggle("warn", critHigh > 0);
+            }
+            updateTechSummary(audit, ts, issueN, critHigh);
+        }
+
+        function updateTechSummary(audit, ts, issueN, critHigh) {
+            const title = document.getElementById("dashTechTitle");
+            const desc = document.getElementById("dashTechDesc");
+            const pills = document.getElementById("dashTechPills");
+            if (!title || !desc) return;
+            const domain = String(audit.domain || audit.source_url || "").trim();
+            const pages = safeNum(audit.pages_scanned, 0);
+            const hs = ts.health_score;
+            title.textContent = domain ? "Technical Analysis — " + domain : "Technical Analysis";
+            let line = pages + " trang quét";
+            if (hs != null && hs !== "") line += " · điểm " + hs + "/100";
+            line += " · " + issueN + " lỗi";
+            if (critHigh > 0) line += " (" + critHigh + " critical/high)";
+            desc.textContent = line;
+            if (pills) {
+                pills.hidden = false;
+                pills.innerHTML = "";
+                const addPill = function (text, warn) {
+                    const s = document.createElement("span");
+                    s.className = "dash-tech-pill" + (warn ? " warn" : "");
+                    s.textContent = text;
+                    pills.appendChild(s);
+                };
+                if (hs != null && hs !== "") addPill("Health " + hs + "/100", safeNum(hs, 100) < 50);
+                addPill(issueN + " lỗi", issueN > 20);
+                if (critHigh > 0) addPill(critHigh + " critical/high", true);
+                if (ts.broken_internal_links) addPill(ts.broken_internal_links + " link lỗi", true);
+            }
+        }
+
+        function countAuditsThisMonth(items) {
+            const ym = new Date().toISOString().slice(0, 7);
+            return (Array.isArray(items) ? items : []).filter(function (it) {
+                return String((it && it.at) || "").indexOf(ym) === 0;
+            }).length;
+        }
+
+        function parseGscPayload(data) {
+            const out = { connected: false, total: 0, reasons: [], meta: {}, empty: true };
+            if (!data || typeof data !== "object") return out;
+            const meta = data._meta && typeof data._meta === "object" ? data._meta : {};
+            out.meta = meta;
+            let total = 0;
+            const reasons = [];
+            Object.keys(data).forEach(function (k) {
+                if (!k || k.charAt(0) === "_") return;
+                const v = data[k];
+                let count = 0;
+                if (typeof v === "number") count = safeNum(v, 0);
+                else if (v && typeof v === "object" && v.count != null) count = safeNum(v.count, 0);
+                if (count > 0) {
+                    reasons.push({ key: k, count: count });
+                    total += count;
+                }
+            });
+            reasons.sort(function (a, b) { return b.count - a.count; });
+            out.reasons = reasons;
+            out.total = total;
+            const hasProperty = Boolean(String(meta.property_url || "").trim());
+            const hasSynced = Boolean(String(meta.synced_at || "").trim());
+            out.connected = hasProperty || hasSynced || total > 0;
+            out.empty = !out.connected;
+            return out;
+        }
+
+        function renderGscPanel(gsc, mode) {
+            const panel = document.getElementById("dashGscPanel");
+            const list = document.getElementById("dashGscList");
+            const metaEl = document.getElementById("dashGscMeta");
+            const valEl = document.getElementById("dashKpiGscVal");
+            const hintEl = document.getElementById("dashKpiGscHint");
+            const kpiCard = document.getElementById("dashKpiGsc");
+
+            if (mode === "guest") {
+                if (valEl) valEl.textContent = "—";
+                if (hintEl) hintEl.textContent = "Đăng nhập để xem GSC";
+                if (panel) panel.hidden = true;
+                return;
+            }
+            if (mode === "error") {
+                if (valEl) valEl.textContent = "—";
+                if (hintEl) hintEl.textContent = "Không tải được dữ liệu GSC";
+                if (kpiCard) kpiCard.classList.add("warn");
+                if (panel) panel.hidden = true;
+                return;
+            }
+
+            if (!gsc || gsc.empty) {
+                if (valEl) valEl.textContent = "—";
+                if (hintEl) {
+                    hintEl.innerHTML = 'Chưa kết nối hoặc chưa đồng bộ. <a href="/settings" style="color:#93c5fd;">Kết nối GSC</a>';
+                }
+                if (kpiCard) kpiCard.classList.add("warn");
+                if (panel) {
+                    panel.hidden = false;
+                    if (metaEl) {
+                        metaEl.innerHTML = 'Chưa có số liệu lập chỉ mục. Kết nối Google Search Console tại <a href="/settings" style="color:#93c5fd;">Settings</a>, sau đó đồng bộ hoặc cập nhật <code>gsc_indexing_counts</code>.';
+                    }
+                    if (list) {
+                        list.innerHTML = "";
+                    }
+                }
+                return;
+            }
+
+            if (valEl) valEl.textContent = String(gsc.total);
+            if (hintEl) {
+                const prop = String(gsc.meta.property_url || "").trim();
+                hintEl.textContent = prop
+                    ? prop
+                    : (gsc.meta.synced_at ? "Đồng bộ: " + String(gsc.meta.synced_at).slice(0, 10) : gsc.reasons.length + " lý do");
+            }
+            if (kpiCard) kpiCard.classList.remove("warn");
+
+            if (!panel || !list) return;
+            panel.hidden = gsc.reasons.length === 0;
+            if (metaEl) {
+                const parts = [];
+                if (gsc.meta.property_url) parts.push("Property: " + gsc.meta.property_url);
+                if (gsc.meta.synced_at) parts.push("Đồng bộ: " + gsc.meta.synced_at);
+                if (gsc.meta.source) parts.push(String(gsc.meta.source));
+                metaEl.textContent = parts.join(" · ") || "Dữ liệu từ Google Search Console";
+            }
+            list.innerHTML = "";
+            gsc.reasons.slice(0, 8).forEach(function (r) {
+                const li = document.createElement("li");
+                li.innerHTML =
+                    '<span class="reason">' + escHtml(r.key) + '</span>' +
+                    '<span class="count">' + escHtml(r.count) + '</span>';
+                list.appendChild(li);
+            });
+        }
+
+        function actionPriClass(item, idx) {
+            const raw = String((item && (item["ĐÁNH GIÁ"] || item.severity || item.priority)) || "").toLowerCase();
+            if (raw.indexOf("critical") >= 0 || raw === "cao") return "critical";
+            const p = safeNum(item && item.priority, idx + 1);
+            const score = safeNum(item && (item.score || item.priority_score), 0);
+            if (p <= 2 || score >= 70 || raw.indexOf("high") >= 0) return "high";
+            if (p <= 5 || score >= 40) return "medium";
+            return "low";
+        }
+
+        function actionPriLabel(pri) {
+            if (pri === "critical") return "Critical";
+            if (pri === "high") return "High";
+            if (pri === "medium") return "Medium";
+            return "Low";
+        }
+
+        function sortActionItems(items) {
+            const rank = { critical: 4, high: 3, medium: 2, low: 1 };
+            return items.slice().sort(function (a, b) {
+                const ra = rank[actionPriClass(a, 0)] || 0;
+                const rb = rank[actionPriClass(b, 0)] || 0;
+                if (rb !== ra) return rb - ra;
+                return safeNum(a.priority, 99) - safeNum(b.priority, 99);
+            });
+        }
+
+        function renderActionCenter(items, errKind) {
+            const ul = document.getElementById("dashActionList");
+            const empty = document.getElementById("dashActionEmpty");
+            const loading = document.getElementById("dashActionLoading");
+            if (loading) loading.remove();
+
+            const list = sortActionItems(Array.isArray(items) ? items : []);
+
+            if (!ul) return;
+            ul.innerHTML = "";
+
+            if (errKind === "guest") {
+                if (empty) {
+                    empty.hidden = false;
+                    empty.innerHTML = 'Đăng nhập tại <a href="/tool">/tool</a> để xem việc cần xử lý.';
+                }
+                return;
+            }
+            if (errKind === "error") {
+                if (empty) {
+                    empty.hidden = false;
+                    empty.textContent = "Không tải được action plan — thử tải lại trang.";
+                }
+                return;
+            }
+            if (!list.length) {
+                if (empty) {
+                    empty.hidden = false;
+                    empty.innerHTML = latestAuditId
+                        ? "Không có mục <strong>needs_fix</strong> — tốt! Xem <a href=\"#dashDetailReport\">checklist đầy đủ</a>."
+                        : 'Chưa có audit. <a href="/tool">Quét website</a> để bắt đầu.';
+                }
+                return;
+            }
+            if (empty) empty.hidden = true;
+
+            list.slice(0, 5).forEach(function (item, idx) {
+                if (!item || typeof item !== "object") return;
+                const pri = actionPriClass(item, idx);
+                const title = String(item.CHECKLIST || item.title || item.task || item.group || "Việc cần xử lý");
+                const detail = String(item.group || item["Nhóm"] || "").trim();
+                const fix = String(item["GIẢI PHÁP"] || item.solution || item.fix || "").trim();
+                const li = document.createElement("li");
+                const body = document.createElement("div");
+                body.className = "dash-action-body";
+                body.innerHTML =
+                    '<strong>' + escHtml(title) + '</strong>' +
+                    (detail ? '<span>' + escHtml(detail) + '</span>' : "") +
+                    (fix ? '<span style="display:block;margin-top:4px;color:#cbd5e1;">' + escHtml(fix.slice(0, 120)) + (fix.length > 120 ? "…" : "") + '</span>' : "");
+                const badge = document.createElement("span");
+                badge.className = "dash-action-pri " + pri;
+                badge.textContent = actionPriLabel(pri);
+                const link = document.createElement("a");
+                link.className = "dash-action-detail";
+                link.href = "#dashDetailReport";
+                link.textContent = "Chi tiết";
+                link.addEventListener("click", function (e) {
+                    e.preventDefault();
+                    openDetailReport();
+                });
+                li.appendChild(badge);
+                li.appendChild(body);
+                li.appendChild(link);
+                ul.appendChild(li);
+            });
+        }
+
+        function renderRecentAudits(items, errKind) {
+            const ul = document.getElementById("dashRecentList");
+            const empty = document.getElementById("dashRecentEmpty");
+            const loading = document.getElementById("dashRecentLoading");
+            const monthEl = document.getElementById("dashKpiAuditsMonth");
+            const monthHint = document.getElementById("dashKpiAuditsMonthHint");
+            if (loading) loading.remove();
+
+            const list = Array.isArray(items) ? items : [];
+            if (monthEl) monthEl.textContent = String(countAuditsThisMonth(list));
+            if (monthHint) monthHint.textContent = list.length ? list.length + " domain (mới nhất/domain)" : "Chưa có audit tháng này";
+
+            if (!ul) return;
+            ul.innerHTML = "";
+
+            if (errKind === "guest") {
+                if (empty) {
+                    empty.hidden = false;
+                    empty.innerHTML = 'Đăng nhập tại <a href="/tool">/tool</a> để xem audit gần đây.';
+                }
+                if (monthEl) monthEl.textContent = "0";
+                return;
+            }
+            if (errKind === "error") {
+                if (empty) {
+                    empty.hidden = false;
+                    empty.textContent = "Không tải được danh sách audit.";
+                }
+                return;
+            }
+            if (!list.length) {
+                if (empty) {
+                    empty.hidden = false;
+                    empty.innerHTML = 'Chưa có dự án nào. <a href="/tool">Quét Technical</a> để bắt đầu.';
+                }
+                return;
+            }
+            if (empty) empty.hidden = true;
+
+            list.forEach(function (it) {
+                if (!it || typeof it !== "object") return;
+                const ts = it.technical_summary && typeof it.technical_summary === "object" ? it.technical_summary : {};
+                const li = document.createElement("li");
+                const domain = String(it.domain || it.source_url || "—");
+                const hs = ts.health_score;
+                let scoreHtml = "";
+                if (hs != null && hs !== "") {
+                    scoreHtml = '<span class="dash-audit-score">' + escHtml(hs) + "/100</span>";
+                }
+                const viewHref = it.id ? "/report?audit_id=" + encodeURIComponent(String(it.id)) : "/report";
+                li.innerHTML =
+                    '<a class="dash-audit-domain" href="' + escHtml(viewHref) + '">' + escHtml(domain) + "</a>" +
+                    '<div class="dash-audit-meta">' + escHtml(formatAuditWhen(it.at)) +
+                    " · " + escHtml(safeNum(it.pages_scanned, 0)) + " trang · " +
+                    escHtml(safeNum(it.issue_count, 0)) + " lỗi</div>" + scoreHtml;
+
+                if (it.id) {
+                    const actions = document.createElement("div");
+                    actions.className = "dash-audit-actions";
+                    const bCsv = document.createElement("button");
+                    bCsv.type = "button";
+                    bCsv.textContent = "CSV";
+                    bCsv.onclick = function () {
+                        downloadAuditExport(it.id, "csv").catch(function (e) {
+                            alert(String((e && e.message) || e));
+                        });
+                    };
+                    const bGs = document.createElement("button");
+                    bGs.type = "button";
+                    bGs.textContent = "Sheet";
+                    bGs.onclick = function () {
+                        downloadAuditExport(it.id, "gsheet").catch(function (e) {
+                            alert(String((e && e.message) || e));
+                        });
+                    };
+                    actions.appendChild(bCsv);
+                    actions.appendChild(bGs);
+                    li.appendChild(actions);
+                }
+                ul.appendChild(li);
+            });
+        }
+
+        async function fetchJson(url, headers) {
+            const r = await fetch(url, { headers: headers });
+            const d = await r.json().catch(function () { return {}; });
+            return { ok: r.ok, status: r.status, data: d };
+        }
+
+        async function loadDashboardLiveData() {
+            token = reportAuthToken();
+            if (!token) {
+                resetDashboardUserData();
+                renderActionCenter([], "guest");
+                renderRecentAudits([], "guest");
+                renderGscPanel(null, "guest");
+                return;
+            }
+
+            const headers = { Authorization: "Bearer " + token };
+            const [mineRes, planRes, gscRes, latestRes] = await Promise.all([
+                fetchJson("/api/audit/mine?limit=8", headers),
+                fetchJson("/api/action-plan?status=needs_fix", headers),
+                fetchJson("/api/gsc-indexing-counts", headers),
+                latestAuditId
+                    ? fetchJson("/api/audit/" + encodeURIComponent(latestAuditId), headers)
+                    : fetchJson("/api/audit/latest", headers),
+            ]);
+
+            const mineItems = mineRes.ok && mineRes.data && Array.isArray(mineRes.data.items)
+                ? mineRes.data.items
+                : [];
+            renderRecentAudits(
+                mineItems,
+                mineRes.ok ? null : (mineRes.status === 401 ? "guest" : "error")
+            );
+            updateProjectsBadge(mineItems.length);
+
+            const planItems = planRes.ok && planRes.data && Array.isArray(planRes.data.items)
+                ? planRes.data.items
+                : [];
+            renderActionCenter(
+                planItems,
+                planRes.ok ? null : (planRes.status === 401 ? "guest" : "error")
+            );
+
+            const gscParsed = parseGscPayload(gscRes.ok ? gscRes.data : null);
+            renderGscPanel(gscParsed, gscRes.ok ? null : "error");
+
+            let audit = null;
+            if (latestRes.ok && latestRes.data && typeof latestRes.data === "object") {
+                audit = latestRes.data;
+            } else if (mineItems.length) {
+                audit = mineItems[0];
+            }
+            if (audit) applyAuditToKpis(audit);
+        }
+
+        const FEATURE_LABELS = {
+            technical_analyze: "Technical Audit",
+            technical_audit: "Technical Audit",
+            content_ai: "Content AI",
+            content_ai_article: "Content AI",
+            keyword_research: "Keyword Research",
+            keyword_cluster: "Keyword Cluster",
+            url_seo_scoreboard: "SEO Score URL",
+        };
+
+        function safeText(el, val) {
+            if (!el) return;
+            el.textContent = val == null || val === "" ? "—" : String(val);
+        }
+
+        function formatQuotaLabel(key) {
+            return FEATURE_LABELS[key] || String(key || "").replace(/_/g, " ");
+        }
+
+        async function loadDashSaasKpis() {
+            const planVal = document.getElementById("dashKpiPlanVal");
+            const planHint = document.getElementById("dashKpiPlanHint");
+            const creditsVal = document.getElementById("dashKpiCreditsVal");
+            const creditsHint = document.getElementById("dashKpiCreditsHint");
+            const quotaStrip = document.getElementById("dashQuotaStrip");
+
+            if (!token) {
+                safeText(planVal, "Guest");
+                safeText(planHint, "Đăng nhập tại /tool");
+                safeText(creditsVal, "—");
+                return;
+            }
+
+            try {
+                const headers = { Authorization: "Bearer " + token };
+                const [meR, saasR] = await Promise.all([
+                    fetch("/auth/me", { headers }),
+                    fetch("/api/saas/me", { headers }),
+                ]);
+                const me = meR.ok ? await meR.json().catch(() => ({})) : {};
+                const saas = saasR.ok ? await saasR.json().catch(() => ({})) : {};
+
+                const planName = saas.plan_name || saas.plan_slug || (saas.trial_status === "active" ? "Trial" : null);
+                safeText(planVal, planName || "Chưa có gói");
+                let hint = saas.ai_access_message || saas.message || saas.trial_message || "";
+                if (saas.current_period_end) {
+                    const end = String(saas.current_period_end).slice(0, 10);
+                    hint = (hint ? hint + " · " : "") + "Hết hạn: " + end;
+                }
+                safeText(planHint, hint || (saas.subscription_status || "Theo dõi tại /pricing"));
+
+                const balance = me.credit_balance;
+                if (balance != null && balance !== "") {
+                    safeText(creditsVal, String(balance));
+                    safeText(creditsHint, "Số dư credit tài khoản");
+                } else {
+                    const quotas = Array.isArray(saas.quotas) ? saas.quotas : [];
+                    const withLimit = quotas.filter((q) => q && q.limit_value != null);
+                    if (withLimit.length) {
+                        const minRem = withLimit.reduce((m, q) => {
+                            const r = q.quota_remaining;
+                            return r == null ? m : Math.min(m, Number(r));
+                        }, Infinity);
+                        safeText(creditsVal, Number.isFinite(minRem) ? String(minRem) : "∞");
+                        safeText(creditsHint, "Quota còn lại thấp nhất (tháng " + (saas.usage_month || "") + ")");
+                    } else if (quotas.length) {
+                        safeText(creditsVal, String(quotas.length));
+                        safeText(creditsHint, "Mục usage đang theo dõi");
+                    } else {
+                        safeText(creditsVal, "—");
+                        safeText(creditsHint, "Chưa có quota SaaS");
+                    }
+                }
+
+                if (quotaStrip && Array.isArray(saas.quotas) && saas.quotas.length) {
+                    quotaStrip.hidden = false;
+                    quotaStrip.innerHTML = "";
+                    saas.quotas.slice(0, 6).forEach(function (q) {
+                        if (!q) return;
+                        const chip = document.createElement("span");
+                        const rem = q.quota_remaining;
+                        const lim = q.limit_value;
+                        const used = Number(q.quantity_used) || 0;
+                        let label = formatQuotaLabel(q.feature_key) + ": ";
+                        if (lim != null) {
+                            label += used + "/" + lim;
+                            if (rem != null) label += " (còn " + rem + ")";
+                        } else {
+                            label += used + " lần";
+                        }
+                        chip.className = "dash-quota-chip" + (rem != null && lim != null && rem <= Math.max(1, Math.floor(lim * 0.15)) ? " low" : "");
+                        chip.textContent = label;
+                        quotaStrip.appendChild(chip);
+                    });
+                }
+
+                const kpiCredits = document.getElementById("dashKpiCredits");
+                if (kpiCredits && balance != null && Number(balance) <= 50) {
+                    kpiCredits.classList.add("warn");
+                }
+            } catch (e) {
+                safeText(planHint, "Không tải được dữ liệu SaaS");
+            }
+        }
+
+        function bindDashDetailLinks() {
+            ["dashTechDetailBtn", "dashActionViewAll"].forEach(function (id) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener("click", function (e) {
+                    if (el.getAttribute("href") === "#dashDetailReport") {
+                        e.preventDefault();
+                        openDetailReport();
+                    }
+                });
+            });
+        }
+
+        async function loadDashAffiliate() {
+            const guest = document.getElementById("dashAffiliateGuest");
+            const stats = document.getElementById("dashAffiliateStats");
+            const kpis = document.getElementById("dashAffKpis");
+            const sub = document.getElementById("dashAffSubtitle");
+            const affToken = reportAuthToken();
+            if (!affToken || !guest || !stats) return;
+            try {
+                const res = await fetch("/affiliate/overview", { headers: { Authorization: "Bearer " + affToken } });
+                if (!res.ok) return;
+                const body = await res.json();
+                const d = body.data || {};
+                guest.hidden = true;
+                stats.hidden = false;
+                const st = d.stats || {};
+                const bal = d.balances || {};
+                const earned = Number(bal.paid || 0) + Number(bal.withdrawable || 0) + Number(bal.pending || 0);
+                if (sub) {
+                    sub.textContent = d.registered
+                        ? (st.signups || 0) + " người đăng ký · " + (st.paid_users || 0) + " khách trả phí"
+                        : "Đăng ký để nhận link giới thiệu 30%";
+                }
+                if (kpis) {
+                    const fmt = (n) => Number(n || 0).toLocaleString("vi-VN") + " ₫";
+                    const cells = d.registered ? [
+                        ["Đã kiếm", fmt(earned)],
+                        ["Có thể rút", fmt(bal.withdrawable)],
+                        ["Chờ duyệt", fmt(bal.pending)],
+                        ["Đăng ký", String(st.signups || 0)],
+                    ] : [];
+                    kpis.innerHTML = cells.map(([k, v]) =>
+                        `<div style="background:rgba(2,8,20,0.45);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 12px;">
+                            <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:4px;">${k}</div>
+                            <div style="font-size:1.05rem;font-weight:700;color:#00e676;">${v}</div>
+                        </div>`
+                    ).join("");
+                }
+            } catch (_) {}
+        }
+
+        async function initDashboard() {
+            bindDashDetailLinks();
+            await Promise.all([
+                loadDashSaasKpis(),
+                loadDashboardLiveData(),
+                loadDashAffiliate(),
+                loadSidebarProjects(),
+            ]);
+        }
+        initDashboard();
+        window.addEventListener("digiseo-auth-change", function () {
+            token = reportAuthToken();
+            initDashboard();
+        });
     </script>
 {% include "partials/digiseo_i18n.html" %}
 {% include "partials/digiseo_pricing_bundle.html" %}

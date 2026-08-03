@@ -1,0 +1,127 @@
+/**
+ * Auth modal — panel max-height viewport, form cuộn bên trong (.auth-panel__scroll).
+ */
+html body .auth-modal:not([hidden]) {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 10050 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)) !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    background: rgba(2, 6, 23, 0.45) !important;
+}
+
+html body .auth-modal[hidden] {
+    display: none !important;
+}
+
+html body .auth-panel:not(.account-mini-panel) {
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+    width: min(460px, 100%) !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - 24px) !important;
+    max-height: calc(100svh - 24px) !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    color: #334155 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.28) !important;
+}
+
+html body .auth-panel__head {
+    flex: 0 0 auto;
+    padding: 16px 16px 12px;
+}
+
+html body .auth-panel__head .auth-tabs {
+    margin-bottom: 0 !important;
+}
+
+html body .auth-panel__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 16px 8px;
+}
+
+html body .auth-panel__foot {
+    flex: 0 0 auto;
+    padding: 10px 16px 16px;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 0 0 14px 14px;
+}
+
+html body .auth-panel__foot .btn-outline {
+    margin-top: 0 !important;
+}
+
+html body .auth-panel__foot .modal-close {
+    margin-top: 8px !important;
+}
+
+html body.auth-modal-open {
+    overflow: hidden !important;
+}
+
+@media (max-width: 480px) {
+    html body .auth-modal:not([hidden]) {
+        padding: max(8px, env(safe-area-inset-top, 0px)) 8px max(8px, env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    html body .auth-panel:not(.account-mini-panel) {
+        max-height: calc(100dvh - 16px) !important;
+        max-height: calc(100svh - 16px) !important;
+        border-radius: 12px !important;
+    }
+
+    html body .auth-panel__head {
+        padding: 12px 12px 8px;
+    }
+
+    html body .auth-panel__scroll {
+        padding: 0 12px 6px;
+    }
+
+    html body .auth-panel__foot {
+        padding: 8px 12px 12px;
+    }
+
+    html body .auth-tab-panel > p {
+        font-size: 0.85rem;
+        margin-bottom: 10px !important;
+    }
+
+    html body .pw-rules {
+        font-size: 0.72rem;
+        margin-bottom: 6px !important;
+    }
+
+    html body .pw-rules li {
+        margin-bottom: 2px !important;
+    }
+
+    html body .auth-panel input,
+    html body .auth-panel .btn-outline,
+    html body .auth-panel .btn-submit,
+    html body .auth-panel .modal-close {
+        margin-bottom: 8px !important;
+        padding-top: 9px !important;
+        padding-bottom: 9px !important;
+    }
+
+    html body .modal-hint {
+        margin: -4px 0 8px !important;
+    }
+}

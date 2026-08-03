@@ -1,12 +1,12 @@
 # AI Cost Tracking
 
-Tài liệu này mô tả hệ thống tracking chi phí AI cho DigiSEO.
+Tài liệu này mô tả hệ thống tracking chi phí AI cho Seoauto.
 
 ---
 
 ## 1. Vì sao cần tracking AI cost
 
-DigiSEO dùng AI nhiều:
+Seoauto dùng AI nhiều:
 
 ```txt
 Content AI

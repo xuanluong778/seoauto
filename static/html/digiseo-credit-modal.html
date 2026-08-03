@@ -1,0 +1,106 @@
+{# Popup mua credit — chỉ khung tab "Mua thêm credit" (account-billing) #}
+<div class="ab-aff-modal" id="dcmCreditModal" role="dialog" aria-modal="true" aria-labelledby="dcmCreditTitle" hidden>
+    <div class="ab-aff-modal-box dcm-credit-modal-box">
+        <div class="ab-payment-head">
+            <h3 id="dcmCreditTitle">Gói mua thêm credit</h3>
+            <button type="button" class="ab-payment-close" id="dcmCloseBtn" aria-label="Đóng">&times;</button>
+        </div>
+        <p class="ab-muted-text dcm-credit-lead">Bổ sung credit khi gói hiện tại không đủ cho tác vụ SEO.</p>
+        <div class="ab-loading" id="dcmLoading">Đang tải gói credit…</div>
+        <div class="ab-error" id="dcmLoadError" hidden></div>
+        <div id="dcmCreditContent" hidden>
+            <div class="ab-addon-table-wrap">
+                <table class="ab-addon-table no-digiseo-table" id="dcmCreditAddonTable">
+                    <thead>
+                        <tr>
+                            <th scope="col">Giá</th>
+                            <th scope="col">Credit nhận được</th>
+                            <th scope="col"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="dcmCreditAddonBody"></tbody>
+                </table>
+            </div>
+            <ul class="ab-addon-notes" id="dcmCreditAddonNotes"></ul>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn" id="dcmBuyCreditBtn">Mua thêm credit</button>
+                <span class="ab-muted-text ab-addon-hint">Chọn gói trong bảng hoặc bấm nút trên để thanh toán chuyển khoản.</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="ab-aff-modal" id="dcmPayModal" role="dialog" aria-modal="true" aria-labelledby="dcmPayTitle" hidden>
+    <div class="ab-aff-modal-box ab-payment-modal">
+        <div class="ab-payment-head">
+            <h3 id="dcmPayTitle">Thanh toán chuyển khoản</h3>
+            <button type="button" class="ab-payment-close" id="dcmPayCloseBtn" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="ab-payment-body" id="dcmPayBody">
+            <div class="ab-payment-loading" id="dcmPayLoading">
+                <div class="ab-payment-spinner" aria-hidden="true"></div>
+                <p>Đang tạo đơn thanh toán…</p>
+            </div>
+            <div id="dcmPayContent" hidden>
+                <div class="ab-payment-product">
+                    <span class="ab-payment-label">Sản phẩm</span>
+                    <strong id="dcmPayProductName">—</strong>
+                </div>
+                <dl class="ab-payment-totals">
+                    <div class="ab-payment-totals-row">
+                        <dt>Giá chưa VAT</dt>
+                        <dd id="dcmPayBase">—</dd>
+                    </div>
+                    <div class="ab-payment-totals-row">
+                        <dt>VAT <span id="dcmPayVatPct">10</span>%</dt>
+                        <dd id="dcmPayVat">—</dd>
+                    </div>
+                    <div class="ab-payment-totals-row is-total">
+                        <dt>Tổng thanh toán</dt>
+                        <dd id="dcmPayAmount" class="ab-payment-amount">—</dd>
+                    </div>
+                </dl>
+                <div class="ab-payment-warn" id="dcmPayWarn">
+                    <strong>Quan trọng:</strong> Chuyển khoản đúng <em>nội dung</em> bên dưới. Sai nội dung có thể chậm xác nhận hoặc không kích hoạt tự động.
+                </div>
+                <dl class="ab-payment-grid">
+                    <dt>Ngân hàng</dt>
+                    <dd id="dcmPayBank">—</dd>
+                    <dt>Chủ tài khoản</dt>
+                    <dd id="dcmPayHolder">—</dd>
+                    <dt>Số tài khoản</dt>
+                    <dd class="ab-payment-copy-row">
+                        <code id="dcmPayAccount">—</code>
+                        <button type="button" class="ab-btn secondary ab-btn-sm" id="dcmCopyAccount">Copy</button>
+                    </dd>
+                    <dt>Nội dung CK</dt>
+                    <dd class="ab-payment-copy-row">
+                        <code id="dcmPayTransfer">—</code>
+                        <button type="button" class="ab-btn secondary ab-btn-sm" id="dcmCopyTransfer">Copy</button>
+                    </dd>
+                </dl>
+                <div class="ab-payment-qr" id="dcmPayQrWrap" hidden>
+                    <p class="ab-muted-text">Quét mã QR để chuyển khoản nhanh</p>
+                    <img id="dcmPayQrImg" alt="QR thanh toán" width="200" height="200" />
+                </div>
+                <div class="ab-payment-status" id="dcmPayStatus">
+                    <span class="ab-payment-status-dot" aria-hidden="true"></span>
+                    <span id="dcmPayStatusText">Đang chờ thanh toán…</span>
+                </div>
+                <p class="ab-muted-text ab-payment-expire" id="dcmPayExpire"></p>
+            </div>
+            <div class="ab-payment-success" id="dcmPaySuccess" hidden>
+                <div class="ab-payment-success-icon" aria-hidden="true">✓</div>
+                <h4>Đã thanh toán, gói đã được kích hoạt</h4>
+                <p class="ab-muted-text" id="dcmPaySuccessDetail"></p>
+            </div>
+            <div class="ab-payment-expired" id="dcmPayExpired" hidden>
+                <div class="ab-payment-expired-icon" aria-hidden="true">⏱</div>
+                <h4>Đơn thanh toán đã hết hạn</h4>
+                <p class="ab-muted-text">Vui lòng tạo đơn mới để tiếp tục thanh toán.</p>
+                <button type="button" class="ab-btn" id="dcmPayRetry">Tạo đơn mới</button>
+            </div>
+            <div class="ab-error" id="dcmPayError" hidden></div>
+        </div>
+    </div>
+</div>

@@ -23,6 +23,26 @@ from app.db import SessionLocal
 from app.models.keyword_cluster_job import KeywordClusterJob
 from sqlalchemy import text
 
+
+def _dialect_name(db) -> str:
+    bind = db.get_bind()
+    return str(getattr(getattr(bind, "dialect", None), "name", "") or "sqlite")
+
+
+def _table_column_names(db, table_name: str) -> set[str]:
+    dialect = _dialect_name(db)
+    if dialect == "sqlite":
+        cols = db.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+        return {str(c[1]) for c in (cols or [])}
+    rows = db.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = :table_name"
+        ),
+        {"table_name": table_name},
+    ).fetchall()
+    return {str(r[0]) for r in (rows or [])}
+
 @dataclass
 class JobState:
     job_id: str
@@ -93,22 +113,27 @@ def _encode_result_json(result: dict[str, Any]) -> str:
 
 def ensure_job_schema() -> None:
     """
-    Lightweight migration for SQLite: add new columns if missing.
+    Lightweight migration: add new columns if missing (SQLite + PostgreSQL).
     This keeps the system stable without an external migration tool.
     """
     db = SessionLocal()
     try:
-        cols = db.execute(text("PRAGMA table_info(keyword_cluster_jobs)")).fetchall()
-        names = {str(c[1]) for c in (cols or [])}
+        names = _table_column_names(db, "keyword_cluster_jobs")
+        if not names:
+            return
+        dialect = _dialect_name(db)
+        ts_type = "DATETIME" if dialect == "sqlite" else "TIMESTAMP WITH TIME ZONE"
         alters: list[str] = []
         if "job_type" not in names:
-            alters.append("ALTER TABLE keyword_cluster_jobs ADD COLUMN job_type VARCHAR(32) NOT NULL DEFAULT 'generic'")
+            alters.append(
+                "ALTER TABLE keyword_cluster_jobs ADD COLUMN job_type VARCHAR(32) NOT NULL DEFAULT 'generic'"
+            )
         if "payload_json" not in names:
             alters.append("ALTER TABLE keyword_cluster_jobs ADD COLUMN payload_json TEXT")
         if "started_at" not in names:
-            alters.append("ALTER TABLE keyword_cluster_jobs ADD COLUMN started_at DATETIME")
+            alters.append(f"ALTER TABLE keyword_cluster_jobs ADD COLUMN started_at {ts_type}")
         if "finished_at" not in names:
-            alters.append("ALTER TABLE keyword_cluster_jobs ADD COLUMN finished_at DATETIME")
+            alters.append(f"ALTER TABLE keyword_cluster_jobs ADD COLUMN finished_at {ts_type}")
         for sql in alters:
             db.execute(text(sql))
         if alters:
@@ -117,7 +142,14 @@ def ensure_job_schema() -> None:
         db.close()
 
 
-def _db_upsert(job_id: str, *, state: str | None = None, progress: int | None = None, message: str | None = None) -> None:
+def _db_upsert(
+    job_id: str,
+    *,
+    state: str | None = None,
+    progress: int | None = None,
+    message: str | None = None,
+    result: dict[str, Any] | None = None,
+) -> None:
     db = SessionLocal()
     try:
         row = db.query(KeywordClusterJob).filter(KeywordClusterJob.job_id == job_id).first()
@@ -130,6 +162,8 @@ def _db_upsert(job_id: str, *, state: str | None = None, progress: int | None = 
             row.progress = max(0, min(100, int(progress)))
         if message is not None:
             row.message = str(message)[:500]
+        if result is not None:
+            row.result_json = _encode_result_json(result)
         db.commit()
     finally:
         db.close()
@@ -188,7 +222,14 @@ def get_job(job_id: str) -> JobState | None:
         return _JOBS.get(job_id)
 
 
-def update_job(job_id: str, *, state: str | None = None, progress: int | None = None, message: str | None = None) -> None:
+def update_job(
+    job_id: str,
+    *,
+    state: str | None = None,
+    progress: int | None = None,
+    message: str | None = None,
+    result: dict[str, Any] | None = None,
+) -> None:
     now = time.time()
     with _LOCK:
         st = _JOBS.get(job_id)
@@ -210,8 +251,10 @@ def update_job(job_id: str, *, state: str | None = None, progress: int | None = 
             st.progress = max(0, min(100, int(progress)))
         if message is not None:
             st.message = str(message)[:500]
+        if result is not None:
+            st.result = result
         st.updated_at = now
-    _db_upsert(job_id, state=state, progress=progress, message=message)
+    _db_upsert(job_id, state=state, progress=progress, message=message, result=result)
 
 
 def finish_job(job_id: str, *, result: dict[str, Any]) -> None:
@@ -343,7 +386,11 @@ def mark_stale_queued_failed(*, stale_seconds: int = 90) -> int:
         for r in rows or []:
             r.state = "ERROR"
             r.message = "Error"
-            r.error = f"No worker claimed job for >{stale_seconds}s. Please start run_worker.bat"
+            r.error = (
+                f"No worker claimed job for >{stale_seconds}s. "
+                "Enable KEYWORD_CLUSTER_INLINE=1 or start cluster worker "
+                "(scripts/keyword_cluster_worker.py)."
+            )
             try:
                 r.finished_at = now
             except Exception:
@@ -359,11 +406,13 @@ def mark_stale_queued_failed(*, stale_seconds: int = 90) -> int:
 def claim_next_pending_job(*, job_type: str | None = None) -> JobState | None:
     """
     Worker: atomically pick the oldest QUEUED job and mark RUNNING.
-    Uses BEGIN IMMEDIATE for SQLite to avoid double-claim.
+    SQLite uses BEGIN IMMEDIATE; PostgreSQL uses FOR UPDATE SKIP LOCKED.
     """
     db = SessionLocal()
     try:
-        db.execute(text("BEGIN IMMEDIATE"))
+        dialect = _dialect_name(db)
+        if dialect == "sqlite":
+            db.execute(text("BEGIN IMMEDIATE"))
         q = db.query(KeywordClusterJob).filter(KeywordClusterJob.state.in_(("QUEUED", "PENDING")))
         jt = (job_type or "").strip()
         if jt:
@@ -372,7 +421,10 @@ def claim_next_pending_job(*, job_type: str | None = None) -> JobState | None:
             except Exception:
                 # Column may not exist in some environments; ignore filter.
                 pass
-        row = q.order_by(KeywordClusterJob.created_at.asc()).first()
+        q = q.order_by(KeywordClusterJob.created_at.asc())
+        if dialect != "sqlite":
+            q = q.with_for_update(skip_locked=True)
+        row = q.first()
         if not row:
             db.rollback()
             return None

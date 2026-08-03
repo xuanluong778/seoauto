@@ -1,15 +1,16 @@
-{# Top nav — pass nav_active: schema | keyword | … (SSR .active); bọc nav-strip để fixed + cỡ cố định #}
+{# Legacy wrapper — cùng thứ tự tab với digiseo_top_nav / digiseo_main_nav #}
 <div class="nav-strip" id="digiseoTopNavStrip">
-<nav class="nav" data-i18n-aria="nav.aria" aria-label="Menu chính">
-    <a href="/" data-i18n="nav.brand">SEO Technical Tool</a>
-    <a href="/report"{% if nav_active == 'dashboard' %} class="active"{% endif %} data-i18n="nav.dashboard">Dashboard</a>
-    <a href="/tool"{% if nav_active == 'technical' %} class="active"{% endif %} data-i18n="nav.technical">Phân Tích Technical</a>
-    <a href="/tool/seo-score"{% if nav_active == 'seo_score' %} class="active"{% endif %} data-i18n="nav.seo_score">Chấm điểm SEO</a>
-    <a href="/content-ai"{% if nav_active == 'content_ai' %} class="active"{% endif %} data-i18n="nav.content_ai">Content AI</a>
-    <a href="/keywords/tools/research"{% if nav_active in ('keyword', 'keyword_research', 'keyword_clustering') %} class="active"{% endif %} data-i18n="nav.keyword">Từ khóa</a>
-    <a href="/schema"{% if nav_active == 'schema' %} class="active"{% endif %} data-i18n="nav.schema">Schema</a>
-    <a href="/pricing"{% if nav_active == 'pricing' %} class="active"{% endif %}>Bảng giá</a>
-    <a href="/settings"{% if nav_active == 'settings' %} class="active"{% endif %} data-i18n="nav.settings">Cài đặt</a>
-    <a href="/admin" data-nav-admin hidden class="nav-admin-only" data-i18n="nav.admin">Quản trị viên</a>
+<nav class="nav digiseo-top-nav" data-i18n-aria="nav.aria" aria-label="Menu chính">
+    <div class="digiseo-nav-bar">
+        <button type="button" class="digiseo-nav-toggle" aria-expanded="false" aria-controls="digiseoNavMenu" aria-label="Mở menu">
+            <span class="digiseo-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>
+            <span class="digiseo-nav-toggle-label">Menu</span>
+        </button>
+        {% include "partials/digiseo_brand.html" %}
+    </div>
+    <div class="digiseo-nav-links" id="digiseoNavMenu">
+        {% include "partials/digiseo_main_nav.html" %}
+    </div>
 </nav>
+<div class="digiseo-nav-account-slot" id="digiseoNavAccountSlot" aria-label="Tài khoản"></div>
 </div>

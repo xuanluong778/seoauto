@@ -5,7 +5,7 @@ Dùng prompt này trong Cursor sau khi đã có Plan / Subscription / Usage Limi
 ---
 
 ```txt
-Tôi muốn tích hợp payment gateway cho DigiSEO SaaS.
+Tôi muốn tích hợp payment gateway cho Seoauto SaaS.
 
 Bối cảnh:
 - App dùng FastAPI + SQLAlchemy + Jinja2

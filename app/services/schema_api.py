@@ -9,8 +9,6 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
-import requests
-
 from app.services.content_parser import parse_page_content
 from app.services.schema_generator import generate_schemas
 from app.services.schema_optimizer import optimize_schemas
@@ -20,6 +18,7 @@ from app.services.search_intent import classify_search_intent
 from app.services.serp_alignment_engine import build_serp_alignment
 from app.services.serp_features import detect_serp_features
 from app.services.serp_fetcher import fetch_serp
+from app.services.url_safety import safe_http_get
 
 
 def _strip_nulls(obj: Any) -> Any:
@@ -31,20 +30,8 @@ def _strip_nulls(obj: Any) -> Any:
 
 
 def _fetch_html(url: str) -> tuple[str, str | None]:
-    u = (url or "").strip()
-    if not u.startswith("http"):
-        return "", "url_must_be_http_https"
-    try:
-        r = requests.get(
-            u,
-            timeout=20,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; SchemaGenerator/1.1; +https://schema.org/docs)"},
-        )
-        if r.status_code >= 400:
-            return "", f"http_{r.status_code}"
-        return r.text or "", None
-    except requests.RequestException as e:
-        return "", f"fetch_error:{e.__class__.__name__}"
+    """SSRF-safe page fetch for schema generation."""
+    return safe_http_get(url)
 
 
 def _infer_serp_formats(features: dict[str, Any], serp_results: list[dict[str, Any]]) -> list[str]:

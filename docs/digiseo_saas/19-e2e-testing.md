@@ -1,6 +1,6 @@
 # E2E Testing Roadmap
 
-Tài liệu này mô tả các luồng cần test end-to-end cho DigiSEO.
+Tài liệu này mô tả các luồng cần test end-to-end cho Seoauto.
 
 ---
 

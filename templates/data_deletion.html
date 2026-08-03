@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xóa dữ liệu — SEOAuto</title>
+    <meta name="description" content="Hướng dẫn yêu cầu xóa dữ liệu Facebook và Social Auto khỏi tài khoản SEOAuto.">
+    <style>
+        :root {
+            --bg: #050b18;
+            --surface: rgba(15, 23, 42, 0.72);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #00e676;
+            --line: rgba(255, 255, 255, 0.1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(900px 500px at 12% 0%, rgba(0, 230, 118, 0.07), transparent 55%),
+                radial-gradient(700px 400px at 88% 8%, rgba(99, 102, 241, 0.05), transparent 50%),
+                var(--bg);
+            line-height: 1.65;
+        }
+        a { color: #93c5fd; text-decoration: none; }
+        a:hover { color: var(--accent); }
+        .legal-nav {
+            border-bottom: 1px solid var(--line);
+            background: rgba(5, 11, 24, 0.92);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .legal-nav .inner {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .legal-nav .back { font-size: 0.9rem; color: var(--muted); }
+        .legal-nav .back:hover { color: var(--accent); }
+        main {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 36px 20px 64px;
+        }
+        .legal-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 32px 28px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 1.75rem;
+            color: #fff;
+        }
+        .updated {
+            margin: 0 0 28px;
+            font-size: 0.875rem;
+            color: var(--muted);
+        }
+        h2 {
+            margin: 28px 0 10px;
+            font-size: 1.1rem;
+            color: #f8fafc;
+        }
+        h3 {
+            margin: 18px 0 8px;
+            font-size: 1rem;
+            color: #e2e8f0;
+        }
+        p, li { color: #cbd5e1; }
+        ul, ol { padding-left: 1.25rem; }
+        li { margin-bottom: 8px; }
+        .steps {
+            margin: 16px 0;
+            padding: 0;
+            list-style: none;
+            counter-reset: step;
+        }
+        .steps li {
+            counter-increment: step;
+            margin-bottom: 14px;
+            padding-left: 2.5rem;
+            position: relative;
+        }
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 50%;
+            background: rgba(0, 230, 118, 0.15);
+            border: 1px solid rgba(0, 230, 118, 0.35);
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .contact-box {
+            margin-top: 28px;
+            padding: 16px 18px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 230, 118, 0.25);
+            background: rgba(0, 230, 118, 0.06);
+        }
+        .contact-box strong { color: #fff; }
+        footer {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 0 20px 32px;
+            font-size: 0.85rem;
+            color: var(--muted);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header class="legal-nav">
+        <div class="inner">
+            {% include "partials/digiseo_brand.html" %}
+            <a href="/" class="back">← Về trang chủ</a>
+        </div>
+    </header>
+
+    <main>
+        <article class="legal-card">
+            <h1>Hướng dẫn xóa dữ liệu</h1>
+            <p class="updated">Cập nhật lần cuối: 18 tháng 6, 2026</p>
+
+            <p>
+                Trang này mô tả cách người dùng SEOAuto (<a href="https://seoauto.vn">seoauto.vn</a>)
+                có thể yêu cầu xóa dữ liệu liên quan đến tích hợp <strong>Facebook</strong> và tính năng
+                <strong>Social Auto</strong>, theo yêu cầu của Meta Platform và quyền riêng tư của người dùng.
+            </p>
+
+            <h2>1. Dữ liệu Facebook / Social Auto chúng tôi lưu trữ</h2>
+            <p>Khi bạn kết nối Facebook Fanpage với SEOAuto Social Auto, chúng tôi có thể lưu trữ:</p>
+            <ul>
+                <li>Token truy cập Facebook (access token) và thông tin phiên kết nối.</li>
+                <li>ID và tên Fanpage / tài khoản Facebook đã được bạn ủy quyền.</li>
+                <li>Nội dung bài đăng, lịch đăng, chiến dịch và trạng thái đăng bài do bạn tạo trong Social Auto.</li>
+                <li>Ảnh, liên kết và metadata đi kèm bài đăng mà bạn soạn hoặc lên lịch qua SEOAuto.</li>
+                <li>Nhật ký kỹ thuật tối thiểu (thời gian đăng, mã lỗi) để vận hành và hỗ trợ.</li>
+            </ul>
+            <p>
+                SEOAuto <strong>không bán</strong> dữ liệu Facebook của bạn cho bên thứ ba.
+                Dữ liệu chỉ được dùng để cung cấp tính năng Social Auto theo yêu cầu của bạn.
+            </p>
+
+            <h2>2. Tự ngắt kết nối và xóa dữ liệu trong SEOAuto</h2>
+            <p>Bạn có thể tự thực hiện các bước sau (không cần đăng nhập vào trang này):</p>
+            <ol class="steps">
+                <li>Đăng nhập tài khoản SEOAuto tại <a href="https://seoauto.vn/tool">seoauto.vn</a>.</li>
+                <li>Mở <strong>Social Auto</strong> (<a href="/social-auto">/social-auto</a>) hoặc <strong>Cài đặt</strong> tích hợp.</li>
+                <li>Chọn mục kết nối <strong>Facebook</strong> và bấm <strong>Ngắt kết nối</strong> / <strong>Hủy kết nối Fanpage</strong>.</li>
+                <li>Xóa các chiến dịch, bài nháp hoặc lịch đăng Facebook mà bạn không còn cần trong Social Auto (nếu có).</li>
+            </ol>
+            <p>
+                Sau khi ngắt kết nối, SEOAuto sẽ ngừng truy cập Facebook API từ tài khoản của bạn
+                và xóa hoặc vô hiệu hóa token kết nối trên hệ thống của chúng tôi.
+            </p>
+
+            <h2>3. Thu hồi quyền trên Facebook</h2>
+            <p>Để đảm bảo Facebook không còn chia sẻ dữ liệu với SEOAuto, bạn nên:</p>
+            <ul>
+                <li>Truy cập <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener noreferrer">Cài đặt ứng dụng và website trên Facebook</a>.</li>
+                <li>Tìm ứng dụng SEOAuto (hoặc tên app Meta bạn đã cấp quyền) và chọn <strong>Gỡ</strong> / <strong>Remove</strong>.</li>
+            </ul>
+
+            <h2>4. Yêu cầu xóa dữ liệu qua email</h2>
+            <p>
+                Nếu bạn không thể đăng nhập SEOAuto hoặc muốn chúng tôi xóa toàn bộ dữ liệu Facebook / Social Auto
+                còn lưu trên máy chủ, vui lòng gửi email với các thông tin sau:
+            </p>
+            <ul>
+                <li>Địa chỉ email đăng ký SEOAuto (hoặc email Facebook đã dùng kết nối).</li>
+                <li>Tên Fanpage / Page ID Facebook (nếu biết).</li>
+                <li>Mô tả ngắn: yêu cầu xóa dữ liệu Facebook và Social Auto.</li>
+            </ul>
+            <p>
+                Chúng tôi sẽ xác minh quyền sở hữu tài khoản và xử lý yêu cầu trong vòng
+                <strong>30 ngày</strong> kể từ khi nhận email hợp lệ.
+            </p>
+
+            <h2>5. Phạm vi xóa</h2>
+            <p>Khi yêu cầu được chấp nhận, chúng tôi sẽ xóa hoặc ẩn danh hóa:</p>
+            <ul>
+                <li>Token Facebook và thông tin kết nối Fanpage.</li>
+                <li>Dữ liệu chiến dịch, bài đăng và lịch đăng Facebook trong Social Auto (theo phạm vi bạn yêu cầu).</li>
+                <li>Bản sao cache hoặc bản ghi tạm liên quan trên hệ thống SEOAuto.</li>
+            </ul>
+            <p>
+                Một số bản ghi sao lưu kỹ thuật có thể được giữ tối đa 90 ngày vì lý do bảo mật và tuân thủ pháp luật,
+                sau đó sẽ bị xóa theo chu kỳ lưu trữ của hệ thống.
+            </p>
+
+            <h2>6. Dữ liệu đã đăng lên Facebook</h2>
+            <p>
+                SEOAuto chỉ hỗ trợ đăng bài lên Fanpage theo lệnh của bạn. Nội dung đã xuất bản trên Facebook
+                thuộc quyền quản lý của bạn trên nền tảng Facebook. Để xóa bài đã đăng, vui lòng đăng nhập Facebook
+                hoặc Meta Business Suite và xóa trực tiếp trên Fanpage.
+            </p>
+
+            <div class="contact-box">
+                <strong>Yêu cầu xóa dữ liệu</strong><br>
+                Email: <a href="mailto:xuanluong778@gmail.com?subject=Yêu%20cầu%20xóa%20dữ%20liệu%20Facebook%20-%20SEOAuto">xuanluong778@gmail.com</a><br>
+                Tiêu đề gợi ý: <em>Yêu cầu xóa dữ liệu Facebook — SEOAuto</em><br>
+                Website: <a href="https://seoauto.vn">https://seoauto.vn</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <a href="/">Trang chủ</a> · <a href="/privacy">Chính sách bảo mật</a> · <a href="/terms">Điều khoản sử dụng</a>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,89 @@
+        <div class="ca-il-workspace ca-step-drawer-panel" id="internalLinkPanel" data-custom-link-root="customLinkPanel" data-ca-modal-tabs="il">
+            <header class="ca-step-drawer-head ca-modal-header-sticky">
+                <div class="ca-step-drawer-head-text">
+                    <h2 class="ca-step-drawer-title">Internal Link</h2>
+                    <p class="ca-step-drawer-sub">Gợi ý và chèn liên kết nội bộ vào bài viết.</p>
+                </div>
+                <button type="button" class="mini-btn content-ai-aux-hidden" id="btnApplyInternalLinks">Chèn đã chọn</button>
+            </header>
+
+            <nav class="ca-modal-tabs" role="tablist" aria-label="Internal Link">
+                <button type="button" class="ca-modal-tab active" role="tab" aria-selected="true" data-tab-index="0">Gợi ý link</button>
+                <button type="button" class="ca-modal-tab" role="tab" aria-selected="false" data-tab-index="1">Tùy chỉnh</button>
+                <button type="button" class="ca-modal-tab" role="tab" aria-selected="false" data-tab-index="2">Đã chèn</button>
+                <button type="button" class="ca-modal-tab" role="tab" aria-selected="false" data-tab-index="3">Xem demo</button>
+            </nav>
+
+            <div class="ca-modal-body-scroll">
+                <div class="ca-modal-tab-panel ca-simple-section" data-tab-index="0" role="tabpanel">
+                    <div class="ca-simple-card">
+                        <div class="ca-il-context-row">
+                            <div><span class="ca-il-ctx-label">Website</span><span class="ca-il-ctx-val" id="caIlTabDisplaySite">—</span></div>
+                            <div><span class="ca-il-ctx-label">Từ khóa chính</span><span class="ca-il-ctx-val" id="caIlTabDisplayKw">—</span></div>
+                        </div>
+                        <p class="ca-il-hint">Lấy từ form bài viết — cập nhật Target website &amp; từ khóa nếu cần.</p>
+                        <div class="ca-simple-actions">
+                            <button type="button" class="btn" id="btnFindInternalLinks">Tìm link liên quan</button>
+                        </div>
+                    </div>
+                    <p class="ca-il-hint" id="hint-internal-links">Bấm «Tìm link liên quan» khi đã có Target website.</p>
+                    <div id="internalLinkCandidates" class="ca-simple-list ca-il-card-grid" role="list"></div>
+                    <div id="ilSelectedLinks" class="ca-il-selected-list content-ai-aux-hidden" aria-hidden="true"></div>
+                </div>
+
+                <div class="ca-modal-tab-panel ca-simple-section" data-tab-index="1" role="tabpanel" hidden>
+                    <div class="ca-simple-card">
+                        <p class="ca-il-hint">Custom link, thư viện và tùy chọn chèn nâng cao.</p>
+                        <div class="ca-il-source-actions">
+                            <button type="button" class="mini-btn" id="btnAddCustomLink">+ Custom link</button>
+                            <button type="button" class="mini-btn" id="btnSaveCustomToLibrary">Lưu vào thư viện</button>
+                        </div>
+                        <div id="customLinkRows" class="ca-il-custom-rows custom-link-rows"></div>
+                        <div id="customLinkLibraryList" class="ca-il-library custom-link-library-list"></div>
+                        <p class="ca-il-hint" id="hint-custom-link-library">Thư viện theo dự án / Target website.</p>
+                    </div>
+                    <div class="ca-il-advanced-body ca-simple-card" id="caIlAdvanced">
+                        <label class="il-llm-switch" for="customLinkUseLlm">
+                            <input type="checkbox" id="customLinkUseLlm" class="il-llm-switch-input" />
+                            <span class="il-llm-switch-track" aria-hidden="true"></span>
+                            <span class="il-llm-switch-text">Dùng LLM khi rule không chèn được anchor (AI anchor)</span>
+                        </label>
+                        <div id="ilAdvancedLlmSlot"></div>
+                        <p class="ca-il-hint">Giới hạn số link và kiểm tra sau khi chèn.</p>
+                        <div id="ilVerifyHint" class="il-verify-warn" style="display:none;" aria-live="polite"></div>
+                        <button type="button" class="mini-btn" id="btnDownloadScreamingFrog" disabled>Tải file Screaming Frog (TSV)</button>
+                        <details class="internal-link-test-checklist" id="internalLinkTestChecklist">
+                            <summary>Scoring &amp; checklist QA</summary>
+                            <ol>
+                                <li>Target website + từ khóa + content HTML trong editor.</li>
+                                <li>Điểm phù hợp ≥ 60 nên ưu tiên.</li>
+                                <li>Anchor tự nhiên — không «xem thêm», «tại đây».</li>
+                                <li>Fallback rule-based khi LLM lỗi.</li>
+                            </ol>
+                        </details>
+                    </div>
+                    <p class="ca-il-hint" id="hint-custom-link-apply">Chọn link ở tab Gợi ý hoặc thêm custom link ở đây.</p>
+                </div>
+
+                <div class="ca-modal-tab-panel ca-simple-section" data-tab-index="2" role="tabpanel" hidden>
+                    <div id="ilInsertSummary" class="ca-il-summary" hidden></div>
+                    <div id="ilInsertedStats" class="ca-simple-card ca-il-stats" aria-live="polite">
+                        <p class="ca-il-empty" id="ilInsertedStatsText">Chưa chèn link nào.</p>
+                    </div>
+                    <div id="internalLinkApplyResults" class="ca-il-results ca-simple-list internal-apply-results" style="display:none;"></div>
+                    <button type="button" class="btn secondary ca-il-undo-btn" id="btnIlUndo" hidden>Hoàn tác chèn link</button>
+                </div>
+
+                <div class="ca-modal-tab-panel ca-simple-section" data-tab-index="3" role="tabpanel" hidden>
+                    <div class="ca-simple-actions">
+                        <button type="button" class="mini-btn" id="btnRefreshIlDemo">Làm mới demo</button>
+                    </div>
+                    <p class="ca-il-hint">Xem trước bài viết — internal link và ảnh hiển thị đúng như trong editor.</p>
+                    <div id="caIlDemoPreview" class="ca-content-demo-viewport" aria-live="polite"></div>
+                </div>
+            </div>
+
+            <footer class="ca-modal-footer-sticky">
+                <button type="button" class="btn ca-il-apply-btn" id="btnApplyCustomInternalLinks">Chèn link vào bài</button>
+            </footer>
+        </div>

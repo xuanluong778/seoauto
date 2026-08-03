@@ -10,6 +10,8 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
+from app.services.parser import extract_content_sections, extract_intro_text
+
 
 def _visible_text(html: str, max_chars: int = 500_000) -> str:
     if not html:
@@ -96,10 +98,22 @@ def analyze_content(html: str) -> dict[str, Any]:
 
     h_score = _heading_structure_score(soup)
     dens = _keyword_density_estimate(text)
+    h1_texts = [node.get_text(" ", strip=True)[:500] for node in soup.find_all("h1")[:30] if node.get_text(strip=True)]
+    h2_texts = [node.get_text(" ", strip=True)[:500] for node in soup.find_all("h2")[:30] if node.get_text(strip=True)]
+    h3_texts = [node.get_text(" ", strip=True)[:500] for node in soup.find_all("h3")[:30] if node.get_text(strip=True)]
+    intro_pkg = extract_intro_text(soup)
+    content_sections = extract_content_sections(soup)
 
     return {
         "word_count": wc,
         "content_depth": depth,
         "heading_structure_score": h_score,
         "keyword_density_estimate": dens,
+        "h1_texts": h1_texts,
+        "h2_texts": h2_texts,
+        "h3_texts": h3_texts,
+        "headings": {"h1": h1_texts, "h2": h2_texts, "h3": h3_texts},
+        "intro": intro_pkg,
+        "intro_text": str(intro_pkg.get("text") or ""),
+        "content_sections": content_sections,
     }

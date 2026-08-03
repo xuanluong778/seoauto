@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import calendar
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -82,6 +82,72 @@ def get_active_subscription(db: Session, user_id: int) -> Subscription | None:
     return None
 
 
+def extend_or_create_subscription(
+    db: Session,
+    user_id: int,
+    plan_id: int,
+    *,
+    period_days: int | None = None,
+    duration_months: int | None = None,
+    status: str = "active",
+    source: str = "billing",
+    notes: str | None = None,
+    billing_cycle: str | None = None,
+) -> tuple[Subscription, str]:
+    """
+    Extend active subscription on the same plan, or create a new one.
+    Returns (subscription, action) where action is 'extended' or 'created'.
+    """
+    plan = plan_service.get_plan_by_id(db, plan_id)
+    if plan is None:
+        raise ValueError(f"Plan id={plan_id} not found")
+
+    status_norm = str(status or "active").strip().lower()
+    if status_norm not in ACTIVE_STATUSES:
+        raise ValueError(f"Invalid subscription status: {status}")
+
+    now = _utc_now()
+    days = max(1, int(period_days or 30))
+    cycle_note = f"billing_cycle={billing_cycle}" if billing_cycle else None
+    merged_notes = " | ".join(x for x in (notes, cycle_note) if x)
+
+    from datetime import timedelta
+
+    def _period_end_from(base: datetime) -> datetime:
+        if duration_months is not None:
+            return _add_months(base, max(1, int(duration_months)))
+        return base + timedelta(days=days)
+
+    sub = get_active_subscription(db, user_id)
+    if sub is not None and int(sub.plan_id) == int(plan_id):
+        end = _aware(sub.current_period_end) or now
+        base = end if end > now else now
+        sub.current_period_start = sub.current_period_start or now
+        sub.current_period_end = _period_end_from(base)
+        if merged_notes:
+            sub.notes = merged_notes[:2000]
+        sub.source = (source or sub.source or "billing")[:32]
+        db.flush()
+        return sub, "extended"
+
+    expire_active_subscriptions_for_user(db, user_id, now=now)
+
+    period_end = _period_end_from(now)
+    sub = Subscription(
+        user_id=int(user_id),
+        plan_id=int(plan_id),
+        status=status_norm,
+        started_at=now,
+        current_period_start=now,
+        current_period_end=period_end,
+        source=(source or "billing")[:32],
+        notes=merged_notes[:2000] if merged_notes else None,
+    )
+    db.add(sub)
+    db.flush()
+    return sub, "created"
+
+
 def create_subscription(
     db: Session,
     user_id: int,
@@ -115,6 +181,20 @@ def create_subscription(
         notes=(notes or "")[:2000] or None,
     )
     db.add(sub)
+    db.flush()
+    return sub
+
+
+def extend_subscription_days(db: Session, user_id: int, days: int) -> Subscription:
+    """Add N days to active subscription period_end (from max(now, current end))."""
+    sub = get_active_subscription(db, user_id)
+    if sub is None:
+        raise ValueError("no_active_subscription")
+
+    now = _utc_now()
+    end = _aware(sub.current_period_end) or now
+    base = end if end > now else now
+    sub.current_period_end = base + timedelta(days=max(1, int(days)))
     db.flush()
     return sub
 

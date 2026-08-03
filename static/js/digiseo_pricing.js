@@ -1,5 +1,5 @@
 /**
- * DigiSEO Pricing — modal (Upgrade plan) + page /pricing.
+ * Seoauto Pricing — modal (Upgrade plan) + page /pricing.
  * Plans from /api/saas/plans or SSR JSON; legacy static fallback for modal only.
  */
 (function () {
@@ -28,63 +28,58 @@
         internal_link: "Internal Links",
     };
 
-    const PRICING_SLUG_ORDER = ["free_trial_5d", "starter", "pro", "agency"];
-    const FREE_TRIAL_SLUG = "free_trial_5d";
+    const PRICING_SLUG_ORDER = ["starter", "pro", "agency", "business"];
+    const FREE_TRIAL_SLUG = "free_trial_5d"; // legacy — hidden from public pricing UI
     const PRICING_SLUGS = new Set(PRICING_SLUG_ORDER);
 
     const FREE_TRIAL_DISPLAY_ROWS = [
         { included: true, label: "1 project" },
-        { included: true, label: "25 bài viết AI / 5 ngày" },
-        { included: true, label: "Tối đa 5 bài / ngày" },
-        { included: true, label: "Check Technical SEO 5 lần" },
-        { included: true, label: "Research 3.000 keyword" },
-        { included: true, label: "Gom nhóm 500 keyword" },
-        { included: true, label: "Chèn 20 ảnh" },
-        { included: false, label: "Internal Link tự động" },
-        { included: false, label: "Google Search Console" },
+        { included: true, label: "10 bài viết AI / 5 ngày (demo)" },
+        { included: true, label: "Tối đa 3 bài / ngày" },
+        { included: true, label: "Check Technical SEO 3 lần" },
+        { included: true, label: "Research 200 keyword (demo)" },
+        { included: true, label: "BYOK — dùng API key riêng" },
+        { included: false, label: "API pool SEOAuto (volume cao)" },
         { included: false, label: "Bulk Content AI" },
+        { included: false, label: "Google Search Console" },
         { included: false, label: "Hỗ trợ ưu tiên" },
     ];
 
     const LEGACY_PLANS = [
-        {
-            id: FREE_TRIAL_SLUG,
-            name: "Dùng tool 5 ngày miễn phí",
-            popular: false,
-            priceMonthly: 0,
-            billingCycle: "none",
-            limits: [],
-            planKind: "free_trial",
-            trialDays: 5,
-            byokNote: "Yêu cầu API key cá nhân",
-            displayRows: FREE_TRIAL_DISPLAY_ROWS.slice(),
-        },
-        { id: "starter", name: "Basic", popular: false, priceMonthly: 250000, billingCycle: "monthly", limits: [], legacy: true, articles: "50 articles/month", projects: "3 projects", devices: "2 devices", gsc: true, priority: false },
-        { id: "pro", name: "Pro", popular: true, priceMonthly: 415000, billingCycle: "monthly", limits: [], legacy: true, articles: "100 articles/month", projects: "10 projects", devices: "3 devices", gsc: true, priority: false },
-        { id: "agency", name: "Agency", popular: false, priceMonthly: 748333, billingCycle: "monthly", limits: [], legacy: true, articles: "500 articles/month", projects: "50 projects", devices: "4 devices", gsc: true, priority: true },
+        { id: "starter", name: "Basic", popular: false, priceMonthly: 399000, billingCycle: "monthly", limits: [], legacy: true, articles: "30 bài AI/tháng", projects: "3 website/project", devices: "1 user", gsc: true, priority: false },
+        { id: "pro", name: "Pro", popular: true, priceMonthly: 799000, billingCycle: "monthly", limits: [], legacy: true, articles: "80 bài AI/tháng", projects: "8 website/project", devices: "3 user", gsc: true, priority: false },
+        { id: "agency", name: "Agency", popular: false, priceMonthly: 1690000, billingCycle: "monthly", limits: [], legacy: true, articles: "200 bài AI/tháng", projects: "20 website/project", devices: "5 user", gsc: true, priority: true },
+        { id: "business", name: "Business", popular: false, priceMonthly: 3490000, billingCycle: "monthly", limits: [], legacy: true, articles: "500 bài AI/tháng", projects: "50 website/project", devices: "10 user", gsc: true, priority: true },
     ];
 
-    const PAID_SLUGS = new Set(["starter", "pro", "agency"]);
+    const PAID_SLUGS = new Set(["starter", "pro", "agency", "business"]);
 
     const PAID_CATALOG = {
         starter: {
-            articles: "50 articles/month",
-            projects: "3 projects",
-            devices: "2 devices",
+            articles: "30 bài AI/tháng",
+            projects: "3 website/project",
+            devices: "1 user",
             gsc: true,
             priority_support: false,
         },
         pro: {
-            articles: "100 articles/month",
-            projects: "10 projects",
-            devices: "3 devices",
+            articles: "80 bài AI/tháng",
+            projects: "8 website/project",
+            devices: "3 user",
             gsc: true,
             priority_support: false,
         },
         agency: {
-            articles: "500 articles/month",
-            projects: "50 projects",
-            devices: "4 devices",
+            articles: "200 bài AI/tháng",
+            projects: "20 website/project",
+            devices: "5 user",
+            gsc: true,
+            priority_support: true,
+        },
+        business: {
+            articles: "500 bài AI/tháng",
+            projects: "50 website/project",
+            devices: "10 user",
             gsc: true,
             priority_support: true,
         },
@@ -459,6 +454,8 @@
     }
 
     function wireToolbar() {
+        if (wireToolbar._bound) return;
+        wireToolbar._bound = true;
         document.querySelectorAll(".digiseo-dur-btn").forEach((b) => {
             b.addEventListener("click", () => {
                 state.duration = b.getAttribute("data-dur") || "m6";
@@ -503,21 +500,22 @@
             .catch(() => {});
     }
 
-    function openModal() {
-        const bd = document.getElementById("digiseoPricingBackdrop");
-        if (!bd) return;
-        loadPlans().then(() => {
-            syncToggles();
-            renderGrid();
-            bd.classList.add("is-open");
-            document.body.style.overflow = "hidden";
-        });
+    function goToUpgradeBilling(planSlug) {
+        const url = new URL("/account-billing", window.location.origin);
+        url.searchParams.set("tab", "plans");
+        if (planSlug) url.searchParams.set("plan", String(planSlug).toLowerCase());
+        window.location.href = url.pathname + "?" + url.searchParams.toString();
+    }
+
+    function openModal(planSlug) {
+        goToUpgradeBilling(planSlug);
     }
 
     function closeModal() {
         const bd = document.getElementById("digiseoPricingBackdrop");
         if (!bd) return;
         bd.classList.remove("is-open");
+        document.body.classList.remove("digiseo-pricing-open");
         document.body.style.overflow = "";
     }
 
@@ -535,7 +533,7 @@
         document.querySelectorAll("[data-digiseo-pricing-open]").forEach((el) => {
             el.addEventListener("click", (ev) => {
                 ev.preventDefault();
-                openModal();
+                openModal(el.getAttribute("data-plan") || "");
             });
         });
     }
@@ -556,6 +554,7 @@
             initPage();
         } else {
             wireModal();
+            wireToolbar();
             loadPlans().then(() => {
                 syncToggles();
                 renderGrid();

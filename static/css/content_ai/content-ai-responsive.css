@@ -1,0 +1,35 @@
+/* SEOAuto Content AI — content-ai-responsive.css (extracted from content_ai.html) */
+/* On very short viewports, allow items to shrink a bit but keep pager visible */
+        @media (max-height: 740px) { .project-title { -webkit-line-clamp: 1; } }
+        @media (max-width: 760px) {
+            .row { grid-template-columns: 1fr; }
+            .outline-tools { grid-template-columns: 1fr; }
+            .wp-auth-row { grid-template-columns: 1fr; }
+            .history-row { grid-template-columns: 1fr; }
+        }
+
+        /* Seoauto bright-green accent overrides */
+        h1, .page-head h1 { color: #00e676 !important; }
+        .nav a, .nav-dd-btn {
+            color: #cbd5e1 !important;
+            background: rgba(255, 255, 255, 0.06) !important;
+            border-color: rgba(255, 255, 255, 0.18) !important;
+            box-shadow: none !important;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+        }
+        .nav a:hover, .nav-dd-btn:hover {
+            color: #f1f5f9 !important;
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            text-decoration: none !important;
+        }
+        .nav a.active {
+            color: #00e676 !important;
+            border-color: rgba(0, 230, 118, 0.85) !important;
+            background: rgba(2, 8, 20, 0.85) !important;
+            box-shadow: inset 0 0 0 1px rgba(0, 230, 118, 0.55), 0 2px 8px rgba(0, 230, 118, 0.12) !important;
+        }
+        .nav-dd-menu a:hover { background: rgba(0, 230, 118, 0.12) !important; color: #00e676 !important; }
+        .btn:not(.secondary):not(.reset-btn) { background: linear-gradient(135deg, #00e676 0%, #00c264 100%) !important; border-color: rgba(0,230,118,0.85) !important; color: #04140a !important; }
+        .btn:not(.secondary):not(.reset-btn):hover { background: linear-gradient(135deg, #1aeb84 0%, #00d36e 100%) !important; }
+        .mini-btn:hover, .ai-btn:hover { color: #00e676 !important; border-color: rgba(0,230,118,0.5) !important; }

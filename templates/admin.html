@@ -3,1092 +3,345 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin — Quản lý User</title>
-    <style>
-        :root {
-            --bg: #050b18;
-            --panel: rgba(15, 23, 42, 0.92);
-            --line: rgba(255, 255, 255, 0.12);
-            --muted: #94a3b8;
-            --text: #e2e8f0;
-            --accent: #00e676;
-            --danger: #f87171;
-            --warn: #fbbf24;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }
-        a { color: #93c5fd; }
-        .wrap { max-width: 1400px; margin: 0 auto; padding: 20px 18px 48px; }
-        .top {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-        h1 { margin: 0; font-size: 1.35rem; }
-        .badge-admin {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 6px;
-            background: rgba(0, 230, 118, 0.15);
-            color: var(--accent);
-            font-size: 0.75rem;
-            font-weight: 700;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1.1fr;
-            gap: 16px;
-            align-items: start;
-        }
-        @media (max-width: 960px) {
-            .grid { grid-template-columns: 1fr; }
-        }
-        .card {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 16px;
-        }
-        .card h2 {
-            margin: 0 0 12px;
-            font-size: 1rem;
-            color: #f8fafc;
-        }
-        .filters {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        input, select, button {
-            font-family: inherit;
-            font-size: 0.875rem;
-        }
-        input, select {
-            padding: 8px 10px;
-            border-radius: 8px;
-            border: 1px solid var(--line);
-            background: rgba(2, 8, 20, 0.8);
-            color: var(--text);
-        }
-        input { min-width: 160px; flex: 1; }
-        .btn {
-            padding: 8px 14px;
-            border-radius: 8px;
-            border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text);
-            cursor: pointer;
-            font-weight: 600;
-        }
-        .btn:hover { background: rgba(255, 255, 255, 0.14); }
-        .btn-primary {
-            border-color: rgba(0, 230, 118, 0.6);
-            background: rgba(0, 230, 118, 0.12);
-            color: var(--accent);
-        }
-        .btn-danger {
-            border-color: rgba(248, 113, 113, 0.5);
-            color: var(--danger);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8125rem;
-        }
-        th, td {
-            text-align: left;
-            padding: 8px 6px;
-            border-bottom: 1px solid var(--line);
-        }
-        th { color: var(--muted); font-weight: 600; }
-        tr.user-row { cursor: pointer; }
-        tr.user-row:hover { background: rgba(255, 255, 255, 0.04); }
-        tr.user-row.selected { background: rgba(0, 230, 118, 0.08); }
-        .pill {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            font-weight: 700;
-        }
-        .pill-active { background: rgba(0, 230, 118, 0.2); color: var(--accent); }
-        .pill-inactive { background: rgba(251, 191, 36, 0.2); color: var(--warn); }
-        .pill-banned { background: rgba(248, 113, 113, 0.2); color: var(--danger); }
-        .pill-role { background: rgba(147, 197, 253, 0.15); color: #93c5fd; }
-        .detail-empty { color: var(--muted); font-size: 0.875rem; }
-        .detail-head {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        .detail-head strong { font-size: 1.05rem; }
-        .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-        .tabs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-bottom: 10px;
-        }
-        .tab {
-            padding: 6px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--line);
-            background: transparent;
-            color: var(--muted);
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-        .tab.active {
-            color: var(--accent);
-            border-color: rgba(0, 230, 118, 0.5);
-            background: rgba(0, 230, 118, 0.1);
-        }
-        .tab-panel { display: none; max-height: 360px; overflow: auto; }
-        .tab-panel.active { display: block; }
-        .mini-table td { font-size: 0.78rem; }
-        .blocked-screen {
-            text-align: center;
-            padding: 80px 24px;
-            color: var(--muted);
-        }
-        .blocked-screen h2 { color: var(--danger); }
-        #adminMsg { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
-        .audit-block { margin-top: 16px; }
-        .api-perms {
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            padding: 12px 14px;
-            margin-bottom: 14px;
-            background: rgba(2, 8, 20, 0.5);
-        }
-        .api-perms h3 {
-            margin: 0 0 10px;
-            font-size: 0.9rem;
-            color: #f8fafc;
-        }
-        .perm-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--line);
-        }
-        .perm-row:last-child { border-bottom: none; }
-        .perm-row > label:not(.toggle) { font-size: 0.85rem; flex: 1; min-width: 200px; }
-        .perm-row small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
-        .toggle {
-            position: relative;
-            display: inline-block;
-            width: 36px;
-            height: 20px;
-            flex: 0 0 36px;
-            margin: 0;
-        }
-        .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-        .toggle span {
-            position: absolute;
-            inset: 0;
-            background: rgba(148, 163, 184, 0.35);
-            border-radius: 999px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .toggle span::after {
-            content: "";
-            position: absolute;
-            width: 14px;
-            height: 14px;
-            left: 3px;
-            top: 3px;
-            background: #fff;
-            border-radius: 50%;
-            transition: transform 0.2s;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-        }
-        .toggle input:checked + span { background: rgba(0, 230, 118, 0.55); }
-        .toggle input:checked + span::after { transform: translateX(16px); }
-        .pill-api-on { background: rgba(0, 230, 118, 0.2); color: var(--accent); }
-        .pill-api-off { background: rgba(148, 163, 184, 0.2); color: var(--muted); }
-        .pill-pool { background: rgba(147, 197, 253, 0.2); color: #93c5fd; }
-        .pill-trial-active { background: rgba(0, 230, 118, 0.2); color: var(--accent); }
-        .pill-trial-pending { background: rgba(251, 191, 36, 0.2); color: var(--warn); }
-        .pill-trial-expired { background: rgba(248, 113, 113, 0.2); color: var(--danger); }
-        .pill-trial-none { background: rgba(148, 163, 184, 0.2); color: var(--muted); }
-        .saas-block {
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            padding: 12px 14px;
-            margin-bottom: 14px;
-            background: rgba(2, 8, 20, 0.5);
-        }
-        .saas-block h3 {
-            margin: 0 0 10px;
-            font-size: 0.9rem;
-            color: #f8fafc;
-        }
-        .saas-summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 8px 12px;
-            margin-bottom: 10px;
-            font-size: 0.82rem;
-        }
-        .saas-summary dt { color: var(--muted); margin: 0; }
-        .saas-summary dd { margin: 2px 0 0; font-weight: 600; }
-        .saas-form {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: flex-end;
-            margin-top: 10px;
-        }
-        .saas-form label {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            font-size: 0.75rem;
-            color: var(--muted);
-        }
-        .saas-form input, .saas-form select { min-width: 120px; }
-        .saas-form input[type="number"] { width: 72px; min-width: 72px; }
-        .saas-form .grow { flex: 1; min-width: 160px; }
-        .saas-ent-result {
-            margin-top: 8px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            background: rgba(0, 0, 0, 0.25);
-            font-size: 0.8rem;
-            line-height: 1.45;
-        }
-        .saas-ent-result.ok { border: 1px solid rgba(0, 230, 118, 0.35); }
-        .saas-ent-result.no { border: 1px solid rgba(248, 113, 113, 0.35); }
-        .pill-saas { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
-    </style>
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=4">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+    <link rel="stylesheet" href="/static/css/admin-users.css?v=18">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=2">
 </head>
-<body>
-<div id="blockedView" class="blocked-screen" hidden>
+<body class="ab-page au-users-page" data-user-dock="hidden">
+{% include "partials/digiseo_top_nav.html" %}
+
+<div id="blockedView" class="au-blocked" hidden>
     <h2>Không có quyền truy cập</h2>
     <p>Chỉ tài khoản <strong>admin</strong> mới vào được trang này.</p>
     <p><a href="/">← Về trang chủ</a> · <a href="/settings">Đăng nhập</a></p>
 </div>
+
 <div id="adminApp" hidden>
-    <div class="wrap">
-        <div class="top">
-            <div>
-                <h1>Admin — Quản lý User <span class="badge-admin">ADMIN</span></h1>
-                <p id="adminMsg"></p>
-                <p style="font-size:0.8rem;color:var(--muted);margin:4px 0 0;">
-                    Quản lý user, trial, quyền API và gói SaaS (gán thủ công — chưa bật enforcement).
-                </p>
+    <div class="au-wrap">
+        {% include "partials/admin_shell_header.html" %}
+        <p id="adminMsg" class="au-admin-msg"></p>
+
+        <header class="au-page-head">
+            <div class="au-page-head-text">
+                <h2 class="au-page-title">Quản lý người dùng</h2>
+                <p class="au-page-sub">Danh sách user, trial, quyền API và gói SaaS.</p>
             </div>
-            <div>
-                <a href="/">Trang chủ</a>
-                <button type="button" class="btn" id="btnRefresh">Làm mới</button>
+        </header>
+
+        <div class="au-stats" id="auStatsRow" aria-label="Thống kê user">
+            <div class="au-stat-card">
+                <span class="au-stat-label">Tổng user</span>
+                <strong class="au-stat-value" id="statTotal">—</strong>
+            </div>
+            <div class="au-stat-card au-stat-card--green">
+                <span class="au-stat-label">User đang hoạt động</span>
+                <strong class="au-stat-value" id="statActive">—</strong>
+            </div>
+            <div class="au-stat-card au-stat-card--yellow">
+                <span class="au-stat-label">Đang trial</span>
+                <strong class="au-stat-value" id="statTrial">—</strong>
+            </div>
+            <div class="au-stat-card au-stat-card--purple">
+                <span class="au-stat-label">Admin &amp; Editor</span>
+                <strong class="au-stat-value" id="statAdminEditor">—</strong>
             </div>
         </div>
-        <div class="grid">
-            <section class="card">
-                <h2>Danh sách user</h2>
-                <div class="filters">
-                    <input type="search" id="filterQ" placeholder="Email hoặc ID…" />
-                    <select id="filterRole">
+
+        <div class="au-grid">
+            <section class="au-panel au-list" aria-label="Danh sách user">
+                <div class="au-list-toolbar">
+                    <div class="au-list-toolbar-left">
+                        <h3 class="au-list-title">Danh sách người dùng</h3>
+                        <span id="userListMeta" class="au-list-count">Tổng: — user</span>
+                    </div>
+                    <button type="button" class="au-btn au-btn--blue" id="btnAddUser">+ Thêm user</button>
+                </div>
+
+                <div class="au-search-row">
+                    <input type="search" id="filterQ" class="au-input au-search" placeholder="Tìm theo email hoặc ID…" aria-label="Tìm email hoặc ID" />
+                </div>
+
+                <div class="au-filters-row">
+                    <select id="filterRole" class="au-select" aria-label="Lọc role">
                         <option value="">Tất cả role</option>
                         <option value="admin">admin</option>
                         <option value="user">user</option>
                         <option value="editor">editor</option>
                         <option value="viewer">viewer</option>
                     </select>
-                    <select id="filterStatus">
+                    <select id="filterStatus" class="au-select" aria-label="Lọc status">
                         <option value="">Tất cả status</option>
                         <option value="active">active</option>
                         <option value="inactive">inactive</option>
                         <option value="banned">banned</option>
                     </select>
-                    <select id="filterSegment" title="Nhóm tài khoản">
-                        <option value="all">Tất cả tài khoản</option>
-                        <option value="activated">Đã kích hoạt (có mật khẩu)</option>
-                        <option value="trial_pending">Đăng ký — chưa dùng thử</option>
-                        <option value="trial_active">Đang dùng thử</option>
-                        <option value="trial_expired">Hết trial</option>
-                        <option value="no_trial_row">Chưa kích hoạt &amp; chưa trial</option>
-                    </select>
-                    <select id="filterTrialStatus" title="Trial status">
+                    <select id="filterTrialStatus" class="au-select" aria-label="Lọc trial">
                         <option value="">Trial: tất cả</option>
-                        <option value="pending">pending (chưa trial)</option>
-                        <option value="active">active (đang trial)</option>
-                        <option value="expired">expired (hết trial)</option>
+                        <option value="pending">Chưa trial</option>
+                        <option value="active">Đang trial</option>
+                        <option value="expired">Hết trial</option>
                         <option value="none">none</option>
                         <option value="admin">admin</option>
                     </select>
-                    <select id="filterUseAdminApi" title="Dùng API Admin">
-                        <option value="">API Admin: tất cả</option>
-                        <option value="true">Bật (dùng khóa hệ thống)</option>
-                        <option value="false">Tắt (cần key riêng)</option>
+                    <select id="filterUseAdminApi" class="au-select" aria-label="Lọc API">
+                        <option value="">API: tất cả</option>
+                        <option value="true">API bật</option>
+                        <option value="false">API tắt</option>
                     </select>
-                    <button type="button" class="btn btn-primary" id="btnSearch">Tìm</button>
+                    <button type="button" class="au-btn au-btn--filter" id="btnSearch">
+                        <span class="au-filter-icon" aria-hidden="true">⚙</span> Bộ lọc
+                    </button>
                 </div>
-                <p id="userListMeta" style="font-size:0.8rem;color:var(--muted);margin:0 0 8px;"></p>
-                <div style="overflow:auto;max-height:520px;">
-                    <table>
+
+                <div id="userListLoading" class="au-loading" hidden>
+                    <span class="au-spinner" aria-hidden="true"></span>
+                    Đang tải danh sách…
+                </div>
+
+                <div id="userListError" class="au-error-banner" hidden role="alert"></div>
+
+                <div id="userListEmpty" class="au-empty" hidden>
+                    <span class="au-empty-icon" aria-hidden="true">👤</span>
+                    <p>Không tìm thấy user nào.</p>
+                </div>
+
+                <div class="au-table-wrap" id="userTableWrap">
+                    <table class="au-table">
+                        <colgroup>
+                            <col class="au-col-id" />
+                            <col class="au-col-email" />
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>ID</th>
                                 <th>Email</th>
                                 <th>Role</th>
                                 <th>Status</th>
-                                <th>Kích hoạt</th>
                                 <th>Trial</th>
-                                <th>Bắt đầu</th>
-                                <th>Hết hạn</th>
-                                <th>Còn (ngày)</th>
                                 <th>API</th>
-                                <th>API Admin</th>
+                                <th>Credit</th>
+                                <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="userTableBody"></tbody>
                     </table>
                 </div>
+
+                <div class="au-card-list" id="userCardList" hidden aria-label="Danh sách user dạng thẻ"></div>
+
+                <div class="au-pagination" id="userPagination" hidden aria-label="Phân trang"></div>
             </section>
-            <section class="card" id="detailCard">
-                <h2>Chi tiết user</h2>
-                <div id="detailEmpty" class="detail-empty">Chọn một user trong danh sách.</div>
-                <div id="detailContent" hidden>
-                    <div class="detail-head">
-                        <strong id="dEmail"></strong>
-                        <span class="pill pill-role" id="dRole"></span>
-                        <span class="pill" id="dStatus"></span>
+
+            <section class="au-panel au-detail" id="detailCard" aria-label="Chi tiết user">
+                <div id="detailLoading" class="au-loading" hidden>
+                    <span class="au-spinner" aria-hidden="true"></span>
+                    Đang tải chi tiết…
                     </div>
-                    <p style="font-size:0.8rem;color:var(--muted);margin:0 0 10px;">
-                        ID <span id="dId"></span> · Credit <span id="dCredit"></span> · Tạo <span id="dCreated"></span>
-                    </p>
-                    <div class="actions">
-                        <select id="selNewRole">
-                            <option value="user">user</option>
-                            <option value="editor">editor</option>
-                            <option value="viewer">viewer</option>
-                            <option value="admin">admin</option>
-                        </select>
-                        <button type="button" class="btn btn-primary" id="btnSaveRole">Đổi role</button>
-                        <select id="selNewStatus">
-                            <option value="active">active</option>
-                            <option value="inactive">inactive</option>
-                            <option value="banned">banned</option>
-                        </select>
-                        <button type="button" class="btn btn-danger" id="btnSaveStatus">Cập nhật status</button>
+
+                <div id="detailError" class="au-error-banner" hidden role="alert"></div>
+
+                <div id="detailEmpty" class="au-detail-empty">
+                    <span class="au-empty-icon" aria-hidden="true">👤</span>
+                    <p>Chọn một người dùng để xem chi tiết.</p>
                     </div>
-                    <p id="dTrial" style="font-size:0.85rem;margin:0 0 10px;"></p>
-                    <section class="api-perms" id="apiPermsBlock">
-                        <h3>Quyền sử dụng API</h3>
-                        <div class="perm-row">
-                            <label>
-                                Cho phép dùng API (LLM, crawl AI…)
-                                <small>Bật/tắt bất cứ lúc nào — user mới mặc định tắt.</small>
-                            </label>
-                            <label class="toggle" title="Bật/tắt quyền API">
-                                <input type="checkbox" id="toggleApiAccess" />
-                                <span></span>
-                            </label>
-                        </div>
-                        <div class="perm-row">
-                            <label>
-                                Dùng API Admin
-                                <small>Bật: dùng khóa hệ thống (env.local). Tắt: user phải nhập API key riêng. Không hiển thị plaintext.</small>
-                            </label>
-                            <label class="toggle" title="Chung pool Admin">
-                                <input type="checkbox" id="toggleAdminPool" />
-                                <span></span>
-                            </label>
-                        </div>
-                    </section>
-                    <section class="saas-block" id="saasBlock">
-                        <h3>Gói SaaS (Phase 1b — thủ công)</h3>
-                        <dl class="saas-summary" id="saasSummary">
-                            <div><dt>Plan</dt><dd id="saasPlan">—</dd></div>
-                            <div><dt>Subscription</dt><dd id="saasStatus">—</dd></div>
-                            <div><dt>Hết kỳ</dt><dd id="saasPeriodEnd">—</dd></div>
-                            <div><dt>Tháng usage</dt><dd id="saasUsageMonth">—</dd></div>
-                        </dl>
-                        <p id="saasSubMessage" style="font-size:0.8rem;color:var(--muted);margin:0 0 8px;"></p>
-                        <div style="overflow:auto;max-height:160px;margin-bottom:10px;">
-                            <table class="mini-table" id="saasUsageTable">
-                                <thead>
-                                    <tr>
-                                        <th>Feature</th>
-                                        <th>Đã dùng</th>
-                                        <th>Giới hạn</th>
-                                        <th>Còn lại</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="saasUsageBody">
-                                    <tr><td colspan="4" class="detail-empty">Chọn user để xem usage.</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="saas-form" id="saasGrantForm">
-                            <label>
-                                Gói
-                                <select id="saasGrantPlan">
-                                    <option value="free_trial_5d">Dùng tool 5 ngày miễn phí (BYOK)</option>
-                                    <option value="starter">Basic</option>
-                                    <option value="pro">Pro</option>
-                                    <option value="agency">Agency</option>
-                                </select>
-                            </label>
-                            <label>
-                                Tháng
-                                <input type="number" id="saasGrantMonths" min="1" max="36" value="1" />
-                            </label>
-                            <label class="grow">
-                                Ghi chú
-                                <input type="text" id="saasGrantNotes" placeholder="Admin grant…" />
-                            </label>
-                            <button type="button" class="btn btn-primary" id="btnSaasGrant">Gán gói</button>
-                        </div>
-                        <div class="saas-form" style="margin-top:8px;">
-                            <label>
-                                Feature (kiểm tra quyền)
-                                <select id="saasFeatureKey">
-                                    <option value="content_ai_article">content_ai_article</option>
-                                    <option value="technical_audit">technical_audit</option>
-                                    <option value="keyword_research">keyword_research</option>
-                                    <option value="content_ai_bulk_article">content_ai_bulk_article</option>
-                                    <option value="seo_score">seo_score</option>
-                                    <option value="keyword_cluster">keyword_cluster</option>
-                                </select>
-                            </label>
-                            <button type="button" class="btn" id="btnSaasEntitlement">Kiểm tra quyền</button>
-                        </div>
-                        <div id="saasEntResult" class="saas-ent-result" hidden></div>
-                    </section>
-                    <div class="tabs" id="dataTabs">
-                        <button type="button" class="tab active" data-tab="seo">SEO Projects</button>
-                        <button type="button" class="tab" data-tab="content">Content AI</button>
-                        <button type="button" class="tab" data-tab="kb">Knowledge Base</button>
-                        <button type="button" class="tab" data-tab="bulk">Bulk jobs</button>
-                        <button type="button" class="tab" data-tab="keys">API keys</button>
-                        <button type="button" class="tab" data-tab="pub">Publishing</button>
-                        <button type="button" class="tab" data-tab="audit">Audit</button>
+
+                <div id="detailContent" class="au-detail-body" hidden>
+                    <div id="userProfileHeader" class="au-profile-mount"></div>
+
+                    <div class="au-dtabs-scroll">
+                        <nav class="au-dtabs" id="detailMainTabs" aria-label="Chi tiết user">
+                            <button type="button" class="au-dtab is-active" data-detail-tab="overview">Tổng quan</button>
+                            <button type="button" class="au-dtab" data-detail-tab="saas">Gói SaaS</button>
+                            <button type="button" class="au-dtab" data-detail-tab="api">API &amp; Quyền</button>
+                            <button type="button" class="au-dtab" data-detail-tab="data">Dữ liệu</button>
+                            <button type="button" class="au-dtab" data-detail-tab="credit">Credit</button>
+                            <button type="button" class="au-dtab" data-detail-tab="activity">Hoạt động</button>
+                        </nav>
                     </div>
-                    <div id="panelSeo" class="tab-panel active"></div>
-                    <div id="panelContent" class="tab-panel"></div>
-                    <div id="panelKb" class="tab-panel"></div>
-                    <div id="panelBulk" class="tab-panel"></div>
-                    <div id="panelKeys" class="tab-panel"></div>
-                    <div id="panelPub" class="tab-panel"></div>
-                    <div id="panelAudit" class="tab-panel"></div>
+
+                    <div id="detailPanelOverview" class="au-dtab-panel is-active"></div>
+                    <div id="detailPanelSaas" class="au-dtab-panel"></div>
+                    <div id="detailPanelApi" class="au-dtab-panel"></div>
+                    <div id="detailPanelData" class="au-dtab-panel"></div>
+                    <div id="detailPanelCredit" class="au-dtab-panel"></div>
+                    <div id="detailPanelActivity" class="au-dtab-panel"></div>
                 </div>
             </section>
         </div>
-        <section class="card audit-block">
-            <h2>Nhật ký hành động admin</h2>
-            <div style="overflow:auto;max-height:240px;">
-                <table class="mini-table">
+
+        <details class="au-panel au-audit au-audit--collapse" aria-label="Nhật ký admin">
+            <summary class="au-audit-summary">Nhật ký hành động admin</summary>
+            <div class="au-audit-scroll">
+                <table class="au-mini-table">
                     <thead>
-                        <tr><th>Thời gian</th><th>Admin</th><th>Action</th><th>Chi tiết</th></tr>
+                        <tr>
+                            <th>Thời gian</th>
+                            <th>Admin</th>
+                            <th>Action</th>
+                            <th>Chi tiết</th>
+                        </tr>
                     </thead>
                     <tbody id="adminAuditBody"></tbody>
                 </table>
             </div>
-        </section>
+        </details>
     </div>
 </div>
-<script>
-(function () {
-    const TOKEN_KEY = "seo_token";
 
-    function readCookieToken() {
-        const m = document.cookie.match(/(?:^|;\s*)seo_token=([^;]*)/);
-        return m ? decodeURIComponent(m[1].replace(/\+/g, " ")).trim() : "";
-    }
+<div id="auToast" class="au-toast" role="status" aria-live="polite" hidden></div>
 
-    const getToken = () => {
-        let t = (sessionStorage.getItem(TOKEN_KEY) || "").trim();
-        if (!t) {
-            t = readCookieToken();
-            if (t) {
-                try {
-                    sessionStorage.setItem(TOKEN_KEY, t);
-                } catch (_) {}
-            }
-        }
-        return t;
-    };
+<div id="auConfirmModal" class="au-modal" hidden>
+    <div class="au-modal-backdrop" id="auConfirmBackdrop"></div>
+    <div class="au-modal-box" role="dialog" aria-modal="true" aria-labelledby="auConfirmTitle">
+        <h3 id="auConfirmTitle">Xác nhận</h3>
+        <p id="auConfirmMsg" class="au-modal-msg"></p>
+        <div class="au-modal-actions">
+            <button type="button" class="au-btn" id="auConfirmCancel">Hủy</button>
+            <button type="button" class="au-btn au-btn--danger" id="auConfirmOk">Xác nhận</button>
+        </div>
+    </div>
+</div>
 
-    const headers = () => {
-        const t = getToken();
-        const h = { "Content-Type": "application/json" };
-        if (t) h.Authorization = "Bearer " + t;
-        return h;
-    };
+<div id="auAddUserModal" class="au-modal" hidden>
+    <div class="au-modal-backdrop" id="auAddUserBackdrop"></div>
+    <div class="au-modal-box au-modal-box--form" role="dialog" aria-modal="true" aria-labelledby="auAddUserTitle">
+        <h3 id="auAddUserTitle">Thêm người dùng</h3>
+        <p class="au-modal-msg">Tạo tài khoản mới — user có thể đăng nhập ngay bằng email và mật khẩu.</p>
+        <form id="auAddUserForm" class="au-add-user-form" novalidate>
+            <label class="au-field-stack">
+                <span class="au-field-label">Email *</span>
+                <input type="email" id="addUserEmail" class="au-input" required autocomplete="off" placeholder="user@example.com" />
+            </label>
+            <label class="au-field-stack">
+                <span class="au-field-label">Mật khẩu *</span>
+                <input type="password" id="addUserPassword" class="au-input" required minlength="8" autocomplete="new-password" placeholder="Tối thiểu 8 ký tự, hoa + thường + số" />
+            </label>
+            <div class="au-add-user-row">
+                <label class="au-field-stack">
+                    <span class="au-field-label">Role</span>
+                    <select id="addUserRole" class="au-select">
+                        <option value="user" selected>user</option>
+                        <option value="editor">editor</option>
+                        <option value="viewer">viewer</option>
+                        <option value="admin">admin</option>
+                    </select>
+                </label>
+                <label class="au-field-stack">
+                    <span class="au-field-label">Status</span>
+                    <select id="addUserStatus" class="au-select">
+                        <option value="active" selected>active</option>
+                        <option value="inactive">inactive</option>
+                        <option value="banned">banned</option>
+                    </select>
+                </label>
+            </div>
+            <label class="au-field-stack">
+                <span class="au-field-label">Credit ban đầu</span>
+                <input type="number" id="addUserCredits" class="au-input" min="0" max="1000000" value="0" />
+            </label>
+            <div class="au-add-user-checks">
+                <label class="au-check-row">
+                    <input type="checkbox" id="addUserApiAccess" />
+                    <span>Cho phép dùng API</span>
+                </label>
+                <label class="au-check-row">
+                    <input type="checkbox" id="addUserAdminPool" />
+                    <span>Dùng API Admin pool</span>
+                </label>
+            </div>
+            <p id="addUserError" class="au-form-error" hidden></p>
+            <div class="au-modal-actions">
+                <button type="button" class="au-btn" id="auAddUserCancel">Hủy</button>
+                <button type="submit" class="au-btn au-btn--primary" id="auAddUserSubmit" data-busy-label="Đang tạo…">Tạo user</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-    const fetchOpts = (extra) => ({
-        credentials: "same-origin",
-        ...(extra || {}),
-    });
+<div id="auGrantCreditModal" class="au-modal" hidden>
+    <div class="au-modal-backdrop" id="auGrantCreditBackdrop"></div>
+    <div class="au-modal-box au-modal-box--form" role="dialog" aria-modal="true" aria-labelledby="auGrantCreditTitle">
+        <h3 id="auGrantCreditTitle">Tặng credit</h3>
+        <p class="au-modal-msg" id="auGrantCreditSubtitle">Tặng credit cho user đã chọn.</p>
+        <form id="auGrantCreditForm" class="au-add-user-form" novalidate>
+            <label class="au-field-stack">
+                <span class="au-field-label">Loại credit *</span>
+                <select id="grantCreditType" class="au-select" required>
+                    <option value="admin_adjustment" selected>Điều chỉnh admin</option>
+                    <option value="plan_monthly">Gói tháng</option>
+                    <option value="purchased">Mua thêm</option>
+                    <option value="refund">Hoàn credit</option>
+                </select>
+            </label>
+            <label class="au-field-stack">
+                <span class="au-field-label">Số credit *</span>
+                <input type="number" id="grantCreditAmount" class="au-input" min="1" max="1000000" required placeholder="VD: 100" />
+            </label>
+            <label class="au-field-stack">
+                <span class="au-field-label">Lý do tặng *</span>
+                <input type="text" id="grantCreditReason" class="au-input" required maxlength="500" placeholder="VD: Bù credit do lỗi hệ thống" />
+            </label>
+            <label class="au-field-stack">
+                <span class="au-field-label">Ghi chú nội bộ</span>
+                <textarea id="grantCreditNote" class="au-input" rows="3" maxlength="2000" placeholder="Chỉ admin xem — không hiển thị cho user"></textarea>
+            </label>
+            <p id="grantCreditError" class="au-form-error" hidden></p>
+            <div class="au-modal-actions">
+                <button type="button" class="au-btn" id="auGrantCreditCancel">Hủy</button>
+                <button type="submit" class="au-btn au-btn--primary" id="auGrantCreditSubmit" data-busy-label="Đang tặng…">Xác nhận tặng credit</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-    const blockedView = document.getElementById("blockedView");
-    const adminApp = document.getElementById("adminApp");
-    const adminMsg = document.getElementById("adminMsg");
-    let selectedUserId = null;
-    let currentDetail = null;
+<div id="auGrantChatbotCreditModal" class="au-modal" hidden>
+    <div class="au-modal-backdrop" id="auGrantChatbotCreditBackdrop"></div>
+    <div class="au-modal-box au-modal-box--form" role="dialog" aria-modal="true" aria-labelledby="auGrantChatbotCreditTitle">
+        <h3 id="auGrantChatbotCreditTitle">Cộng/trừ credit Chatbot CSKH</h3>
+        <p class="au-modal-msg" id="auGrantChatbotCreditSubtitle">Điều chỉnh credit chatbot bonus cho user (không ảnh hưởng credit keyword/content).</p>
+        <form id="auGrantChatbotCreditForm" class="au-add-user-form" novalidate>
+            <label class="au-field-stack">
+                <span class="au-field-label">Thao tác *</span>
+                <select id="grantChatbotCreditOp" class="au-select" required>
+                    <option value="add" selected>Cộng credit</option>
+                    <option value="subtract">Trừ credit</option>
+                </select>
+            </label>
+            <label class="au-field-stack">
+                <span class="au-field-label">Số credit *</span>
+                <input type="number" id="grantChatbotCreditAmount" class="au-input" min="1" max="1000000" required placeholder="VD: 500" />
+            </label>
+            <label class="au-field-stack">
+                <span class="au-field-label">Lý do *</span>
+                <input type="text" id="grantChatbotCreditReason" class="au-input" required maxlength="500" placeholder="VD: Tặng thêm lượt AI tháng này" />
+            </label>
+            <label class="au-field-stack">
+                <span class="au-field-label">Ghi chú nội bộ</span>
+                <textarea id="grantChatbotCreditNote" class="au-input" rows="3" maxlength="2000" placeholder="Chỉ admin xem"></textarea>
+            </label>
+            <p id="grantChatbotCreditError" class="au-form-error" hidden></p>
+            <div class="au-modal-actions">
+                <button type="button" class="au-btn" id="auGrantChatbotCreditCancel">Hủy</button>
+                <button type="submit" class="au-btn au-btn--primary" id="auGrantChatbotCreditSubmit" data-busy-label="Đang lưu…">Xác nhận</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-    const saasApi = (path) => "/api/admin/saas" + path;
-
-    const fmtQuota = (n) => {
-        if (n === null || n === undefined) return "∞";
-        return String(n);
-    };
-
-    const fmtLimit = (n) => {
-        if (n === null || n === undefined) return "—";
-        if (Number(n) === -1) return "∞";
-        return String(n);
-    };
-
-    async function loadSaasPanel(userId) {
-        const planEl = document.getElementById("saasPlan");
-        const statusEl = document.getElementById("saasStatus");
-        const endEl = document.getElementById("saasPeriodEnd");
-        const monthEl = document.getElementById("saasUsageMonth");
-        const msgEl = document.getElementById("saasSubMessage");
-        const usageBody = document.getElementById("saasUsageBody");
-        const entBox = document.getElementById("saasEntResult");
-        entBox.hidden = true;
-
-        if (!userId) {
-            planEl.textContent = "—";
-            statusEl.textContent = "—";
-            endEl.textContent = "—";
-            monthEl.textContent = "—";
-            msgEl.textContent = "";
-            usageBody.innerHTML = '<tr><td colspan="4" class="detail-empty">Chọn user.</td></tr>';
-            return;
-        }
-
-        try {
-            const [subR, usageR] = await Promise.all([
-                fetch(saasApi("/users/" + userId + "/subscription"), fetchOpts({ headers: headers() })),
-                fetch(saasApi("/users/" + userId + "/usage"), fetchOpts({ headers: headers() })),
-            ]);
-            if (!subR.ok) throw new Error("Không tải subscription SaaS.");
-            if (!usageR.ok) throw new Error("Không tải usage SaaS.");
-            const sub = await subR.json();
-            const usage = await usageR.json();
-
-            if (sub.plan_slug) {
-                planEl.innerHTML = `<span class="pill pill-saas">${esc(sub.plan_name || sub.plan_slug)}</span>`;
-                statusEl.textContent = sub.status || "—";
-                endEl.textContent = fmtDate(sub.current_period_end);
-            } else {
-                planEl.innerHTML = '<span class="pill pill-trial-none">Chưa có gói SaaS</span>';
-                statusEl.textContent = "—";
-                endEl.textContent = "—";
-            }
-            msgEl.textContent = sub.message || usage.message || "";
-            monthEl.textContent = usage.usage_month || "—";
-
-            const items = usage.items || [];
-            if (!items.length) {
-                usageBody.innerHTML =
-                    '<tr><td colspan="4" class="detail-empty">Chưa có usage tháng này.</td></tr>';
-            } else {
-                usageBody.innerHTML = "";
-                items.forEach((row) => {
-                    const tr = document.createElement("tr");
-                    tr.innerHTML = `
-                        <td>${esc(row.feature_key)}</td>
-                        <td>${row.quantity_used}</td>
-                        <td>${fmtLimit(row.limit_value)}</td>
-                        <td>${fmtQuota(row.quota_remaining)}</td>`;
-                    usageBody.appendChild(tr);
-                });
-            }
-        } catch (e) {
-            planEl.textContent = "—";
-            statusEl.textContent = "—";
-            endEl.textContent = "—";
-            monthEl.textContent = "—";
-            msgEl.textContent = (e && e.message) || String(e);
-            usageBody.innerHTML =
-                '<tr><td colspan="4" class="detail-empty">Lỗi tải SaaS.</td></tr>';
-        }
-    }
-
-    async function grantSaasSubscription() {
-        if (!selectedUserId) {
-            alert("Chọn user trước.");
-            return;
-        }
-        const plan_slug = document.getElementById("saasGrantPlan").value;
-        const months = parseInt(document.getElementById("saasGrantMonths").value, 10) || 1;
-        const notes = document.getElementById("saasGrantNotes").value.trim() || null;
-        const btn = document.getElementById("btnSaasGrant");
-        btn.disabled = true;
-        try {
-            const r = await fetch(
-                saasApi("/users/" + selectedUserId + "/grant-subscription"),
-                fetchOpts({
-                    method: "POST",
-                    headers: headers(),
-                    body: JSON.stringify({ plan_slug, months, notes }),
-                })
-            );
-            const data = await r.json().catch(() => ({}));
-            if (!r.ok) {
-                const d = data.detail;
-                throw new Error(typeof d === "string" ? d : JSON.stringify(d));
-            }
-            adminMsg.textContent =
-                "Đã gán gói " + (data.plan_name || plan_slug) + " cho user #" + selectedUserId;
-            await loadSaasPanel(selectedUserId);
-            await loadAdminAudit();
-        } catch (e) {
-            alert(e.message || String(e));
-        } finally {
-            btn.disabled = false;
-        }
-    }
-
-    async function checkSaasEntitlement() {
-        if (!selectedUserId) {
-            alert("Chọn user trước.");
-            return;
-        }
-        const feature_key = document.getElementById("saasFeatureKey").value;
-        const box = document.getElementById("saasEntResult");
-        box.hidden = false;
-        box.className = "saas-ent-result";
-        box.textContent = "Đang kiểm tra…";
-        try {
-            const params = new URLSearchParams({ feature_key, quantity: "1" });
-            const r = await fetch(
-                saasApi("/users/" + selectedUserId + "/entitlement-check?" + params),
-                fetchOpts({ headers: headers() })
-            );
-            const data = await r.json().catch(() => ({}));
-            if (!r.ok) throw new Error(data.detail || "Lỗi entitlement-check.");
-            box.className = "saas-ent-result " + (data.allowed ? "ok" : "no");
-            box.innerHTML =
-                "<strong>" +
-                (data.allowed ? "Cho phép" : "Từ chối") +
-                "</strong> · <code>" +
-                esc(data.reason_code) +
-                "</code><br>" +
-                esc(data.message) +
-                "<br>quota_remaining: " +
-                esc(fmtQuota(data.quota_remaining)) +
-                (data.plan_slug ? " · plan: " + esc(data.plan_slug) : "");
-        } catch (e) {
-            box.className = "saas-ent-result no";
-            box.textContent = e.message || String(e);
-        }
-    }
-
-    document.getElementById("btnSaasGrant").addEventListener("click", () => grantSaasSubscription());
-    document.getElementById("btnSaasEntitlement").addEventListener("click", () => checkSaasEntitlement());
-
-    const statusPill = (st) => {
-        const s = String(st || "active").toLowerCase();
-        const cls = s === "banned" ? "pill-banned" : s === "inactive" ? "pill-inactive" : "pill-active";
-        return `<span class="pill ${cls}">${s}</span>`;
-    };
-
-    const apiPill = (on) =>
-        `<span class="pill ${on ? "pill-api-on" : "pill-api-off"}">${on ? "API on" : "API off"}</span>`;
-
-    const trialPill = (u) => {
-        const st = String(u.trial_status || "none").toLowerCase();
-        const map = {
-            active: ["pill-trial-active", "Đang trial"],
-            pending: ["pill-trial-pending", "Chưa trial"],
-            expired: ["pill-trial-expired", "Hết trial"],
-            admin: ["pill-pool", "Admin"],
-            api_granted: ["pill-api-on", "API cấp"],
-            none: ["pill-trial-none", "—"],
-        };
-        const [cls, label] = map[st] || map.none;
-        return `<span class="pill ${cls}" title="${esc(u.trial_message || "")}">${label}</span>`;
-    };
-
-    const fmtDay = (iso) => {
-        if (!iso) return "—";
-        try {
-            return new Date(iso).toLocaleDateString("vi-VN");
-        } catch (_) {
-            return String(iso).slice(0, 10);
-        }
-    };
-
-    let apiToggleBusy = false;
-
-    async function patchApiAccess(body) {
-        if (!selectedUserId) return;
-        const r = await fetch("/admin/api/users/" + selectedUserId + "/api-access", fetchOpts({
-            method: "PATCH",
-            headers: headers(),
-            body: JSON.stringify(body),
-        }));
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.detail || "Không cập nhật được quyền API.");
-        if (currentDetail && data.user) currentDetail.user = data.user;
-        return data.user;
-    }
-
-    function syncApiToggles(u) {
-        const isAdminRole = String(u.role || "").toLowerCase() === "admin";
-        document.getElementById("toggleApiAccess").checked = !!u.api_access_enabled || isAdminRole;
-        document.getElementById("toggleAdminPool").checked = !!u.use_admin_api_pool || isAdminRole;
-        document.getElementById("toggleApiAccess").disabled = isAdminRole;
-        document.getElementById("toggleAdminPool").disabled = isAdminRole;
-        document.getElementById("apiPermsBlock").style.opacity = isAdminRole ? "0.55" : "1";
-    }
-
-    const esc = (s) => {
-        const d = document.createElement("div");
-        d.textContent = String(s ?? "");
-        return d.innerHTML;
-    };
-
-    const fmtDate = (iso) => {
-        if (!iso) return "—";
-        try {
-            return new Date(iso).toLocaleString("vi-VN");
-        } catch (_) {
-            return iso;
-        }
-    };
-
-    const renderTable = (cols, rows) => {
-        if (!rows || !rows.length) return '<p class="detail-empty">Không có dữ liệu.</p>';
-        let h = "<table class='mini-table'><thead><tr>";
-        cols.forEach((c) => { h += `<th>${esc(c.label)}</th>`; });
-        h += "</tr></thead><tbody>";
-        rows.forEach((row) => {
-            h += "<tr>";
-            cols.forEach((c) => { h += `<td>${esc(c.fn(row))}</td>`; });
-            h += "</tr>";
-        });
-        return h + "</tbody></table>";
-    };
-
-    async function ensureAdmin() {
-        const token = getToken();
-        if (!token) {
-            blockedView.hidden = false;
-            adminApp.hidden = true;
-            return false;
-        }
-        try {
-            const me = await fetch("/auth/me", fetchOpts({ headers: headers() }));
-            if (!me.ok) throw new Error("auth");
-            const user = await me.json();
-            const roleOk = String(user.role || "").toLowerCase() === "admin";
-            if (!roleOk) throw new Error("role");
-            const chk = await fetch("/admin/api/check", fetchOpts({ headers: headers() }));
-            if (!chk.ok) throw new Error("admin api");
-            adminMsg.textContent = "Đăng nhập: " + user.email;
-            blockedView.hidden = true;
-            adminApp.hidden = false;
-            return true;
-        } catch (_) {
-            blockedView.hidden = false;
-            adminApp.hidden = true;
-            return false;
-        }
-    }
-
-    async function loadUsers() {
-        const q = document.getElementById("filterQ").value.trim();
-        const role = document.getElementById("filterRole").value;
-        const status = document.getElementById("filterStatus").value;
-        const segment = document.getElementById("filterSegment").value || "all";
-        const trialStatus = document.getElementById("filterTrialStatus").value;
-        const useAdminApi = document.getElementById("filterUseAdminApi").value;
-        const params = new URLSearchParams({ limit: "200", segment });
-        if (q) params.set("q", q);
-        if (role) params.set("role", role);
-        if (status) params.set("status", status);
-        if (trialStatus) params.set("trial_status", trialStatus);
-        if (useAdminApi) params.set("use_admin_api", useAdminApi);
-        const r = await fetch("/admin/api/users?" + params, fetchOpts({ headers: headers() }));
-        if (!r.ok) throw new Error("Không tải được danh sách user.");
-        const data = await r.json();
-        const tbody = document.getElementById("userTableBody");
-        document.getElementById("userListMeta").textContent = `Tổng ${data.total} user`;
-        tbody.innerHTML = "";
-        (data.items || []).forEach((u) => {
-            const tr = document.createElement("tr");
-            tr.className = "user-row" + (selectedUserId === u.id ? " selected" : "");
-            const apiOn = !!u.api_access_enabled || String(u.role || "").toLowerCase() === "admin";
-            const activated = u.account_activated || u.has_password;
-            const daysLeft = u.trial_is_active ? String(u.trial_days_remaining ?? 0) : "—";
-            tr.innerHTML = `
-                <td>${u.id}</td>
-                <td>${esc(u.email)}</td>
-                <td><span class="pill pill-role">${esc(u.role)}</span></td>
-                <td>${statusPill(u.status)}</td>
-                <td>${activated ? '<span class="pill pill-active">có</span>' : '<span class="pill pill-inactive">chưa</span>'}</td>
-                <td>${trialPill(u)}</td>
-                <td>${fmtDay(u.trial_started_at)}</td>
-                <td>${fmtDay(u.trial_ends_at)}</td>
-                <td>${daysLeft}</td>
-                <td>${apiPill(apiOn)}</td>
-                <td>${u.use_admin_api_pool ? '<span class="pill pill-pool">bật</span>' : "tắt"}</td>`;
-            tr.addEventListener("click", () => selectUser(u.id));
-            tbody.appendChild(tr);
-        });
-    }
-
-    function fillDetailPanels(d) {
-        document.getElementById("panelSeo").innerHTML = renderTable(
-            [
-                { label: "ID", fn: (r) => r.id },
-                { label: "Domain", fn: (r) => r.domain },
-                { label: "Tạo", fn: (r) => fmtDate(r.created_at) },
-            ],
-            d.seo_projects || []
-        );
-        document.getElementById("panelContent").innerHTML = renderTable(
-            [
-                { label: "Tiêu đề", fn: (r) => r.title || r.primary_keyword || "—" },
-                { label: "Site", fn: (r) => r.target_website || "—" },
-                { label: "Status", fn: (r) => r.status },
-                { label: "Từ", fn: (r) => r.word_count },
-            ],
-            d.content_ai_projects || []
-        );
-        document.getElementById("panelKb").innerHTML = renderTable(
-            [
-                { label: "Tên", fn: (r) => r.name },
-                { label: "Scope", fn: (r) => r.scope },
-                { label: "Docs", fn: (r) => r.doc_count },
-            ],
-            d.knowledge_bases || []
-        );
-        document.getElementById("panelBulk").innerHTML = renderTable(
-            [
-                { label: "Job", fn: (r) => r.job_id },
-                { label: "State", fn: (r) => r.state },
-                { label: "KW", fn: (r) => r.keyword_count },
-                { label: "%", fn: (r) => r.progress },
-            ],
-            d.bulk_jobs || []
-        );
-        document.getElementById("panelKeys").innerHTML = renderTable(
-            [
-                { label: "Tên", fn: (r) => r.name },
-                { label: "Provider", fn: (r) => r.provider_label || r.provider },
-                { label: "Key", fn: (r) => r.api_key_masked || "••••" },
-                { label: "On", fn: (r) => (r.enabled ? "yes" : "no") },
-            ],
-            d.api_keys || []
-        );
-        document.getElementById("panelPub").innerHTML = renderTable(
-            [
-                { label: "Tên", fn: (r) => r.name },
-                { label: "Platform", fn: (r) => r.platform },
-                { label: "URL", fn: (r) => r.url },
-                { label: "Pass", fn: (r) => r.app_password_masked || "—" },
-            ],
-            d.publishing_sites || []
-        );
-        document.getElementById("panelAudit").innerHTML = renderTable(
-            [
-                { label: "Action", fn: (r) => r.action },
-                { label: "Resource", fn: (r) => `${r.resource_type}/${r.resource_id}` },
-                { label: "IP", fn: (r) => r.ip_address },
-                { label: "Lúc", fn: (r) => fmtDate(r.created_at) },
-            ],
-            d.audit_logs || []
-        );
-    }
-
-    async function selectUser(id) {
-        selectedUserId = id;
-        document.getElementById("detailEmpty").hidden = true;
-        document.getElementById("detailContent").hidden = false;
-        const r = await fetch("/admin/api/users/" + id, fetchOpts({ headers: headers() }));
-        if (!r.ok) {
-            alert("Không tải chi tiết user.");
-            return;
-        }
-        currentDetail = await r.json();
-        const u = currentDetail.user;
-        document.getElementById("dEmail").textContent = u.email;
-        document.getElementById("dId").textContent = u.id;
-        document.getElementById("dCredit").textContent = u.credit_balance;
-        document.getElementById("dCreated").textContent = fmtDate(u.created_at);
-        document.getElementById("dRole").textContent = u.role;
-        const stEl = document.getElementById("dStatus");
-        stEl.textContent = u.status;
-        stEl.className = "pill " + (u.status === "banned" ? "pill-banned" : u.status === "inactive" ? "pill-inactive" : "pill-active");
-        document.getElementById("selNewRole").value = u.role;
-        document.getElementById("selNewStatus").value = u.status;
-        const trial = currentDetail.trial || {};
-        const apiGranted = !!(trial.is_api_grant_bypass || String(u.trial_status || "").toLowerCase() === "api_granted");
-        const uTrial = u.trial_message || trial.message || "—";
-        const remainLabel = apiGranted
-            ? "<span class='pill pill-api-on'>Theo quyền API (không trial 5 ngày)</span>"
-            : (u.trial_is_active ? esc(String(u.trial_days_remaining)) + " ngày" : "—");
-        document.getElementById("dTrial").innerHTML =
-            "<strong>Trial:</strong> " + esc(uTrial) +
-            " · Bắt đầu: " + (apiGranted ? "—" : esc(fmtDay(u.trial_started_at || trial.started_at))) +
-            " · Hết hạn: " + (apiGranted ? "—" : esc(fmtDay(u.trial_ends_at || trial.ends_at))) +
-            " · Còn lại: " + remainLabel +
-            (u.account_activated ? " · <span class='pill pill-active'>Đã kích hoạt</span>" : " · <span class='pill pill-inactive'>Chưa kích hoạt</span>");
-        syncApiToggles(u);
-        fillDetailPanels(currentDetail);
-        await loadSaasPanel(id);
-        await loadUsers();
-    }
-
-    async function onToggleApiAccess() {
-        if (!selectedUserId || apiToggleBusy) return;
-        const enabled = document.getElementById("toggleApiAccess").checked;
-        apiToggleBusy = true;
-        try {
-            const body = { api_access_enabled: enabled };
-            if (!enabled) body.use_admin_api_pool = false;
-            const updated = await patchApiAccess(body);
-            if (updated) syncApiToggles(updated);
-            await loadUsers();
-            await loadAdminAudit();
-        } catch (e) {
-            alert(e.message || String(e));
-            if (currentDetail) syncApiToggles(currentDetail.user);
-        } finally {
-            apiToggleBusy = false;
-        }
-    }
-
-    async function onToggleAdminPool() {
-        if (!selectedUserId || apiToggleBusy) return;
-        const pool = document.getElementById("toggleAdminPool").checked;
-        apiToggleBusy = true;
-        try {
-            const updated = await patchApiAccess({ use_admin_api_pool: pool });
-            if (updated) syncApiToggles(updated);
-            await loadUsers();
-            await loadAdminAudit();
-        } catch (e) {
-            alert(e.message || String(e));
-            if (currentDetail) syncApiToggles(currentDetail.user);
-        } finally {
-            apiToggleBusy = false;
-        }
-    }
-
-    document.getElementById("toggleApiAccess").addEventListener("change", () => onToggleApiAccess());
-    document.getElementById("toggleAdminPool").addEventListener("change", () => onToggleAdminPool());
-
-    async function loadAdminAudit() {
-        const r = await fetch("/admin/api/audit-logs?limit=80", fetchOpts({ headers: headers() }));
-        if (!r.ok) return;
-        const data = await r.json();
-        const tbody = document.getElementById("adminAuditBody");
-        tbody.innerHTML = "";
-        (data.items || []).forEach((row) => {
-            const tr = document.createElement("tr");
-            let detail = row.detail_json || "";
-            try {
-                const o = JSON.parse(detail);
-                detail = JSON.stringify(o);
-            } catch (_) {}
-            tr.innerHTML = `
-                <td>${fmtDate(row.created_at)}</td>
-                <td>${row.user_id ?? "—"}</td>
-                <td>${esc(row.action)}</td>
-                <td>${esc(detail).slice(0, 120)}</td>`;
-            tbody.appendChild(tr);
-        });
-    }
-
-    document.getElementById("btnSearch").addEventListener("click", () => loadUsers().catch((e) => alert(e.message)));
-    document.getElementById("btnRefresh").addEventListener("click", async () => {
-        await loadUsers();
-        await loadAdminAudit();
-        if (selectedUserId) {
-            await selectUser(selectedUserId);
-        } else {
-            await loadSaasPanel(null);
-        }
-    });
-    document.getElementById("dataTabs").addEventListener("click", (e) => {
-        const btn = e.target.closest(".tab");
-        if (!btn) return;
-        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-        document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-        btn.classList.add("active");
-        const key = btn.getAttribute("data-tab");
-        const map = {
-            seo: "panelSeo",
-            content: "panelContent",
-            kb: "panelKb",
-            bulk: "panelBulk",
-            keys: "panelKeys",
-            pub: "panelPub",
-            audit: "panelAudit",
-        };
-        const el = document.getElementById(map[key]);
-        if (el) el.classList.add("active");
-    });
-
-    document.getElementById("btnSaveRole").addEventListener("click", async () => {
-        if (!selectedUserId) return;
-        const role = document.getElementById("selNewRole").value;
-        const r = await fetch("/admin/api/users/" + selectedUserId + "/role", fetchOpts({
-            method: "PATCH",
-            headers: headers(),
-            body: JSON.stringify({ role }),
-        }));
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) {
-            alert(data.detail || "Lỗi đổi role.");
-            return;
-        }
-        await selectUser(selectedUserId);
-        await loadAdminAudit();
-    });
-
-    document.getElementById("btnSaveStatus").addEventListener("click", async () => {
-        if (!selectedUserId) return;
-        const status = document.getElementById("selNewStatus").value;
-        if (status === "banned" && !confirm("Khóa (ban) user này? User sẽ không đăng nhập được.")) return;
-        const r = await fetch("/admin/api/users/" + selectedUserId + "/status", fetchOpts({
-            method: "PATCH",
-            headers: headers(),
-            body: JSON.stringify({ status }),
-        }));
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) {
-            alert(data.detail || "Lỗi cập nhật status.");
-            return;
-        }
-        await selectUser(selectedUserId);
-        await loadAdminAudit();
-    });
-
-    (async function init() {
-        const ok = await ensureAdmin();
-        if (!ok) return;
-        await loadUsers();
-        await loadAdminAudit();
-    })();
-})();
-</script>
+<script src="/static/js/digiseo-auth-token.js?v=2"></script>
+<script src="/static/js/digiseo-auth-me.js?v=1"></script>
+<script src="/static/js/digiseo-admin-nav.js?v=8" defer></script>
+<script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+<script src="/static/js/admin-users.js?v=18" defer></script>
+{% include "partials/digiseo_account_widget_bundle.html" %}
 </body>
 </html>

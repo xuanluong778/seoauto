@@ -1,6 +1,6 @@
 # Credits & Usage Limits
 
-Tài liệu này mô tả cách chuẩn hóa credit và giới hạn sử dụng cho DigiSEO SaaS.
+Tài liệu này mô tả cách chuẩn hóa credit và giới hạn sử dụng cho Seoauto SaaS.
 
 ---
 

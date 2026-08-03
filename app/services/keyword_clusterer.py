@@ -24,6 +24,7 @@ Tắt gộp keyword tương tự: ``KEYWORD_CLUSTER_MERGE_SIMILAR=0``.
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 from collections import Counter, defaultdict
@@ -38,16 +39,38 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import normalize as _sp_normalize
 from concurrent.futures import ProcessPoolExecutor
 
-from app.services.search_intent import aggregate_cluster_intent, classify_search_intent, intent_similarity
+from app.services.search_intent import (
+    aggregate_cluster_intent,
+    classify_search_intent,
+    compute_cluster_intent_purity,
+    effective_intent_for_clustering,
+    intent_merge_allowed,
+    intent_similarity,
+)
 from app.services.search_volume import enrich_keyword_volume, enrich_keyword_volumes_cached
 from app.services import semantic_embedding as semantic_embedding_mod
 from app.services.semantic_embedding import embed_keywords
 from app.services.semantic_similarity import compute_semantic_similarity_matrix
 from app.services.keyword_normalizer import merge_similar_keyword_records
 from app.services.serp_fetcher import fetch_serp_for_keyword, normalize_serp_url
+from app.services.cluster_serp_overlap import (
+    build_serp_pair_intersections,
+    build_url_sets_from_snapshots,
+    cluster_by_serp_shared_urls,
+    cluster_pair_merge_details_for_members,
+    compute_cluster_shared_url_metrics,
+    detect_merge_suggestions,
+    format_weak_relations,
+    post_merge_orphan_groups_by_serp,
+    select_main_keyword,
+    serp_merge_min_shared_urls,
+)
 from app.services.serp_layout_intent import infer_serp_layout_intent
 from app.services.serp_similarity import compute_serp_similarity
 from app.services.keyword_preprocess import preprocess_keyword
+from urllib.parse import urlparse
+
+_LOG = logging.getLogger(__name__)
 
 
 def _page_type_from_url_only(url: str) -> str:
@@ -373,6 +396,103 @@ def _hash_sparse_matrix(phrases: list[str]):
     return hv.transform(phrases)
 
 
+def _topic_token_overlap(a: str, b: str) -> float:
+    """Token Jaccard for semantic fallback — requires same topic, not just similar spelling."""
+    ta = {t for t in re.findall(r"[0-9a-zA-ZÀ-ỹ]+", (a or "").lower()) if len(t) > 1}
+    tb = {t for t in re.findall(r"[0-9a-zA-ZÀ-ỹ]+", (b or "").lower()) if len(t) > 1}
+    if not ta or not tb:
+        return 0.0
+    inter = len(ta & tb)
+    union = len(ta | tb)
+    return float(inter) / float(union) if union else 0.0
+
+
+def _fallback_cluster_index_subset(
+    global_idxs: list[int],
+    ordered: list[str],
+    intent_labels: list[str],
+    *,
+    thr_base: float,
+    gate_floor: float | None,
+) -> list[list[int]]:
+    """Semantic fallback for keywords without SERP — same intent + topic only."""
+    if not global_idxs:
+        return []
+    if len(global_idxs) == 1:
+        return [global_idxs]
+    sub_phrases = [ordered[i] for i in global_idxs]
+    sub_intents = [intent_labels[i] for i in global_idxs]
+    n = len(global_idxs)
+    thr = _dynamic_cluster_threshold(thr_base, n)
+    local_edges = _scalable_neighbor_edges(
+        sub_phrases,
+        intent_labels=sub_intents,
+        thr=thr,
+        gate_floor=gate_floor,
+        k_neighbors=min(48, max(8, n // 4)),
+    )
+    local_groups = _union_find_from_edges(n, [(a, b) for a, b in local_edges]) if local_edges else [[i] for i in range(n)]
+    return [[global_idxs[li] for li in g] for g in local_groups]
+
+
+def _cluster_keywords_serp_primary(
+    n: int,
+    ordered: list[str],
+    url_sets: list[set[str]],
+    intent_labels: list[str],
+    *,
+    fanout_cap: int,
+    thr_base: float,
+    gate_floor: float | None,
+) -> tuple[list[list[int]], dict[tuple[int, int], int], list[dict[str, Any]], dict[str, Any]]:
+    """SERP shared-URL clustering; semantic fallback only for keywords missing SERP."""
+    min_merge = serp_merge_min_shared_urls()
+    serp_idxs = [i for i in range(n) if url_sets[i]]
+    no_serp_idxs = [i for i in range(n) if not url_sets[i]]
+
+    groups: list[list[int]] = []
+    pair_inter_all: dict[tuple[int, int], int] = {}
+    weak_all: list[dict[str, Any]] = []
+    meta: dict[str, Any] = {"clustering_method": "serp_shared_url_count", "min_shared_urls_for_merge": min_merge}
+
+    if serp_idxs:
+        sub_sets = [url_sets[i] for i in serp_idxs]
+        sub_groups, weak_raw, pair_inter_sub, serp_meta = cluster_by_serp_shared_urls(
+            len(serp_idxs),
+            sub_sets,
+            min_merge=min_merge,
+            fanout_cap=fanout_cap,
+        )
+        for (a, b), v in pair_inter_sub.items():
+            ga, gb = serp_idxs[a], serp_idxs[b]
+            key = (ga, gb) if ga < gb else (gb, ga)
+            pair_inter_all[key] = v
+        for w in weak_raw:
+            weak_all.append({"i": serp_idxs[int(w["i"])], "j": serp_idxs[int(w["j"])], "shared_urls": w.get("shared_urls")})
+        groups.extend([[serp_idxs[j] for j in g] for g in sub_groups])
+        meta.update(serp_meta)
+
+    if no_serp_idxs:
+        fb_groups = _fallback_cluster_index_subset(
+            no_serp_idxs,
+            ordered,
+            intent_labels,
+            thr_base=thr_base,
+            gate_floor=gate_floor,
+        )
+        groups.extend(fb_groups)
+        meta["no_serp_fallback_count"] = len(no_serp_idxs)
+
+    if not groups:
+        groups = [[i] for i in range(n)]
+
+    groups = post_merge_orphan_groups_by_serp(groups, url_sets, min_merge=min_merge)
+
+    weak_formatted = format_weak_relations(weak_all, ordered)
+    meta["weak_relations"] = weak_formatted
+    return groups, pair_inter_all, weak_formatted, meta
+
+
 def _union_find_from_edges(n: int, edges: list[tuple[int, int]]) -> list[list[int]]:
     parent = list(range(n))
 
@@ -413,6 +533,9 @@ def _scalable_neighbor_edges(
     n = len(phrases)
     if n <= 1:
         return []
+
+    small_full = int(os.getenv("KEYWORD_CLUSTER_SMALL_N_FULL", "96"))
+    small_full = max(8, min(256, small_full))
 
     # One global hashed sparse matrix (L2-normalized) so cosine similarity = dot product.
     X_all = _hash_sparse_matrix(phrases)
@@ -462,23 +585,27 @@ def _scalable_neighbor_edges(
 
     # Build a list of sub-blocks to process
     sub_tasks: list[list[int]] = []
-    for idxs in blocks.values():
-        if len(idxs) < 2:
-            continue
-        if len(idxs) > block_max:
-            sub: dict[str, list[int]] = defaultdict(list)
-            for i in idxs:
-                sub[block_key(phrases[i], take=3)].append(i)
-            for v in sub.values():
-                if len(v) >= 2:
-                    sub_tasks.append(v)
-        else:
-            sub_tasks.append(idxs)
+    if n <= small_full:
+        sub_tasks = [list(range(n))]
+    else:
+        for idxs in blocks.values():
+            if len(idxs) < 2:
+                continue
+            if len(idxs) > block_max:
+                sub: dict[str, list[int]] = defaultdict(list)
+                for i in idxs:
+                    sub[block_key(phrases[i], take=3)].append(i)
+                for v in sub.values():
+                    if len(v) >= 2:
+                        sub_tasks.append(v)
+            else:
+                sub_tasks.append(idxs)
 
     hard_cap = int(os.getenv("KEYWORD_CLUSTER_BLOCK_HARD_CAP", "520"))
     hard_cap = max(120, min(1200, hard_cap))
 
     strict_intent = os.getenv("KEYWORD_CLUSTER_INTENT_STRICT", "1").lower() in ("1", "true", "yes")
+    min_topic = float(os.getenv("KEYWORD_CLUSTER_FALLBACK_MIN_TOPIC_OVERLAP", "0.30"))
 
     def edges_for_block(sub_idxs: list[int]) -> list[tuple[int, int]]:
         m = len(sub_idxs)
@@ -498,7 +625,13 @@ def _scalable_neighbor_edges(
                 continue
             ia = sub_idxs[int(a)]
             ib = sub_idxs[int(b)]
-            if strict_intent and intent_labels[ia] != intent_labels[ib]:
+            ia_int = intent_labels[ia]
+            ib_int = intent_labels[ib]
+            if strict_intent and ia_int != ib_int:
+                continue
+            if not intent_merge_allowed(ia_int, ib_int, serp_jaccard=0.0):
+                continue
+            if _topic_token_overlap(phrases[ia], phrases[ib]) < min_topic:
                 continue
             it = float(intent_similarity(intent_labels[ia], intent_labels[ib]))
             gate = _intent_match_gate(it, floor=gate_floor)
@@ -758,7 +891,7 @@ def _content_type_from_intent(intent: str, dominant_url: str | None = None) -> s
     it = str(intent or "").strip().lower()
     if it in ("ecommerce", "transactional"):
         return "product"
-    if it in ("commercial", "navigational"):
+    if it in ("commercial", "navigational", "local"):
         return "landing"
     # URL-level hint fallback
     pt = _page_type_from_url_only(dominant_url or "")
@@ -1014,6 +1147,7 @@ def cluster_keywords(
     lex_mat = None
 
     snapshots: dict[str, dict[str, Any]] = {}
+    serp_failures: list[str] = []
     if fetch_serp:
         _progress(18, f"Fetch SERP ({len(ordered)} keyword)…")
         top_n = int(os.getenv("SERP_TOP_N", "10"))
@@ -1035,11 +1169,16 @@ def cluster_keywords(
             )
 
         done = 0
+        serp_failures: list[str] = []
         with ThreadPoolExecutor(max_workers=workers) as ex:
             futs = [ex.submit(_fetch_one, k) for k in ordered]
             for fut in as_completed(futs):
                 k, snap = fut.result()
                 snapshots[k] = snap
+                urls = list((snap or {}).get("serp_urls") or [])
+                if not urls:
+                    serp_failures.append(k)
+                    _LOG.warning("SERP fetch empty for keyword: %s (source=%s)", k, (snap or {}).get("source"))
                 done += 1
                 pct = 18 + int(52 * (done / max(1, len(ordered))))
                 _progress(pct, f"Fetch SERP {done}/{len(ordered)}")
@@ -1074,142 +1213,99 @@ def cluster_keywords(
             row["intent_cluster"] = str(row.get("intent") or "informational")
 
     has_serp = bool(fetch_serp) and any(len((snapshots.get(k) or {}).get("serp_urls") or []) > 0 for k in ordered)
+    top_n_serp = int(os.getenv("SERP_TOP_N", "10"))
     url_sets: list[set[str]] = []
     if has_serp:
-        for k in ordered:
-            snap = snapshots.get(k) or {}
-            urls = list(snap.get("serp_urls") or [])[:10]
-            url_sets.append({normalize_serp_url(u) for u in urls if str(u or "").strip()})
+        url_sets = build_url_sets_from_snapshots(snapshots, ordered, top_n=top_n_serp)
     else:
         url_sets = [set() for _ in ordered]
 
-    intent_labels = [str(kw_by_phrase[ordered[i].lower()].get("intent_cluster") or "informational") for i in range(n)]
+    intent_labels = [effective_intent_for_clustering(kw_by_phrase[ordered[i].lower()]) for i in range(n)]
 
     gsc_primary: list[str | None] = [_row_gsc_primary(kw_by_phrase[k.lower()]) for k in ordered]
 
-    _progress(84, "SERP overlap graph (Jaccard) + union-find")
-    hybrid = None
-
+    _progress(84, "SERP shared-URL overlap + union-find")
     pair_inter: dict[tuple[int, int], int] = {}
-    pair_sims: list[tuple[int, int, float]] = []
-    inv: dict[str, list[int]] = defaultdict(list)
-    if has_serp:
-        for i, s in enumerate(url_sets):
-            for u in s:
-                inv[u].append(i)
-        for u, idxs in inv.items():
-            if len(idxs) < 2:
-                continue
-            if len(idxs) > url_fanout_cap:
-                continue
-            idxs.sort()
-            for a_pos in range(len(idxs)):
-                a = idxs[a_pos]
-                for b_pos in range(a_pos + 1, len(idxs)):
-                    b = idxs[b_pos]
-                    key = (a, b)
-                    pair_inter[key] = pair_inter.get(key, 0) + 1
-
-        # exact Jaccard using intersection count + set sizes
-        for (i, j), inter in pair_inter.items():
-            sa = url_sets[i]
-            sb = url_sets[j]
-            if not sa or not sb:
-                continue
-            union = len(sa) + len(sb) - int(inter)
-            if union <= 0:
-                continue
-            sim = float(inter) / float(union)
-            pair_sims.append((i, j, sim))
-
-    # Dynamic thresholding + over/under clustering correction loop.
-    thr_base_eff = float(thr)
-    dyn_info: dict[str, Any] = {"threshold_initial": round(thr_base_eff, 4)}
-    if pair_sims:
-        vals = sorted(s for _, _, s in pair_sims)
-        try:
-            p60 = vals[int(max(0, min(len(vals) - 1, round((len(vals) - 1) * 0.60))))]
-            p80 = vals[int(max(0, min(len(vals) - 1, round((len(vals) - 1) * 0.80))))]
-            # Bias threshold toward stronger links but keep near requested baseline.
-            thr_dyn = 0.5 * thr_base_eff + 0.3 * p60 + 0.2 * p80
-            thr_dyn = max(0.12, min(0.94, thr_dyn))
-        except Exception:
-            thr_dyn = thr_base_eff
-    else:
-        thr_dyn = thr_base_eff
-
-    def _groups_for_threshold(thv: float) -> list[list[int]]:
-        e = [(i, j) for i, j, s in pair_sims if s > thv]
-        gs = _union_find_from_edges(n, e) if e else [[i] for i in range(n)]
-        # soft split first, then hard intent split to guarantee one intent/cluster
-        gs = _split_groups_by_intent_homogeneity(gs, intent_labels=intent_labels, min_dom=dom_min_ov)
-        gs = _split_groups_to_single_intent(gs, intent_labels=intent_labels)
-        return gs
-
-    def _cluster_shape_metrics(gs: list[list[int]]) -> dict[str, float]:
-        if not gs:
-            return {"singleton_ratio": 1.0, "largest_ratio": 1.0, "avg_size": 1.0}
-        sizes = [len(g) for g in gs if g]
-        if not sizes:
-            return {"singleton_ratio": 1.0, "largest_ratio": 1.0, "avg_size": 1.0}
-        singleton_ratio = sum(1 for x in sizes if x <= 1) / float(len(sizes))
-        largest_ratio = max(sizes) / float(max(1, n))
-        avg_size = sum(sizes) / float(len(sizes))
-        return {
-            "singleton_ratio": float(singleton_ratio),
-            "largest_ratio": float(largest_ratio),
-            "avg_size": float(avg_size),
-        }
-
-    thr_eff = float(thr_dyn)
-    groups = _groups_for_threshold(thr_eff)
+    pair_gate_meta: dict[str, Any] = {}
+    merge_suggestions: list[dict[str, Any]] = []
+    weak_relations: list[dict[str, Any]] = []
     iter_log: list[dict[str, Any]] = []
-    for _ in range(4):
-        m = _cluster_shape_metrics(groups)
-        over = (m["singleton_ratio"] >= 0.72) or (m["avg_size"] <= 1.45)
-        under = (m["largest_ratio"] >= 0.44) or (len(groups) <= max(2, int(math.sqrt(max(1, n)) * 0.45)))
-        iter_log.append(
-            {
-                "thr": round(thr_eff, 4),
-                "clusters": int(len(groups)),
-                "singleton_ratio": round(m["singleton_ratio"], 4),
-                "largest_ratio": round(m["largest_ratio"], 4),
-                "avg_size": round(m["avg_size"], 4),
-                "over": bool(over),
-                "under": bool(under),
-            }
+
+    if has_serp:
+        groups, pair_inter, weak_relations, dyn_info = _cluster_keywords_serp_primary(
+            n,
+            ordered,
+            url_sets,
+            intent_labels,
+            fanout_cap=url_fanout_cap,
+            thr_base=thr_base,
+            gate_floor=gate_floor_ov,
         )
-        if over and not under:
-            thr_eff = max(0.08, thr_eff - 0.04)
-            groups = _groups_for_threshold(thr_eff)
-            continue
-        if under and not over:
-            thr_eff = min(0.98, thr_eff + 0.04)
-            groups = _groups_for_threshold(thr_eff)
-            continue
-        break
-    dyn_info["threshold_dynamic"] = round(float(thr_dyn), 4)
-    dyn_info["threshold_final"] = round(float(thr_eff), 4)
-    dyn_info["iterations"] = iter_log
+        thr_eff = float(serp_merge_min_shared_urls())
+        pair_gate_meta = {
+            "weak_relations": weak_relations,
+            "weak_relation_count": len(weak_relations),
+            "min_shared_urls_for_merge": serp_merge_min_shared_urls(),
+        }
+        pre_main: list[str] = []
+        for idxs in groups:
+            mem = [kw_by_phrase[ordered[i].lower()] for i in idxs if ordered[i].lower() in kw_by_phrase]
+            pre_main.append(
+                select_main_keyword(mem, cluster_intent=intent_labels[idxs[0]] if idxs else "informational")
+            )
+        merge_suggestions = detect_merge_suggestions(
+            groups,
+            ordered=ordered,
+            url_sets=url_sets,
+            intent_labels=intent_labels,
+            main_keywords=pre_main,
+        )
+        groups = post_merge_orphan_groups_by_serp(groups, url_sets, min_merge=serp_merge_min_shared_urls())
+        if serp_failures:
+            dyn_info["serp_fetch_failures"] = serp_failures
+    else:
+        thr_hybrid = _dynamic_cluster_threshold(thr_base, n)
+        hybrid_edges = _scalable_neighbor_edges(
+            ordered,
+            intent_labels=intent_labels,
+            thr=thr_hybrid,
+            gate_floor=gate_floor_ov,
+            k_neighbors=min(48, max(8, n // 4)),
+        )
+        groups = _union_find_from_edges(n, hybrid_edges) if hybrid_edges else [[i] for i in range(n)]
+        groups = _split_groups_by_intent_homogeneity(groups, intent_labels=intent_labels, min_dom=dom_min_ov)
+        groups = _split_groups_to_single_intent(groups, intent_labels=intent_labels)
+        thr_eff = thr_hybrid
+        dyn_info = {
+            "threshold_initial": round(thr_hybrid, 4),
+            "threshold_final": round(thr_hybrid, 4),
+            "clustering_method": "semantic_fallback_same_intent_topic",
+            "hybrid_edges": len(hybrid_edges),
+        }
 
     _progress(92, "Tổng hợp cụm + gợi ý content type")
     strong_pairs: list[dict[str, Any]] = []
-    # Surface top SERP pairs (by Jaccard) for explain/debug.
     if has_serp and pair_inter:
         tmp: list[dict[str, Any]] = []
         for (i, j), inter in pair_inter.items():
-            sa = url_sets[i]
-            sb = url_sets[j]
+            sa = url_sets[i] if i < len(url_sets) else set()
+            sb = url_sets[j] if j < len(url_sets) else set()
             if not sa or not sb:
                 continue
             union = len(sa) + len(sb) - int(inter)
             if union <= 0:
                 continue
             sim = float(inter) / float(union)
-            if sim <= 0:
-                continue
-            tmp.append({"pair": f"{ordered[i]} | {ordered[j]}", "serp_jaccard": round(sim, 4)})
-        tmp.sort(key=lambda x: -float(x.get("serp_jaccard") or 0.0))
+            strength = "merge" if int(inter) >= serp_merge_min_shared_urls() else ("weak" if int(inter) >= 1 else "none")
+            tmp.append(
+                {
+                    "pair": f"{ordered[i]} | {ordered[j]}",
+                    "shared_urls": int(inter),
+                    "serp_jaccard": round(sim, 4),
+                    "strength": strength,
+                }
+            )
+        tmp.sort(key=lambda x: (-int(x.get("shared_urls") or 0), -float(x.get("serp_jaccard") or 0.0)))
         strong_pairs = tmp[:80]
 
     def _pair_in_cluster_members(pair: str, members: list[str]) -> bool:
@@ -1223,38 +1319,53 @@ def cluster_keywords(
     for idxs in sorted(groups, key=lambda ix: -len(ix)):
         members = [ordered[i] for i in idxs]
         mem_rows = [kw_by_phrase[m.lower()] for m in members if m.lower() in kw_by_phrase]
-        mem_rows.sort(key=lambda r: -int(r.get("search_volume") or 0))
+        agg_int = aggregate_cluster_intent(mem_rows)
+        purity_info = compute_cluster_intent_purity(mem_rows)
+        if purity_info.get("intent_conflict") and len(idxs) > 1:
+            dom = str(purity_info.get("dominant_intent") or agg_int.get("intent") or "informational")
+            agg_int["intent"] = dom
+            agg_int["confidence"] = round(min(0.95, float(agg_int.get("confidence") or 0.5) * float(purity_info.get("purity") or 1)), 3)
+        cluster_intent_str = str(agg_int.get("intent") or "informational")
+        primary_kw = select_main_keyword(mem_rows, cluster_intent=cluster_intent_str)
+        mem_rows.sort(
+            key=lambda r: (
+                0 if str(r.get("keyword") or "").strip().lower() == primary_kw.lower() else 1,
+                -int(r.get("search_volume") or 0),
+            )
+        )
         raw_total_vol, adjusted_total_vol = _cluster_adjusted_volume(mem_rows)
-        total_vol = adjusted_total_vol
-        agg_int = _dominant_intent_from_cluster_serp(mem_rows) if has_serp else aggregate_cluster_intent(mem_rows)
         dominant_url = _dominant_overlap_url(snapshots, members) if has_serp else None
         dominant_url_intent = _intent_from_page_type(_page_type_from_url_only(dominant_url or "")) if dominant_url else None
-        if dominant_url_intent and has_serp:
+        if dominant_url_intent and has_serp and not purity_info.get("intent_conflict"):
             # Use dominant overlap URL as representative intent signal for the cluster.
             agg_int["intent"] = dominant_url_intent
+            cluster_intent_str = str(agg_int.get("intent") or cluster_intent_str)
 
-        # SERP-only clustering: average Jaccard within the cluster (top10 URL sets).
+        total_vol = adjusted_total_vol
+
+        serp_metrics = (
+            compute_cluster_shared_url_metrics(idxs, url_sets, pair_inter)
+            if has_serp
+            else {"shared_urls_count": 0, "serp_overlap_score": 1.0 if len(idxs) <= 1 else 0.0}
+        )
+        shared_urls_count = int(serp_metrics.get("shared_urls_count") or 0)
+        serp_avg = float(serp_metrics.get("serp_overlap_score") or 0.0)
+        cohesion = round(serp_avg, 4)
+        merge_pair_details = (
+            cluster_pair_merge_details_for_members(idxs, ordered, url_sets, pair_inter)
+            if has_serp and len(idxs) > 1
+            else []
+        )
         sem_avg = None
         hyb_avg = None
-        vals: list[float] = []
-        if has_serp and len(idxs) >= 2:
-            for a in range(len(idxs)):
-                ia = idxs[a]
-                sa = url_sets[ia] if ia < len(url_sets) else set()
-                for b in range(a + 1, len(idxs)):
-                    ib = idxs[b]
-                    sb = url_sets[ib] if ib < len(url_sets) else set()
-                    if not sa or not sb:
-                        continue
-                    inter = len(sa & sb)
-                    if inter <= 0:
-                        continue
-                    union = len(sa | sb)
-                    if union <= 0:
-                        continue
-                    vals.append(float(inter) / float(union))
-        serp_avg = (sum(vals) / len(vals)) if vals else (1.0 if len(idxs) <= 1 else 0.0)
-        cohesion = round(float(serp_avg), 4)
+
+        cluster_warning: str | None = None
+        if purity_info.get("intent_conflict") and len(idxs) > 1:
+            cluster_warning = (
+                "intent_conflict — cụm có nhiều ý định tìm kiếm khác nhau "
+                f"(SERP overlap >= {serp_merge_min_shared_urls()} URL chung)"
+            )
+
         content_type = _content_type_from_intent(str(agg_int.get("intent") or ""), dominant_url)
         page_strategy = _page_strategy_for_cluster(members, intent=str(agg_int.get("intent") or ""), serp_similarity_avg=float(serp_avg))
         gsc_urls_in_cluster = [_row_gsc_primary(r) for r in mem_rows if _row_gsc_primary(r)]
@@ -1266,7 +1377,6 @@ def cluster_keywords(
             gsc_cohesion = round(top_c / len(gsc_urls_in_cluster), 4)
 
         centroid_terms = _token_preview(" ".join(members))
-        primary_kw = str((mem_rows[0].get("keyword") if mem_rows else members[0]) or members[0] or "").strip()
         name = _readable_cluster_label(primary_kw, members, max_len=120)
         if not name:
             name = (centroid_terms[0] if centroid_terms else members[0])[:120]
@@ -1289,11 +1399,20 @@ def cluster_keywords(
             {
                 "cluster_id": "",
                 "cluster_name": name,
+                "main_keyword": primary_kw,
                 "keywords": mem_rows,
                 "total_search_volume": int(total_vol),
                 "intent": agg_int["intent"],
                 "intent_confidence": agg_int["confidence"],
                 "intent_distribution": agg_int.get("distribution"),
+                "intent_purity": purity_info.get("purity"),
+                "intent_conflict": bool(purity_info.get("intent_conflict")),
+                "warning": cluster_warning,
+                "shared_urls_count": shared_urls_count,
+                "shared_urls_count_min": serp_metrics.get("shared_urls_count_min"),
+                "shared_urls_count_max": serp_metrics.get("shared_urls_count_max"),
+                "serp_overlap_score": round(serp_avg, 4),
+                "merge_pair_details": merge_pair_details,
                 "serp_intent_distribution_avg": agg_int.get("serp_intent_distribution_avg"),
                 "dominant_url": dominant_url,
                 "recommended_content_type": content_type,
@@ -1305,14 +1424,25 @@ def cluster_keywords(
                 "gsc_landing_cohesion": gsc_cohesion,
                 "gsc_modal_landing_url": gsc_modal_url,
                 "explain": {
-                    "clustering_method": "serp_jaccard_union_find",
+                    "clustering_method": (
+                        str(dyn_info.get("clustering_method") or "serp_shared_url_count")
+                        if has_serp
+                        else str(dyn_info.get("clustering_method") or "semantic_fallback_same_intent_topic")
+                    ),
                     "threshold": thr_eff,
-                    "threshold_base": thr_base,
+                    "threshold_base": thr_base if not has_serp else float(serp_merge_min_shared_urls()),
                     "keyword_count": n,
-                    "signals_used": ["serp_url_jaccard", "intent_post_split"],
+                    "signals_used": (
+                        ["serp_shared_url_count", "intent_conflict_warning"]
+                        if has_serp
+                        else ["semantic_hash", "same_intent", "topic_overlap"]
+                    ),
+                    "min_shared_urls_for_merge": serp_merge_min_shared_urls() if has_serp else None,
+                    "weak_relations": weak_relations if has_serp else [],
+                    "merge_pair_details": merge_pair_details if has_serp else [],
                     "serp_url_fanout_cap": int(url_fanout_cap),
                     "dynamic_thresholding": dyn_info,
-                    "intent_hard_split": True,
+                    "intent_gate_meta": pair_gate_meta if has_serp else {},
                     "cluster_intent_dominance_min": float(
                         dom_min_ov if dom_min_ov is not None else os.getenv("CLUSTER_INTENT_DOMINANCE_MIN", "0.72")
                     ),
@@ -1351,6 +1481,10 @@ def cluster_keywords(
         )
 
     clusters.sort(key=lambda x: -int(x.get("total_search_volume") or 0))
+    if merge_suggestions and clusters:
+        ex = clusters[0].get("explain")
+        if isinstance(ex, dict):
+            ex["merge_suggestions"] = merge_suggestions
     for i, c in enumerate(clusters):
         c["cluster_id"] = f"c{i}"
         if debug_mode:
@@ -1358,5 +1492,5 @@ def cluster_keywords(
             for r in kw_rows:
                 if isinstance(r, dict):
                     r["cluster_id"] = c["cluster_id"]
-    _progress(100, "Hoàn tất")
+    _progress(92, "Đang tổng hợp kết quả…")
     return clusters

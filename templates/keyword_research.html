@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Keyword Research — Tooltechnical</title>
-    <script src="/static/js/digiseo-i18n.js"></script>
+    {% include "partials/digiseo_seo_head.html" %}
     {% include "partials/digiseo_theme_head.html" %}
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/keyword-research.css?v=2">
     <style>
         :root { --line: rgba(255,255,255,.22); }
         .nav-dd { position: relative; display: inline-flex; flex-direction: column; align-self: stretch; z-index: 40; }
@@ -26,16 +25,97 @@
         .nav-dd-menu a:hover { background: rgba(255,255,255,.12); }
         .nav-dd-menu a.active { background: rgba(91,103,255,.45); }
         .kw-tab { border-bottom: 2px solid transparent; }
+        a.kw-tab { text-decoration: none; cursor: pointer; }
+        a.kw-tab:hover { color: #1d4ed8; }
         .kw-tab.active { border-color: #2563eb; color: #1d4ed8; font-weight: 700; }
         .badge-low { background: #dcfce7; color: #166534; }
         .badge-med { background: #ffedd5; color: #c2410c; }
         .badge-hi { background: #fee2e2; color: #b91c1c; }
-        .table-wrap { max-height: min(68vh, 720px); overflow: auto; }
-        .table-wrap.expanded { max-height: none; }
+        .badge-unknown { background: #f1f5f9; color: #64748b; }
+        .intent-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; text-transform: capitalize; }
+        .intent-informational { background: #dbeafe; color: #1e40af; }
+        .intent-commercial { background: #ffedd5; color: #c2410c; }
+        .intent-transactional { background: #fce7f3; color: #9d174d; }
+        .intent-education { background: #e0e7ff; color: #3730a3; }
+        .intent-local { background: #ccfbf1; color: #0f766e; }
+        .intent-navigational { background: #f3e8ff; color: #6b21a8; }
+        .intent-mixed { background: #fef9c3; color: #854d0e; }
+        .intent-unknown { background: #f1f5f9; color: #64748b; }
+        .trend-up { color: #15803d; font-weight: 700; }
+        .trend-down { color: #b91c1c; font-weight: 700; }
+        .trend-stable { color: #64748b; font-weight: 600; }
+        .trend-unknown { color: #94a3b8; font-weight: 600; }
+        .kw-row-warn { background: #fffbeb !important; }
+        .ds-pill { display: inline-block; font-size: 0.62rem; padding: 1px 6px; border-radius: 4px; background: #f1f5f9; color: #475569; margin-right: 2px; }
+        .ds-pill.is-warn { background: #fef3c7; color: #92400e; }
+        .table-wrap { max-height: none; overflow: visible; }
+        #tableWrap table { width: 100%; min-width: 0; table-layout: auto; }
+        #tableWrap .kw-kw-cell { max-width: 200px; word-break: break-word; }
         th.sortable { cursor: pointer; user-select: none; }
         th.sortable:hover { background: #f1f5f9; }
 
-        /* DigiSEO bright-green accent overrides */
+        /* Bảng kết quả — nền sáng, viền đen đậm (không kế thừa panel tối) */
+        #tableWrap {
+            background: #ffffff !important;
+            border: 2px solid #000000 !important;
+        }
+        #tableWrap table.kw-research-table {
+            border-collapse: collapse;
+            border: 2px solid #000000 !important;
+            background: #ffffff !important;
+        }
+        #tableWrap table.kw-research-table thead th {
+            background: #e2e8f0 !important;
+            color: #0f172a !important;
+            font-weight: 700;
+            border: 2px solid #000000 !important;
+            text-align: center;
+            white-space: nowrap;
+        }
+        #tableWrap table.kw-research-table thead th:nth-child(3) {
+            text-align: left;
+        }
+        #tableWrap table.kw-research-table tbody td {
+            border: 2px solid #000000 !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            vertical-align: middle;
+        }
+        #tableWrap table.kw-research-table tbody td.kw-kw-cell {
+            text-align: left;
+            font-weight: 600;
+        }
+        #tableWrap table.kw-research-table tbody td.kw-num-cell {
+            text-align: center;
+        }
+        #tableWrap table.kw-research-table tbody tr:nth-child(even) td {
+            background: #f1f5f9 !important;
+        }
+        #tableWrap table.kw-research-table tbody tr:hover td {
+            background: #dbeafe !important;
+        }
+        #tableWrap table.kw-research-table tbody tr.kw-row-warn td {
+            background: #fffbeb !important;
+        }
+        .kw-white-panel #tableWrap table.kw-research-table thead th,
+        .kw-white-panel #tableWrap table.kw-research-table tbody td {
+            color: #0f172a !important;
+        }
+
+        /* Nút toolbar xám — hover nền tối, chữ trắng sáng */
+        .kw-white-panel .kw-toolbar-btn {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: rgba(255, 255, 255, 0.28) !important;
+            color: rgba(255, 255, 255, 0.92) !important;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        }
+        .kw-white-panel .kw-toolbar-btn:hover {
+            background: #334155 !important;
+            border-color: #475569 !important;
+            color: #ffffff !important;
+        }
+
+        /* Seoauto bright-green accent overrides */
         .nav-dd-menu a.active {
             color: #00e676 !important;
             border-color: rgba(0, 230, 118, 0.85) !important;
@@ -58,23 +138,28 @@
         .kw-tab.active { color: #00a86b !important; border-bottom-color: #00e676 !important; }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-[#050b18] via-[#0c1424] to-[#050b18] text-slate-800">
+<body class="page-keyword-research">
 {% include "partials/digiseo_top_nav.html" %}
 <div class="kw-page-root max-w-7xl mx-auto pt-4 pb-16">
     <div class="kw-page-shell">
     <div id="creditBanner" class="hidden mb-4 rounded-xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-800 shadow-sm"></div>
 
     <div class="kw-white-panel bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
-        <div class="border-b border-slate-200 px-4 sm:px-6 pt-4 flex flex-wrap gap-1">
+        {% include "partials/digiseo_keyword_tools.html" %}
+        <div class="kw-tab-bar border-b border-slate-200 px-4 sm:px-6 pt-4 flex flex-wrap gap-1">
             <button type="button" class="kw-tab active px-4 py-2.5 text-sm text-slate-600" data-tab="analysis">Phân tích từ khóa</button>
             <button type="button" class="kw-tab px-4 py-2.5 text-sm text-slate-600" data-tab="suggest">Keyword Suggestion</button>
-            <button type="button" class="kw-tab px-4 py-2.5 text-sm text-slate-600" data-tab="group">Gom nhóm từ khóa</button>
+            <a href="/keywords/tools/clustering" class="kw-tab kw-tab-link px-4 py-2.5 text-sm text-slate-600">Gom nhóm từ khóa</a>
         </div>
 
         <!-- Tab: Phân tích -->
         <div id="panelAnalysis" class="p-4 sm:p-6">
-            <p class="text-slate-500 text-sm mb-4">Dữ liệu volume/CPC có thể là <strong class="text-slate-700">ước lượng</strong> nếu chưa cấu hình <code class="bg-slate-100 px-1 rounded text-xs">KEYWORD_VOLUME_API_URL</code> / Keyword Planner. Mỗi lần tìm kiếm được <strong>lưu vào danh sách dự án</strong> (server) — tải lại trang vẫn xem lại được.</p>
+            <p class="ds-lead">Nhập từ khóa và bấm <strong>Tìm kiếm</strong>. Kết quả được lưu tự động — tải lại trang vẫn xem lại được.</p>
 
+            <p class="kw-research-cost-hint text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                Tìm kiếm thường chỉ gợi ý thêm từ khóa và số liệu cơ bản.
+                <strong>Phân tích sâu</strong> mới xem thêm đối thủ và độ khó — tốn thêm lượt sử dụng.
+            </p>
             <div class="mb-6 rounded-xl border border-slate-200 overflow-hidden bg-slate-50/50">
                 <h2 class="text-sm font-bold text-slate-800 px-4 py-3 bg-slate-100/80 border-b border-slate-200">Danh sách dự án</h2>
                 <div class="overflow-x-auto max-h-72">
@@ -96,14 +181,13 @@
                 <p id="projectListEmpty" class="px-4 py-6 text-sm text-slate-500 text-center hidden">Chưa có dự án — chạy «Tìm kiếm» để lưu kết quả.</p>
             </div>
 
-            <p class="text-sm text-slate-600 mb-3">Chỉ cần <strong class="text-slate-800">nhập từ khóa</strong> và bấm <strong class="text-slate-800">Tìm kiếm</strong>. Ngôn ngữ / quốc gia / domain là tuỳ chọn — mở «Tuỳ chọn nâng cao» nếu cần.</p>
-            <div class="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap mb-4">
-                <div class="flex-1 min-w-[200px]">
+            <div class="kw-search-form flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap mb-4">
+                <div class="kw-search-form__seed flex-1 min-w-[200px]">
                     <label class="block text-xs font-semibold text-slate-600 mb-1">Từ khóa (nhiều từ: mỗi dòng một từ, hoặc cách nhau bởi <code class="text-xs">+</code> , ;)</label>
                     <textarea id="seed" rows="4" placeholder="đào tạo seo&#10;khóa học seo&#10;hoặc: a + b + c" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm" autocomplete="off"></textarea>
                 </div>
-                <div class="flex flex-wrap items-end gap-3">
-                    <div class="w-full sm:w-40">
+                <div class="kw-search-form__controls flex flex-wrap items-end gap-3">
+                    <div class="kw-search-form__field w-full sm:w-40">
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Công cụ</label>
                         <select id="engine" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white">
                             <option value="google">Google</option>
@@ -111,14 +195,14 @@
                             <option value="bing">Bing</option>
                         </select>
                     </div>
-                    <div class="w-full sm:w-44">
+                    <div class="kw-search-form__field w-full sm:w-44">
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Ngôn ngữ</label>
                         <select id="language" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white">
                             <option value="vi">Vietnamese</option>
                             <option value="en">English</option>
                         </select>
                     </div>
-                    <div class="w-full sm:w-44">
+                    <div class="kw-search-form__field w-full sm:w-44">
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Quốc gia</label>
                         <select id="country" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white">
                             <option value="vn">Việt Nam</option>
@@ -126,9 +210,9 @@
                             <option value="gb">United Kingdom</option>
                         </select>
                     </div>
-                    <div class="w-full sm:w-40">
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Thiết bị SERP</label>
-                        <select id="device" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white" title="Dùng cho fetch SERP (gom nhóm / mở rộng)">
+                    <div class="kw-search-form__field w-full sm:w-40">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Thiết bị tìm kiếm</label>
+                        <select id="device" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white">
                             <option value="desktop">Desktop</option>
                             <option value="mobile">Mobile</option>
                         </select>
@@ -140,7 +224,7 @@
                 </div>
             </div>
             <details class="mb-4 text-sm border border-slate-200 rounded-xl px-3 py-2 bg-slate-50/60">
-                <summary class="cursor-pointer text-blue-600 font-medium">Tuỳ chọn nâng cao (domain / URL / clustering)</summary>
+                <summary class="cursor-pointer text-blue-600 font-medium">Tuỳ chọn nâng cao</summary>
                 <div class="grid sm:grid-cols-2 gap-3 mt-3">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Domain</label>
@@ -152,35 +236,35 @@
                     </div>
                 </div>
                 <div class="mt-4 pt-3 border-t border-slate-200">
-                    <p class="text-xs font-bold text-slate-700 mb-2">Gom nhóm (clustering) — chỉ ảnh hưởng tab «Gom nhóm» &amp; meta API; không bắt buộc để lấy danh sách từ khóa.</p>
+                    <p class="text-xs font-bold text-slate-700 mb-2">Gom nhóm <span class="ds-tip" tabindex="0" data-tip="Tuỳ chọn khi gom nhóm từ kết quả tìm kiếm hoặc chuyển sang tab Keyword Clustering.">?</span></p>
                     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                         <div>
-                            <label class="block text-slate-500 mb-0.5">Mode</label>
+                            <label class="block text-slate-500 mb-0.5">Cách gom nhóm</label>
                             <select id="clusterMode" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white">
-                                <option value="hybrid">Hybrid</option>
-                                <option value="tfidf">TF‑IDF</option>
-                                <option value="both">Hybrid + TF‑IDF</option>
+                                <option value="hybrid">Thông minh</option>
+                                <option value="tfidf">Theo nội dung</option>
+                                <option value="both">Kết hợp</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-slate-500 mb-0.5">Độ chặt</label>
                             <select id="clusterStrict" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white">
-                                <option value="normal">Normal</option>
-                                <option value="strict">Strict</option>
-                                <option value="loose">Loose</option>
+                                <option value="normal">Vừa phải</option>
+                                <option value="strict">Chặt</option>
+                                <option value="loose">Rộng</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-slate-500 mb-0.5">SERP hybrid</label>
-                            <select id="clusterFetchSerp" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white" title="Để Default = theo server (.env)">
-                                <option value="">Default (env)</option>
-                                <option value="1">Bật</option>
-                                <option value="0">Tắt</option>
+                            <label class="block text-slate-500 mb-0.5">Phân tích Google <span class="ds-tip" tabindex="0" data-tip="Bật để gom nhóm chính xác hơn (chậm hơn).">?</span></label>
+                            <select id="clusterFetchSerp" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white">
+                                <option value="0" selected>Tắt (tiết kiệm)</option>
+                                <option value="">Mặc định hệ thống</option>
+                                <option value="1">Bật phân tích Google khi gom nhóm</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-slate-500 mb-0.5">Max KW cluster</label>
-                            <input id="clusterMaxKw" type="number" min="15" max="800" value="400" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white" title="Giới hạn số keyword đưa vào bước clustering">
+                            <label class="block text-slate-500 mb-0.5">Giới hạn từ khóa</label>
+                            <input id="clusterMaxKw" type="number" min="20" max="200" value="80" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white">
                         </div>
                     </div>
                 </div>
@@ -230,6 +314,7 @@
                         <option value="Low">Low</option>
                         <option value="Medium">Medium</option>
                         <option value="High">High</option>
+                        <option value="Unknown">Unknown</option>
                     </select>
                 </div>
                 <div>
@@ -246,24 +331,20 @@
                 <span>CPC trung bình: <strong id="statCpc">0</strong></span>
             </div>
             <div id="clusterMetaBar" class="hidden mb-4 px-4 py-3 rounded-xl border border-indigo-200 bg-indigo-50 text-sm text-indigo-950">
-                <strong>Clusters:</strong> <span id="cmMode">—</span>
-                · nguồn: <span id="cmPrimary">—</span>
-                · <span id="cmMetrics">—</span>
+                <span id="cmMetrics">—</span>
             </div>
 
             <!-- Toolbar -->
             <div id="toolbar" class="hidden flex flex-wrap items-center gap-2 justify-between mb-3">
                 <div class="flex flex-wrap gap-2">
                     <span id="selCount" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium">0 từ khóa đã chọn</span>
-                    <button type="button" id="btnAllintitle" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm hover:bg-slate-50" title="Mở Google allintitle cho các dòng đã chọn">🔍 Allintitle</button>
-                    <button type="button" id="btnGroupSel" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm hover:bg-slate-50">Gom nhóm</button>
-                    <button type="button" id="btnCopy" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm hover:bg-slate-50">Copy</button>
+                    <button type="button" id="btnDeepAnalyze" class="kw-toolbar-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-400 text-amber-900 bg-amber-50 text-sm font-semibold" title="Xem thêm đối thủ và độ khó — tốn thêm lượt sử dụng">⚡ Phân tích sâu</button>
+                    <button type="button" id="btnAllintitle" class="kw-toolbar-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm" title="Mở Google allintitle cho các dòng đã chọn">🔍 Allintitle</button>
+                    <button type="button" id="btnGroupSel" class="kw-toolbar-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm">Gom nhóm</button>
+                    <button type="button" id="btnCopy" class="kw-toolbar-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm">Copy</button>
                     <button type="button" id="btnXlsx" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">Xuất dữ liệu</button>
-                    <button type="button" id="btnSheets" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm hover:bg-slate-50">Google Sheets</button>
-                </div>
-                <div class="flex gap-2">
-                    <button type="button" id="btnExpandTable" class="text-sm text-blue-600 font-medium hover:underline">Hiện tất cả dữ liệu</button>
-                    <button type="button" id="btnColToggle" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-sm hover:bg-slate-50">Ẩn/Hiện cột ▾</button>
+                    <button type="button" id="btnSheets" class="kw-toolbar-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm">Google Sheets</button>
+                    <button type="button" id="btnColToggle" class="kw-toolbar-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm">Ẩn/Hiện cột ▾</button>
                 </div>
             </div>
             <div id="colPanel" class="hidden mb-3 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm flex flex-wrap gap-4">
@@ -273,13 +354,13 @@
                 <label class="inline-flex items-center gap-2"><input type="checkbox" class="col-vis" data-col="allintitle" checked> Allintitle (ước lượng)</label>
             </div>
 
-            <div id="tableWrap" class="table-wrap rounded-xl border border-slate-200 hidden">
-                <table class="w-full text-sm text-left min-w-[960px]">
+            <div id="tableWrap" class="table-wrap kw-table-body-scroll rounded-xl border border-slate-200 hidden">
+                <table class="w-full text-sm kw-research-table no-digiseo-table">
                     <thead class="bg-slate-50 text-slate-600 sticky top-0 z-10 shadow-sm">
                         <tr>
                             <th class="p-2 w-10"><input type="checkbox" id="chkAll" title="Chọn tất cả (bộ lọc hiện tại)"></th>
-                            <th class="p-2 w-8"></th>
-                            <th class="p-2 sortable" data-sort="keyword">Từ khóa</th>
+                            <th class="p-2 w-8">#</th>
+                            <th class="p-2 sortable text-left" data-sort="keyword">Từ khóa</th>
                             <th class="p-2 col-intent">Intent</th>
                             <th class="p-2 col-trend min-w-[96px] whitespace-nowrap" data-sort="">Xu hướng</th>
                             <th class="p-2 sortable" data-sort="vol">Lượt tìm kiếm</th>
@@ -288,81 +369,20 @@
                             <th class="p-2 sortable" data-sort="words">Số từ</th>
                             <th class="p-2 sortable" data-sort="comp">Cạnh tranh</th>
                             <th class="p-2 col-allintitle">Allintitle</th>
-                            <th class="p-2 sortable" data-sort="diff">Độ khó (KD)</th>
+                            <th class="p-2 sortable" data-sort="diff">Độ khó</th>
                         </tr>
                     </thead>
-                    <tbody id="tb" class="divide-y divide-slate-100"></tbody>
+                    <tbody id="tb"></tbody>
                 </table>
             </div>
         </div>
 
         <!-- Tab: Suggestion (stub) -->
         <div id="panelSuggest" class="p-6 hidden border-t border-slate-100">
-            <h2 class="text-lg font-bold text-slate-800 mb-2">Keyword Suggestion</h2>
-            <p class="text-slate-600 text-sm max-w-2xl">Gợi ý mở rộng dựa trên seed đang dùng API research (SERP + expansion). Chạy <strong>Phân tích từ khóa</strong> để sinh danh sách; tab này giữ chỗ cho luồng gợi ý riêng (tích hợp sau).</p>
+            <h2 class="text-lg font-bold text-slate-800 mb-2">Gợi ý từ khóa</h2>
+            <p class="ds-lead">Chạy <strong>Phân tích từ khóa</strong> để xem gợi ý mở rộng liên quan.</p>
         </div>
 
-        <!-- Tab: Gom nhóm từ khóa -->
-        <div id="panelGroup" class="p-6 hidden border-t border-slate-100">
-            <h2 class="text-lg font-bold text-slate-800 mb-2">Gom nhóm từ khóa</h2>
-            <p class="text-slate-600 text-sm mb-4">Dán danh sách (mỗi dòng một từ khóa) hoặc <strong>upload Excel</strong>. Hybrid: semantic + SERP overlap + intent. API: <code class="text-xs bg-slate-100 px-1 rounded">POST /keywords/cluster/async</code></p>
-            <div class="mb-3 flex flex-wrap items-center gap-2">
-                <input id="clusterExcel" type="file" accept=".xlsx" class="block text-sm text-slate-600" />
-                <button type="button" id="btnClusterExcel" class="px-4 py-2 rounded-xl border border-slate-200 font-medium hover:bg-slate-50">Upload Excel</button>
-                <span class="text-xs text-slate-500">Hỗ trợ .xlsx · ưu tiên cột “keyword / từ khóa” (nếu có)</span>
-            </div>
-            <textarea id="clusterInput" rows="8" class="w-full max-w-3xl px-3 py-2 rounded-xl border border-slate-200 font-mono text-sm" placeholder="đào tạo seo&#10;khóa học seo&#10;seo website"></textarea>
-            <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 max-w-4xl">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Quốc gia (gl)</label>
-                    <input id="clusterCountry" type="text" value="vn" maxlength="8" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Ngôn ngữ (hl)</label>
-                    <input id="clusterLanguage" type="text" value="vi" maxlength="8" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Thiết bị SERP</label>
-                    <select id="clusterDevice" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">
-                        <option value="desktop">Desktop</option>
-                        <option value="mobile">Mobile</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Độ chặt cluster</label>
-                    <select id="clusterStrictness" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">
-                        <option value="normal">normal</option>
-                        <option value="strict">strict</option>
-                        <option value="loose">loose</option>
-                    </select>
-                </div>
-            </div>
-            <label class="mt-3 flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                <input type="checkbox" id="clusterFetchSerp" checked class="rounded border-slate-300" />
-                Fetch SERP cho overlap (bật = chuẩn hơn, chậm hơn)
-            </label>
-            <div class="mt-3 max-w-3xl">
-                <label class="block text-xs font-semibold text-slate-600 mb-1">URL / domain ngữ cảnh (tuỳ chọn)</label>
-                <input id="clusterBrandUrl" type="text" placeholder="https://mysite.com" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
-            </div>
-            <div class="mt-4 flex flex-wrap gap-2">
-                <button type="button" id="btnCluster" class="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700">Chạy gom nhóm</button>
-                <button type="button" id="btnClusterXlsx" class="px-4 py-2.5 rounded-xl border border-slate-200 font-medium hover:bg-slate-50">Xuất Excel nhóm</button>
-                <button type="button" id="btnClusterSheets" class="px-4 py-2.5 rounded-xl border border-slate-200 font-medium hover:bg-slate-50">Xuất Google Sheet</button>
-                <button type="button" id="btnClusterReset" class="px-4 py-2.5 rounded-xl border border-slate-200 font-medium hover:bg-slate-50 text-slate-600">Làm mới</button>
-            </div>
-            <div id="clusterProgress" class="hidden mt-3 max-w-3xl">
-                <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
-                    <div id="clusterProgressBar" class="h-full w-0 bg-blue-600 transition-all duration-200"></div>
-                </div>
-                <div class="flex items-center justify-between gap-3 mt-1">
-                    <p id="clusterProgressText" class="text-xs text-slate-500">Đang gom nhóm…</p>
-                    <p id="clusterProgressPct" class="text-xs font-semibold text-slate-700 tabular-nums">0%</p>
-                </div>
-            </div>
-            <p id="clusterMsg" class="text-sm text-red-600 mt-2 min-h-[1.25em]"></p>
-            <div id="clusterOut" class="mt-6 space-y-4"></div>
-        </div>
     </div>
     </div>
 </div>
@@ -378,7 +398,19 @@
     function el(id) { return document.getElementById(id); }
 
     function getSeoToken() {
-        try { return sessionStorage.getItem("seo_token") || ""; } catch (_e) { return ""; }
+        if (typeof window.DigiSeoGetAuthToken === "function") {
+            return window.DigiSeoGetAuthToken() || "";
+        }
+        try {
+            var t = (localStorage.getItem("seo_token") || "").trim();
+            if (t) return t;
+            t = (sessionStorage.getItem("seo_token") || "").trim();
+            if (t) return t;
+        } catch (_e) {}
+        try {
+            var m = document.cookie.match(/(?:^|;\s*)seo_token=([^;]*)/);
+            return m ? decodeURIComponent(m[1].replace(/\+/g, " ")).trim() : "";
+        } catch (_e2) { return ""; }
     }
     function authHeaders(json) {
         var h = {};
@@ -388,12 +420,18 @@
         return h;
     }
     function formatApiError(data, status) {
-        if (!data) return "HTTP " + status;
+        if (!data) return "Không thể xử lý yêu cầu.";
         if (Array.isArray(data.detail)) {
             return data.detail.map(function (x) { return (x.msg || x.type || "") + (x.loc ? " (" + x.loc.join(".") + ")" : ""); }).join("; ");
         }
         if (data.detail && typeof data.detail === "object" && data.detail.message) {
             var m = data.detail.message;
+            if (data.detail.code === "dataforseo_quota" || data.detail.code === "dataforseo_error") {
+                return m;
+            }
+            if (data.detail.code === "kw_basic_only" || data.detail.code === "insufficient_credits") {
+                return m;
+            }
             if (data.detail.balance != null && data.detail.required != null) {
                 m += " (dư: " + data.detail.balance + ", cần: " + data.detail.required + ")";
             }
@@ -401,7 +439,7 @@
         }
         if (typeof data.detail === "string") return data.detail;
         if (data.meta && data.meta.error) return data.meta.error;
-        return "HTTP " + status;
+        return "Không thể xử lý yêu cầu.";
     }
     async function refreshCreditsBanner() {
         var b = el("creditBanner");
@@ -414,71 +452,128 @@
             if (!t) {
                 b.classList.remove("hidden");
                 b.className = "mb-4 rounded-xl border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm";
-                b.textContent = "Hệ thống credit đang bật: đăng nhập trên trang chủ (session) để gọi API keyword.";
+                b.textContent = "Đăng nhập để sử dụng công cụ từ khóa.";
                 return;
             }
-            var me = await fetch("/auth/me", { headers: { Authorization: "Bearer " + t }, cache: "no-store" }).then(function (r) { return r.json(); });
+            var me = null;
+            if (typeof window.DigiSeoFetchAuthMe === "function") {
+                me = await window.DigiSeoFetchAuthMe();
+            } else {
+                me = await fetch("/auth/me", {
+                    credentials: "same-origin",
+                    headers: { Authorization: "Bearer " + t },
+                    cache: "no-store"
+                }).then(function (r) { return r.ok ? r.json() : null; });
+            }
+            if (!me || !me.email) {
+                b.classList.remove("hidden");
+                b.className = "mb-4 rounded-xl border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm";
+                b.textContent = "Đăng nhập để sử dụng công cụ từ khóa.";
+                return;
+            }
             b.classList.remove("hidden");
             b.className = "mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 shadow-sm";
-            b.textContent = "Credit còn lại: " + String(me.credit_balance != null ? me.credit_balance : "—") + " · Lịch sử: GET /auth/credits/ledger";
+            b.textContent = "Credit còn lại: " + String(me.credit_balance != null ? me.credit_balance : "—");
         } catch (_e) {
             b.classList.add("hidden");
         }
     }
 
-    function hashAllintitle(kw) {
-        var s = String(kw), h = 0;
-        for (var i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i) | 0;
-        return Math.abs(h % 420) + 1;
-    }
-
     function fmtNum(n) {
-        if (n == null || n === "") return "—";
+        if (n == null || n === "" || n === "N/A") return "N/A";
         return Number(n).toLocaleString("vi-VN");
     }
 
+    function fmtVol(n) {
+        if (n == null || n === "" || n === "N/A") return "N/A";
+        var v = Math.round(Number(n));
+        if (!isFinite(v)) return "N/A";
+        return v.toLocaleString("vi-VN");
+    }
+
     function fmtMoney(n) {
-        if (n == null || n === "") return "—";
+        if (n == null || n === "" || n === "N/A") return "N/A";
         return Number(n).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function competitionClass(c) {
         if (c === "Low") return "badge-low";
         if (c === "Medium") return "badge-med";
-        return "badge-hi";
+        if (c === "High") return "badge-hi";
+        return "badge-unknown";
     }
 
-    function sparkBars(sv) {
+    function intentClass(intent) {
+        var i = String(intent || "unknown").toLowerCase();
+        return "intent-pill intent-" + (i || "unknown");
+    }
+
+    function trendClass(direction) {
+        var d = String(direction || "unknown").toLowerCase();
+        if (d === "up") return "trend-up";
+        if (d === "down") return "trend-down";
+        if (d === "stable") return "trend-stable";
+        return "trend-unknown";
+    }
+
+    function trendLabel(trend) {
+        trend = trend || {};
+        var d = String(trend.direction || "unknown").toLowerCase();
+        if (d === "up") return "↑" + (trend.pct_change != null ? " " + trend.pct_change + "%" : "");
+        if (d === "down") return "↓" + (trend.pct_change != null ? " " + Math.abs(trend.pct_change) + "%" : "");
+        if (d === "stable") return "→ ổn định";
+        return "? N/A";
+    }
+
+    function sparkBars(sv, trend) {
         sv = sv || {};
+        trend = trend || {};
         var cs = sv.chart_series || [];
         if (cs.length !== 12) {
-            var vals = MONTH_KEYS.map(function (m) { return Number(sv[m] || 0); });
+            var vals = MONTH_KEYS.map(function (m) {
+                var v = sv[m];
+                return v == null ? 0 : Number(v);
+            });
+            if (vals.every(function (v) { return !v; })) {
+                var wrap = document.createElement("span");
+                wrap.className = "text-xs trend-unknown";
+                wrap.textContent = "? N/A";
+                return wrap;
+            }
             cs = vals.map(function (v) {
                 return { all: v, pc: Math.round(v * 0.42), mobile: Math.max(0, v - Math.round(v * 0.42)) };
             });
         }
         var all = cs.map(function (x) { return Number(x.all || 0); });
         var max = Math.max.apply(null, all.concat([1]));
-        var w = 80, h = 24, bw = 5.2;
+        var w = 80, h = 28, bw = 5.2;
+        var box = document.createElement("div");
+        box.className = "inline-flex flex-col items-center gap-0.5";
         var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.setAttribute("width", String(w));
         svg.setAttribute("height", String(h));
         svg.setAttribute("viewBox", "0 0 " + w + " " + h);
         svg.setAttribute("class", "block mx-auto");
         svg.setAttribute("role", "img");
-        svg.setAttribute("aria-label", "Xu hướng 12 tháng");
+        var dir = String(trend.direction || "unknown").toLowerCase();
+        var barColor = dir === "up" ? "#16a34a" : dir === "down" ? "#dc2626" : dir === "stable" ? "#64748b" : "#3b82f6";
         all.forEach(function (v, i) {
-            var bh = max ? (v / max) * (h - 5) : 0;
+            var bh = max ? (v / max) * (h - 10) : 0;
             var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
             rect.setAttribute("x", String(i * (bw + 0.45) + 0.5));
-            rect.setAttribute("y", String(h - bh - 1));
+            rect.setAttribute("y", String(h - bh - 2));
             rect.setAttribute("width", String(bw));
             rect.setAttribute("height", String(Math.max(1, bh)));
-            rect.setAttribute("fill", "#3b82f6");
+            rect.setAttribute("fill", barColor);
             rect.setAttribute("rx", "1");
             svg.appendChild(rect);
         });
-        return svg;
+        box.appendChild(svg);
+        var lbl = document.createElement("span");
+        lbl.className = "text-[10px] leading-none " + trendClass(dir);
+        lbl.textContent = trendLabel(trend);
+        box.appendChild(lbl);
+        return box;
     }
 
     function rollingLabels12() {
@@ -534,7 +629,7 @@
         var wrap = el("chartSvgWrap");
         wrap.innerHTML = "";
         if (!chart || !chart.pc || !chart.pc.length) {
-            wrap.innerHTML = '<p class="text-slate-400 text-sm text-center py-6">Không có dữ liệu biểu đồ 12 tháng — kiểm tra API search_volume.chart_series.</p>';
+            wrap.innerHTML = '<p class="text-slate-400 text-sm text-center py-6">Chưa có dữ liệu xu hướng 12 tháng.</p>';
             return;
         }
         var W = 900, H = 260, pad = { l: 48, r: 24, t: 16, b: 44 };
@@ -625,6 +720,15 @@
         wrap.appendChild(svg);
     }
 
+    function rowVolume(r) {
+        if (r == null) return null;
+        if (r.display_volume != null && r.display_volume !== "") return Number(r.display_volume);
+        var sv = r.search_volume || {};
+        if (sv.display_volume != null && sv.display_volume !== "") return Number(sv.display_volume);
+        if (sv.avg_monthly != null && sv.avg_monthly !== "") return Number(sv.avg_monthly);
+        return null;
+    }
+
     function applyFilters(rows) {
         var vmin = parseFloat(el("fVolMin").value);
         var vmax = parseFloat(el("fVolMax").value);
@@ -632,7 +736,8 @@
         var fcomp = el("fComp").value;
         var cpcMax = parseFloat(el("fCpcMax").value);
         return rows.filter(function (r) {
-            var v = Number((r.search_volume || {}).avg_monthly) || 0;
+            var v = rowVolume(r);
+            if (v == null) v = 0;
             if (!isNaN(vmin) && v < vmin) return false;
             if (!isNaN(vmax) && v > vmax) return false;
             var wc = r.word_count != null ? r.word_count : String(r.keyword || "").split(/\s+/).filter(Boolean).length;
@@ -651,11 +756,11 @@
         copy.sort(function (a, b) {
             var av, bv;
             if (key === "keyword") { av = (a.keyword || "").toLowerCase(); bv = (b.keyword || "").toLowerCase(); return av < bv ? -mult : av > bv ? mult : 0; }
-            if (key === "vol") { av = Number((a.search_volume || {}).avg_monthly) || 0; bv = Number((b.search_volume || {}).avg_monthly) || 0; return (av - bv) * mult; }
+            if (key === "vol") { av = rowVolume(a); bv = rowVolume(b); av = av == null ? -1 : av; bv = bv == null ? -1 : bv; return (av - bv) * mult; }
             if (key === "cpc") { av = Number(a.cpc_avg) || 0; bv = Number(b.cpc_avg) || 0; return (av - bv) * mult; }
             if (key === "cpcmin") { av = Number(a.cpc_min) || 0; bv = Number(b.cpc_min) || 0; return (av - bv) * mult; }
             if (key === "words") { av = a.word_count || 0; bv = b.word_count || 0; return (av - bv) * mult; }
-            if (key === "comp") { var order = { Low: 0, Medium: 1, High: 2 }; av = order[a.competition] != null ? order[a.competition] : 3; bv = order[b.competition] != null ? order[b.competition] : 3; return (av - bv) * mult; }
+            if (key === "comp") { var order = { Low: 0, Medium: 1, High: 2, Unknown: 3 }; av = order[a.competition] != null ? order[a.competition] : 4; bv = order[b.competition] != null ? order[b.competition] : 4; return (av - bv) * mult; }
             if (key === "diff") { av = Number(a.difficulty) || 0; bv = Number(b.difficulty) || 0; return (av - bv) * mult; }
             return 0;
         });
@@ -668,27 +773,29 @@
         var rows = sortRows(filteredRows, sortKey, sortDir);
         rows.forEach(function (row, idx) {
             var sv = row.search_volume || {};
-            var avg = sv.avg_monthly != null ? Number(sv.avg_monthly) : 0;
-            var est = sv.is_estimated ? " *" : "";
+            var vol = rowVolume(row);
+            var est = sv.is_estimated ? " *" : (sv.data_source === "fallback" ? " ~" : "");
             var tr = document.createElement("tr");
-            tr.className = "hover:bg-slate-50";
-            var ai = hashAllintitle(row.keyword);
+            tr.className = "" + ((row.data_warnings && row.data_warnings.length) ? " kw-row-warn" : "");
+            var ai = row.allintitle_estimate;
+            var intent = row.intent || "unknown";
+            var comp = row.competition || "Unknown";
             tr.innerHTML =
-                '<td class="p-2"><input type="checkbox" class="row-chk" data-idx="' + idx + '"></td>' +
-                '<td class="p-2 text-slate-400">' + (idx + 1) + "</td>" +
-                "<td class=\"p-2 font-medium text-slate-900 max-w-[220px]\">" + esc(row.keyword) + "</td>" +
-                '<td class="p-2 col-intent text-slate-600 text-xs">' + esc(row.intent || "") + "</td>" +
+                '<td class="p-2 kw-num-cell"><input type="checkbox" class="row-chk" data-idx="' + idx + '"></td>' +
+                '<td class="p-2 kw-num-cell text-slate-400">' + (idx + 1) + "</td>" +
+                "<td class=\"p-2 font-medium kw-kw-cell max-w-[220px]\">" + esc(row.keyword) + "</td>" +
+                '<td class="p-2 col-intent kw-num-cell text-xs"><span class="' + intentClass(intent) + '">' + esc(intent) + "</span></td>" +
                 '<td class="p-2 col-trend align-middle text-center min-w-[96px]"></td>' +
-                '<td class="p-2 tabular-nums">' + fmtNum(avg) + est + "</td>" +
-                '<td class="p-2 tabular-nums">' + fmtMoney(row.cpc_avg) + "</td>" +
-                '<td class="p-2 col-cpcmin tabular-nums text-xs">' + fmtMoney(row.cpc_min) + " / " + fmtMoney(row.cpc_max) + "</td>" +
-                '<td class="p-2 tabular-nums">' + (row.word_count != null ? row.word_count : "—") + "</td>" +
-                '<td class="p-2"><span class="text-xs font-semibold px-2 py-0.5 rounded-full ' + competitionClass(row.competition) + '">' + esc(row.competition || "—") + "</span></td>" +
-                '<td class="p-2 col-allintitle"><span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">' + ai + "</span></td>" +
-                '<td class="p-2 tabular-nums text-slate-600">' + (row.difficulty != null ? Number(row.difficulty).toFixed(2) : "—") + "</td>";
+                '<td class="p-2 kw-num-cell tabular-nums font-semibold">' + fmtVol(vol) + est + "</td>" +
+                '<td class="p-2 kw-num-cell tabular-nums">' + fmtMoney(row.cpc_avg) + "</td>" +
+                '<td class="p-2 col-cpcmin kw-num-cell tabular-nums text-xs">' + fmtMoney(row.cpc_min) + " / " + fmtMoney(row.cpc_max) + "</td>" +
+                '<td class="p-2 kw-num-cell tabular-nums">' + (row.word_count != null ? row.word_count : "N/A") + "</td>" +
+                '<td class="p-2 kw-num-cell"><span class="text-xs font-semibold px-2 py-0.5 rounded-full ' + competitionClass(comp) + '">' + esc(comp) + "</span></td>" +
+                '<td class="p-2 col-allintitle kw-num-cell"><span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800" title="Ước lượng">' + (ai != null ? fmtNum(ai) : "N/A") + "</span></td>" +
+                '<td class="p-2 kw-num-cell tabular-nums text-slate-600">' + (row.difficulty != null ? Number(row.difficulty).toFixed(2) : "N/A") + (row.kd_label ? " <span class=\"text-xs text-slate-400\">(" + esc(row.kd_label) + ")</span>" : "") + "</td>";
             var trendTd = tr.querySelector("td.col-trend");
             if (trendTd) {
-                trendTd.appendChild(sparkBars(sv));
+                trendTd.appendChild(sparkBars(sv, row.trend || {}));
             }
             tb.appendChild(tr);
         });
@@ -721,15 +828,52 @@
         updateSelCount();
     });
 
-    document.querySelectorAll(".kw-tab").forEach(function (tab) {
+    document.querySelectorAll(".kw-tab[data-tab]").forEach(function (tab) {
         tab.addEventListener("click", function () {
             var name = tab.getAttribute("data-tab");
-            document.querySelectorAll(".kw-tab").forEach(function (t) { t.classList.toggle("active", t === tab); });
+            document.querySelectorAll(".kw-tab[data-tab]").forEach(function (t) { t.classList.toggle("active", t === tab); });
             el("panelAnalysis").classList.toggle("hidden", name !== "analysis");
             el("panelSuggest").classList.toggle("hidden", name !== "suggest");
-            el("panelGroup").classList.toggle("hidden", name !== "group");
         });
     });
+
+    function normalizeKeywords(list) {
+        var seen = {};
+        var out = [];
+        (list || []).forEach(function (k) {
+            if (k == null) return;
+            var s = String(k).trim();
+            if (!s) return;
+            var key = s.toLowerCase();
+            if (seen[key]) return;
+            seen[key] = true;
+            out.push(s);
+        });
+        return out;
+    }
+
+    function navigateToClustering(keywords) {
+        var kws = normalizeKeywords(keywords);
+        if (!kws.length) {
+            el("msg").textContent = "Không có từ khóa hợp lệ để gom nhóm.";
+            return;
+        }
+        try {
+            sessionStorage.setItem("keyword_clustering_prefill", JSON.stringify({
+                keywords: kws,
+                source: "keyword_research",
+                created_at: Date.now(),
+                country: el("country") ? el("country").value : "vn",
+                language: el("language") ? el("language").value : "vi",
+                device: el("device") ? el("device").value : "desktop",
+                fetch_serp: (function () {
+                    var cfs = document.getElementById("clusterFetchSerp");
+                    return cfs && cfs.value === "1";
+                })(),
+            }));
+        } catch (_e) {}
+        window.location.href = "/keywords/tools/clustering";
+    }
 
     document.querySelectorAll("#filterBar input, #filterBar select").forEach(function (node) {
         node.addEventListener("input", function () {
@@ -764,11 +908,6 @@
 
     el("btnColToggle").addEventListener("click", function () {
         el("colPanel").classList.toggle("hidden");
-    });
-
-    el("btnExpandTable").addEventListener("click", function () {
-        el("tableWrap").classList.toggle("expanded");
-        el("btnExpandTable").textContent = el("tableWrap").classList.contains("expanded") ? "Thu gọn bảng" : "Hiện tất cả dữ liệu";
     });
 
     function parseSeeds(raw) {
@@ -808,14 +947,18 @@
                     if (!kw) return;
                     keywordRows.push({
                         keyword: String(kw),
-                        intent: c.intent || "",
-                        difficulty: c.difficulty != null ? c.difficulty : 0.5,
-                        cpc_avg: 0,
-                        cpc_min: 0,
-                        cpc_max: 0,
-                        competition: "Medium",
+                        intent: c.intent || "unknown",
+                        difficulty: c.difficulty != null ? c.difficulty : null,
+                        kd_label: "N/A",
+                        cpc_avg: null,
+                        cpc_min: null,
+                        cpc_max: null,
+                        competition: "Unknown",
                         word_count: String(kw).split(/\s+/).filter(Boolean).length,
-                        search_volume: { avg_monthly: avgVol, is_estimated: true }
+                        search_volume: { avg_monthly: avgVol || null, is_estimated: true, data_source: "fallback" },
+                        trend: { direction: "unknown", pct_change: null, data_source: "N/A" },
+                        data_source: { volume: "fallback", cpc: "N/A", competition: "N/A", trend: "N/A", intent: "N/A", kd: "N/A", allintitle: "N/A" },
+                        data_warnings: ["volume_estimated", "cpc_missing", "competition_missing", "trend_missing"]
                     });
                 });
             });
@@ -843,16 +986,9 @@
         el("statsBar").classList.remove("hidden");
         var cm = meta.cluster_metrics || {};
         var cbar = el("clusterMetaBar");
-        if (cbar && (meta.clusters_mode || cm.duration_ms != null)) {
+        if (cbar && cm.cluster_count != null) {
             cbar.classList.remove("hidden");
-            el("cmMode").textContent = String(meta.clusters_mode || "—") + (meta.clusters_primary_source ? " (primary: " + meta.clusters_primary_source + ")" : "");
-            el("cmPrimary").textContent = String(meta.clusters_primary_source || "—");
-            var parts = [];
-            if (cm.duration_ms != null) parts.push("thời gian " + cm.duration_ms + " ms");
-            if (cm.strictness) parts.push("strictness " + cm.strictness);
-            if (cm.hybrid_fetch_serp != null) parts.push("SERP " + (cm.hybrid_fetch_serp ? "on" : "off"));
-            if (cm.keywords_truncated_for_cluster) parts.push("đã cắt còn " + (cm.keywords_in_cluster_run || "") + " KW");
-            el("cmMetrics").textContent = parts.length ? parts.join(" · ") : "—";
+            el("cmMetrics").textContent = "Đã gom " + (cm.cluster_count || 0) + " nhóm";
         } else if (cbar) {
             cbar.classList.add("hidden");
         }
@@ -984,7 +1120,9 @@
         }
     }
 
-    async function runResearch() {
+    async function runResearch(opts) {
+        opts = opts || {};
+        var deep = !!opts.deep;
         el("msg").textContent = "";
         var btn = el("btnSearch");
         var loading = el("researchLoading");
@@ -993,10 +1131,21 @@
             el("msg").textContent = "Nhập ít nhất một từ khóa (mỗi dòng một từ, hoặc cách bởi + , ;).";
             return;
         }
+        if (deep && !lastPayload) {
+            el("msg").textContent = "Chạy Tìm kiếm trước, sau đó bấm Phân tích sâu.";
+            return;
+        }
+        if (deep && !window.confirm("Phân tích sâu sẽ tốn thêm lượt sử dụng. Bạn có muốn tiếp tục?")) {
+            return;
+        }
+        if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
+            var ok = await window.DigiSeoConfirmCredit(window.DigiSeoCreditActions.keywordResearch);
+            if (!ok) return;
+        }
         var oldBtn = btn ? btn.innerHTML : "";
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = 'Đang tìm...';
+            btn.innerHTML = deep ? "Đang phân tích sâu..." : "Đang tìm...";
         }
         if (loading) loading.classList.remove("hidden");
         var body = {
@@ -1005,6 +1154,8 @@
             language: el("language").value,
             country: el("country").value,
             device: el("device").value,
+            max_keywords: 80,
+            deep_analysis: deep,
         };
         var cmEl = document.getElementById("clusterMode");
         if (cmEl) body.cluster_mode = cmEl.value;
@@ -1013,13 +1164,20 @@
         var mkEl = document.getElementById("clusterMaxKw");
         if (mkEl) {
             var mk = parseInt(mkEl.value, 10);
-            if (typeof mk === "number" && !isNaN(mk) && mk >= 10) body.cluster_max_keywords = Math.min(800, mk);
+            if (typeof mk === "number" && !isNaN(mk) && mk >= 20) {
+                body.cluster_max_keywords = Math.min(200, mk);
+                body.max_keywords = Math.min(200, Math.max(20, mk));
+            }
         }
-        var cfsEl = document.getElementById("clusterFetchSerp");
-        if (cfsEl) {
-            var cfs = cfsEl.value;
-            if (cfs === "1") body.cluster_fetch_serp = true;
-            else if (cfs === "0") body.cluster_fetch_serp = false;
+        if (deep) {
+            body.cluster_fetch_serp = true;
+        } else {
+            var cfsEl = document.getElementById("clusterFetchSerp");
+            if (cfsEl) {
+                var cfs = cfsEl.value;
+                if (cfs === "1") body.cluster_fetch_serp = true;
+                else if (cfs === "0") body.cluster_fetch_serp = false;
+            }
         }
         var d = el("domain").value.trim();
         var u = el("url").value.trim();
@@ -1035,15 +1193,19 @@
             try {
                 data = await r.json();
             } catch (e) {
-                el("msg").textContent = "Phản hồi không hợp lệ (HTTP " + r.status + "). Kiểm tra server / CORS.";
+                el("msg").textContent = "Không nhận được kết quả. Vui lòng thử lại.";
                 return;
             }
             if (!r.ok) {
-                el("msg").textContent = formatApiError(data, r.status) || ("Lỗi HTTP " + r.status);
+                el("msg").textContent = formatApiError(data, r.status) || "Có lỗi xảy ra.";
                 if (r.status === 401 || r.status === 402) refreshCreditsBanner();
                 return;
             }
             hydrateFromPayload(data);
+            if (deep) {
+                el("msg").textContent = "Đã hoàn tất phân tích sâu.";
+                el("msg").className = "text-emerald-600 text-sm mb-3";
+            }
             refreshCreditsBanner();
             loadHistory();
         } finally {
@@ -1055,9 +1217,14 @@
         }
     }
 
-    el("btnSearch").addEventListener("click", runResearch);
+    el("btnSearch").addEventListener("click", function () { runResearch({ deep: false }); });
+    var btnDeep = el("btnDeepAnalyze");
+    if (btnDeep) {
+        btnDeep.addEventListener("click", function () { runResearch({ deep: true }); });
+    }
     refreshCreditsBanner();
     loadHistory();
+    window.addEventListener("digiseo-auth-change", function () { refreshCreditsBanner(); loadHistory(); });
 
     el("btnAllintitle").addEventListener("click", function () {
         var sel = [];
@@ -1079,10 +1246,21 @@
             var kw = tr && tr.cells[2] ? tr.cells[2].textContent.trim() : "";
             if (kw) sel.push(kw);
         });
-        if (!sel.length) { el("msg").textContent = "Chọn từ khóa để gom nhóm."; return; }
-        el("clusterInput").value = sel.join("\n");
-        document.querySelector('.kw-tab[data-tab="group"]').click();
-        el("clusterMsg").textContent = "Đã điền từ khóa đã chọn — bấm «Chạy gom nhóm».";
+        if (!sel.length) {
+            if (filteredRows.length) {
+                sel = filteredRows.map(function (r) { return r.keyword; });
+                el("msg").textContent = "Chưa chọn từ khóa — đã lấy toàn bộ " + sel.length + " từ khóa trong bảng (bộ lọc hiện tại).";
+                el("msg").className = "text-emerald-600 text-sm mb-3";
+            } else {
+                el("msg").textContent = "Chưa có từ khóa. Chạy tìm kiếm hoặc chọn từ khóa để gom nhóm.";
+                el("msg").className = "text-red-600 text-sm mb-3";
+                return;
+            }
+        } else {
+            el("msg").textContent = "";
+            el("msg").className = "text-red-600 text-sm mb-3";
+        }
+        navigateToClustering(sel);
     });
 
     el("btnCopy").addEventListener("click", async function () {
@@ -1123,219 +1301,6 @@
             return;
         }
         window.open(data.spreadsheet_url, "_blank");
-    });
-
-    el("btnCluster").addEventListener("click", async function () {
-        var btn = el("btnCluster");
-        var btnX = el("btnClusterXlsx");
-        var btnUp = el("btnClusterExcel");
-        var msgEl = el("clusterMsg");
-        msgEl.textContent = "";
-        msgEl.className = "text-sm text-red-600 mt-2 min-h-[1.25em]";
-        var raw = el("clusterInput").value.split(/\n/).map(function (s) { return s.trim(); }).filter(Boolean);
-        if (!raw.length) { msgEl.textContent = "Nhập ít nhất một từ khóa."; return; }
-        var prog = el("clusterProgress");
-        if (prog) prog.classList.remove("hidden");
-        var oldText = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = "Đang gom nhóm…";
-        if (btnX) btnX.disabled = true;
-        if (btnUp) btnUp.disabled = true;
-        try {
-            var r = await fetch("/keywords/cluster/async", {
-                method: "POST",
-                headers: authHeaders(true),
-                body: JSON.stringify({
-                    keywords: raw,
-                    fetch_serp: el("clusterFetchSerp") ? el("clusterFetchSerp").checked : true,
-                    country: (el("clusterCountry") && el("clusterCountry").value.trim()) || el("country").value,
-                    language: (el("clusterLanguage") && el("clusterLanguage").value.trim()) || el("language").value,
-                    device: (el("clusterDevice") && el("clusterDevice").value) || el("device").value,
-                    cluster_strictness: el("clusterStrictness") ? el("clusterStrictness").value : "normal",
-                    url: (el("clusterBrandUrl") && el("clusterBrandUrl").value.trim()) || (el("url") && el("url").value.trim()) || undefined,
-                }),
-            });
-            var queued = await r.json();
-            if (!r.ok) {
-                msgEl.textContent = formatApiError(queued, r.status) || "Lỗi";
-                if (r.status === 401 || r.status === 402) refreshCreditsBanner();
-                return;
-            }
-
-            var pollUrl = queued.poll_url || ("/keywords/cluster/job/" + queued.job_id);
-            var bar = el("clusterProgressBar");
-            var pctEl = el("clusterProgressPct");
-            var txtEl = el("clusterProgressText");
-
-            function setPct(p) {
-                var x = Math.max(0, Math.min(100, Number(p) || 0));
-                if (bar) bar.style.width = x + "%";
-                if (pctEl) pctEl.textContent = Math.round(x) + "%";
-            }
-
-            setPct(1);
-            if (txtEl) txtEl.textContent = "Đang gom nhóm…";
-
-            var done = false;
-            var result = null;
-            for (var tries = 0; tries < 600; tries++) { // ~10 phút (1s/loop)
-                var pr = await fetch(pollUrl, { method: "GET", headers: authHeaders() });
-                var st = await pr.json();
-                if (!pr.ok) throw new Error(st.detail || "Không poll được tiến trình");
-                setPct(st.progress);
-                if (txtEl) txtEl.textContent = st.message || "Đang xử lý…";
-                if (st.state === "SUCCESS") { done = true; result = st.result; break; }
-                if (st.state === "ERROR") throw new Error(st.error || "Job lỗi");
-                await new Promise(function (res) { setTimeout(res, 900); });
-            }
-            if (!done || !result) throw new Error("Quá thời gian chờ. Thử tắt SERP hoặc giảm số keyword.");
-
-            var data = result;
-
-            var box = el("clusterOut");
-            box.innerHTML = "";
-            (data.clusters || []).forEach(function (c, i) {
-            var kws = c.keywords || [];
-            var vol = 0, ds = [];
-            kws.forEach(function (kw) {
-                var row = kwByLower[String(kw).toLowerCase()];
-                if (row) {
-                    vol += Number((row.search_volume || {}).avg_monthly) || 0;
-                    if (row.difficulty != null) ds.push(Number(row.difficulty));
-                }
-            });
-            var avgD = ds.length ? (ds.reduce(function (a, b) { return a + b; }, 0) / ds.length) : null;
-            var card = document.createElement("div");
-            card.className = "rounded-xl border border-slate-200 p-4 bg-slate-50";
-            var sup = (c.supporting_keywords || []).slice(0, 12);
-            var ctypeLine = "";
-            if (c.suggested_content_type) {
-                ctypeLine = "<p class=\"text-xs text-indigo-700 mt-1\">Gợi ý nội dung: <strong>" + esc(c.suggested_content_type) + "</strong>" +
-                    (c.primary_serp_page_type ? " · SERP type: " + esc(c.primary_serp_page_type) : "") + "</p>";
-            }
-            card.innerHTML =
-                "<h3 class=\"font-bold text-slate-800\">" + esc(c.main_keyword || c.cluster_id) + "</h3>" +
-                "<p class=\"text-xs text-slate-500 mt-1\">Intent: " + esc(c.intent || "") + " · " + kws.length + " từ khóa" +
-                (c.cohesion_score != null ? " · cohesion <strong>" + esc(String(c.cohesion_score)) + "</strong>" : "") + "</p>" +
-                ctypeLine +
-                "<p class=\"text-sm mt-2\">Tổng volume (ước lượng): <strong>" + fmtNum(vol) + "</strong>" +
-                (avgD != null ? " · Độ khó TB: <strong>" + avgD.toFixed(2) + "</strong>" : "") + "</p>" +
-                (sup.length ? "<p class=\"text-xs text-slate-600 mt-1\">Supporting (ưu tiên): " + sup.map(function (k) { return esc(k); }).join(", ") + "</p>" : "") +
-                "<ul class=\"mt-2 text-sm text-slate-700 list-disc list-inside max-h-40 overflow-y-auto\">" +
-                kws.map(function (k) { return "<li>" + esc(k) + "</li>"; }).join("") + "</ul>";
-            box.appendChild(card);
-            });
-            window.__lastClusters = data.clusters;
-            window.__lastClusterKeywords = raw.slice();
-            msgEl.textContent = "Gom nhóm xong: " + (data.clusters || []).length + " cụm.";
-            msgEl.className = "text-sm text-emerald-700 mt-2 min-h-[1.25em]";
-            refreshCreditsBanner();
-            setTimeout(function(){ msgEl.className = "text-sm text-red-600 mt-2 min-h-[1.25em]"; }, 2500);
-        } catch (e) {
-            msgEl.textContent = (e && e.message) ? e.message : "Lỗi khi gọi API.";
-        } finally {
-            btn.disabled = false;
-            btn.textContent = oldText;
-            if (btnX) btnX.disabled = false;
-            if (btnUp) btnUp.disabled = false;
-            if (prog) prog.classList.add("hidden");
-            var bar2 = el("clusterProgressBar");
-            var pct2 = el("clusterProgressPct");
-            var txt2 = el("clusterProgressText");
-            if (bar2) bar2.style.width = "0%";
-            if (pct2) pct2.textContent = "0%";
-            if (txt2) txt2.textContent = "";
-        }
-    });
-
-    async function importKeywordsFromExcel(file) {
-        if (!file) return null;
-        var fd = new FormData();
-        fd.append("file", file, file.name || "keywords.xlsx");
-        var r = await fetch("/keywords/import/excel", { method: "POST", headers: authHeaders(false), body: fd });
-        var data = await r.json();
-        if (!r.ok) {
-            throw new Error(formatApiError(data, r.status) || "Upload lỗi");
-        }
-        return data;
-    }
-
-    el("btnClusterExcel").addEventListener("click", async function () {
-        el("clusterMsg").textContent = "";
-        var inp = el("clusterExcel");
-        if (!inp || !inp.files || !inp.files.length) {
-            el("clusterMsg").textContent = "Chọn file Excel (.xlsx) trước.";
-            return;
-        }
-        try {
-            el("btnClusterExcel").disabled = true;
-            el("btnClusterExcel").textContent = "Đang upload…";
-            var data = await importKeywordsFromExcel(inp.files[0]);
-            var kws = (data && data.keywords) ? data.keywords : [];
-            if (!kws.length) {
-                el("clusterMsg").textContent = "Không tìm thấy keyword trong file.";
-                return;
-            }
-            el("clusterInput").value = kws.join("\n");
-            el("clusterMsg").textContent = "Đã nhập " + kws.length + " từ khóa từ Excel — bấm «Chạy gom nhóm».";
-            el("clusterMsg").className = "text-sm text-emerald-700 mt-2 min-h-[1.25em]";
-            refreshCreditsBanner();
-            setTimeout(function(){ el("clusterMsg").className = "text-sm text-red-600 mt-2 min-h-[1.25em]"; }, 2500);
-        } catch (e) {
-            el("clusterMsg").textContent = (e && e.message) ? e.message : "Upload lỗi";
-        } finally {
-            el("btnClusterExcel").disabled = false;
-            el("btnClusterExcel").textContent = "Upload Excel";
-        }
-    });
-
-    function activateKwTab(name) {
-        var tab = document.querySelector('.kw-tab[data-tab="' + name + '"]');
-        if (tab) tab.click();
-    }
-    try {
-        var qs = new URLSearchParams(window.location.search);
-        var tabParam = qs.get("tab") || (window.location.hash === "#group" ? "group" : "");
-        if (tabParam === "group") activateKwTab("group");
-    } catch (_e) {}
-
-    el("btnClusterReset").addEventListener("click", function () {
-        el("clusterInput").value = "";
-        if (el("clusterExcel")) el("clusterExcel").value = "";
-        if (el("clusterFetchSerp")) el("clusterFetchSerp").checked = true;
-        if (el("clusterStrictness")) el("clusterStrictness").value = "normal";
-        if (el("clusterBrandUrl")) el("clusterBrandUrl").value = "";
-        el("clusterOut").innerHTML = "";
-        window.__lastClusters = null;
-        window.__lastClusterKeywords = null;
-        el("clusterMsg").textContent = "";
-    });
-
-    el("btnClusterSheets").addEventListener("click", async function () {
-        var clusters = window.__lastClusters;
-        if (!clusters || !clusters.length) { el("clusterMsg").textContent = "Chạy gom nhóm trước."; return; }
-        var kws = window.__lastClusterKeywords || [];
-        var kwRows = kws.map(function (k) { return { keyword: k, intent: "", search_volume: {}, difficulty: "" }; });
-        var r = await postExport("/keywords/export/sheets", { keywords: kwRows, clusters: clusters });
-        var data = await r.json();
-        if (!r.ok || !data.spreadsheet_url) {
-            el("clusterMsg").textContent = (data && data.detail) ? data.detail : "Chưa cấu hình Google Sheets.";
-            return;
-        }
-        window.open(data.spreadsheet_url, "_blank");
-    });
-
-    el("btnClusterXlsx").addEventListener("click", async function () {
-        var clusters = window.__lastClusters;
-        if (!clusters || !clusters.length) { el("clusterMsg").textContent = "Chạy gom nhóm trước."; return; }
-        var r = await postExport("/keywords/export/excel", { keywords: [], clusters: clusters });
-        if (!r.ok) { el("clusterMsg").textContent = "Export lỗi"; return; }
-        var blob = await r.blob();
-        var a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "keyword_clusters.xlsx";
-        a.click();
-        URL.revokeObjectURL(a.href);
     });
 })();
 </script>

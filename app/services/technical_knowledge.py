@@ -196,7 +196,7 @@ def build_technical_kb_context(query: str, *, limit: int = 6) -> str:
     hits = search_technical_knowledge(query, limit=limit)
     if not hits:
         return ""
-    lines = ["DigiSEO — Sơ đồ tri thức (dùng chung mọi website):"]
+    lines = ["Seoauto — Sơ đồ tri thức (dùng chung mọi website):"]
     for h in hits:
         title = h.get("document_title") or "doc"
         snip = str(h.get("snippet") or "")[:500]

@@ -1,0 +1,249 @@
+/* SEOAuto Content AI — content-ai-projects.css (extracted from content_ai.html) */
+.project-del-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            z-index: 2;
+            font-size: 0.58rem;
+            line-height: 1.2;
+            color: #fecaca;
+            border: 1px solid rgba(248, 113, 113, 0.55);
+            border-radius: 5px;
+            padding: 2px 5px;
+            background: rgba(248, 113, 113, 0.14);
+            cursor: pointer;
+        }
+        .project-del-btn:hover {
+            background: rgba(248, 113, 113, 0.28);
+        }
+        .project-item .project-title {
+            padding-right: 0;
+        }
+        #content-ai-projects .project-pager {
+            display: none !important;
+        }
+        .connected-site-item {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+        .connected-site-item .connected-site-row {
+            flex: 1;
+            min-width: 0;
+        }
+        .connected-site-del-btn {
+            flex-shrink: 0;
+            align-self: center;
+            font-size: 0.72rem;
+            color: #fecaca;
+            border: 1px solid rgba(248, 113, 113, 0.55);
+            border-radius: 8px;
+            padding: 8px 10px;
+            background: rgba(248, 113, 113, 0.12);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .connected-site-del-btn:hover {
+            background: rgba(248, 113, 113, 0.24);
+        }
+        .connected-site-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.35);
+            cursor: pointer;
+            text-align: left;
+            font: inherit;
+            color: inherit;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .connected-site-row:hover {
+            border-color: rgba(16, 185, 129, 0.35);
+            background: rgba(16, 185, 129, 0.08);
+        }
+        .connected-site-row.active {
+            border-color: rgba(16, 185, 129, 0.55);
+            background: rgba(16, 185, 129, 0.12);
+        }
+        .connected-site-row .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            flex-shrink: 0;
+            margin-top: 4px;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.22);
+        }
+        .connected-site-body {
+            flex: 1;
+            min-width: 0;
+        }
+        .connected-site-host {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            word-break: break-all;
+            line-height: 1.35;
+        }
+        .connected-site-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .connected-site-badge {
+            font-size: 0.62rem;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 6px;
+            letter-spacing: 0.03em;
+        }
+        .connected-site-badge.wp {
+            background: rgba(16, 185, 129, 0.28);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.45);
+        }
+        .connected-site-badge.tgt {
+            background: rgba(56, 189, 248, 0.18);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.45);
+        }
+        button.connected-site-badge.edit {
+            cursor: pointer;
+            border: 1px solid rgba(96, 165, 250, 0.45);
+            font-family: inherit;
+            line-height: 1.2;
+            background: rgba(59, 130, 246, 0.22);
+            color: #bfdbfe;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+        button.connected-site-badge.edit:hover {
+            background: rgba(59, 130, 246, 0.38);
+            border-color: rgba(147, 197, 253, 0.75);
+            color: #eff6ff;
+        }
+        .projects-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .projects-panel-head h3 {
+            margin: 0;
+            font-size: 1rem;
+            flex: 1;
+            min-width: 0;
+        }
+        .projects-panel-plus {
+            flex-shrink: 0;
+            background: none;
+            border: 0;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 1.2rem;
+            line-height: 1;
+            padding: 6px 10px;
+            border-radius: 8px;
+        }
+        .projects-panel-plus:hover {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.12);
+        }
+        .project-site-filter-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            background: rgba(16, 185, 129, 0.09);
+            font-size: 0.78rem;
+            color: #cbd5e1;
+        }
+        .project-site-filter-banner[hidden] {
+            display: none !important;
+        }
+        .project-site-filter-banner .pp-btn {
+            font-size: 0.72rem;
+            padding: 5px 10px;
+        }
+        /* Dock tài khoản / Upgrade — không bị sidebar che (z-index thấp hơn top-fixed-bar) */
+        body.page-content-ai .global-user-dock-wrap {
+            z-index: 1001;
+            left: 3%;
+            width: min(200px, var(--sideW));
+            bottom: 12px;
+            pointer-events: auto;
+        }
+        .content-ai-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin: 14px 0 0;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            flex: 1;
+            min-height: 0;
+        }
+        .top-fixed-bar .content-ai-nav {
+            margin-top: 16px;
+            padding-top: 16px;
+        }
+        .content-ai-nav a,
+        .content-ai-nav button {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            text-align: left;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: #cbd5e1;
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .content-ai-nav a:hover,
+        .content-ai-nav button:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: #f1f5f9;
+        }
+        .content-ai-nav-item.active {
+            background: rgba(16, 185, 129, 0.16);
+            border-color: rgba(16, 185, 129, 0.42);
+            color: #10b981 !important;
+        }
+        .content-ai-nav-item.active svg {
+            stroke: #10b981;
+        }
+        .content-ai-nav svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            stroke: #94a3b8;
+            fill: none;
+            stroke-width: 1.7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .content-ai-nav .nav-badge-new {
+            margin-left: auto;
+            font-size: 0.6rem;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #f59e0b, #ea580c);
+            color: #0f172a;
+            letter-spacing: 0.04em;
+        }

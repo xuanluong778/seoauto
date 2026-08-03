@@ -1,0 +1,16 @@
+[Unit]
+Description=Social Auto publish scheduler (one-shot)
+After=network-online.target digiseo.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/var/www/seoauto_vn_usr4940/data/www/seoauto.vn
+EnvironmentFile=-/var/www/seoauto_vn_usr4940/data/www/seoauto.vn/env.local
+ExecStart=/bin/bash /var/www/seoauto_vn_usr4940/data/www/seoauto.vn/scripts/run_social_auto_scheduler.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

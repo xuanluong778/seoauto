@@ -18,6 +18,9 @@ def test_build_llm_field_instructions_content_has_fifteen_requirements() -> None
     )
     for needle in ("FAQ", "Schema", "internal", "external", "Checklist SEO", "semantic"):
         assert needle.lower() in out.lower(), needle
+    assert "±10%" in out
+    assert str(int(800 * 0.90)) in out
+    assert str(int(800 * 1.10)) in out
 
 
 def test_make_meta_description_truncates_over_160() -> None:

@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="/static/js/digiseo-i18n.js"></script>
     {% include "partials/digiseo_theme_head.html" %}
     <title>Keyword Intelligence</title>
     <style>
@@ -40,7 +39,7 @@
         .err { color: #fecaca; font-size: 13px; margin-top: 8px; }
         pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; color: var(--muted); }
 
-        /* DigiSEO bright-green accent overrides */
+        /* Seoauto bright-green accent overrides */
         h1 { color: #00e676 !important; }
         .nav-dd-menu a:hover { background: rgba(0, 230, 118, 0.12) !important; color: #00e676 !important; }
         .nav-pro-badge {
@@ -62,7 +61,7 @@
         {% include "partials/digiseo_nav.html" %}
 
     <h1>Keyword Intelligence</h1>
-    <p class="sub">Research từ khóa → gom cụm theo intent + SERP overlap (hybrid) → điểm ưu tiên. Dùng POST để gửi nhiều seed / GSC.</p>
+    <p class="sub ds-lead ds-lead--dark">Phân tích từ khóa, gom cụm theo ý định và xếp hạng ưu tiên.</p>
 
     <div class="card">
         <div class="grid2">
@@ -82,7 +81,7 @@
     </div>
 
     <div class="card" id="panelIntent" hidden>
-        <h2 style="margin:0 0 8px;font-size:1.1rem;">Intent summary (SERP + NLP)</h2>
+        <h2 style="margin:0 0 8px;font-size:1.1rem;">Tóm tắt ý định tìm kiếm</h2>
         <div id="intentPills"></div>
     </div>
 
@@ -97,12 +96,12 @@
     </div>
 
     <div class="card" id="panelClusters" hidden>
-        <h2 style="margin:0 0 8px;font-size:1.1rem;">Cluster view</h2>
+        <h2 style="margin:0 0 8px;font-size:1.1rem;">Cụm từ khóa</h2>
         <div id="clustersOut"></div>
     </div>
 
     <div class="card" id="panelOpp" hidden>
-        <h2 style="margin:0 0 8px;font-size:1.1rem;">Opportunity panel</h2>
+        <h2 style="margin:0 0 8px;font-size:1.1rem;">Cơ hội ưu tiên</h2>
         <div id="oppOut"></div>
     </div>
 </div>
@@ -173,7 +172,7 @@
             const kws = (c.keywords || []).map(x => x.keyword).filter(Boolean).join(", ");
             box.innerHTML = "<strong>" + escapeHtml(c.main_keyword || c.cluster_name || "") + "</strong> " +
                 "<span class=\"pill\">intent: " + escapeHtml(c.intent || "") + "</span>" +
-                "<span class=\"pill\">SERP overlap: " + (c.serp_overlap_score != null ? c.serp_overlap_score : "—") + "</span>" +
+                "<span class=\"pill\">Độ trùng: " + (c.serp_overlap_score != null ? c.serp_overlap_score : "—") + "</span>" +
                 "<span class=\"pill\">size: " + (c.cluster_size || 0) + "</span>" +
                 "<div style=\"margin-top:6px;color:#cbd5e1;font-size:12px;\">" + escapeHtml(kws) + "</div>";
             co.appendChild(box);

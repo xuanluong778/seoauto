@@ -2,15 +2,15 @@
   "documents": [
     {
       "id": "e4d49772-4225-45a0-9318-c63ac5d6be52",
-      "filename": "So do tri thuc — DigiSEO (Global).txt",
-      "title": "Sơ đồ tri thức — DigiSEO (Global)",
+      "filename": "So do tri thuc — Seoauto (Global).txt",
+      "title": "Sơ đồ tri thức — Seoauto (Global)",
       "content_format": "text",
       "char_count": 44675,
       "token_estimate": 11168,
       "chunks": [
         {
           "index": 0,
-          "text": "# SƠ ĐỒ TRI THỨC — DigiSEO (GLOBAL)\n\nKnowledge graph dùng chung cho mọi website DigiSEO.\n\n# CHECKLIST TECHNICAL SEO CHO SƠ ĐỒ TRI THỨC DigiSEO\n\nMục đích:\nFile này dùng để đưa vào Knowledge Base / Sơ đồ tri thức **DigiSEO** (Global). Hệ thống AI có thể dùng dữ liệu này để phân tích lỗi Technical SEO, giải thích nguyên nhân và gợi ý hướng xử lý cụ thể cho từng nhóm lỗi.",
+          "text": "# SƠ ĐỒ TRI THỨC — Seoauto (GLOBAL)\n\nKnowledge graph dùng chung cho mọi website Seoauto.\n\n# CHECKLIST TECHNICAL SEO CHO SƠ ĐỒ TRI THỨC Seoauto\n\nMục đích:\nFile này dùng để đưa vào Knowledge Base / Sơ đồ tri thức **Seoauto** (Global). Hệ thống AI có thể dùng dữ liệu này để phân tích lỗi Technical SEO, giải thích nguyên nhân và gợi ý hướng xử lý cụ thể cho từng nhóm lỗi.",
           "embedded": false
         },
         {
@@ -512,7 +512,7 @@
       "chunks": [
         {
           "index": 0,
-          "text": "GLOBAL SEO KNOWLEDGE GRAPH\nSƠ ĐỒ TRI THỨC SEO DÙNG CHUNG CHO TẤT CẢ WEBSITE\n\nMục đích:\nTài liệu này dùng làm Global Knowledge Base / Global SEO Knowledge Graph cho web app DigiSEO + Content SEO.\nDữ liệu trong file này là kiến thức SEO nền tảng dùng chung cho mọi website, không chứa thông tin riêng của từng thương hiệu, website, dịch vụ, bảng giá, hotline hoặc case study cụ thể.",
+          "text": "GLOBAL SEO KNOWLEDGE GRAPH\nSƠ ĐỒ TRI THỨC SEO DÙNG CHUNG CHO TẤT CẢ WEBSITE\n\nMục đích:\nTài liệu này dùng làm Global Knowledge Base / Global SEO Knowledge Graph cho web app Seoauto + Content SEO.\nDữ liệu trong file này là kiến thức SEO nền tảng dùng chung cho mọi website, không chứa thông tin riêng của từng thương hiệu, website, dịch vụ, bảng giá, hotline hoặc case study cụ thể.",
           "embedded": false
         },
         {
@@ -719,7 +719,7 @@
       "chunks": [
         {
           "index": 0,
-          "text": "INTERNAL LINK KNOWLEDGE GRAPH\nSƠ ĐỒ TRI THỨC CHO TÍNH NĂNG INTERNAL LINK TRONG CONTENT AI\n\nMục đích:\nTài liệu này dùng để đưa vào Knowledge Base / Sơ đồ tri thức cho web app DigiSEO + Content SEO.\nMục tiêu là giúp hệ thống gợi ý và chèn internal link chính xác hơn, đúng ngữ cảnh hơn, không tự bịa URL, không link sai chủ đề và không gây lỗi SEO.",
+          "text": "INTERNAL LINK KNOWLEDGE GRAPH\nSƠ ĐỒ TRI THỨC CHO TÍNH NĂNG INTERNAL LINK TRONG CONTENT AI\n\nMục đích:\nTài liệu này dùng để đưa vào Knowledge Base / Sơ đồ tri thức cho web app Seoauto + Content SEO.\nMục tiêu là giúp hệ thống gợi ý và chèn internal link chính xác hơn, đúng ngữ cảnh hơn, không tự bịa URL, không link sai chủ đề và không gây lỗi SEO.",
           "embedded": false
         },
         {
@@ -1027,6 +1027,758 @@
       ],
       "created_at": "2026-05-22T06:16:28.307402+00:00",
       "updated_at": "2026-05-22T06:16:28.307402+00:00"
+    },
+    {
+      "id": "7cec2623-fce0-4f4f-8ffa-2c2c09ae9887",
+      "filename": "seoauto_kb_tinh_nang_huong_dan.md",
+      "title": "seoauto_kb_tinh_nang_huong_dan",
+      "content_format": "markdown",
+      "char_count": 71400,
+      "token_estimate": 17850,
+      "chunks": [
+        {
+          "index": 0,
+          "text": "# SEOAuto KB — Tính năng, cách sử dụng các tab và quy tắc trả lời chatbot\n\n> File dùng để đưa vào Knowledge Base cho chatbot CSKH/FAQ của SEOAuto.  \n> Cập nhật theo giao diện công khai và định hướng sản phẩm đến ngày 06/07/2026.  \n> Ngôn ngữ trả lời mặc định: Tiếng Việt.  \n> Tên sản phẩm: SEOAuto / Seoauto.  \n> Website: https://seoauto.vn/\n\n---\n\n## 1. SEOAuto là gì?\n\nSEOAuto là nền tảng SaaS SEO tự động chạy trên trình duyệt, dùng để hỗ trợ SEOer, chủ website, đội content, agency và doanh nghiệp làm SEO theo quy trình rõ ràng hơn.\n\nSEOAuto tích hợp nhiều công cụ trong một hệ thống:",
+          "embedded": false
+        },
+        {
+          "index": 1,
+          "text": "- Dashboard SEO tổng quan.\n- Technical SEO Audit.\n- Content AI viết bài SEO.\n- Content Auto Update để tối ưu lại bài cũ trên WordPress.\n- Keyword Research.\n- Keyword Clustering.\n- SEO Score chấm điểm từng URL.\n- Schema Generator tạo JSON-LD.\n- Index Control kiểm tra index và gửi tín hiệu lập chỉ mục.\n- Google Map SEO / Local SEO.\n- Cài đặt Knowledge Base, xuất bản WordPress/Shopify/Haravan/Webcake.\n- Tài khoản, gói SaaS, credit, hóa đơn, Affiliate.\n- Chatbot AI hỗ trợ hỏi đáp và workflow AI.",
+          "embedded": false
+        },
+        {
+          "index": 2,
+          "text": "SEOAuto không chỉ là công cụ viết bài AI. Đây là một bộ công cụ SEO all-in-one, kết hợp audit kỹ thuật, nghiên cứu từ khóa, gom cụm từ khóa, viết nội dung, tối ưu lại bài cũ, kiểm soát index và báo cáo.\n\n---\n\n## 2. Đối tượng phù hợp\n\nSEOAuto phù hợp với:\n\n1. **Chủ website / chủ doanh nghiệp**  \n   Muốn tự kiểm tra website, biết trang nào lỗi SEO, bài nào cần tối ưu, từ khóa nào nên viết trước.\n\n2. **SEOer cá nhân**  \n   Muốn tiết kiệm thời gian audit technical, nghiên cứu từ khóa, gom cụm từ khóa và viết content chuẩn SEO.",
+          "embedded": false
+        },
+        {
+          "index": 3,
+          "text": "3. **Agency SEO / Marketing team**  \n   Cần quản lý nhiều website, xuất báo cáo, viết hàng loạt, tối ưu lại nhiều bài cũ, kiểm soát index và quản lý credit.\n\n4. **Đội content**  \n   Cần tạo brief, outline, bài viết SEO, internal link, ảnh minh họa và publish lên WordPress.\n\n5. **Doanh nghiệp Local / Spa / Dịch vụ địa phương**  \n   Cần tối ưu Google Map, hồ sơ Google Business Profile, bài đăng, review, ảnh và đối thủ local.\n\n---\n\n## 3. Cách bắt đầu sử dụng SEOAuto\n\n### 3.1. Đăng ký tài khoản\n\nNgười dùng có thể đăng ký bằng Gmail:",
+          "embedded": false
+        },
+        {
+          "index": 4,
+          "text": "1. Bấm **Đăng ký**.\n2. Nhập Gmail.\n3. Nhận mã OTP gửi về Gmail.\n4. Nhập OTP.\n5. Đặt mật khẩu.\n6. Bấm **Đăng ký**.\n\nLưu ý:\n\n- Chỉ Gmail `@gmail.com` nhận mã OTP theo cấu hình hiện tại.\n- Mật khẩu nên có ít nhất 8 ký tự, chữ hoa, chữ thường và số.\n- Người dùng cũng có thể đăng nhập bằng Google nếu hệ thống đang bật Google OAuth.\n\n### 3.2. Đăng nhập\n\n1. Bấm **Đăng nhập**.\n2. Nhập email và mật khẩu.\n3. Hoặc dùng **Đăng nhập với Google**.\n4. Sau khi đăng nhập, hệ thống sẽ hiển thị gói hiện tại, credit còn lại và các nút như **Kích hoạt dùng thử 3 ngày**, **Mua credit**, **Nâng cấp gói**.",
+          "embedded": false
+        },
+        {
+          "index": 5,
+          "text": "### 3.3. Kích hoạt dùng thử 3 ngày\n\nGói Trial là gói dùng thử 3 ngày, không phải gói trả phí.\n\nQuy tắc Trial đề xuất cho SEOAuto:\n\n- Mỗi tài khoản chỉ kích hoạt Trial một lần.\n- Trial kéo dài 3 ngày.\n- Trial không tặng credit miễn phí mặc định.\n- Người dùng vẫn cần có credit trong tài khoản để chạy các tác vụ AI hoặc tác vụ tốn tài nguyên.\n- Trial có thể giới hạn tối đa 1.000 credit trong thời gian dùng thử.\n- Nếu hết credit hoặc hết quota trial, người dùng cần mua thêm credit hoặc nâng cấp gói.\n\nGiới hạn gợi ý trong Trial:",
+          "embedded": false
+        },
+        {
+          "index": 6,
+          "text": "- Content AI: tối đa 5 bài/ngày.\n- Content Auto Update: tối đa 5 URL/ngày.\n- SEO Score: tối đa 5 URL/ngày.\n- Technical Audit: tối đa 3 lần/ngày.\n- Keyword Research nâng cao: nên khóa hoặc yêu cầu nâng cấp.\n- Keyword Clustering nâng cao: nên khóa hoặc yêu cầu nâng cấp.\n- Index Control nâng cao / Submit Indexing: nên khóa hoặc yêu cầu nâng cấp.\n\n### 3.4. Mua credit hoặc nâng cấp gói\n\nNgười dùng có thể:\n\n- Mua thêm credit khi credit không đủ.\n- Nâng cấp gói SaaS để mở quota cao hơn.\n- Theo dõi ví credit, quota tháng, lịch sử trừ credit và hóa đơn trong tab **Tài khoản & Thanh toán**.",
+          "embedded": false
+        },
+        {
+          "index": 7,
+          "text": "Khi thanh toán chuyển khoản, người dùng phải chuyển đúng nội dung thanh toán. Nếu sai nội dung chuyển khoản, hệ thống có thể chậm xác nhận hoặc không kích hoạt tự động.\n\n---\n\n## 4. Nguyên tắc credit, quota và API\n\n### 4.1. Credit là gì?\n\nCredit là đơn vị dùng để trừ khi người dùng chạy các tác vụ tốn tài nguyên như:\n\n- Viết bài AI.\n- Tạo ảnh AI.\n- Lấy ảnh/tối ưu ảnh.\n- Nghiên cứu từ khóa.\n- Gom cụm từ khóa.\n- Technical audit nâng cao.\n- Chấm SEO Score.\n- Submit Indexing.\n- Tác vụ AI sửa SEO.\n\nMỗi module có thể có mức trừ credit khác nhau tùy cấu hình admin.\n\n### 4.2. Quota là gì?",
+          "embedded": false
+        },
+        {
+          "index": 8,
+          "text": "Quota là hạn mức sử dụng theo gói, ví dụ:\n\n- Số bài AI được viết trong tháng.\n- Số lần audit technical.\n- Số URL được chấm SEO Score.\n- Số URL được auto update.\n- Số URL được submit indexing.\n- Số keyword được nghiên cứu hoặc gom cụm.\n\nKhi hết quota, hệ thống có thể hiện thông báo:\n\n> Đã hết quota — vui lòng nâng cấp gói.\n\nÝ nghĩa: tài khoản đã dùng hết hạn mức của gói hiện tại. Người dùng cần nâng cấp gói, mua credit hoặc đợi chu kỳ mới nếu chính sách gói cho phép.\n\n### 4.3. API AI dùng như thế nào?",
+          "embedded": false
+        },
+        {
+          "index": 9,
+          "text": "Theo định hướng hiện tại: **người dùng thường không tự thêm API key riêng**.  \nSEOAuto dùng API do hệ thống/admin cấu hình.\n\nQuy tắc cho chatbot:\n\n- Không hướng dẫn user thường tự nhập OpenAI API key, Anthropic API key hoặc API AI riêng nếu hệ thống đã ẩn tính năng này.\n- Nếu người dùng hỏi “tôi có cần thêm API key không?”, trả lời: **Không cần. SEOAuto dùng API hệ thống. Bạn chỉ cần có gói/credit hợp lệ để sử dụng.**\n- Mục nhà cung cấp AI/API nếu còn xuất hiện trong giao diện nên xem là phần dành cho admin hoặc cấu hình hệ thống, không phải luồng chính cho user thường.\n\n---",
+          "embedded": false
+        },
+        {
+          "index": 10,
+          "text": "## 5. Tổng quan các tab chính trong SEOAuto\n\nMenu chính của SEOAuto gồm các tab:",
+          "embedded": false
+        },
+        {
+          "index": 11,
+          "text": "1. **Dashboard** — tổng quan SEO, dự án, health score, quick tools.\n2. **Technical** — quét lỗi SEO kỹ thuật toàn site.\n3. **Content AI** — viết bài SEO, viết hàng loạt, auto update bài cũ.\n4. **Keyword** — nghiên cứu từ khóa, gom nhóm từ khóa, theo dõi thứ hạng.\n5. **SEO Score** — chấm điểm SEO từng URL theo checklist.\n6. **Schema** — tạo schema JSON-LD.\n7. **Index Control** — check index và submit indexing.\n8. **Google Map** — tối ưu Google Business Profile / Local SEO.\n9. **Cài đặt** — tài khoản, KB, xuất bản, GSC, hệ thống.\n10. **Tài khoản & Thanh toán** — gói, credit, hóa đơn, SePay, Affi",
+          "embedded": false
+        },
+        {
+          "index": 12,
+          "text": "SC, hệ thống.\n10. **Tài khoản & Thanh toán** — gói, credit, hóa đơn, SePay, Affiliate.",
+          "embedded": false
+        },
+        {
+          "index": 13,
+          "text": "---\n\n# PHẦN A — HƯỚNG DẪN TỪNG TAB\n\n---\n\n## 6. Tab Dashboard `/report`\n\n### 6.1. Mục đích\n\nDashboard là trang tổng quan để người dùng xem nhanh tình trạng SEO hiện tại.\n\nDashboard giúp trả lời các câu hỏi:\n\n- Website đang có điểm SEO tổng quan bao nhiêu?\n- Đã có lần audit technical nào chưa?\n- Gói SaaS hiện tại là gì?\n- Credit/quota còn lại bao nhiêu?\n- Có lỗi critical/high nào cần xử lý trước?\n- GSC có báo URL chưa index không?\n- Các lần audit gần đây là gì?\n- Nên dùng công cụ nào tiếp theo?\n\n### 6.2. Thành phần chính\n\nDashboard có các phần:",
+          "embedded": false
+        },
+        {
+          "index": 14,
+          "text": "- **Dự án đã quét**: danh sách domain đã từng audit.\n- **SEO Health Score**: điểm sức khỏe SEO tổng quan.\n- **Gói SaaS**: gói hiện tại của user.\n- **Credit / Quota**: số dư credit hoặc hạn mức tháng.\n- **Audit tháng này**: số lần quét technical đã lưu.\n- **Critical / High**: lỗi ưu tiên cao.\n- **GSC Indexing**: thông tin trang chưa lập chỉ mục nếu có kết nối GSC.\n- **Top 5 việc cần xử lý**: các hành động SEO nên ưu tiên.\n- **Recent Audits**: các lần audit gần đây.\n- **Quick Tools**: mở nhanh Technical, Content AI, SEO Score, Keyword Research, Settings/GSC.\n- **Báo cáo chi tiết Technical Analys",
+          "embedded": false
+        },
+        {
+          "index": 15,
+          "text": "SEO Score, Keyword Research, Settings/GSC.\n- **Báo cáo chi tiết Technical Analysis**: checklist, action plan, export CSV/PDF.",
+          "embedded": false
+        },
+        {
+          "index": 16,
+          "text": "### 6.3. Cách sử dụng Dashboard\n\n1. Đăng nhập tài khoản.\n2. Vào tab **Dashboard**.\n3. Nếu chưa có dữ liệu, bấm sang **Technical Analysis** để quét website đầu tiên.\n4. Sau khi quét, quay lại Dashboard để xem tổng quan.\n5. Ưu tiên xử lý các lỗi Critical/High trước.\n6. Dùng Quick Tools để đi đến tab phù hợp:\n   - Technical Analysis: quét website.\n   - Content AI: viết/tối ưu nội dung.\n   - SEO Score: chấm điểm một URL cụ thể.\n   - Keyword Research: nghiên cứu từ khóa.\n   - Settings/GSC: kết nối Google Search Console hoặc WordPress.\n\n### 6.4. Khi nào nên dùng Dashboard?\n\nDùng Dashboard khi:",
+          "embedded": false
+        },
+        {
+          "index": 17,
+          "text": "- Muốn xem tổng quan tình trạng SEO.\n- Muốn biết website nào đã quét.\n- Muốn xem lỗi ưu tiên cao.\n- Muốn đi nhanh đến công cụ cần dùng.\n- Muốn xem lịch sử audit hoặc báo cáo đã lưu.\n\n### 6.5. Câu trả lời chatbot mẫu\n\n**Người dùng hỏi:** Dashboard dùng để làm gì?  \n**Chatbot trả lời:**  \nDashboard là trang tổng quan SEO của SEOAuto. Tại đây bạn xem được SEO Health Score, gói hiện tại, credit/quota còn lại, số lần audit, lỗi Critical/High, dữ liệu GSC Indexing, các lần quét gần đây và các công cụ mở nhanh như Technical, Content AI, SEO Score, Keyword Research.\n\n---\n\n## 7. Tab Technical `/tool`",
+          "embedded": false
+        },
+        {
+          "index": 18,
+          "text": "### 7.1. Mục đích\n\nTab Technical dùng để quét lỗi SEO kỹ thuật của website.\n\nTechnical giúp phát hiện các lỗi liên quan đến:\n\n- Index Google.\n- Sitemap.\n- Robots.txt.\n- Canonical.\n- Title.\n- Meta description.\n- Heading.\n- Schema.\n- Hình ảnh.\n- Internal link.\n- Redirect.\n- 404/5xx.\n- HTTPS & Security.\n- Mobile UX.\n- Performance / Core Web Vitals.\n- Google Search Console.\n\n### 7.2. Khi nào nên dùng Technical?\n\nDùng Technical khi:",
+          "embedded": false
+        },
+        {
+          "index": 19,
+          "text": "- Muốn kiểm tra tổng thể website.\n- Muốn biết website có bị chặn index không.\n- Muốn kiểm tra sitemap/robots/canonical.\n- Muốn tìm lỗi technical SEO trước khi viết thêm content.\n- Muốn xuất báo cáo cho khách hàng hoặc team.\n- Muốn kết hợp dữ liệu crawl với Google Search Console.\n\n### 7.3. Các nhóm phân tích chính\n\nSidebar Technical có các nhóm:",
+          "embedded": false
+        },
+        {
+          "index": 20,
+          "text": "1. **Tổng quan** — điểm và tình trạng tổng thể.\n2. **Việc cần sửa** — lỗi ưu tiên cần xử lý trước.\n3. **Index Google** — trạng thái index/noindex/canonical/GSC.\n4. **Crawlability** — khả năng bot truy cập, robots, sitemap, status code.\n5. **On-page SEO** — title, meta, heading, nội dung cơ bản.\n6. **Liên kết nội bộ** — internal links, link lỗi, redirect chain.\n7. **Performance** — tốc độ, Core Web Vitals nếu có dữ liệu.\n8. **Schema** — dữ liệu có cấu trúc.\n9. **HTTPS & Security** — SSL, HTTP headers, bảo mật cơ bản.\n10. **Mobile UX** — khả năng hiển thị mobile.\n11. **Google Search Console** —",
+          "embedded": false
+        },
+        {
+          "index": 21,
+          "text": ".\n10. **Mobile UX** — khả năng hiển thị mobile.\n11. **Google Search Console** — dữ liệu GSC nếu đã kết nối.\n12. **Lịch sử Audit** — các lần quét đã lưu.",
+          "embedded": false
+        },
+        {
+          "index": 22,
+          "text": "### 7.4. Cách quét Technical\n\n1. Đăng nhập SEOAuto.\n2. Vào tab **Technical**.\n3. Nhập URL website cần quét.\n4. Chọn tùy chọn nâng cao nếu cần:\n   - Số trang tối đa `max_pages`.\n   - Sitemap: tự động hoặc kiểm tra.\n   - Robots.txt: kiểm tra.\n   - Schema: kiểm tra.\n   - Hình ảnh: kiểm tra.\n   - Tốc độ & Mobile: bật/tắt.\n5. Nếu đã kết nối Google Search Console, bật GSC để đối chiếu dữ liệu thật.\n6. Bấm **Quét Technical**.\n7. Chờ hệ thống phân tích.\n8. Xem kết quả ở Overview, Việc cần sửa, Issue Explorer và các nhóm sidebar.\n9. Xuất CSV/PDF/Excel/Google Sheet nếu cần báo cáo.",
+          "embedded": false
+        },
+        {
+          "index": 23,
+          "text": "### 7.5. Kết nối Google Search Console trong Technical\n\nTechnical có khu vực Google Search Console:\n\n- Bấm **Kết nối Google (GSC + GA)**.\n- Chọn property Search Console.\n- Chọn khoảng thời gian như 28 ngày hoặc 90 ngày.\n- Chọn số URL kiểm tra chi tiết.\n- Bật quét hybrid để xem traffic, index, canonical và cơ hội tối ưu chính xác hơn.\n\nKhi có GSC, dữ liệu index/canonical/traffic đáng tin hơn so với chỉ crawl thông thường.\n\n### 7.6. Cách đọc điểm Technical Health Score\n\nTechnical Health Score là điểm sức khỏe kỹ thuật của website, thang 0–100.\n\nGợi ý đọc điểm:",
+          "embedded": false
+        },
+        {
+          "index": 24,
+          "text": "- **90–100**: tốt, chỉ cần tối ưu nhỏ.\n- **80–89**: ổn, vẫn nên xử lý cảnh báo.\n- **50–79**: cần tối ưu, có lỗi ảnh hưởng SEO.\n- **20–49**: nhiều lỗi nghiêm trọng, cần sửa sớm.\n- **0–19**: website có vấn đề lớn về index/crawl/on-page hoặc dữ liệu quét không ổn.\n\n### 7.7. Issue Explorer là gì?\n\nIssue Explorer là khu vực xem lỗi chi tiết.\n\nNgười dùng có thể lọc theo:",
+          "embedded": false
+        },
+        {
+          "index": 25,
+          "text": "- Severity: Critical, Warning, Opportunity, High, Medium, Low.\n- Category: Indexability, Crawlability, On-page, Internal Links, Performance, Structured Data, Security & HTTP, UX & Mobile, GSC Insights.\n- Source: Crawl, GSC, Hybrid.\n- Confidence: độ tin cậy cao/trung bình/thấp.\n\nMỗi lỗi nên có:\n\n- Lỗi là gì.\n- Ảnh hưởng SEO.\n- Cách sửa.\n- Evidence kỹ thuật.\n- Danh sách URL bị ảnh hưởng.\n- Dữ liệu GSC nếu có.\n\n### 7.8. 21 tiêu chí kiểm tra SEO cơ bản\n\nTechnical có checklist tham chiếu 21 tiêu chí:",
+          "embedded": false
+        },
+        {
+          "index": 26,
+          "text": "1. Kiểm tra thẻ Title.\n2. Kiểm tra thẻ Meta Description.\n3. Kiểm tra Meta Tags mạng xã hội.\n4. Xem trước trên Google.\n5. Từ khóa phổ biến nhất.\n6. Phân bố từ khóa.\n7. Đám mây từ khóa.\n8. Kiểm tra Heading.\n9. Kiểm tra Robots.txt.\n10. Kiểm tra Sitemap.\n11. Kiểm tra Favicon.\n12. Kiểm tra Google Analytics.\n13. Kiểm tra dữ liệu có cấu trúc.\n14. Kiểm tra Charset.\n15. Kiểm tra thẻ HTML lỗi thời.\n16. Kiểm tra thẻ Noindex.\n17. Kiểm tra Canonical.\n18. Kiểm tra Nofollow.\n19. Kiểm tra Disallow trong Robots.txt.\n20. Kiểm tra Meta Refresh.\n21. Kiểm tra Ads.txt.\n\n### 7.9. Xuất báo cáo Technical",
+          "embedded": false
+        },
+        {
+          "index": 27,
+          "text": "Technical hỗ trợ:\n\n- Checklist Technical SEO CSV.\n- Checklist Google Sheet.\n- Tải file Excel.\n- Tải PDF nếu hệ thống bật.\n- Chia sẻ báo cáo nếu tính năng được kích hoạt.\n\n### 7.10. Lưu ý khi dùng Technical\n\n- Technical là công cụ quét toàn site hoặc nhiều URL, không chỉ một bài viết.\n- Nếu website chặn bot, cấu hình firewall hoặc robots quá chặt, kết quả có thể thiếu dữ liệu.\n- Nếu không kết nối GSC, dữ liệu index chỉ mang tính tham khảo.\n- Nên xử lý lỗi Critical trước, sau đó Warning, cuối cùng Opportunity.\n- Không nên sửa tất cả lỗi cùng lúc nếu chưa hiểu mức độ ảnh hưởng.",
+          "embedded": false
+        },
+        {
+          "index": 28,
+          "text": "### 7.11. Câu trả lời chatbot mẫu\n\n**Người dùng hỏi:** Tôi muốn kiểm tra website có lỗi SEO kỹ thuật không thì dùng tab nào?  \n**Chatbot trả lời:**  \nBạn dùng tab **Technical**. Nhập URL website, chọn số trang cần quét, bật kiểm tra sitemap/robots/schema/hình ảnh/tốc độ rồi bấm **Quét Technical**. Sau khi quét xong, xem mục **Việc cần sửa** và **Issue Explorer** để biết lỗi nào cần xử lý trước.\n\n---\n\n## 8. Tab Content AI `/content-ai`\n\n### 8.1. Mục đích\n\nContent AI là trung tâm viết và tối ưu nội dung SEO bằng AI.\n\nContent AI dùng để:",
+          "embedded": false
+        },
+        {
+          "index": 29,
+          "text": "- Viết bài SEO theo từ khóa.\n- Tạo brief.\n- Tạo outline.\n- Viết nội dung theo số từ mục tiêu.\n- Gợi ý title/meta/slug/tags.\n- Chèn internal link.\n- Tìm hoặc tạo ảnh minh họa.\n- Đăng bài lên WordPress.\n- Viết hàng loạt từ file keyword.\n- Tối ưu lại bài cũ bằng Content Auto Update.\n\n### 8.2. Các chế độ chính trong Content AI\n\nContent AI có 3 tab lớn:\n\n1. **Viết bài SEO** — viết một bài SEO theo từ khóa.\n2. **Viết hàng loạt** — import nhiều keyword để viết nhiều bài.\n3. **Auto Update** — lấy bài cũ từ WordPress, AI đề xuất sửa SEO, backup và publish.\n\nNgoài ra còn có các khu vực:",
+          "embedded": false
+        },
+        {
+          "index": 30,
+          "text": "- Project / Website đã kết nối.\n- Publish Center.\n- Internal Link.\n- Ảnh minh họa.\n- Editor.\n- SEO Score trong bài viết.\n- Lịch sử cập nhật.\n\n---\n\n## 9. Content AI — Viết bài SEO\n\n### 9.1. Khi nào dùng Viết bài SEO?\n\nDùng khi người dùng muốn viết một bài mới cho một từ khóa cụ thể.\n\nVí dụ:\n\n- Viết bài “dịch vụ SEO tổng thể”.\n- Viết bài “sửa MacBook tại Hà Nội”.\n- Viết bài “triệt lông spa có tốt không”.\n- Viết bài blog chuẩn SEO 1500 từ.\n- Viết landing page dịch vụ.\n\n### 9.2. Các trường nhập chính\n\nForm viết bài SEO gồm:",
+          "embedded": false
+        },
+        {
+          "index": 31,
+          "text": "- **Từ khóa chính**: bắt buộc.\n- **Target website**: website mục tiêu, dùng để lấy ngữ cảnh, internal link và publish.\n- **Title**: tiêu đề bài viết, có thể bấm Gợi ý AI.\n- **Slug**: đường dẫn thân thiện SEO.\n- **Từ khóa phụ**: phân tách bằng dấu phẩy.\n- **Meta description**: mô tả SEO, có thể bấm Gợi ý AI.\n- **Tags**: tag bài viết.\n- **Số từ content**: 1000, 1500, 2000 hoặc tùy chỉnh.\n- **Danh mục WordPress**: chọn category khi đăng.\n- **Link đối thủ**: dùng tham khảo outline.\n- **Outline tham khảo**: dữ liệu người dùng đưa vào.\n- **Outline content**: dàn ý bài viết.\n- **Ảnh minh họa sau khi",
+          "embedded": false
+        },
+        {
+          "index": 32,
+          "text": "i dùng đưa vào.\n- **Outline content**: dàn ý bài viết.\n- **Ảnh minh họa sau khi viết bài**: không chèn ảnh, lấy ảnh từ Google/web, hoặc tạo ảnh bằng AI.",
+          "embedded": false
+        },
+        {
+          "index": 33,
+          "text": "### 9.3. Quy tắc số từ\n\nNgười dùng chọn số từ mục tiêu:\n\n- 1000 từ.\n- 1500 từ.\n- 2000 từ.\n- Tùy chỉnh.\n\nAI nên viết trong khoảng sai lệch tối đa ±10%.\n\nVí dụ:\n\n- 1000 từ: chấp nhận khoảng 900–1100 từ.\n- 1500 từ: chấp nhận khoảng 1350–1650 từ.\n- 2000 từ: chấp nhận khoảng 1800–2200 từ.\n\nNếu bài viết quá ngắn, hệ thống nên tự viết bổ sung.  \nNếu bài viết quá dài, hệ thống nên tự rút gọn.\n\n### 9.4. Quy tắc ảnh trong bài viết\n\nGợi ý quy tắc ảnh:",
+          "embedded": false
+        },
+        {
+          "index": 34,
+          "text": "- Bài 1000 từ: 2 ảnh.\n- Bài 1500 từ: 3 ảnh.\n- Bài 2000 từ: 4 ảnh.\n- Ảnh nên chèn sau các H2 phù hợp.\n- Ảnh phải đúng ngữ cảnh bài viết.\n- Ảnh nên nén nhẹ, ưu tiên dưới 200KB nếu dùng cho SEO.\n- Ảnh ngang gợi ý 800×500 hoặc 1200×628.\n- Ảnh dọc gợi ý 500×800 nếu phù hợp ngành dịch vụ/spa/thời trang.\n- Không nên dùng ảnh sai chủ đề chỉ để đủ số lượng.\n\n### 9.5. Cách viết một bài SEO",
+          "embedded": false
+        },
+        {
+          "index": 35,
+          "text": "1. Vào **Content AI**.\n2. Chọn tab **Viết bài SEO**.\n3. Nhập **Từ khóa chính**.\n4. Nhập **Target website** nếu muốn dùng ngữ cảnh website và internal link.\n5. Bấm **Gợi ý AI** cho title/meta/từ khóa phụ nếu cần.\n6. Chọn số từ: 1000, 1500, 2000 hoặc tùy chỉnh.\n7. Chọn danh mục WordPress nếu muốn đăng bài.\n8. Nhập link đối thủ hoặc outline tham khảo nếu có.\n9. Bấm **Tạo content**.\n10. AI viết nội dung vào Editor.\n11. Kiểm tra số từ, heading, meta, internal link, ảnh và SEO Score.\n12. Chèn ảnh/internal link nếu cần.\n13. Đăng bài lên WordPress ở Publish Center hoặc lưu nháp.",
+          "embedded": false
+        },
+        {
+          "index": 36,
+          "text": "### 9.6. Editor trong Content AI\n\nEditor cho phép:\n\n- Xem và sửa nội dung trực tiếp.\n- Chuyển Visual/Code.\n- Tạo H1/H2/H3/H4/H5/H6.\n- In đậm, in nghiêng, gạch chân.\n- Chèn quote.\n- Chèn danh sách.\n- Chèn link.\n- Chèn bảng.\n- Xem thống kê số từ, ký tự, câu, đoạn văn, số trang.\n- Xem preview content.\n- Dừng viết khi AI đang viết.\n\n### 9.7. Checklist SEO trong Content AI\n\nContent AI có khu vực SEO Score/checklist để kiểm tra bài viết trước khi publish.\n\nNếu điểm dưới 75, hệ thống nên khuyến nghị tối ưu thêm trước khi đăng.\n\nCác yếu tố nên kiểm tra:",
+          "embedded": false
+        },
+        {
+          "index": 37,
+          "text": "- Từ khóa chính trong title.\n- Meta description đủ hấp dẫn.\n- Heading có cấu trúc rõ.\n- H2/H3 bao phủ chủ đề.\n- Mật độ từ khóa tự nhiên.\n- Có từ khóa phụ/ngữ nghĩa liên quan.\n- Có internal link.\n- Có ảnh minh họa và alt text.\n- Độ dài đạt yêu cầu.\n- Nội dung trả lời đúng intent.\n- Không nhồi nhét từ khóa.\n- Không bịa số liệu.\n\n### 9.8. Publish Center\n\nPublish Center dùng để đăng bài lên WordPress.\n\nNgười dùng cần:",
+          "embedded": false
+        },
+        {
+          "index": 38,
+          "text": "1. Kết nối website WordPress trước.\n2. Chọn WordPress site.\n3. Chọn danh mục.\n4. Chọn trạng thái:\n   - Bản nháp `draft`.\n   - Đăng ngay `publish`.\n5. Kiểm tra ảnh đại diện.\n6. Bấm **Đăng bài**.\n\nLưu ý:\n\n- Nên đăng nháp trước nếu chưa kiểm tra kỹ.\n- Ảnh đại diện có thể lấy từ ảnh đầu tiên trong bài hoặc thumbnail dự án.\n- Một số luồng có yêu cầu bắt buộc có ảnh trước khi đăng.\n- Nếu publish live bị chặn, hãy kiểm tra SEO Core, ảnh, title/meta và kết nối WordPress.\n\n---\n\n## 10. Content AI — Internal Link\n\n### 10.1. Mục đích\n\nInternal Link giúp gợi ý và chèn liên kết nội bộ vào bài viết.",
+          "embedded": false
+        },
+        {
+          "index": 39,
+          "text": "Internal link tốt giúp:\n\n- Tăng khả năng crawl của Google.\n- Truyền sức mạnh SEO giữa các bài.\n- Giữ người dùng ở lại website lâu hơn.\n- Tăng liên quan chủ đề giữa các bài viết.\n\n### 10.2. Cách sử dụng Internal Link\n\n1. Vào Content AI.\n2. Nhập Target website.\n3. Có nội dung bài viết trong editor.\n4. Có từ khóa chính.\n5. Bấm **Tìm link liên quan**.\n6. Chọn link phù hợp.\n7. Bấm **Chèn đã chọn**.\n8. Xem lại anchor text trong bài.\n\n### 10.3. Quy tắc anchor text\n\nAnchor nên:",
+          "embedded": false
+        },
+        {
+          "index": 40,
+          "text": "- Tự nhiên.\n- Liên quan đến nội dung đoạn văn.\n- Không dùng quá nhiều anchor trùng lặp.\n- Không chỉ dùng “xem thêm”, “tại đây”, “click vào đây”.\n- Không chèn link vào đoạn không liên quan.\n\n### 10.4. Nguồn link nội bộ\n\nSEOAuto có thể dùng:\n\n- Bài viết đã đồng bộ từ website.\n- Link custom do người dùng nhập.\n- Thư viện link theo dự án/Target website.\n- File Screaming Frog TSV nếu người dùng upload.\n- AI anchor khi rule thường không tìm được anchor phù hợp.\n\n---\n\n## 11. Content AI — Ảnh minh họa\n\n### 11.1. Mục đích\n\nKhu vực ảnh giúp tìm, tạo, upload và chèn ảnh vào bài viết.\n\nNguồn ảnh:",
+          "embedded": false
+        },
+        {
+          "index": 41,
+          "text": "- AI tạo ảnh.\n- Tìm ảnh web.\n- Upload ảnh từ máy.\n\n### 11.2. Cách chèn ảnh\n\n1. Sau khi bài có H2, vào khu vực **Ảnh minh họa**.\n2. Chọn các H2 cần chèn ảnh.\n3. Chọn nguồn ảnh: AI tạo ảnh, tìm ảnh web hoặc upload.\n4. Chọn số ảnh.\n5. Chọn phong cách, tỷ lệ, kích thước nếu tạo ảnh AI.\n6. Bấm **Tìm / Tạo ảnh**.\n7. Chọn ảnh phù hợp.\n8. Cắt ảnh nếu cần.\n9. Bấm **Cắt & chèn vào Content** hoặc **Tự động chèn ảnh**.\n10. Xem preview bài viết.\n\n### 11.3. Lưu ý SEO ảnh",
+          "embedded": false
+        },
+        {
+          "index": 42,
+          "text": "- Ảnh phải đúng ngữ cảnh bài.\n- Tên ảnh nên có từ khóa hoặc mô tả rõ.\n- Alt text nên mô tả ảnh tự nhiên.\n- Không dùng ảnh mờ, méo, sai chủ đề.\n- Nên nén ảnh để không làm chậm website.\n\n---\n\n## 12. Content AI — Viết hàng loạt\n\n### 12.1. Mục đích\n\nViết hàng loạt dùng để tạo nhiều bài SEO từ danh sách keyword.\n\nPhù hợp cho:\n\n- Agency viết nhiều bài cho nhiều dự án.\n- Website cần phủ topic cluster.\n- Team content có file keyword sẵn.\n- Kết quả từ Keyword Clustering gửi sang Content AI Bulk.\n\n### 12.2. Cách import keyword\n\nNgười dùng có thể:",
+          "embedded": false
+        },
+        {
+          "index": 43,
+          "text": "- Upload file `.xlsx`.\n- Upload file `.txt`.\n- Upload file `.csv`.\n- Dán text trực tiếp.\n\nĐịnh dạng gợi ý:\n\n```text\nkeyword\nkeyword | title | description | outline\n```\n\nMỗi dòng là một bài hoặc một keyword.\n\n### 12.3. Quy trình viết hàng loạt",
+          "embedded": false
+        },
+        {
+          "index": 44,
+          "text": "1. Vào **Content AI**.\n2. Chọn **Viết hàng loạt**.\n3. Upload file hoặc dán danh sách keyword.\n4. Bấm **Import vào danh sách**.\n5. Kiểm tra danh sách keyword.\n6. Cấu hình từng bài nếu cần:\n   - Target website.\n   - Brand.\n   - Title.\n   - Meta.\n   - Outline.\n   - Số từ.\n   - Loại content.\n   - URL đối thủ.\n7. Chọn phạm vi viết:\n   - Viết tất cả.\n   - Viết bài đã setup.\n8. Bấm **Bắt đầu viết bài**.\n9. Theo dõi tiến trình và nhật ký.\n10. Review kết quả.\n11. Lấy ảnh nếu cần.\n12. Đăng bài đã chọn, đặt lịch hoặc đăng tất cả.\n\n### 12.4. Publish hàng loạt\n\nPublish Center cho Bulk có thể:",
+          "embedded": false
+        },
+        {
+          "index": 45,
+          "text": "- Đăng bài đã chọn.\n- Đặt lịch bài đã chọn.\n- Đăng tất cả.\n- Hủy lịch đã chọn.\n- Tự lấy ảnh cho bài đã chọn hoặc tất cả.\n\nTrước khi đăng hàng loạt nên kiểm tra:\n\n- Bài có title/meta/content chưa.\n- Bài có ảnh chưa.\n- Danh mục WordPress đúng chưa.\n- Lịch đăng có hợp lý không.\n- Không đăng quá dày trong thời gian ngắn nếu website mới.\n\n### 12.5. Đặt lịch đăng\n\nNgười dùng có thể chọn:\n\n- Đăng ngay.\n- Đặt lịch.\n- Bắt đầu từ thời gian cụ thể.\n- Khoảng cách giữa mỗi bài: 30 phút, 1 giờ, 2 giờ hoặc tùy chỉnh.\n\n---\n\n## 13. Content AI — Auto Update\n\n### 13.1. Mục đích",
+          "embedded": false
+        },
+        {
+          "index": 46,
+          "text": "Content Auto Update dùng để lấy bài viết cũ từ WordPress, phân tích SEO, đề xuất sửa bằng AI, preview thay đổi, backup và cập nhật lại bài.\n\nAuto Update phù hợp khi:\n\n- Website có nhiều bài cũ cần tối ưu.\n- Bài viết có SEO Score thấp.\n- Bài thiếu title/meta/heading/internal link/ảnh.\n- Cần viết lại content hoặc thêm heading mới.\n- Muốn tối ưu bài cũ thay vì viết bài mới.\n\n### 13.2. Quy trình Auto Update",
+          "embedded": false
+        },
+        {
+          "index": 47,
+          "text": "1. Vào **Content AI**.\n2. Chọn tab **Auto Update**.\n3. Kết nối WordPress nếu chưa kết nối.\n4. Chọn website đã lưu.\n5. Tải danh mục nếu cần lọc theo category.\n6. Chọn phạm vi quét.\n7. Bấm **Quét bài viết**.\n8. Lọc danh sách bài theo:\n   - Danh mục.\n   - Trạng thái bài viết.\n   - Điểm SEO.\n   - Từ khóa/tìm kiếm.\n9. Chọn bài cần sửa.\n10. Bấm lấy nội dung từ WordPress.\n11. Nhập từ khóa chính và trọng tâm tối ưu.\n12. Bấm **Tạo đề xuất AI**.\n13. Xem điểm trước/sau.\n14. Xem so sánh bản cũ/bản mới.\n15. Tạo preview và backup.\n16. Lưu nháp hoặc Publish live.\n\n### 13.3. Bộ lọc điểm SEO trong Auto Update",
+          "embedded": false
+        },
+        {
+          "index": 48,
+          "text": "Gợi ý phân loại điểm:\n\n- **0–20: Rất yếu** — cần sửa gấp.\n- **20–50: Cần sửa gấp** — nên ưu tiên cao.\n- **50–80: Nên tối ưu** — có thể cải thiện để tăng hiệu quả SEO.\n- **80–100: Đã ổn** — chỉ cần tối ưu nhỏ nếu cần.\n- **Chưa chấm điểm** — cần phân tích trước.\n\n### 13.4. Popup Sửa SEO bài viết\n\nPopup sửa SEO có các khu vực:\n\n- Title.\n- Slug.\n- Focus keyword.\n- Meta description.\n- Từ khóa phụ.\n- Nội dung bài viết.\n- Outline.\n- Internal link.\n- Ảnh.\n- AI SEO Assistant.\n- SEO Score.\n- Preview.\n- Chi tiết thay đổi.\n\n### 13.5. AI SEO Assistant trong Auto Update\n\nAI SEO Assistant có thể hỗ trợ:",
+          "embedded": false
+        },
+        {
+          "index": 49,
+          "text": "- Sửa tất cả lỗi.\n- Viết lại Content.\n- Tự thêm heading mới.\n- AI phân tích SEO.\n- Update Content.\n- Xem tất cả 30 yếu tố SEO.\n- Gợi ý internal link.\n- Xem trước nội dung.\n\n### 13.6. Viết lại Content\n\nDùng khi bài cũ quá yếu, nội dung mỏng, sai intent hoặc cần làm mới toàn bộ.\n\nLưu ý:\n\n- Nên backup trước khi viết lại.\n- Nên kiểm tra lại số liệu, thông tin và giọng văn.\n- Không nên để AI tự bịa số liệu.\n- Nếu bài là bài blog, số liệu phải xoay quanh chủ đề bài blog và có cơ sở đáng tin cậy.\n\n### 13.7. Tự thêm heading mới\n\nDùng khi bài cũ đã ổn nhưng thiếu một số ý.\n\nCách dùng:",
+          "embedded": false
+        },
+        {
+          "index": 50,
+          "text": "1. Nhập heading mới, mỗi dòng một H2/H3.\n2. Hoặc để trống để AI tự đề xuất 1–3 heading còn thiếu.\n3. Bấm **Bắt đầu viết**.\n4. AI chỉ viết thêm phần mới, không sửa phần cũ nếu người dùng yêu cầu như vậy.\n\n### 13.8. Publish trong Auto Update\n\nAuto Update không nên tự publish mặc định.\n\nQuy tắc an toàn:\n\n- Lưu nháp: cần backup + nội dung.\n- Publish live: phải qua gate SEO Core.\n- Người dùng nên xem preview trước khi cập nhật live.\n- Nếu chưa chắc, chọn lưu nháp WordPress trước.\n\n---\n\n## 14. Tab Keyword Research `/keywords/tools/research`\n\n### 14.1. Mục đích",
+          "embedded": false
+        },
+        {
+          "index": 51,
+          "text": "Keyword Research dùng để nghiên cứu và mở rộng từ khóa.\n\nCông cụ giúp lấy:\n\n- Từ khóa liên quan.\n- Search volume.\n- CPC.\n- Competition.\n- Intent.\n- Xu hướng tìm kiếm.\n- Allintitle ước lượng.\n- Gợi ý keyword theo Google/YouTube/Bing.\n\n### 14.2. Khi nào dùng Keyword Research?\n\nDùng khi:\n\n- Chưa biết nên SEO từ khóa nào.\n- Muốn mở rộng từ seed keyword.\n- Muốn tìm keyword dài, keyword phụ.\n- Muốn chuẩn bị danh sách để gom nhóm.\n- Muốn biết volume và độ cạnh tranh.\n- Muốn xuất dữ liệu cho team content.\n\n### 14.3. Cách nhập từ khóa\n\nNgười dùng có thể nhập nhiều từ khóa:",
+          "embedded": false
+        },
+        {
+          "index": 52,
+          "text": "- Mỗi dòng một từ.\n- Hoặc cách nhau bằng dấu `+`, dấu phẩy, dấu chấm phẩy.\n\nVí dụ:\n\n```text\ndịch vụ seo\nseo tổng thể\nphần mềm seo tự động\n```\n\n### 14.4. Tùy chọn chính\n\nKeyword Research có các lựa chọn:\n\n- Công cụ: Google, YouTube, Bing.\n- Ngôn ngữ: Vietnamese, English.\n- Quốc gia: Việt Nam, United States, United Kingdom.\n- Thiết bị: Desktop, Mobile.\n- Domain.\n- URL.\n- Gom nhóm.\n- Cách gom nhóm: Thông minh, Theo nội dung, Kết hợp.\n- Độ chặt: Vừa phải, Chặt, Rộng.\n- Phân tích Google: Mặc định, Bật, Tắt.\n- Giới hạn từ khóa.\n\n### 14.5. Cách chạy Keyword Research",
+          "embedded": false
+        },
+        {
+          "index": 53,
+          "text": "1. Vào tab **Keyword**.\n2. Chọn **Nghiên cứu từ khóa**.\n3. Nhập từ khóa seed.\n4. Chọn công cụ tìm kiếm.\n5. Chọn ngôn ngữ, quốc gia, thiết bị.\n6. Mở tùy chọn nâng cao nếu cần.\n7. Bấm **Tìm kiếm**.\n8. Chờ hệ thống phân tích.\n9. Lọc kết quả theo volume, cạnh tranh, CPC, độ dài từ khóa.\n10. Chọn keyword cần dùng.\n11. Copy, xuất dữ liệu hoặc gửi sang Gom nhóm.\n\n### 14.6. Bộ lọc kết quả\n\nNgười dùng có thể lọc theo:\n\n- Volume tối thiểu.\n- Volume tối đa.\n- Độ dài từ khóa: 1 từ, 2 từ, 3 từ, 4+ từ.\n- Cạnh tranh: Low, Medium, High, Unknown.\n- CPC trung bình tối đa.\n- Thiết bị: PC, Mobile, All.",
+          "embedded": false
+        },
+        {
+          "index": 54,
+          "text": "### 14.7. Các cột dữ liệu thường gặp\n\n- Keyword.\n- Intent.\n- Volume.\n- CPC.\n- Competition.\n- Xu hướng.\n- CPC min/max.\n- Allintitle ước lượng.\n\n### 14.8. Xuất dữ liệu\n\nKeyword Research có thể hỗ trợ:\n\n- Copy dữ liệu.\n- Xuất dữ liệu.\n- Xuất Google Sheets.\n- Ẩn/hiện cột.\n- Gom nhóm keyword đã chọn.\n\n### 14.9. Lưu ý về dữ liệu keyword",
+          "embedded": false
+        },
+        {
+          "index": 55,
+          "text": "- Volume là dữ liệu tham khảo, có thể thay đổi theo nguồn dữ liệu và thời điểm.\n- Intent do hệ thống dự đoán, nên kiểm tra lại với SERP thực tế nếu làm chiến dịch quan trọng.\n- Competition không đồng nghĩa trực tiếp với độ khó SEO tuyệt đối.\n- Nên gom nhóm keyword trước khi giao cho content viết bài.\n\n---\n\n## 15. Tab Keyword Clustering `/keywords/tools/clustering`\n\n### 15.1. Mục đích\n\nKeyword Clustering dùng để gom từ khóa thành cụm chủ đề theo intent hoặc SERP overlap.\n\nCông cụ giúp trả lời:",
+          "embedded": false
+        },
+        {
+          "index": 56,
+          "text": "- Những keyword nào nên viết chung một bài?\n- Keyword nào là keyword chính?\n- Keyword nào là keyword phụ?\n- Cần bao nhiêu bài để phủ danh sách keyword?\n- Cụm nào ưu tiên viết trước?\n- Có thể gửi cụm nào sang Content AI Bulk?\n\n### 15.2. Khi nào dùng Clustering?\n\nDùng sau khi đã có danh sách keyword từ:\n\n- Keyword Research.\n- Google Search Console.\n- Ahrefs/Semrush/Keyword Planner.\n- File Excel của khách hàng.\n- Danh sách keyword tự nhập.\n\n### 15.3. Cách nhập dữ liệu\n\nNgười dùng có thể:",
+          "embedded": false
+        },
+        {
+          "index": 57,
+          "text": "- Dán danh sách từ khóa, mỗi dòng một keyword.\n- Upload Excel `.xlsx`.\n- Gửi keyword từ Keyword Research sang.\n\n### 15.4. Tùy chọn gom nhóm\n\nCác lựa chọn chính:\n\n- **Phân tích kết quả Google**: bật/tắt phân tích SERP.\n- **Độ chặt gom nhóm**:\n  - Vừa phải.\n  - Chặt.\n  - Rộng.\n- **Quốc gia**.\n- **Ngôn ngữ**.\n- **Thiết bị**: máy tính hoặc di động.\n- **URL/domain tùy chọn**.\n\n### 15.5. Gợi ý hiểu độ chặt",
+          "embedded": false
+        },
+        {
+          "index": 58,
+          "text": "- **Chặt**: chỉ gom các keyword rất giống intent/SERP. Ít keyword mỗi cụm hơn, ít rủi ro gom sai.\n- **Vừa phải**: cân bằng giữa độ chính xác và số lượng cụm.\n- **Rộng**: gom rộng hơn, phù hợp khi muốn xây content hub lớn nhưng cần kiểm tra lại thủ công.\n\n### 15.6. Cách chạy Keyword Clustering",
+          "embedded": false
+        },
+        {
+          "index": 59,
+          "text": "1. Vào **Keyword**.\n2. Chọn **Gom nhóm từ khóa**.\n3. Nhập tên dự án.\n4. Dán danh sách keyword hoặc upload Excel.\n5. Chọn phân tích Google nếu cần.\n6. Chọn độ chặt.\n7. Chọn quốc gia, ngôn ngữ, thiết bị.\n8. Nhập domain/URL nếu muốn phân tích theo website mục tiêu.\n9. Bấm **Chạy gom nhóm**.\n10. Xem tổng cụm, tổng từ khóa, tổng volume, số bài có thể tạo.\n11. Mở chi tiết từng cụm.\n12. Sửa brief nếu cần.\n13. Export Excel/Google Sheets hoặc gửi sang Content AI Bulk.\n\n### 15.7. Kết quả Clustering gồm gì?\n\nKết quả thường có:",
+          "embedded": false
+        },
+        {
+          "index": 60,
+          "text": "- Topic/cụm chủ đề.\n- Keyword chính.\n- Keyword phụ.\n- Volume.\n- Intent.\n- Loại bài.\n- Ưu tiên.\n- Matching point.\n- Bản đồ nội dung.\n- Brief nội dung.\n- Tiêu đề đề xuất.\n- Số từ mục tiêu.\n- Meta description.\n- Dàn ý.\n\n### 15.8. Gửi sang Content AI\n\nSau khi chọn cụm:\n\n1. Chọn cụm cần viết.\n2. Bấm **Gửi sang Content AI Bulk**.\n3. Kiểm tra map keyword → brief.\n4. Vào Content AI để viết hàng loạt.\n\n### 15.9. Lưu ý khi gom nhóm",
+          "embedded": false
+        },
+        {
+          "index": 61,
+          "text": "- Không phải mọi keyword cùng ngành đều nên viết chung một bài.\n- Nếu intent khác nhau, nên tách bài.\n- Nếu SERP top 10 trùng nhiều URL, có thể gom cùng cụm.\n- Nên kiểm tra cụm có volume cao trước.\n- Nên dùng keyword chính làm trọng tâm title/H1.\n- Keyword phụ dùng trong H2/H3 và nội dung.\n\n---\n\n## 16. Keyword — Theo dõi thứ hạng\n\n### 16.1. Mục đích\n\nTheo dõi thứ hạng dùng để theo dõi vị trí keyword theo thời gian.\n\nCó thể dùng để:\n\n- Theo dõi keyword chính của website.\n- Kiểm tra tăng/giảm thứ hạng.\n- So sánh trước và sau khi tối ưu content.\n- Báo cáo kết quả SEO cho khách hàng.",
+          "embedded": false
+        },
+        {
+          "index": 62,
+          "text": "### 16.2. Khi nào nên dùng?\n\nDùng sau khi website đã có bài viết hoặc landing page đang SEO.\n\nQuy trình gợi ý:\n\n1. Research keyword.\n2. Gom nhóm keyword.\n3. Viết/tối ưu content.\n4. Submit index nếu cần.\n5. Theo dõi thứ hạng định kỳ.\n\n---\n\n## 17. Tab SEO Score `/tool/seo-score`\n\n### 17.1. Mục đích\n\nSEO Score dùng để chấm điểm SEO cho một URL cụ thể.\n\nKhác với Technical quét toàn website, SEO Score tập trung phân tích một trang/bài viết/landing page.\n\n### 17.2. Khi nào dùng SEO Score?\n\nDùng khi:",
+          "embedded": false
+        },
+        {
+          "index": 63,
+          "text": "- Muốn chấm điểm một bài viết cụ thể.\n- Muốn biết URL đã tối ưu title/meta/heading/content chưa.\n- Muốn kiểm tra intent và độ phù hợp từ khóa.\n- Muốn sửa nhanh title/meta bằng AI.\n- Muốn đánh giá bài trước khi publish.\n- Muốn so sánh chất lượng SEO giữa nhiều URL.\n\n### 17.3. Trường nhập\n\nForm SEO Score gồm:\n\n- **URL cần chấm điểm**.\n- **Từ khóa chính**.\n- **Từ khóa phụ**.\n- **Loại trang**:\n  - Tự nhận diện.\n  - Homepage.\n  - Article / Blog.\n  - Category.\n  - Product.\n  - Landing page.\n  - Khác.\n- **Volume/tháng**.\n- **Thứ hạng hiện tại**.\n\n### 17.4. 10 nhóm chấm điểm SEO Score",
+          "embedded": false
+        },
+        {
+          "index": 64,
+          "text": "SEO Score chấm theo 10 nhóm, tổng 100 điểm:\n\n1. **Indexability** — khả năng index.\n2. **Title / Meta / Slug** — tiêu đề, mô tả, đường dẫn.\n3. **Heading** — H1/H2/H3 và cấu trúc heading.\n4. **Keyword / Semantic** — từ khóa chính, phụ, ngữ nghĩa.\n5. **Search Intent** — mức độ khớp intent người tìm kiếm.\n6. **Content Quality** — chất lượng, độ sâu, helpful content.\n7. **Links** — internal/external link.\n8. **Image SEO** — ảnh, alt text, kích thước.\n9. **Schema** — dữ liệu có cấu trúc.\n10. **UX / Mobile / Speed** — trải nghiệm, mobile, tốc độ.\n\n### 17.5. Cách chấm điểm một URL",
+          "embedded": false
+        },
+        {
+          "index": 65,
+          "text": "1. Vào tab **SEO Score**.\n2. Nhập URL cần chấm.\n3. Nhập từ khóa chính.\n4. Nhập từ khóa phụ nếu có.\n5. Chọn loại trang.\n6. Nhập volume/tháng hoặc thứ hạng hiện tại nếu muốn phân tích sâu hơn.\n7. Bấm **Chấm điểm**.\n8. Xem điểm tổng.\n9. Xem kết luận nhanh.\n10. Xem nhóm cần sửa trước.\n11. Mở checklist chi tiết.\n12. Dùng AI sửa nếu hệ thống hỗ trợ.\n\n### 17.6. Cách đọc SEO Score\n\nGợi ý:\n\n- **90–100**: tối ưu tốt.\n- **75–89**: ổn, nên tối ưu thêm vài điểm.\n- **50–74**: còn nhiều vấn đề, nên sửa trước khi đẩy SEO.\n- **0–49**: bài/trang yếu, cần tối ưu mạnh.\n\n### 17.7. Checklist SEO Score",
+          "embedded": false
+        },
+        {
+          "index": 66,
+          "text": "Checklist có thể gồm các cột:\n\n- Checklist.\n- Đánh giá.\n- Dẫn chứng.\n- Chi tiết.\n- Giải pháp.\n- Link tham khảo.\n- Hiện trạng.\n- Link triển khai.\n- Note.\n\n### 17.8. SEO Score khác gì Technical?\n\n**Technical**:\n\n- Quét toàn website hoặc nhiều URL.\n- Tập trung lỗi kỹ thuật, crawl, index, sitemap, robots, internal link, performance.\n- Phù hợp kiểm tra nền móng website.\n\n**SEO Score**:\n\n- Chấm một URL cụ thể.\n- Tập trung chất lượng on-page/content/intent/schema/UX của trang đó.\n- Phù hợp kiểm tra một bài viết, landing page hoặc trang dịch vụ.\n\n### 17.9. Câu trả lời chatbot mẫu",
+          "embedded": false
+        },
+        {
+          "index": 67,
+          "text": "**Người dùng hỏi:** Tôi muốn kiểm tra một bài viết đã chuẩn SEO chưa thì dùng gì?  \n**Chatbot trả lời:**  \nBạn dùng tab **SEO Score**. Nhập URL bài viết, từ khóa chính, từ khóa phụ và loại trang, sau đó bấm **Chấm điểm**. Hệ thống sẽ chấm theo 10 nhóm như indexability, title/meta, heading, intent, content, link, ảnh, schema và UX.\n\n---\n\n## 18. Tab Schema `/schema`\n\n### 18.1. Mục đích\n\nSchema Generator dùng để tạo dữ liệu có cấu trúc JSON-LD cho website.\n\nSchema giúp Google hiểu rõ hơn về:",
+          "embedded": false
+        },
+        {
+          "index": 68,
+          "text": "- Doanh nghiệp.\n- Bài viết.\n- Sản phẩm.\n- Website.\n- Người/tác giả.\n- Local Business.\n- Thông tin liên hệ.\n- SameAs social profiles.\n\n### 18.2. Các chế độ tạo Schema\n\nSchema có 2 chế độ:\n\n1. **Tạo từ form** — người dùng điền form, hệ thống tạo JSON-LD.\n2. **Từ URL / HTML** — hệ thống suy luận schema từ nội dung trang.\n\n### 18.3. Loại Schema hỗ trợ\n\nCác loại schema thường có:\n\n- Organization.\n- LocalBusiness.\n- Article.\n- Product.\n- WebSite.\n- Person.\n\n### 18.4. Cách tạo Schema từ form",
+          "embedded": false
+        },
+        {
+          "index": 69,
+          "text": "1. Vào tab **Schema**.\n2. Chọn loại schema.\n3. Điền các trường bắt buộc.\n4. Điền các trường khuyên dùng như mô tả, logo, email, điện thoại, địa chỉ, mạng xã hội.\n5. Bấm tạo schema.\n6. Copy JSON-LD.\n7. Dán vào phần `<head>` của website hoặc dùng plugin SEO hỗ trợ schema.\n\n### 18.5. Ví dụ trường Organization\n\nOrganization có thể gồm:\n\n- Tên tổ chức.\n- Mô tả.\n- Tên thay thế.\n- Website.\n- Logo URL.\n- Email.\n- Số điện thoại.\n- Địa chỉ.\n- ContactPoint.\n- SameAs mạng xã hội.\n\n### 18.6. Lưu ý khi dùng Schema",
+          "embedded": false
+        },
+        {
+          "index": 70,
+          "text": "- Không thêm thông tin sai sự thật vào schema.\n- Schema phải khớp nội dung thật trên trang.\n- Không dùng schema Product nếu trang không phải sản phẩm.\n- Không dùng Review/Rating giả.\n- Sau khi gắn schema, nên kiểm tra bằng Rich Results Test hoặc công cụ kiểm tra schema.\n\n---\n\n## 19. Tab Index Control `/index-control`\n\n### 19.1. Mục đích\n\nIndex Control dùng để kiểm tra index và gửi tín hiệu lập chỉ mục.\n\nGồm 2 chức năng chính:",
+          "embedded": false
+        },
+        {
+          "index": 71,
+          "text": "1. **Submit Indexing** — gửi URL để hệ thống submit tín hiệu indexing theo gói.\n2. **Check Index Free** — kiểm tra URL có index hay chưa, kết quả miễn phí chỉ mang tính tham khảo.\n\n### 19.2. Khi nào dùng Index Control?\n\nDùng khi:\n\n- Bài mới đăng chưa thấy index.\n- Muốn kiểm tra danh sách URL đã index hay chưa.\n- Muốn submit nhiều link sau khi publish.\n- Muốn kiểm tra link social/entity/web 2.0 có index không.\n- Muốn xuất danh sách link index/no index.\n\n### 19.3. Tổng quan Submit Indexing\n\nKhu vực tổng quan hiển thị:",
+          "embedded": false
+        },
+        {
+          "index": 72,
+          "text": "- Tổng link đã sử dụng trong tài khoản.\n- Link đã dùng trong tháng.\n- Link còn có thể submit theo gói.\n- 5 URL submit gần nhất.\n\n### 19.4. Cách tạo dự án Submit Indexing\n\n1. Vào **Index Control**.\n2. Chọn **Submit Indexing**.\n3. Nhập tên dự án rõ ràng.\n4. Upload file `.txt` chứa link hoặc dán URL thủ công.\n5. Mỗi dòng một URL.\n6. Hệ thống tự loại dòng trống và URL trùng.\n7. Kiểm tra số URL hợp lệ và số credit/link sẽ dùng.\n8. Bấm **Submit Indexing**.\n9. Xem kết quả trong tab kết quả/dự án.\n\n### 19.5. Bảng kết quả Submit\n\nBảng kết quả có thể gồm:",
+          "embedded": false
+        },
+        {
+          "index": 73,
+          "text": "- ID.\n- URL.\n- Submitted.\n- Index.\n- Mã phản hồi.\n- Khả năng index.\n- Redirect URL.\n- Broken.\n\n### 19.6. Check Index Free\n\nCheck Index Free dùng để kiểm tra URL có index hay chưa.\n\nLưu ý quan trọng:\n\n- Kết quả miễn phí chỉ mang tính tham khảo.\n- Nếu website đã kết nối Google Search Console, độ chính xác sẽ cao hơn.\n- Google có thể thay đổi trạng thái index theo thời gian.\n- Một số nền tảng social có thể chặn bot hoặc không cho index đầy đủ.\n\n### 19.7. Cách Check Index Free",
+          "embedded": false
+        },
+        {
+          "index": 74,
+          "text": "1. Vào **Index Control**.\n2. Chọn **Check Index Free**.\n3. Nhập tên dự án.\n4. Upload file `.txt` hoặc dán URL.\n5. Mỗi dòng một URL.\n6. Bấm check index.\n7. Xem bảng kết quả.\n8. Có thể copy cột index, export kết quả hoặc lọc Index/No Index.\n\n### 19.8. Bảng kết quả Check Index\n\nBảng kết quả có thể gồm:\n\n- STT.\n- Link / URL.\n- Index.\n- Mã phản hồi.\n- Khả năng index.\n- Tiêu đề trang.\n- Nguyên nhân / Gợi ý.\n\n### 19.9. Ý nghĩa Index / No Index",
+          "embedded": false
+        },
+        {
+          "index": 75,
+          "text": "- **Index**: URL có dấu hiệu đã được Google lập chỉ mục.\n- **No Index**: URL chưa thấy index hoặc hệ thống chưa xác minh được.\n- **Khả năng index thấp**: URL có thể bị chặn bởi robots, noindex, canonical sai, redirect, lỗi server hoặc nội dung không đủ chất lượng.\n\n### 19.10. Lưu ý về Submit Indexing\n\n- Submit không cam kết Google sẽ index ngay.\n- Submit chỉ gửi tín hiệu/crawl request.\n- Google vẫn quyết định index dựa trên chất lượng, crawlability, canonical, robots, nội dung và độ uy tín website.\n- Nên sửa lỗi technical trước khi submit hàng loạt.\n- Nên ưu tiên submit URL quan trọng.",
+          "embedded": false
+        },
+        {
+          "index": 76,
+          "text": "### 19.11. Câu trả lời chatbot mẫu\n\n**Người dùng hỏi:** SEOAuto có kiểm tra link đã index chưa không?  \n**Chatbot trả lời:**  \nCó. Bạn vào tab **Index Control**, chọn **Check Index Free**, dán danh sách URL mỗi dòng một link rồi chạy kiểm tra. Kết quả sẽ có cột Index/No Index, mã phản hồi, khả năng index và nguyên nhân/gợi ý. Nếu website có kết nối GSC thì độ chính xác sẽ cao hơn.\n\n---\n\n## 20. Tab Google Map SEO `/google-map-seo`\n\n### 20.1. Mục đích\n\nGoogle Map SEO dùng để tối ưu Google Business Profile và Local SEO.\n\nPhù hợp cho:",
+          "embedded": false
+        },
+        {
+          "index": 77,
+          "text": "- Spa.\n- Nha khoa.\n- Gara ô tô.\n- Trung tâm đào tạo.\n- Dịch vụ sửa chữa.\n- Nhà hàng/quán cà phê.\n- Doanh nghiệp địa phương.\n\n### 20.2. Chức năng chính\n\nGoogle Map SEO có các tab/khu vực:\n\n- **Tổng quan**.\n- **Check Map**.\n- **Tối ưu hồ sơ**.\n- **Review**.\n- **Bài đăng**.\n- **Ảnh & Media**.\n- **Xác minh Map**.\n- **Đối thủ**.\n- **Báo cáo**.\n- **Lead Scanner**.\n\n### 20.3. Cách dùng Google Map SEO",
+          "embedded": false
+        },
+        {
+          "index": 78,
+          "text": "1. Vào tab **Google Map**.\n2. Bấm **Kết nối Google Business** nếu muốn đồng bộ dữ liệu thật.\n3. Chọn địa điểm/doanh nghiệp.\n4. Xem tổng quan hồ sơ.\n5. Kiểm tra thông tin NAP: tên, địa chỉ, số điện thoại.\n6. Kiểm tra danh mục, mô tả, giờ mở cửa, website, ảnh.\n7. Theo dõi review và phản hồi review.\n8. Tạo bài đăng Google Business Profile nếu hệ thống hỗ trợ.\n9. Kiểm tra đối thủ local.\n10. Xuất báo cáo local SEO nếu cần.\n\n### 20.4. Lưu ý",
+          "embedded": false
+        },
+        {
+          "index": 79,
+          "text": "- Nếu chưa kết nối Google Business Profile, một số dữ liệu có thể chỉ là minh họa.\n- Google Map SEO cần thông tin doanh nghiệp chính xác.\n- Không nên tạo review giả.\n- Nên đăng ảnh thật, bài viết thật và phản hồi review tự nhiên.\n\n---\n\n## 21. Tab Cài đặt `/settings`\n\n### 21.1. Mục đích\n\nTab Cài đặt dùng để quản lý cấu hình tài khoản, Knowledge Base, sơ đồ tri thức chatbot, kết nối xuất bản và hệ thống.\n\n### 21.2. Các mục chính\n\nCài đặt gồm:",
+          "embedded": false
+        },
+        {
+          "index": 80,
+          "text": "1. **Tài khoản**.\n2. **Giới thiệu & Hoa hồng**.\n3. **Nhà cung cấp AI**.\n4. **AI Knowledge Base**.\n5. **Sơ đồ tri thức Chatbot**.\n6. **Xuất bản**.\n7. **Google Search Console PRO**.\n8. **Hệ thống**.\n\n### 21.3. Tài khoản\n\nKhu vực Tài khoản hiển thị:\n\n- Thông tin account.\n- Gói subscription hiện tại.\n- Ngày hết hạn.\n- Usage credit.\n- License.\n- Quota theo tính năng.\n- Nút nâng cấp gói.\n\nNếu chưa đăng nhập, hệ thống sẽ yêu cầu đăng nhập trước để xem đầy đủ.\n\n### 21.4. Nhà cung cấp AI\n\nĐịnh hướng hiện tại:",
+          "embedded": false
+        },
+        {
+          "index": 81,
+          "text": "- User thường không cần tự thêm API key riêng.\n- API AI do hệ thống/admin cấu hình.\n- Nếu khu vực Provider Mode còn hiển thị, nên xem đây là phần cấu hình hệ thống/admin.\n\nChatbot không nên hướng dẫn user thường tự nhập API key trừ khi admin bật rõ ràng tính năng đó cho user.\n\n### 21.5. AI Knowledge Base cho Content AI\n\nAI Knowledge Base dùng cho RAG khi viết bài.\n\nRAG là viết tắt của Retrieval-Augmented Generation, nghĩa là AI tra cứu dữ liệu nội bộ trước khi viết.\n\nLợi ích:",
+          "embedded": false
+        },
+        {
+          "index": 82,
+          "text": "- Bài viết chính xác hơn nhờ dữ liệu thực tế của doanh nghiệp.\n- Giảm ảo giác AI.\n- Thống nhất thông tin sản phẩm, giá, chính sách.\n- Hỗ trợ nhiều định dạng nội dung.\n\nDữ liệu nên import:\n\n- Thông tin sản phẩm/dịch vụ.\n- Báo cáo/nghiên cứu ngành.\n- FAQ.\n- Chính sách công ty.\n- Bài viết tham khảo chất lượng.\n- Dữ liệu kỹ thuật/thông số.\n- Nội dung đào tạo nội bộ.\n\n### 21.6. Cách tạo Knowledge Base",
+          "embedded": false
+        },
+        {
+          "index": 83,
+          "text": "1. Vào **Cài đặt**.\n2. Chọn **AI Knowledge Base**.\n3. Bấm **Tạo KB**.\n4. Nhập tên, thương hiệu, website.\n5. Lưu KB.\n6. Import tài liệu.\n7. Hệ thống xử lý chunking và embedding.\n8. Khi viết bài, AI có thể tra cứu KB để lấy thông tin chính xác.\n\n### 21.7. Cách import tài liệu vào KB\n\nCó thể import:\n\n- Dán văn bản trực tiếp.\n- Upload file `.txt`, `.md`, `.html`.\n- Import CSV.\n\nGợi ý:\n\n- Tài liệu nên có tiêu đề rõ.\n- Nội dung nên chia mục, dùng heading.\n- Không đưa dữ liệu sai hoặc đã hết hạn.\n- Nên cập nhật KB khi giá/chính sách/dịch vụ thay đổi.\n\n### 21.8. Sơ đồ tri thức Chatbot",
+          "embedded": false
+        },
+        {
+          "index": 84,
+          "text": "Sơ đồ tri thức Chatbot dùng chung với tab Chatbot CSKH.\n\nDữ liệu lưu trên server và đồng bộ theo từng chatbot.\n\nNode kiến thức có thể gồm:\n\n- Dịch vụ.\n- Bảng giá.\n- Chính sách.\n- FAQ.\n- Bảo hành.\n- Liên hệ.\n\nCách dùng:\n\n1. Chọn chatbot.\n2. Thêm node kiến thức.\n3. Chọn loại/nhóm/node cha.\n4. Nhập tiêu đề.\n5. Nhập nội dung.\n6. Thêm tag.\n7. Lưu.\n8. Kiểm tra cây kiến thức.\n\n### 21.9. Xuất bản / Publishing platforms\n\nKhu vực Xuất bản quản lý các nền tảng để SEOAuto đăng bài tự động.\n\nCác nền tảng:\n\n- WordPress.\n- Shopify.\n- Haravan.\n- Webcake.\n\n### 21.10. Kết nối WordPress",
+          "embedded": false
+        },
+        {
+          "index": 85,
+          "text": "Để đăng bài lên WordPress, người dùng cần:\n\n- Tên gợi nhớ.\n- Website URL.\n- Tên đăng nhập WordPress.\n- Application Password.\n- SEO plugin: Auto detect, RankMath, Yoast hoặc None.\n- Trạng thái mặc định: draft hoặc publish.\n\nCách lấy Application Password WordPress:\n\n1. Vào WordPress Admin.\n2. Mở Users → Profile.\n3. Tìm mục Application Passwords.\n4. Tạo mật khẩu ứng dụng mới.\n5. Copy mật khẩu.\n6. Dán vào SEOAuto.\n7. Bấm Test connection.\n8. Bấm Sync Blogs nếu cần đồng bộ bài viết.\n\n### 21.11. SEOAuto SEO Helper Plugin\n\nSEOAuto có thể có plugin hỗ trợ WordPress.\n\nPlugin giúp:",
+          "embedded": false
+        },
+        {
+          "index": 86,
+          "text": "- Tối ưu OpenGraph.\n- Tối ưu Schema.\n- Đồng bộ RankMath/Yoast.\n- Hỗ trợ bài đăng từ SEOAuto.\n\nCách cài:\n\n1. Tải file `seoauto-seo-helper.zip`.\n2. Vào WordPress Admin → Plugins → Add New → Upload Plugin.\n3. Chọn file zip.\n4. Bấm Install Now.\n5. Activate.\n\n### 21.12. Kết nối Shopify / Haravan / Webcake\n\nCác nền tảng này cần token/API riêng của nền tảng để SEOAuto có thể đăng bài.\n\nLưu ý:",
+          "embedded": false
+        },
+        {
+          "index": 87,
+          "text": "- Token của Shopify/Haravan/Webcake là token xuất bản website, khác với API AI.\n- User có thể cần nhập token nền tảng xuất bản nếu muốn SEOAuto đăng bài lên store/website đó.\n- Nếu không dùng Shopify/Haravan/Webcake, có thể bỏ qua.\n\n### 21.13. Google Search Console PRO\n\nMục GSC PRO trong Cài đặt hướng người dùng kết nối GSC tại tab Technical.\n\nCách làm:\n\n1. Vào tab **Technical**.\n2. Bấm **Kết nối Google (GSC + GA)**.\n3. Chọn property.\n4. Bật dữ liệu GSC trong quá trình audit.\n\n### 21.14. System\n\nSystem có thể gồm:",
+          "embedded": false
+        },
+        {
+          "index": 88,
+          "text": "- Giao diện: Light, Dark, Automatic.\n- Ngôn ngữ: Tiếng Việt, English.\n- Start with operating system.\n- Processing: batch size, max retries, stuck timeout.\n- API health.\n\n---\n\n## 22. Tab Tài khoản & Thanh toán `/account-billing`\n\n### 22.1. Mục đích\n\nTab Tài khoản & Thanh toán dùng để quản lý:\n\n- Hồ sơ tài khoản.\n- Gói dịch vụ.\n- Credit.\n- Quota.\n- Hóa đơn.\n- Thanh toán.\n- Lịch sử SePay.\n- Affiliate/hoa hồng.\n\n### 22.2. Các tab con\n\nGồm:\n\n1. **Tổng quan**.\n2. **Gói dịch vụ**.\n3. **Hóa đơn**.\n4. **Thanh toán**.\n5. **Giới thiệu & Hoa hồng**.\n\n### 22.3. Gói & credit hiện tại\n\nKhu vực này hiển thị:",
+          "embedded": false
+        },
+        {
+          "index": 89,
+          "text": "- Gói hiện tại.\n- Credit còn lại.\n- Ví credit.\n- Credit sắp hết hạn.\n- Module dùng nhiều credit nhất.\n- Quota đã dùng theo module.\n- Lịch sử trừ credit.\n\n### 22.4. Gói dịch vụ\n\nSEOAuto có các gói SaaS chính:\n\n- Starter / Basic.\n- Pro.\n- Agency.\n- Business.\n\nChu kỳ có thể gồm:\n\n- Tháng.\n- 6 tháng.\n- Năm.\n\nChính sách gợi ý:\n\n- Trả 5 tháng dùng 6 tháng, tặng thêm 1 tháng credit.\n- Trả 12 tháng dùng 14 tháng, tặng thêm 2 tháng credit.\n\nLưu ý cho chatbot:",
+          "embedded": false
+        },
+        {
+          "index": 90,
+          "text": "- Nếu giá trong hệ thống thay đổi, hãy ưu tiên bảng giá đang hiển thị trong tab Tài khoản & Thanh toán.\n- Không tự bịa giá nếu KB không có giá mới nhất.\n- Nếu người dùng hỏi giá chính xác, hướng dẫn họ mở **Tài khoản & Thanh toán → Gói dịch vụ** hoặc **Bảng giá**.\n\n### 22.5. Mua thêm credit\n\nDùng khi:\n\n- Người dùng hết credit nhưng chưa muốn nâng cấp gói.\n- Người dùng cần chạy thêm tác vụ SEO.\n- Người dùng cần submit index, viết thêm bài, nghiên cứu thêm keyword.\n\nCách mua:",
+          "embedded": false
+        },
+        {
+          "index": 91,
+          "text": "1. Vào **Tài khoản & Thanh toán**.\n2. Chọn **Gói dịch vụ**.\n3. Chọn **Gói mua thêm credit**.\n4. Chọn gói phù hợp.\n5. Tạo đơn thanh toán.\n6. Chuyển khoản đúng nội dung.\n7. Chờ hệ thống xác nhận.\n\n### 22.6. Thanh toán SePay\n\nLịch sử thanh toán SePay hiển thị:\n\n- Mã đơn.\n- Sản phẩm.\n- Số tiền.\n- Trạng thái.\n- Ngày.\n\nLưu ý:\n\n- Chuyển khoản đúng nội dung là rất quan trọng.\n- Sai nội dung chuyển khoản có thể làm đơn không kích hoạt tự động.\n- Khi đã thanh toán và hệ thống nhận diện đúng, gói/credit sẽ được kích hoạt.\n- Nếu đơn hết hạn, người dùng cần tạo đơn mới.\n\n### 22.7. Affiliate 30%",
+          "embedded": false
+        },
+        {
+          "index": 92,
+          "text": "SEOAuto có chương trình Affiliate:\n\n- Hoa hồng 30% khi giới thiệu khách mua gói SEOAuto.\n- Cookie theo dõi 60 ngày.\n- Người dùng có link giới thiệu cá nhân.\n- Có thể tạo link theo nguồn/kênh/chiến dịch.\n- Theo dõi khách đã giới thiệu.\n- Theo dõi hoa hồng.\n- Yêu cầu rút tiền về tài khoản ngân hàng.\n\n### 22.8. Cách dùng Affiliate",
+          "embedded": false
+        },
+        {
+          "index": 93,
+          "text": "1. Vào **Tài khoản & Thanh toán**.\n2. Chọn **Giới thiệu & Hoa hồng**.\n3. Đăng ký Affiliate nếu chưa đăng ký.\n4. Copy link giới thiệu.\n5. Chia sẻ cho khách hàng/bạn bè.\n6. Khi khách đăng ký và thanh toán, hệ thống ghi nhận hoa hồng.\n7. Khi đủ điều kiện, gửi yêu cầu rút tiền.\n\n### 22.9. Lưu ý chống gian lận Affiliate\n\nCác hành vi nên bị hạn chế:\n\n- Tự mua qua link của mình.\n- Tạo nhiều tài khoản giả.\n- Spam link.\n- Chạy quảng cáo brand keyword khi chưa được phép.\n- Lạm dụng coupon site.\n- Tạo đơn hoàn tiền cao bất thường.\n\n---\n\n## 23. Chatbot AI SEOAuto Assistant\n\n### 23.1. Mục đích",
+          "embedded": false
+        },
+        {
+          "index": 94,
+          "text": "Chatbot AI SEOAuto Assistant hỗ trợ người dùng hỏi đáp nhanh về SEOAuto và chạy workflow AI nếu đã đăng nhập.\n\nNếu chưa đăng nhập:\n\n- Tab Chat vẫn có thể dùng để hỏi FAQ.\n- Workflow AI cần đăng nhập.\n\n### 23.2. Chatbot nên hỗ trợ gì?\n\nChatbot nên trả lời:",
+          "embedded": false
+        },
+        {
+          "index": 95,
+          "text": "- SEOAuto là gì?\n- Dùng tab nào cho nhu cầu nào?\n- Cách đăng ký/đăng nhập.\n- Cách kích hoạt trial.\n- Cách mua credit/nâng cấp gói.\n- Cách quét Technical.\n- Cách viết bài SEO.\n- Cách nghiên cứu từ khóa.\n- Cách gom nhóm từ khóa.\n- Cách chấm SEO Score.\n- Cách kiểm tra index.\n- Cách kết nối WordPress.\n- Cách import Knowledge Base.\n- Cách dùng Affiliate.\n- Giải thích lỗi/quota/thanh toán.\n\n### 23.3. Chatbot không nên làm gì?\n\nChatbot không nên:",
+          "embedded": false
+        },
+        {
+          "index": 96,
+          "text": "- Bịa giá nếu không có dữ liệu chính xác.\n- Cam kết Google chắc chắn index.\n- Cam kết bài AI chắc chắn lên top.\n- Hướng dẫn user thường thêm API AI riêng nếu chính sách là dùng API hệ thống.\n- Trả lời sai rằng Trial là gói trả phí.\n- Bỏ qua yêu cầu đăng nhập/quota/credit.\n- Tự ý yêu cầu thông tin nhạy cảm không cần thiết.\n\n---\n\n# PHẦN B — HƯỚNG DẪN CHỌN TAB THEO NHU CẦU\n\n---\n\n## 24. Người dùng hỏi “Tôi nên bắt đầu từ đâu?”\n\nTrả lời gợi ý:",
+          "embedded": false
+        },
+        {
+          "index": 97,
+          "text": "1. Nếu bạn mới dùng SEOAuto, hãy bắt đầu ở **Technical** để quét website.\n2. Sau đó vào **Dashboard** để xem tổng quan lỗi.\n3. Dùng **Keyword Research** để tìm từ khóa.\n4. Dùng **Keyword Clustering** để gom từ khóa thành cụm bài viết.\n5. Dùng **Content AI** để viết bài mới.\n6. Dùng **SEO Score** để chấm điểm URL trước/sau khi đăng.\n7. Dùng **Index Control** để kiểm tra index và submit URL quan trọng.\n8. Kết nối **Google Search Console** và **WordPress** trong Cài đặt/Technical để dữ liệu chính xác hơn.\n\n---\n\n## 25. Bảng chọn nhanh tab phù hợp",
+          "embedded": false
+        },
+        {
+          "index": 98,
+          "text": "| Nhu cầu của người dùng | Tab nên dùng |\n|---|---|\n| Kiểm tra tổng thể website | Technical |\n| Xem tổng quan SEO, gói, credit, lỗi ưu tiên | Dashboard |\n| Viết bài SEO mới | Content AI → Viết bài SEO |\n| Viết nhiều bài từ file keyword | Content AI → Viết hàng loạt |\n| Tối ưu bài cũ trên WordPress | Content AI → Auto Update |\n| Tìm từ khóa mới | Keyword → Nghiên cứu từ khóa |\n| Gom keyword thành nhóm bài viết | Keyword → Gom nhóm từ khóa |\n| Theo dõi vị trí keyword | Keyword → Theo dõi thứ hạng |\n| Chấm điểm một URL cụ thể | SEO Score |\n| Tạo schema JSON-LD | Schema |\n| Kiểm tra URL đã index c",
+          "embedded": false
+        },
+        {
+          "index": 99,
+          "text": "L cụ thể | SEO Score |\n| Tạo schema JSON-LD | Schema |\n| Kiểm tra URL đã index chưa | Index Control → Check Index Free |\n| Gửi URL để submit indexing | Index Control → Submit Indexing |\n| Tối ưu Google Business Profile | Google Map |\n| Kết nối WordPress/KB/GSC/cấu hình | Cài đặt |\n| Mua credit/nâng cấp/thanh toán/affiliate | Tài khoản & Thanh toán |",
+          "embedded": false
+        },
+        {
+          "index": 100,
+          "text": "---\n\n## 26. Luồng SEO chuẩn gợi ý trong SEOAuto\n\n### 26.1. Luồng cho website mới\n\n1. Vào **Technical** quét toàn site.\n2. Sửa lỗi index/crawl/sitemap/robots/canonical trước.\n3. Vào **Keyword Research** tìm bộ từ khóa.\n4. Vào **Keyword Clustering** gom keyword thành cụm.\n5. Chọn cụm ưu tiên cao.\n6. Gửi cụm sang **Content AI Bulk**.\n7. Viết bài SEO.\n8. Kiểm tra từng bài bằng **SEO Score**.\n9. Publish lên WordPress.\n10. Dùng **Index Control** kiểm tra/submit URL quan trọng.\n11. Theo dõi hiệu quả qua **GSC** và Dashboard.\n\n### 26.2. Luồng cho website đã có nhiều bài cũ",
+          "embedded": false
+        },
+        {
+          "index": 101,
+          "text": "1. Kết nối WordPress ở **Cài đặt → Xuất bản**.\n2. Vào **Content AI → Auto Update**.\n3. Quét bài viết website.\n4. Lọc bài có điểm SEO 0–20, 20–50, 50–80.\n5. Ưu tiên sửa bài có traffic/impression hoặc keyword quan trọng.\n6. Dùng AI đề xuất chỉnh sửa SEO.\n7. Xem preview và backup.\n8. Lưu nháp hoặc publish.\n9. Check lại bằng SEO Score.\n10. Submit lại URL nếu cần.\n\n### 26.3. Luồng cho SEO Local / Google Map",
+          "embedded": false
+        },
+        {
+          "index": 102,
+          "text": "1. Vào **Google Map**.\n2. Kết nối Google Business Profile.\n3. Kiểm tra thông tin doanh nghiệp.\n4. Tối ưu tên, danh mục, mô tả, giờ mở cửa, ảnh.\n5. Theo dõi review.\n6. Đăng bài GBP định kỳ.\n7. Theo dõi đối thủ local.\n8. Viết bài local SEO bằng Content AI.\n9. Chấm URL bằng SEO Score.\n10. Kiểm tra index bằng Index Control.\n\n---\n\n# PHẦN C — GIẢI THÍCH LỖI / THÔNG BÁO THƯỜNG GẶP\n\n---\n\n## 27. “Vui lòng đăng nhập để chạy workflow AI”\n\nÝ nghĩa:\n\n- Người dùng chưa đăng nhập.\n- Tab Chat FAQ có thể vẫn dùng được.\n- Các workflow AI như viết bài, SEO Score bằng AI, submit/tác vụ nâng cao cần đăng nhập.",
+          "embedded": false
+        },
+        {
+          "index": 103,
+          "text": "Cách xử lý:\n\n1. Bấm Đăng nhập.\n2. Nhập email/mật khẩu hoặc đăng nhập Google.\n3. Sau khi đăng nhập, thử chạy lại workflow.\n\n---\n\n## 28. “Đã hết quota — vui lòng nâng cấp gói”\n\nÝ nghĩa:\n\n- Tài khoản đã dùng hết hạn mức của gói hiện tại.\n- Hoặc Trial đã hết quota/ngày.\n- Hoặc tác vụ cần quota cao hơn.\n\nCách xử lý:\n\n1. Vào **Tài khoản & Thanh toán**.\n2. Kiểm tra gói hiện tại và quota.\n3. Mua thêm credit nếu chỉ thiếu credit.\n4. Nâng cấp gói nếu cần mở hạn mức/tính năng cao hơn.\n5. Nếu đang dùng Trial, cân nhắc nâng cấp gói trả phí.\n\n---\n\n## 29. “Credit còn lại không đủ”\n\nÝ nghĩa:",
+          "embedded": false
+        },
+        {
+          "index": 104,
+          "text": "- Tác vụ cần trừ credit nhưng ví credit không đủ.\n\nCách xử lý:\n\n1. Vào **Tài khoản & Thanh toán**.\n2. Bấm **Mua credit**.\n3. Chọn gói credit.\n4. Thanh toán đúng nội dung chuyển khoản.\n5. Chạy lại tác vụ sau khi credit được cộng.\n\n---\n\n## 30. “Sai nội dung chuyển khoản có thể chậm xác nhận”\n\nÝ nghĩa:\n\n- Hệ thống thanh toán cần đúng nội dung CK để tự động nhận diện đơn.\n- Nếu chuyển sai nội dung, đơn có thể không kích hoạt tự động.\n\nCách xử lý:\n\n- Kiểm tra lại mã/nội dung chuyển khoản.\n- Nếu đã chuyển sai, liên hệ hỗ trợ/admin để đối soát.\n- Lần sau tạo đơn mới và copy đúng nội dung CK.\n\n---",
+          "embedded": false
+        },
+        {
+          "index": 105,
+          "text": "## 31. “Không quét được Technical”\n\nNguyên nhân có thể:\n\n- URL nhập sai.\n- Website chặn bot/crawler.\n- Website lỗi server.\n- Robots.txt chặn.\n- SSL lỗi.\n- Timeout.\n- Sitemap không truy cập được.\n\nCách xử lý:\n\n1. Kiểm tra URL có mở được trên trình duyệt không.\n2. Thử nhập domain chuẩn `https://domain.com/`.\n3. Giảm số trang tối đa.\n4. Kiểm tra robots.txt.\n5. Bật/tắt tùy chọn nâng cao để thử lại.\n6. Nếu có GSC, kết nối GSC để đối chiếu dữ liệu.\n\n---\n\n## 32. “Check Index Free không chính xác”\n\nGiải thích:",
+          "embedded": false
+        },
+        {
+          "index": 106,
+          "text": "- Check Index Free chỉ mang tính tham khảo.\n- Google thay đổi trạng thái index theo thời gian.\n- Một số URL social/entity/web 2.0 có thể chặn kiểm tra.\n- Kết quả sẽ đáng tin hơn nếu website có kết nối Google Search Console.\n\nCách xử lý:\n\n- Kết nối GSC nếu đó là website của bạn.\n- Kiểm tra lại sau một khoảng thời gian.\n- Đảm bảo URL không bị noindex/robots/canonical sai.\n- Dùng Technical để kiểm tra khả năng index.\n\n---\n\n## 33. “Không thấy bài WordPress trong Auto Update”\n\nNguyên nhân có thể:",
+          "embedded": false
+        },
+        {
+          "index": 107,
+          "text": "- Chưa kết nối WordPress.\n- Sai URL WordPress.\n- Sai username.\n- Sai Application Password.\n- Chưa bấm Sync Blogs/Đồng bộ bài viết.\n- Bộ lọc danh mục/trạng thái đang lọc quá hẹp.\n- Website chặn REST API.\n\nCách xử lý:\n\n1. Vào **Cài đặt → Xuất bản**.\n2. Kiểm tra kết nối WordPress.\n3. Bấm Test connection.\n4. Bấm Sync Blogs.\n5. Quay lại Auto Update.\n6. Bấm tải danh mục và quét lại bài viết.\n7. Xóa bớt bộ lọc nếu không thấy bài.\n\n---\n\n## 34. “AI viết bài ngắn hơn số từ yêu cầu”\n\nCách giải thích:",
+          "embedded": false
+        },
+        {
+          "index": 108,
+          "text": "- AI có thể viết lệch so với số từ mục tiêu.\n- SEOAuto đặt mục tiêu sai lệch tối đa ±10%.\n- Nếu thấp hơn quá nhiều, nên chạy bổ sung hoặc yêu cầu AI mở rộng bài.\n\nCách xử lý:\n\n1. Kiểm tra thống kê số từ trong Editor.\n2. Nếu thiếu nhiều, yêu cầu AI viết bổ sung các H2/H3 còn thiếu.\n3. Dùng nút viết thêm heading mới nếu ở Auto Update.\n4. Kiểm tra lại sau khi bổ sung.\n\n---\n\n## 35. “Không publish được bài”\n\nNguyên nhân có thể:",
+          "embedded": false
+        },
+        {
+          "index": 109,
+          "text": "- Chưa kết nối WordPress.\n- Thiếu danh mục.\n- Thiếu title/meta/content.\n- Thiếu ảnh nếu hệ thống yêu cầu ảnh.\n- SEO Core chưa đạt gate publish.\n- WordPress REST API lỗi.\n- Application Password sai/hết hiệu lực.\n\nCách xử lý:\n\n1. Kiểm tra kết nối WordPress.\n2. Chọn đúng site và category.\n3. Kiểm tra title/meta/content.\n4. Chèn ảnh nếu bắt buộc.\n5. Lưu nháp trước nếu publish live bị chặn.\n6. Kiểm tra log publish.\n\n---\n\n## 36. “User A thấy dữ liệu User B”\n\nĐây là lỗi nghiêm trọng về phân quyền dữ liệu.\n\nChatbot nên trả lời:",
+          "embedded": false
+        },
+        {
+          "index": 110,
+          "text": "- Mỗi user chỉ được thấy dữ liệu của chính mình.\n- Nếu bạn thấy dữ liệu không thuộc tài khoản của bạn, hãy ngừng thao tác và báo ngay cho hỗ trợ/admin.\n- Không chia sẻ/sửa/xóa dữ liệu đó.\n\nHệ thống cần đảm bảo mọi truy vấn dữ liệu đều lọc theo `user_id` và/hoặc `tenant_id`.\n\n---\n\n# PHẦN D — CÂU HỎI THƯỜNG GẶP CHO CHATBOT\n\n---\n\n## 37. SEOAuto có phải tool SEO tự động không?\n\nCó. SEOAuto là công cụ SEO tự động trên nền web, hỗ trợ audit technical, nghiên cứu từ khóa, gom nhóm từ khóa, viết bài AI, tối ưu content, kiểm tra index, tạo schema, Google Map SEO và quản lý báo cáo.\n\n---",
+          "embedded": false
+        },
+        {
+          "index": 111,
+          "text": "## 38. SEOAuto khác gì so với ChatGPT thông thường?\n\nChatGPT thông thường chủ yếu trả lời hoặc viết nội dung theo prompt.  \nSEOAuto có workflow SEO chuyên dụng:\n\n- Có form nhập URL/từ khóa.\n- Có audit technical.\n- Có keyword research.\n- Có clustering.\n- Có SEO Score.\n- Có publish WordPress.\n- Có Auto Update bài cũ.\n- Có kiểm tra index.\n- Có quản lý credit/quota.\n- Có báo cáo và lịch sử dự án.\n\n---\n\n## 39. SEOAuto có viết bài SEO không?",
+          "embedded": false
+        },
+        {
+          "index": 112,
+          "text": "Có. Vào **Content AI → Viết bài SEO**, nhập từ khóa chính, chọn số từ, target website, title/meta/outline nếu có rồi bấm **Tạo content**. Sau đó có thể chèn internal link, ảnh và publish lên WordPress.\n\n---\n\n## 40. SEOAuto có viết hàng loạt không?\n\nCó. Vào **Content AI → Viết hàng loạt**, upload file `.xlsx`, `.csv`, `.txt` hoặc dán danh sách keyword. Sau đó cấu hình bài viết, bấm bắt đầu viết và quản lý kết quả trong Publish Center.\n\n---\n\n## 41. SEOAuto có tối ưu bài cũ không?",
+          "embedded": false
+        },
+        {
+          "index": 113,
+          "text": "Có. Dùng **Content AI → Auto Update**. Kết nối WordPress, quét bài viết, lọc bài có điểm SEO thấp, chọn bài cần sửa, để AI đề xuất tối ưu, xem preview/backup rồi lưu nháp hoặc publish.\n\n---\n\n## 42. SEOAuto có nghiên cứu từ khóa không?\n\nCó. Dùng **Keyword → Nghiên cứu từ khóa**. Nhập seed keyword, chọn Google/YouTube/Bing, quốc gia, ngôn ngữ, thiết bị rồi bấm tìm kiếm. Kết quả có volume, CPC, competition, intent, xu hướng và export dữ liệu.\n\n---\n\n## 43. SEOAuto có gom nhóm từ khóa không?",
+          "embedded": false
+        },
+        {
+          "index": 114,
+          "text": "Có. Dùng **Keyword → Gom nhóm từ khóa**. Dán danh sách keyword hoặc upload Excel, chọn độ chặt, quốc gia, ngôn ngữ, thiết bị rồi chạy gom nhóm. Kết quả có cụm chủ đề, keyword chính, volume, intent, brief và có thể gửi sang Content AI Bulk.\n\n---\n\n## 44. SEOAuto có kiểm tra website bị lỗi index không?\n\nCó. Dùng **Technical** để kiểm tra lỗi index/crawl/noindex/canonical/robots/sitemap. Nếu muốn kiểm tra danh sách URL đã index chưa, dùng **Index Control → Check Index Free**.\n\n---\n\n## 45. SEOAuto có submit index không?",
+          "embedded": false
+        },
+        {
+          "index": 115,
+          "text": "Có. Dùng **Index Control → Submit Indexing**. Tạo dự án, dán URL mỗi dòng một link hoặc upload file `.txt`, sau đó submit theo hạn mức gói. Lưu ý submit không cam kết Google index ngay, Google vẫn tự quyết định dựa trên chất lượng và khả năng crawl/index.\n\n---\n\n## 46. SEOAuto có tạo schema không?\n\nCó. Dùng tab **Schema** để tạo JSON-LD từ form hoặc từ URL/HTML. Hỗ trợ các loại như Organization, LocalBusiness, Article, Product, WebSite, Person.\n\n---\n\n## 47. SEOAuto có tối ưu Google Map không?",
+          "embedded": false
+        },
+        {
+          "index": 116,
+          "text": "Có. Dùng tab **Google Map** để tối ưu Google Business Profile, kiểm tra hồ sơ Map, review, bài đăng, ảnh, xác minh, đối thủ, báo cáo và lead scanner. Cần kết nối Google Business Profile để đồng bộ dữ liệu thật.\n\n---\n\n## 48. Tôi có cần tự thêm API key AI không?\n\nKhông cần nếu bạn là user thường. SEOAuto dùng API hệ thống do admin cấu hình. Bạn chỉ cần có tài khoản, gói/credit hợp lệ để chạy các tác vụ AI.\n\n---\n\n## 49. Gói Trial có phải dùng thử 3 ngày không?",
+          "embedded": false
+        },
+        {
+          "index": 117,
+          "text": "Đúng. Gói Trial là gói dùng thử 3 ngày. Trial không phải gói trả phí. Trial có giới hạn tính năng/quota và người dùng vẫn cần có credit để chạy các tác vụ AI hoặc tác vụ tốn tài nguyên.\n\n---\n\n## 50. Hết quota nghĩa là gì?\n\nHết quota nghĩa là tài khoản đã dùng hết hạn mức của gói hiện tại cho một module hoặc một chu kỳ. Người dùng có thể nâng cấp gói, mua thêm credit hoặc chờ chu kỳ mới tùy chính sách tài khoản.\n\n---\n\n## 51. Credit còn lại dùng để làm gì?",
+          "embedded": false
+        },
+        {
+          "index": 118,
+          "text": "Credit dùng để chạy các tác vụ tốn tài nguyên như viết bài AI, tạo ảnh, research keyword, clustering, chấm SEO Score, submit indexing, AI sửa SEO và các workflow nâng cao.\n\n---\n\n## 52. Tôi muốn đăng bài lên WordPress thì làm sao?\n\n1. Vào **Cài đặt → Xuất bản**.\n2. Thêm site WordPress.\n3. Nhập URL, username và Application Password.\n4. Bấm Test connection.\n5. Đồng bộ danh mục/bài viết nếu cần.\n6. Vào **Content AI** để viết bài.\n7. Chọn WordPress site/category trong Publish Center.\n8. Chọn draft hoặc publish rồi bấm đăng bài.\n\n---\n\n## 53. Tôi muốn đưa dữ liệu doanh nghiệp vào AI thì làm sao?",
+          "embedded": false
+        },
+        {
+          "index": 119,
+          "text": "Dùng **Cài đặt → AI Knowledge Base**. Tạo KB, import tài liệu bằng cách dán văn bản, upload `.txt`, `.md`, `.html` hoặc CSV. Khi viết bài, AI có thể tra cứu KB để nội dung chính xác và nhất quán hơn.\n\n---\n\n## 54. Chatbot có dùng chung KB không?\n\nSơ đồ tri thức Chatbot trong Cài đặt dùng chung với tab Chatbot CSKH. Dữ liệu lưu trên server và đồng bộ theo từng chatbot. Người dùng có thể thêm node kiến thức như Dịch vụ, Bảng giá, Chính sách, FAQ, Bảo hành, Liên hệ.\n\n---\n\n# PHẦN E — QUY TẮC TRẢ LỜI CHO CHATBOT CSKH\n\n---\n\n## 55. Nguyên tắc trả lời chung\n\nChatbot nên:",
+          "embedded": false
+        },
+        {
+          "index": 120,
+          "text": "- Trả lời ngắn gọn trước, sau đó hướng dẫn từng bước.\n- Gọi đúng tên tab trong SEOAuto.\n- Nếu người dùng có nhu cầu cụ thể, điều hướng đến tab phù hợp.\n- Nếu người dùng hỏi lỗi, giải thích nguyên nhân và cách xử lý.\n- Nếu cần thông tin đầu vào, hỏi URL, keyword, gói hiện tại hoặc ảnh lỗi.\n- Không bịa giá/gói nếu dữ liệu không có trong KB.\n- Không cam kết kết quả SEO chắc chắn.\n- Không nói “Google chắc chắn index” hoặc “bài chắc chắn lên top”.\n\n### 55.1. Công thức trả lời gợi ý\n\nKhi người dùng hỏi cách làm:",
+          "embedded": false
+        },
+        {
+          "index": 121,
+          "text": "1. Xác định nhu cầu.\n2. Nói tab cần dùng.\n3. Nêu 3–7 bước thao tác.\n4. Nêu lưu ý quan trọng.\n5. Gợi ý bước tiếp theo.\n\nVí dụ:\n\n> Bạn dùng tab **Content AI → Auto Update**. Trước tiên hãy kết nối WordPress, sau đó quét bài viết, lọc bài có điểm SEO thấp, chọn bài cần sửa, bấm AI đề xuất, xem preview/backup rồi lưu nháp hoặc publish.\n\n---\n\n## 56. Bảng mapping từ khóa người dùng → tab cần hướng dẫn",
+          "embedded": false
+        },
+        {
+          "index": 122,
+          "text": "| Người dùng nói | Ý định | Tab cần hướng dẫn |\n|---|---|---|\n| kiểm tra lỗi website | Audit technical | Technical |\n| web có index không | Index/crawl | Technical hoặc Index Control |\n| check index | Kiểm tra index URL | Index Control |\n| submit index | Gửi tín hiệu lập chỉ mục | Index Control |\n| viết bài SEO | Tạo content mới | Content AI |\n| viết hàng loạt | Bulk content | Content AI → Viết hàng loạt |\n| sửa bài cũ | Auto update content | Content AI → Auto Update |\n| tối ưu bài viết | Chấm/sửa on-page | SEO Score hoặc Content Auto Update |\n| nghiên cứu từ khóa | Keyword research | Keyword",
+          "embedded": false
+        },
+        {
+          "index": 123,
+          "text": "re hoặc Content Auto Update |\n| nghiên cứu từ khóa | Keyword research | Keyword Research |\n| gom nhóm từ khóa | Clustering | Keyword Clustering |\n| tạo schema | JSON-LD | Schema |\n| tối ưu map | Local SEO/GBP | Google Map |\n| kết nối WordPress | Publish | Cài đặt → Xuất bản |\n| kết nối GSC | Search Console | Technical hoặc Cài đặt → GSC |\n| mua credit | Thanh toán | Tài khoản & Thanh toán |\n| nâng cấp gói | Billing | Tài khoản & Thanh toán |\n| affiliate | Giới thiệu hoa hồng | Tài khoản & Thanh toán |\n| KB chatbot | Knowledge graph | Cài đặt → Sơ đồ tri thức Chatbot |\n| KB viết bài | RAG conte",
+          "embedded": false
+        },
+        {
+          "index": 124,
+          "text": "| Knowledge graph | Cài đặt → Sơ đồ tri thức Chatbot |\n| KB viết bài | RAG content | Cài đặt → AI Knowledge Base |",
+          "embedded": false
+        },
+        {
+          "index": 125,
+          "text": "---\n\n## 57. Mẫu trả lời: nên dùng tab nào?\n\n**Câu hỏi:** Tôi muốn SEO website từ đầu thì dùng tab nào trước?  \n**Trả lời:**  \nBạn nên bắt đầu bằng tab **Technical** để quét lỗi nền tảng website trước. Sau đó dùng **Keyword Research** để tìm từ khóa, **Keyword Clustering** để gom cụm, **Content AI** để viết bài, **SEO Score** để chấm từng URL và **Index Control** để kiểm tra index sau khi đăng.\n\n---\n\n## 58. Mẫu trả lời: viết bài SEO",
+          "embedded": false
+        },
+        {
+          "index": 126,
+          "text": "**Câu hỏi:** Tôi muốn viết bài SEO thì làm sao?  \n**Trả lời:**  \nBạn vào **Content AI → Viết bài SEO**, nhập từ khóa chính, target website, title/meta nếu có, chọn số từ 1000/1500/2000 hoặc tùy chỉnh, chọn ảnh minh họa rồi bấm **Tạo content**. Sau khi AI viết xong, bạn kiểm tra số từ, heading, internal link, ảnh và SEO Score trước khi đăng WordPress.\n\n---\n\n## 59. Mẫu trả lời: tối ưu bài cũ",
+          "embedded": false
+        },
+        {
+          "index": 127,
+          "text": "**Câu hỏi:** Website tôi có nhiều bài cũ, muốn AI sửa SEO thì dùng gì?  \n**Trả lời:**  \nBạn dùng **Content AI → Auto Update**. Hãy kết nối WordPress trước, quét bài viết, lọc bài có điểm SEO thấp, chọn bài cần sửa, nhập từ khóa chính rồi bấm **Tạo đề xuất AI**. Sau đó xem bản trước/sau, tạo backup và chọn lưu nháp hoặc publish.\n\n---\n\n## 60. Mẫu trả lời: research keyword",
+          "embedded": false
+        },
+        {
+          "index": 128,
+          "text": "**Câu hỏi:** Tôi muốn tìm từ khóa cho website thì dùng gì?  \n**Trả lời:**  \nBạn dùng **Keyword → Nghiên cứu từ khóa**. Nhập từ khóa gốc, chọn Google/YouTube/Bing, quốc gia, ngôn ngữ và thiết bị, sau đó bấm **Tìm kiếm**. Kết quả sẽ có keyword liên quan, volume, CPC, competition, intent và có thể xuất dữ liệu hoặc gửi sang gom nhóm.\n\n---\n\n## 61. Mẫu trả lời: gom nhóm keyword",
+          "embedded": false
+        },
+        {
+          "index": 129,
+          "text": "**Câu hỏi:** Tôi có danh sách keyword, muốn biết nên viết bao nhiêu bài thì làm sao?  \n**Trả lời:**  \nBạn dùng **Keyword → Gom nhóm từ khóa**. Dán danh sách keyword hoặc upload Excel, chọn độ chặt gom nhóm, quốc gia/ngôn ngữ/thiết bị rồi bấm **Chạy gom nhóm**. Hệ thống sẽ chia thành các cụm chủ đề, gợi ý keyword chính, keyword phụ, intent, brief và số bài có thể tạo.\n\n---\n\n## 62. Mẫu trả lời: SEO Score",
+          "embedded": false
+        },
+        {
+          "index": 130,
+          "text": "**Câu hỏi:** Tôi muốn biết một URL đã chuẩn SEO chưa?  \n**Trả lời:**  \nBạn vào **SEO Score**, nhập URL, từ khóa chính, từ khóa phụ và loại trang rồi bấm **Chấm điểm**. Hệ thống sẽ chấm theo 10 nhóm gồm indexability, title/meta/slug, heading, keyword semantic, intent, content quality, links, image SEO, schema và UX/mobile/speed.\n\n---\n\n## 63. Mẫu trả lời: check index",
+          "embedded": false
+        },
+        {
+          "index": 131,
+          "text": "**Câu hỏi:** Làm sao kiểm tra link đã index chưa?  \n**Trả lời:**  \nBạn vào **Index Control → Check Index Free**, nhập tên dự án, dán danh sách URL mỗi dòng một link hoặc upload file `.txt`, sau đó chạy kiểm tra. Kết quả sẽ có cột Index/No Index, mã phản hồi, khả năng index và nguyên nhân/gợi ý. Nếu có GSC thì kết quả sẽ đáng tin hơn.\n\n---\n\n## 64. Mẫu trả lời: submit index",
+          "embedded": false
+        },
+        {
+          "index": 132,
+          "text": "**Câu hỏi:** Tôi muốn gửi link để Google index thì làm sao?  \n**Trả lời:**  \nBạn vào **Index Control → Submit Indexing**, tạo dự án, dán danh sách URL hoặc upload file `.txt`, kiểm tra số link hợp lệ rồi bấm **Submit Indexing**. Lưu ý submit chỉ gửi tín hiệu, không cam kết Google index ngay. Trước khi submit nên đảm bảo URL không bị noindex, robots chặn hoặc canonical sai.\n\n---\n\n## 65. Mẫu trả lời: kết nối WordPress",
+          "embedded": false
+        },
+        {
+          "index": 133,
+          "text": "**Câu hỏi:** Làm sao kết nối WordPress với SEOAuto?  \n**Trả lời:**  \nBạn vào **Cài đặt → Xuất bản → WordPress**, bấm Add Site, nhập Website URL, username và Application Password, chọn SEO plugin nếu có rồi bấm **Test connection**. Sau khi kết nối thành công, bạn có thể đồng bộ bài viết và đăng bài từ Content AI lên WordPress.\n\n---\n\n## 66. Mẫu trả lời: hết quota",
+          "embedded": false
+        },
+        {
+          "index": 134,
+          "text": "**Câu hỏi:** SEOAuto báo đã hết quota là sao?  \n**Trả lời:**  \nThông báo này nghĩa là tài khoản của bạn đã dùng hết hạn mức của gói hiện tại cho tính năng đó. Bạn có thể vào **Tài khoản & Thanh toán** để kiểm tra quota, mua thêm credit hoặc nâng cấp gói để tiếp tục sử dụng.\n\n---\n\n## 67. Mẫu trả lời: trial\n\n**Câu hỏi:** Gói Trial là gì?  \n**Trả lời:**  \nTrial là gói dùng thử 3 ngày. Gói này giúp bạn trải nghiệm các tính năng chính nhưng có giới hạn quota/ngày. Trial không phải gói trả phí và bạn vẫn cần có credit để chạy các tác vụ AI hoặc tác vụ tốn tài nguyên.\n\n---",
+          "embedded": false
+        },
+        {
+          "index": 135,
+          "text": "## 68. Mẫu trả lời: affiliate\n\n**Câu hỏi:** SEOAuto có hoa hồng giới thiệu không?  \n**Trả lời:**  \nCó. SEOAuto có chương trình Affiliate hoa hồng 30%. Bạn vào **Tài khoản & Thanh toán → Giới thiệu & Hoa hồng**, đăng ký Affiliate, copy link giới thiệu và chia sẻ. Khi khách đăng ký và thanh toán qua link của bạn, hệ thống ghi nhận hoa hồng theo chính sách.\n\n---\n\n# PHẦN F — QUY TẮC AN TOÀN NỘI DUNG CHO CHATBOT\n\n---\n\n## 69. Không cam kết sai về SEO\n\nChatbot không được nói:",
+          "embedded": false
+        },
+        {
+          "index": 136,
+          "text": "- “Chắc chắn lên top Google”.\n- “Submit là index ngay”.\n- “Viết bài AI là tự động top 1”.\n- “Check index free chính xác 100%”.\n- “Không cần sửa technical vẫn lên top”.\n\nCách nói đúng:\n\n- “Công cụ giúp tối ưu và tăng khả năng SEO, nhưng thứ hạng phụ thuộc vào nhiều yếu tố.”\n- “Submit indexing là gửi tín hiệu, Google vẫn quyết định index.”\n- “Check Index Free là tham khảo; kết nối GSC sẽ đáng tin hơn.”\n\n---\n\n## 70. Không bịa số liệu\n\nKhi viết hoặc sửa content, chatbot/AI không nên tự bịa:",
+          "embedded": false
+        },
+        {
+          "index": 137,
+          "text": "- Số liệu nghiên cứu.\n- Báo cáo thị trường.\n- Giá dịch vụ.\n- Tỷ lệ phần trăm.\n- Tên chuyên gia/tổ chức.\n- Link nguồn.\n\nNếu không có dữ liệu trong KB hoặc nguồn đáng tin, nên nói:\n\n> Hiện chưa có dữ liệu xác thực trong KB. Bạn nên bổ sung nguồn/số liệu hoặc để hệ thống viết theo hướng không dùng số liệu cụ thể.\n\n---\n\n## 71. Không hướng dẫn sai về API\n\nChính sách hiện tại:\n\n- User thường không cần thêm API AI riêng.\n- API AI do hệ thống/admin quản lý.\n- User dùng tính năng thông qua gói/credit.\n\nNếu user hỏi:\n\n> Tôi có cần thêm API OpenAI không?\n\nTrả lời:",
+          "embedded": false
+        },
+        {
+          "index": 138,
+          "text": "> Không cần. SEOAuto dùng API hệ thống do admin cấu hình. Bạn chỉ cần có gói/credit hợp lệ để sử dụng các tính năng AI.\n\n---\n\n## 72. Bảo mật dữ liệu user\n\nChatbot phải nhấn mạnh:\n\n- Mỗi user chỉ thấy dữ liệu của mình.\n- Không chia sẻ dữ liệu giữa tài khoản.\n- Nếu thấy dữ liệu lạ, báo hỗ trợ ngay.\n- Không cung cấp thông tin tài khoản/thanh toán của user khác.\n\n---\n\n# PHẦN G — DỮ LIỆU NGẮN ĐỂ CHATBOT NHỚ NHANH\n\n---\n\n## 73. Tóm tắt một câu từng tab",
+          "embedded": false
+        },
+        {
+          "index": 139,
+          "text": "- **Dashboard**: xem tổng quan SEO, gói, credit, lỗi ưu tiên và quick tools.\n- **Technical**: quét lỗi kỹ thuật toàn site như index, crawl, sitemap, robots, canonical, schema, performance.\n- **Content AI**: viết bài SEO, viết hàng loạt, chèn link/ảnh, publish WordPress và tối ưu bài cũ.\n- **Keyword Research**: tìm keyword, volume, CPC, competition, intent.\n- **Keyword Clustering**: gom keyword thành cụm chủ đề và brief content.\n- **SEO Score**: chấm điểm một URL theo 10 nhóm SEO.\n- **Schema**: tạo JSON-LD cho Organization, LocalBusiness, Article, Product, WebSite, Person.\n- **Index Control**:",
+          "embedded": false
+        },
+        {
+          "index": 140,
+          "text": "ization, LocalBusiness, Article, Product, WebSite, Person.\n- **Index Control**: check index và submit indexing theo gói.\n- **Google Map**: tối ưu Google Business Profile và Local SEO.\n- **Cài đặt**: quản lý KB, chatbot knowledge graph, WordPress/GSC/xuất bản/hệ thống.\n- **Tài khoản & Thanh toán**: quản lý gói, credit, hóa đơn, SePay, Affiliate.",
+          "embedded": false
+        },
+        {
+          "index": 141,
+          "text": "---\n\n## 74. Tóm tắt luồng nhanh nhất cho user mới\n\n1. Đăng ký/đăng nhập.\n2. Kích hoạt trial nếu muốn dùng thử.\n3. Mua credit nếu cần chạy AI.\n4. Vào Technical quét website.\n5. Vào Keyword Research tìm từ khóa.\n6. Vào Keyword Clustering gom nhóm.\n7. Vào Content AI viết bài.\n8. Vào SEO Score chấm URL.\n9. Vào Index Control kiểm tra/submit index.\n10. Theo dõi Dashboard.\n\n---\n\n## 75. Từ khóa đồng nghĩa nên hiểu",
+          "embedded": false
+        },
+        {
+          "index": 142,
+          "text": "- “check web”, “audit web”, “quét website” = Technical.\n- “lỗi SEO kỹ thuật” = Technical.\n- “viết bài”, “content AI”, “bài SEO” = Content AI.\n- “sửa bài cũ”, “update bài”, “auto update” = Content Auto Update.\n- “keyword”, “từ khóa”, “nghiên cứu từ khóa” = Keyword Research.\n- “gom nhóm”, “cluster”, “topic cluster” = Keyword Clustering.\n- “chấm điểm bài”, “điểm SEO”, “URL score” = SEO Score.\n- “schema”, “JSON-LD”, “structured data” = Schema.\n- “index”, “submit link”, “Google index” = Index Control.\n- “Google Map”, “GBP”, “Google Business”, “Local SEO” = Google Map SEO.\n- “credit”, “quota”, “hết",
+          "embedded": false
+        },
+        {
+          "index": 143,
+          "text": "BP”, “Google Business”, “Local SEO” = Google Map SEO.\n- “credit”, “quota”, “hết hạn mức” = Tài khoản & Thanh toán.\n- “KB”, “dữ liệu doanh nghiệp”, “RAG” = AI Knowledge Base hoặc Sơ đồ tri thức Chatbot.",
+          "embedded": false
+        },
+        {
+          "index": 144,
+          "text": "---\n\n## 76. Quy tắc hỏi thêm thông tin\n\nChatbot nên hỏi thêm khi thiếu:\n\n- Nếu người dùng muốn audit: hỏi URL website.\n- Nếu người dùng muốn viết bài: hỏi từ khóa chính, số từ, website mục tiêu.\n- Nếu người dùng muốn research keyword: hỏi lĩnh vực, quốc gia, ngôn ngữ.\n- Nếu người dùng muốn check index: hỏi danh sách URL.\n- Nếu người dùng muốn tối ưu bài cũ: hỏi website WordPress đã kết nối chưa.\n- Nếu người dùng hỏi lỗi thanh toán: hỏi mã đơn hoặc ảnh lỗi, nhưng không yêu cầu thông tin nhạy cảm quá mức.\n\n---\n\n## 77. Cách trả lời khi chưa biết chắc",
+          "embedded": false
+        },
+        {
+          "index": 145,
+          "text": "Nếu chatbot chưa có dữ liệu chắc chắn, nên trả lời:\n\n> Hiện KB chưa có thông tin chính xác về mục này. Bạn vui lòng kiểm tra trực tiếp trong tab liên quan hoặc liên hệ hỗ trợ SEOAuto để được xác nhận.\n\nKhông nên tự đoán.\n\n---\n\n# PHẦN H — NGUỒN THAM CHIẾU NỘI BỘ\n\nCác URL tab chính:",
+          "embedded": false
+        },
+        {
+          "index": 146,
+          "text": "- Trang chủ: `https://seoauto.vn/`\n- Dashboard: `https://seoauto.vn/report`\n- Technical: `https://seoauto.vn/tool`\n- Content AI: `https://seoauto.vn/content-ai`\n- Keyword Research: `https://seoauto.vn/keywords/tools/research`\n- Keyword Clustering: `https://seoauto.vn/keywords/tools/clustering`\n- SEO Score: `https://seoauto.vn/tool/seo-score`\n- Schema: `https://seoauto.vn/schema`\n- Index Control: `https://seoauto.vn/index-control`\n- Google Map SEO: `https://seoauto.vn/google-map-seo`\n- Cài đặt: `https://seoauto.vn/settings`\n- Tài khoản & Thanh toán: `https://seoauto.vn/account-billing`\n\n---",
+          "embedded": false
+        },
+        {
+          "index": 147,
+          "text": "## 78. Ghi chú cập nhật KB\n\nNên cập nhật file KB này khi:\n\n- Thay đổi bảng giá/gói SaaS.\n- Thay đổi chính sách Trial.\n- Thay đổi quy tắc credit.\n- Thêm/xóa tab trong menu.\n- Thay đổi luồng Content AI.\n- Thêm nền tảng xuất bản mới.\n- Thay đổi chính sách user tự thêm API key.\n- Thay đổi chương trình Affiliate.\n- Thay đổi khả năng Index Control.\n- Thay đổi Google Map SEO.\n\n---\n\n## 79. Phiên bản file\n\n- Tên file: `seoauto_kb_tinh_nang_huong_dan.md`\n- Phiên bản: `v1.0`\n- Ngày tạo: `06/07/2026`\n- Mục đích: đưa vào Knowledge Base chatbot SEOAuto.\n- Ngôn ngữ: Tiếng Việt.",
+          "embedded": false
+        }
+      ],
+      "created_at": "2026-07-06T14:42:41.226015+00:00",
+      "updated_at": "2026-07-06T14:42:41.226045+00:00"
     }
   ]
 }

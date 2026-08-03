@@ -1,59 +1,86 @@
 /**
- * Show "Quản trị viên" / "Administrator" nav link only when /auth/me reports role=admin.
+ * Nav policy — ẩn Tài khoản & Thanh toán / Quản trị viên trên menu chính khi đã đăng nhập.
+ * Các mục này truy cập qua avatar góc trái dưới.
  */
 (function () {
-    const TOKEN_KEY = "seo_token";
+    "use strict";
 
-    function readCookieToken() {
-        const m = document.cookie.match(/(?:^|;\s*)seo_token=([^;]*)/);
-        return m ? decodeURIComponent(m[1].replace(/\+/g, " ")).trim() : "";
+    function isAdminUser(user) {
+        if (typeof window.DigiSeoIsAdminUser === "function") {
+            return window.DigiSeoIsAdminUser(user);
+        }
+        if (!user || typeof user !== "object") return false;
+        if (user.show_admin_nav === true) return true;
+        var role = String(user.role || "").toLowerCase();
+        return role === "admin" || role === "super_admin";
+    }
+
+    function isLoggedInUser(user) {
+        if (!user || typeof user !== "object") return false;
+        if (user.id != null) return true;
+        return !!String(user.email || "").trim();
+    }
+
+    function setNavLinkHidden(el, hide) {
+        if (!el) return;
+        el.hidden = !!hide;
+        if (hide) el.setAttribute("aria-hidden", "true");
+        else el.removeAttribute("aria-hidden");
+    }
+
+    window.DigiSeoApplyAdminNavPolicy = function (me) {
+        var isAdmin = isAdminUser(me);
+        var isLoggedIn = isLoggedInUser(me);
+        if (document.body) {
+            document.body.classList.toggle("digiseo-admin-nav-via-avatar", isLoggedIn);
+        }
+        document.querySelectorAll("[data-nav-account-billing]").forEach(function (el) {
+            setNavLinkHidden(el, isLoggedIn);
+        });
+        document.querySelectorAll("[data-nav-admin]").forEach(function (el) {
+            setNavLinkHidden(el, isAdmin);
+        });
+    };
+
+    function removeLegacyAdminNavLinks() {
+        document.querySelectorAll("[data-nav-admin]").forEach(function (el) {
+            el.remove();
+        });
     }
 
     function token() {
-        try {
-            let t = (sessionStorage.getItem(TOKEN_KEY) || "").trim();
-            if (!t) {
-                t = readCookieToken();
-                if (t) sessionStorage.setItem(TOKEN_KEY, t);
-            }
-            return t;
-        } catch (_) {
-            return readCookieToken();
+        return typeof window.DigiSeoGetAuthToken === "function" ? window.DigiSeoGetAuthToken() : "";
+    }
+
+    function syncAccountWidget() {
+        if (typeof window.refreshDigiSeoAccountWidget === "function") {
+            window.refreshDigiSeoAccountWidget();
         }
-    }
-
-    function applyNavI18n() {
-        if (window.DigiSeoI18n && typeof window.DigiSeoI18n.apply === "function") {
-            window.DigiSeoI18n.apply(window.DigiSeoI18n.readLang());
-        }
-    }
-
-    function revealAdminLinks() {
-        document.querySelectorAll("[data-nav-admin]").forEach((el) => {
-            el.hidden = false;
-            el.removeAttribute("hidden");
-            el.classList.remove("hidden");
-        });
-        applyNavI18n();
-    }
-
-    function hideAdminLinks() {
-        document.querySelectorAll("[data-nav-admin]").forEach((el) => {
-            el.hidden = true;
-            el.setAttribute("hidden", "");
-        });
     }
 
     function run() {
-        hideAdminLinks();
-        const t = token();
-        if (!t) return;
-        fetch("/auth/me", { credentials: "same-origin", headers: { Authorization: "Bearer " + t } })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((u) => {
-                if (u && String(u.role || "").toLowerCase() === "admin") revealAdminLinks();
+        removeLegacyAdminNavLinks();
+        var t = token();
+        if (!t) {
+            window.DigiSeoApplyAdminNavPolicy(null);
+            return;
+        }
+        var fetchMe = window.DigiSeoFetchAuthMe
+            ? window.DigiSeoFetchAuthMe()
+            : fetch("/auth/me", {
+                  credentials: "same-origin",
+                  headers: { Authorization: "Bearer " + t },
+              }).then(function (r) {
+                  return r.ok ? r.json() : null;
+              });
+        fetchMe
+            .then(function (u) {
+                window.DigiSeoApplyAdminNavPolicy(u);
+                syncAccountWidget();
             })
-            .catch(() => {});
+            .catch(function () {
+                window.DigiSeoApplyAdminNavPolicy(null);
+            });
     }
 
     if (document.readyState === "loading") {
@@ -62,14 +89,13 @@
         run();
     }
 
-    window.addEventListener("storage", (e) => {
-        if (e.key === "digiseo_system_prefs_v1") applyNavI18n();
-    });
-
     window.refreshDigiSeoAdminNav = run;
+    window.syncDigiSeoAccountNavFromUser = window.DigiSeoApplyAdminNavPolicy;
 
-    window.addEventListener("digiseo-auth-change", (e) => {
-        if (e.detail && e.detail.loggedIn === false) hideAdminLinks();
-        else run();
+    window.addEventListener("digiseo-auth-change", function (e) {
+        if (e.detail && e.detail.loggedIn === false) {
+            window.DigiSeoApplyAdminNavPolicy(null);
+        }
+        run();
     });
 })();

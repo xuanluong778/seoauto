@@ -1,0 +1,64 @@
+/* SaaS help tooltips — minimal inline (?) hints */
+.ds-tip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.05rem;
+    height: 1.05rem;
+    margin-left: 0.25rem;
+    border-radius: 50%;
+    border: 1px solid rgba(100, 116, 139, 0.55);
+    background: rgba(248, 250, 252, 0.95);
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    vertical-align: middle;
+    flex-shrink: 0;
+    position: relative;
+}
+.ds-tip:hover,
+.ds-tip:focus-visible {
+    border-color: #2563eb;
+    color: #2563eb;
+    outline: none;
+}
+.ds-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%);
+    min-width: 180px;
+    max-width: min(280px, 70vw);
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: 60;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+.ds-tip:hover::after,
+.ds-tip:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+}
+.ds-lead {
+    margin: 0 0 1rem;
+    font-size: 0.875rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+.ds-lead--dark {
+    color: #cbd5e1;
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Import giá DigiSEO vào KB global (sơ đồ tri thức sản phẩm)."""
+"""Import giá Seoauto vào KB global (sơ đồ tri thức sản phẩm)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.services.product_knowledge import GLOBAL_PRODUCT_KB_ID
 
 CHECKLIST = Path("data/digiseo-pricing-knowledge.txt")
 HEADER = (
-    "# SƠ ĐỒ TRI THỨC — GIÁ PHẦN MỀM DigiSEO (GLOBAL)\n\n"
+    "# SƠ ĐỒ TRI THỨC — GIÁ PHẦN MỀM Seoauto (GLOBAL)\n\n"
     "Dùng chung cho chatbot và AI — chỉ nêu giá theo tài liệu này.\n\n"
 )
 
@@ -27,7 +27,7 @@ def main() -> None:
     _write_store(GLOBAL_PRODUCT_KB_ID, {"documents": []})
     import_text(
         GLOBAL_PRODUCT_KB_ID,
-        "Sơ đồ tri thức — Giá phần mềm DigiSEO",
+        "Sơ đồ tri thức — Giá phần mềm Seoauto",
         HEADER + text,
         embed=False,
     )

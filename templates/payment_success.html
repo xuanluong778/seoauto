@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=4">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=21">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=2">
+</head>
+<body class="ab-page ab-payment-success-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+
+    <div class="ab-wrap ab-pay-success-wrap">
+        <div class="ab-card ab-pay-success-card" id="psCard" hidden>
+            <div class="ab-payment-success-icon" aria-hidden="true">✓</div>
+            <h1 class="ab-pay-success-title">Thanh toán thành công</h1>
+            <p class="ab-muted-text ab-pay-success-lead">Gói/credit đã được kích hoạt trên tài khoản của bạn.</p>
+
+            <dl class="ab-pay-success-dl">
+                <div class="ab-pay-success-row">
+                    <dt>Mã đơn</dt>
+                    <dd><code id="psOrderCode">—</code></dd>
+                </div>
+                <div class="ab-pay-success-row">
+                    <dt>Sản phẩm</dt>
+                    <dd id="psProductName">—</dd>
+                </div>
+                <div class="ab-pay-success-row">
+                    <dt>Số tiền</dt>
+                    <dd id="psAmount" class="ab-payment-amount">—</dd>
+                </div>
+                <div class="ab-pay-success-row">
+                    <dt>Thời gian</dt>
+                    <dd id="psPaidAt">—</dd>
+                </div>
+            </dl>
+
+            <div class="ab-pay-success-actions">
+                <a class="ab-btn ab-btn--primary" href="/account-billing">Về tài khoản</a>
+                <a class="ab-btn" href="/account-billing?tab=plans" id="psViewPlanBtn">Xem gói hiện tại</a>
+            </div>
+        </div>
+
+        <div class="ab-loading" id="psLoading">Đang xác nhận thanh toán…</div>
+        <div class="ab-error" id="psError" hidden></div>
+    </div>
+
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=4"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=8" defer></script>
+    <script src="/static/js/digiseo-social-auto-nav.js?v=1" defer></script>
+    <script src="/static/js/digiseo-mobile-nav.js?v=7" defer></script>
+    <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+    <script src="/static/js/sepay-payment-flow.js?v=1"></script>
+    <script src="/static/js/payment-success.js?v=1"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

@@ -1,0 +1,59 @@
+<div class="ca-inline-step-section" data-ca-inline-section="research" id="contentAiBriefSection">
+    <div class="row ca-brief-row">
+        <div class="ca-brief-col">
+            <div class="field-head"><label for="primaryKeyword">Từ khóa chính (bắt buộc)</label><button type="button" class="btn secondary mini-btn" id="btnCheckDuplicate" title="Kiểm tra trùng nội dung">🔍 Kiểm tra trùng</button></div>
+            <input id="primaryKeyword" type="text" placeholder="Ví dụ: Đào tạo seo" />
+            <div class="hint" id="hint-primary_keyword">Hãy nhập từ khóa chính trước để kích hoạt toàn bộ gợi ý AI.</div>
+        </div>
+        <div class="ca-brief-col">
+            <div class="field-head"><label for="targetWebsite">Target website</label><span class="ca-brief-head-spacer" aria-hidden="true"></span></div>
+            <input id="targetWebsite" type="text" placeholder="https://example.com" list="targetWebsiteHistory" />
+            <datalist id="targetWebsiteHistory"></datalist>
+            <div class="hint" id="hint-target_website"></div>
+        </div>
+    </div>
+    <div class="ca-duplicate-warning" id="caDuplicateWarning" hidden aria-hidden="true" role="status"></div>
+    <div class="row ca-brief-row">
+        <div class="ca-brief-col">
+            <div class="field-head"><label for="title">Title</label><button type="button" class="ai-btn" data-field="title">Gợi ý AI</button></div>
+            <input id="title" type="text" />
+            <div class="hint" id="hint-title"></div>
+        </div>
+        <div class="ca-brief-col">
+            <div class="field-head"><label for="slug">Slug</label><span class="ca-brief-head-spacer" aria-hidden="true"></span></div>
+            <input id="slug" type="text" placeholder="dao-tao-seo" />
+            <div class="hint" id="hint-slug"></div>
+        </div>
+    </div>
+    <div class="field-head"><label for="secondaryKeywords">Từ khóa phụ (comma separated)</label><button type="button" class="ai-btn" data-field="secondary_keywords">Gợi ý AI</button></div>
+    <input id="secondaryKeywords" type="text" />
+    <div class="hint" id="hint-secondary_keywords"></div>
+    <div class="field-head" style="margin-top:8px;"><label for="meta">Meta description (optional)</label><button type="button" class="ai-btn" data-field="meta_description">Gợi ý AI</button></div>
+    <input id="meta" type="text" />
+    <div class="hint" id="hint-meta_description"></div>
+    <div class="field-head" style="margin-top:8px;"><label for="tags">Tags (optional, comma separated)</label><button type="button" class="ai-btn" data-field="tags">Gợi ý AI</button></div>
+    <input id="tags" type="text" />
+    <div class="hint" id="hint-tags"></div>
+    <div class="hint" id="hint-detected-intent" hidden aria-hidden="true"></div>
+    <div class="field-head"><label for="targetWordCount">Số từ content</label></div>
+    <div class="wc-preset-row" id="wordCountPresetRow">
+        <button type="button" class="wc-preset-btn active" data-wc="1000">1000</button>
+        <button type="button" class="wc-preset-btn" data-wc="1500">1500</button>
+        <button type="button" class="wc-preset-btn" data-wc="2000">2000</button>
+        <button type="button" class="wc-preset-btn" data-wc="auto">AI tự quyết</button>
+        <button type="button" class="wc-preset-btn" data-wc="custom">Tùy chỉnh</button>
+    </div>
+    <input id="targetWordCount" type="number" inputmode="numeric" min="200" step="50" value="1000" />
+    <div class="hint" id="hint-target_word_count">Chọn preset, nhập tùy chỉnh, hoặc <strong>AI tự quyết</strong> — hệ thống xác định độ dài phù hợp theo chủ đề, từ khóa và mục đích bài (sai lệch tối đa ±10%).</div>
+    <div class="word-count-status" id="wordCountStatus" hidden aria-live="polite"></div>
+    <div class="field-head" style="margin-top:8px;"><label for="singleWpCategoryId">Danh mục WordPress khi đăng</label></div>
+    <div class="row" style="align-items: flex-end; gap: 10px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px;">
+            <select id="singleWpCategoryId">
+                <option value="">-- Chọn danh mục --</option>
+            </select>
+        </div>
+        <button class="btn secondary" type="button" id="btnSingleLoadWpCategories">Tải danh mục</button>
+    </div>
+    <div class="hint" id="hint-singleWpCategory">Nhập Target website trùng site đã lưu (Thêm site đăng bài), rồi bấm Tải danh mục — gắn category khi publish.</div>
+</div>

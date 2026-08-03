@@ -2,10 +2,14 @@ from collections import deque
 import time
 import xml.etree.ElementTree as ET
 from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.robotparser import RobotFileParser
 
 import requests
 from bs4 import BeautifulSoup
 
+from app.services.cost_control.executor import CostControlBypassError, execute_guarded_external
+from app.services.cost_control.settings import cost_control_enforced
+from app.services.cost_control.types import ExternalApiProvider
 from app.services.seo_crawl_enrichment import enrich_crawl_page_record
 
 
@@ -25,6 +29,55 @@ DEFAULT_HEADERS = {
 }
 
 
+def classify_request_error(exc: Exception) -> str:
+    """Phân loại lỗi kết nối HTTP — DNS, SSL, timeout, v.v."""
+    if isinstance(exc, requests.exceptions.SSLError):
+        return "ssl_error"
+    if isinstance(exc, requests.exceptions.Timeout):
+        return "timeout"
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        msg = str(exc).lower()
+        if any(
+            token in msg
+            for token in (
+                "name or service not known",
+                "getaddrinfo",
+                "failed to resolve",
+                "nodename nor servname",
+                "name resolution",
+            )
+        ):
+            return "dns_error"
+        return "connection_error"
+    return "request_failed"
+
+
+def classify_http_status(status: int) -> str | None:
+    if status == 403:
+        return "forbidden"
+    if status == 401:
+        return "unauthorized"
+    if 500 <= status < 600:
+        return "server_error"
+    if 400 <= status < 500:
+        return "client_error"
+    if 300 <= status < 400:
+        return "redirect"
+    return None
+
+
+def robots_url_blocked(url: str, robots_body: str, *, robots_status: int = 200) -> bool | None:
+    """True nếu User-agent * bị Disallow cho URL. None khi không đọc được robots."""
+    if robots_status != 200 or not (robots_body or "").strip():
+        return None
+    rp = RobotFileParser()
+    rp.parse(robots_body.splitlines())
+    try:
+        return not rp.can_fetch("*", url)
+    except Exception:
+        return None
+
+
 class CrawlTimeoutError(Exception):
     pass
 
@@ -40,8 +93,16 @@ class CrawlRequestError(Exception):
 
 
 def fetch_html(url: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:
+    def _get() -> requests.Response:
+        return requests.get(url, timeout=timeout_seconds)
+
     try:
-        response = requests.get(url, timeout=timeout_seconds)
+        if cost_control_enforced():
+            response = execute_guarded_external(ExternalApiProvider.CRAWL, "fetch_html", _get)
+        else:
+            response = _get()
+    except CostControlBypassError as exc:
+        raise CrawlRequestError("Crawl blocked by cost control") from exc
     except requests.exceptions.Timeout as exc:
         raise CrawlTimeoutError("Request timed out") from exc
     except requests.exceptions.RequestException as exc:
@@ -276,17 +337,27 @@ def check_internal_link_status(url: str, timeout_seconds: float | None = None) -
                 headers=LINK_CHECK_HEADERS,
                 allow_redirects=True,
             )
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as exc:
             if attempt == 0:
                 time.sleep(0.45)
                 continue
-            return {"url": url, "status": 0, "is_broken": True, "chain": [url]}
+            error_kind = classify_request_error(exc)
+            return {
+                "url": url,
+                "status": 0,
+                "is_broken": True,
+                "chain": [url],
+                "error_kind": error_kind,
+            }
         chain = [resp.url for resp in response.history] + [response.url]
+        status = response.status_code
+        error_kind = classify_http_status(status)
         return {
             "url": url,
-            "status": response.status_code,
-            "is_broken": response.status_code >= 400,
+            "status": status,
+            "is_broken": status >= 400,
             "chain": chain,
+            "error_kind": error_kind,
         }
 
 
@@ -295,7 +366,7 @@ def parse_robots_txt(base_url: str) -> dict:
     robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
     try:
         response = requests.get(robots_url, timeout=DEFAULT_TIMEOUT_SECONDS, headers=DEFAULT_HEADERS)
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as exc:
         return {
             "url": robots_url,
             "status": 0,
@@ -303,6 +374,7 @@ def parse_robots_txt(base_url: str) -> dict:
             "allow": [],
             "sitemaps": [],
             "body_preview": "",
+            "error_kind": classify_request_error(exc),
         }
 
     body = (response.text or "") if response.status_code == 200 else ""
@@ -340,18 +412,44 @@ def parse_sitemap_xml(base_url: str, robots_sitemaps: list[str] | None = None) -
             f"{parsed.scheme}://{parsed.netloc}/sitemap_index.xml",
         ]
 
+    last_error: dict | None = None
     for sitemap_url in candidate_urls:
         try:
             response = requests.get(sitemap_url, timeout=DEFAULT_TIMEOUT_SECONDS, headers=DEFAULT_HEADERS)
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as exc:
+            last_error = {
+                "url": sitemap_url,
+                "http_status": 0,
+                "parse_error": False,
+                "error_kind": classify_request_error(exc),
+            }
             continue
         if response.status_code != 200:
+            last_error = {
+                "url": sitemap_url,
+                "http_status": response.status_code,
+                "parse_error": False,
+                "error_kind": classify_http_status(response.status_code),
+            }
             continue
         try:
             root = ET.fromstring(response.text)
         except ET.ParseError:
+            last_error = {"url": sitemap_url, "http_status": 200, "parse_error": True, "error_kind": "parse_error"}
             continue
         locs = [elem.text.strip() for elem in root.iter() if elem.tag.endswith("loc") and elem.text]
-        return {"url": sitemap_url, "status": 200, "urls": locs}
+        return {
+            "url": sitemap_url,
+            "status": 200,
+            "urls": locs,
+            "parse_error": False,
+            "http_status": 200,
+        }
 
-    return {"url": candidate_urls[0] if candidate_urls else "", "status": 0, "urls": []}
+    return {
+        "url": candidate_urls[0] if candidate_urls else "",
+        "status": 0,
+        "urls": [],
+        "parse_error": bool(last_error and last_error.get("parse_error")),
+        "last_error": last_error,
+    }

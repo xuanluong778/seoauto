@@ -1,16 +1,21 @@
 /**
- * DigiSEO UI i18n — vi / en. Language from localStorage digiseo_system_prefs_v1.
+ * Seoauto UI i18n — vi / en. Language from localStorage digiseo_system_prefs_v1.
  */
 (function (global) {
     const LS_KEY = "digiseo_system_prefs_v1";
 
     const STR = {
         en: {
-            "nav.brand": "SEO Technical Tool",
+            "nav.brand": "Seoauto",
             "nav.dashboard": "Dashboard",
-            "nav.technical": "Technical Analysis",
+            "nav.technical": "Technical",
             "nav.seo_score": "SEO Score",
+            "nav.index_control": "Index Control",
+            "nav.google_map_seo": "Google Map",
             "nav.content_ai": "Content AI",
+            "nav.social_auto": "Social Auto",
+            "nav.chatbot_cskh": "Chatbot CSKH",
+            "nav.rank_tracking": "Rank Tracking",
             "nav.keyword": "Keyword",
             "nav.keyword_research": "Keyword Research",
             "nav.keyword_clustering": "Keyword Clustering",
@@ -56,7 +61,7 @@
             "system.lang_lead":
                 "Choose the display language of the app. Changes apply immediately without restart.",
             "system.startup_title": "Start with the operating system",
-            "system.startup_desc": "Launch DigiSEO automatically when the computer starts",
+            "system.startup_desc": "Launch Seoauto automatically when the computer starts",
             "system.startup_note":
                 "Saved for your account. Desktop app builds can read this preference later.",
             "system.processing": "Processing",
@@ -75,12 +80,17 @@
             "lang.active": "ACTIVE",
         },
         vi: {
-            "nav.brand": "SEO Technical Tool",
+            "nav.brand": "Seoauto",
             "nav.dashboard": "Dashboard",
-            "nav.technical": "Phân tích Technical",
+            "nav.technical": "Technical",
             "nav.seo_score": "Chấm điểm SEO",
+            "nav.index_control": "Index Control",
+            "nav.google_map_seo": "Google Map",
             "nav.content_ai": "Content AI",
-            "nav.keyword": "Từ khóa",
+            "nav.social_auto": "Social Auto",
+            "nav.chatbot_cskh": "Chatbot CSKH",
+            "nav.rank_tracking": "Theo dõi thứ hạng",
+            "nav.keyword": "Keyword",
             "nav.keyword_research": "Nghiên cứu từ khóa",
             "nav.keyword_clustering": "Gom nhóm từ khóa",
             "nav.schema": "Schema",
@@ -125,7 +135,7 @@
             "system.lang_lead":
                 "Chọn ngôn ngữ giao diện. Thay đổi có hiệu lực ngay, không cần khởi động lại.",
             "system.startup_title": "Khởi động cùng hệ đống",
-            "system.startup_desc": "Tự mở DigiSEO khi máy tính bật",
+            "system.startup_desc": "Tự mở Seoauto khi máy tính bật",
             "system.startup_note": "Lưu theo tài khoản. Bản desktop có thể đọc tuỳ chọn này sau.",
             "system.processing": "Xử lý",
             "system.batch_size": "Kích thước batch",
@@ -210,6 +220,10 @@
                 el.hidden = true;
             }
         });
+
+        try {
+            global.dispatchEvent(new CustomEvent("digiseo:i18n-applied", { detail: { lang: L } }));
+        } catch (_) {}
     }
 
     function init() {

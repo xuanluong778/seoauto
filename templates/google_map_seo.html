@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    {% include "partials/digiseo_theme_head.html" %}
+    <link rel="stylesheet" href="/static/css/google-map-seo.css?v=17">
+</head>
+<body class="page-google-map-seo">
+<div class="gms-wrap">
+    {% set nav_active = 'google_map_seo' %}
+    {% include "partials/digiseo_nav.html" %}
+
+    <header class="gms-page-head">
+        <span class="gms-pill">Google Map SEO</span>
+        <h1>Tối ưu Google Business Profile &amp; Local SEO</h1>
+        <p class="gms-lead">Kiểm tra hồ sơ Map, quản lý review, bài đăng, ảnh và theo dõi đối thủ — tất cả trên một dashboard.</p>
+        <p class="gms-demo-badge" id="gmsDemoBadge" role="status" hidden>Dữ liệu minh họa — bấm «Kết nối Google Business Profile» để đồng bộ thật</p>
+    </header>
+
+    <div class="gms-api-banner" id="gmsApiBanner" hidden role="alert"></div>
+
+    <div class="gms-toolbar" id="gmsToolbar">
+        <label class="gms-toolbar-label" for="gmsLocationSelect">Địa điểm</label>
+        <select id="gmsLocationSelect" class="gms-select" aria-label="Chọn địa điểm Google Map"></select>
+        <button type="button" class="gms-btn gms-btn--secondary" id="gmsBtnRefresh" title="Làm mới dữ liệu">↻ Làm mới</button>
+        <button type="button" class="gms-btn gms-btn--primary" id="gmsBtnConnect">+ Kết nối Google Business</button>
+    </div>
+
+    <div class="gms-stats-bar" id="gmsStatsBar" aria-label="Thống kê nhanh" hidden></div>
+
+    <div class="gms-shell">
+        <nav class="gms-sidebar" role="tablist" aria-label="Điều hướng Google Map SEO">
+            <button type="button" class="gms-nav-item active" data-gms-tab="overview" aria-selected="true">
+                <span class="gms-nav-icon" aria-hidden="true">📊</span>
+                <span class="gms-nav-label">Tổng quan</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="check-map" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">🔍</span>
+                <span class="gms-nav-label">Check Map</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="profile" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">📝</span>
+                <span class="gms-nav-label">Tối ưu hồ sơ</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="review" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">⭐</span>
+                <span class="gms-nav-label">Review</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="posts" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">📢</span>
+                <span class="gms-nav-label">Bài đăng</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="media" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">🖼</span>
+                <span class="gms-nav-label">Ảnh &amp; Media</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="verification" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">✅</span>
+                <span class="gms-nav-label">Xác minh Map</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="competitors" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">🏆</span>
+                <span class="gms-nav-label">Đối thủ</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="reports" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">📈</span>
+                <span class="gms-nav-label">Báo cáo</span>
+            </button>
+            <button type="button" class="gms-nav-item" data-gms-tab="lead-scanner" aria-selected="false">
+                <span class="gms-nav-icon" aria-hidden="true">🎯</span>
+                <span class="gms-nav-label">Lead Scanner</span>
+            </button>
+        </nav>
+
+        <div class="gms-main">
+            <section class="gms-panel active" data-gms-panel="overview" role="tabpanel" id="gmsPanelOverview"></section>
+            <section class="gms-panel" data-gms-panel="check-map" role="tabpanel" id="gmsPanelCheckMap" hidden></section>
+            <section class="gms-panel" data-gms-panel="profile" role="tabpanel" id="gmsPanelProfile" hidden></section>
+            <section class="gms-panel" data-gms-panel="review" role="tabpanel" id="gmsPanelReview" hidden></section>
+            <section class="gms-panel" data-gms-panel="posts" role="tabpanel" id="gmsPanelPosts" hidden></section>
+            <section class="gms-panel" data-gms-panel="media" role="tabpanel" id="gmsPanelMedia" hidden></section>
+            <section class="gms-panel" data-gms-panel="verification" role="tabpanel" id="gmsPanelVerification" hidden></section>
+            <section class="gms-panel" data-gms-panel="competitors" role="tabpanel" id="gmsPanelCompetitors" hidden></section>
+            <section class="gms-panel" data-gms-panel="reports" role="tabpanel" id="gmsPanelReports" hidden></section>
+            <section class="gms-panel" data-gms-panel="lead-scanner" role="tabpanel" id="gmsPanelLeadScanner" hidden></section>
+        </div>
+    </div>
+</div>
+
+<div class="gms-toast" id="gmsToast" hidden role="status"></div>
+
+<script src="/static/js/google-map-seo-check.js?v=2"></script>
+<script src="/static/js/google-map-seo-profile.js?v=2"></script>
+<script src="/static/js/google-map-seo-reviews.js?v=2"></script>
+<script src="/static/js/google-map-seo-posts.js?v=2"></script>
+<script src="/static/js/google-map-seo-media.js?v=2"></script>
+<script src="/static/js/google-map-seo-verification.js?v=2"></script>
+<script src="/static/js/google-map-seo-competitors.js?v=2"></script>
+<script src="/static/js/google-map-seo-reports.js?v=3"></script>
+<script src="/static/js/google-map-seo-leads.js?v=3"></script>
+<script src="/static/js/google-map-seo.js?v=23" defer></script>
+{% include "partials/digiseo_chatbot_bundle.html" %}
+{% include "partials/digiseo_credit_confirm_bundle.html" %}
+</body>
+</html>

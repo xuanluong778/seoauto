@@ -1,0 +1,2071 @@
+/**
+ * SEOAuto — /tool Technical Analysis UI (scoped .seo-tool-page)
+ * Desktop + mobile; không ảnh hưởng trang khác.
+ */
+
+.seo-tool-page {
+    --seo-tool-sidebar-w: 252px;
+    --seo-tool-content-max: min(1400px, 100%);
+    --seo-tool-card-bg: rgba(30, 41, 59, 0.85);
+    --seo-tool-card-border: rgba(148, 163, 184, 0.22);
+    --seo-tool-accent: #3b82f6;
+    --seo-tool-green: #10b981;
+    --seo-tool-orange: #f59e0b;
+    --seo-tool-red: #ef4444;
+    --tech-dash-bg: #0b1220;
+    --tech-dash-surface: rgba(30, 41, 59, 0.72);
+    overflow-x: clip;
+    max-width: 100%;
+    background: var(--tech-dash-bg);
+    color: #e2e8f0;
+}
+
+.seo-tool-page .tool-main {
+    background: linear-gradient(180deg, #0b1220 0%, #0f172a 48%, #0b1220 100%);
+}
+
+/* Không tràn ngang — mọi vùng chính */
+.seo-tool-page .tool-main,
+.seo-tool-page .seo-tool-content,
+.seo-tool-page .tool-table-panel,
+.seo-tool-page .seo-tool-card,
+.seo-tool-page .card {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.seo-tool-page img,
+.seo-tool-page video,
+.seo-tool-page iframe,
+.seo-tool-page pre,
+.seo-tool-page table {
+    max-width: 100%;
+}
+
+.seo-tool-page .tech-complete-toolbar,
+.seo-tool-page .seo-tool-issues-toolbar-top,
+.seo-tool-page .google-inline-toolbar {
+    min-width: 0;
+}
+
+/* —— Layout shell —— */
+.seo-tool-page .seo-tool-shell {
+    display: block;
+    min-height: 100vh;
+}
+
+.seo-tool-page > .sidebar {
+    z-index: 30;
+}
+
+.seo-tool-page .sidebar-right {
+    display: none !important;
+}
+
+.seo-tool-page .tool-main {
+    min-height: 100vh;
+}
+
+.seo-tool-page .seo-tool-content {
+    width: 100%;
+    max-width: var(--seo-tool-content-max);
+    margin: 0 auto;
+    padding: 0 20px 48px;
+    box-sizing: border-box;
+}
+
+/* —— Hero —— */
+.seo-tool-page .seo-tool-hero {
+    margin: 0 0 20px;
+    padding-top: 4px;
+}
+
+.seo-tool-page .seo-tool-hero h1 {
+    margin: 0 0 8px !important;
+    font-size: 1.75rem !important;
+    font-weight: 800 !important;
+    text-align: left !important;
+    color: var(--seo-tool-green) !important;
+    letter-spacing: -0.02em;
+}
+
+.seo-tool-page .seo-tool-hero .sub,
+.seo-tool-page .seo-tool-hero-desc {
+    margin: 0 !important;
+    text-align: left !important;
+    color: #94a3b8 !important;
+    font-size: 0.92rem !important;
+    line-height: 1.55 !important;
+    max-width: 720px;
+}
+
+/* —— Cards —— */
+.seo-tool-page .seo-tool-card {
+    background: var(--seo-tool-card-bg) !important;
+    border: 1px solid var(--seo-tool-card-border) !important;
+    border-radius: 14px !important;
+    padding: clamp(12px, 3vw, 18px) clamp(12px, 3vw, 20px) !important;
+    margin-bottom: 16px !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+    overflow-wrap: anywhere;
+}
+
+.seo-tool-page .seo-tool-card-title {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.seo-tool-page .seo-tool-card-hint {
+    margin: 0 0 12px;
+    font-size: 0.82rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .seo-tool-scan-card .seo-tool-url-row label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.seo-tool-page .seo-tool-url-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.seo-tool-page .seo-tool-url-row input[type="url"] {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.65);
+    color: #f8fafc;
+    font-size: 0.95rem;
+}
+
+.seo-tool-page .seo-tool-primary-btn,
+.seo-tool-page #btnTechnical {
+    width: 100%;
+    padding: 13px 18px !important;
+    border-radius: 10px !important;
+    border: 0 !important;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+.seo-tool-page .seo-tool-primary-btn:disabled,
+.seo-tool-page #btnTechnical:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Advanced collapse */
+.seo-tool-page .seo-tool-advanced {
+    margin-top: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.35);
+    overflow: hidden;
+}
+
+.seo-tool-page .seo-tool-advanced summary {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    list-style: none;
+}
+
+.seo-tool-page .seo-tool-advanced summary::-webkit-details-marker {
+    display: none;
+}
+
+.seo-tool-page .seo-tool-advanced-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+    padding: 0 14px 14px;
+}
+
+.seo-tool-page .seo-tool-adv-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.78rem;
+}
+
+.seo-tool-page .seo-tool-adv-item span {
+    color: #64748b;
+}
+
+.seo-tool-page .seo-tool-adv-item strong {
+    color: #e2e8f0;
+    font-weight: 600;
+}
+
+/* Progress — chỉ trong card, không tràn viewport */
+.seo-tool-page .tech-scan-progress-wrap {
+    margin-top: 14px;
+    max-width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.seo-tool-page .tech-scan-progress-track {
+    width: 100%;
+    max-width: 100%;
+}
+
+.seo-tool-page .tech-scan-progress-bar {
+    max-width: 100%;
+}
+
+/* GSC card */
+.seo-tool-page .seo-tool-gsc-card .google-inline-toolbar {
+    margin: 0;
+}
+
+.seo-tool-page .seo-tool-gsc-card .google-inline-status {
+    text-align: left !important;
+    max-width: none !important;
+    margin: 0 0 10px !important;
+    font-size: 0.88rem !important;
+}
+
+.seo-tool-page .google-inline-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.seo-tool-page .google-inline-btns button {
+    width: auto !important;
+    flex: 1 1 auto;
+    min-width: 140px;
+    padding: 10px 14px !important;
+    font-size: 0.85rem !important;
+}
+
+/* Projects card */
+.seo-tool-page .seo-tool-projects-card .sb-projects-title {
+    color: #f1f5f9;
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+}
+
+.seo-tool-page .seo-tool-projects-card .sb-hint-projects {
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .sb-list {
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+/* Export section — ẩn đến khi có kết quả */
+.seo-tool-page .seo-tool-export-card {
+    border-color: rgba(59, 130, 246, 0.25);
+    background: rgba(30, 41, 59, 0.85) !important;
+}
+
+.seo-tool-page .seo-tool-export-btns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.seo-tool-page .seo-tool-export-btns button {
+    width: 100% !important;
+    padding: 11px 14px !important;
+    font-size: 0.85rem !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+
+.seo-tool-page #btnExportCsv,
+.seo-tool-page #btnExportGsheet {
+    background: rgba(15, 23, 42, 0.8) !important;
+    border: 1px solid rgba(148, 163, 184, 0.3) !important;
+    color: #e2e8f0 !important;
+    box-shadow: none !important;
+}
+
+.seo-tool-page #btnTechnicalDownloadExcel {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #059669, #10b981) !important;
+    border: 0 !important;
+    color: #fff !important;
+}
+
+/* Summary stats grid */
+.seo-tool-page .seo-tool-summary {
+    margin-bottom: 16px;
+}
+
+.seo-tool-page .tech-complete-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+    min-width: 0;
+}
+
+.seo-tool-page .tech-complete-domain-pill {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.seo-tool-page .tech-complete-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.seo-tool-page .seo-tool-projects-card .sb-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.seo-tool-page .seo-tool-projects-card .sb-list li,
+.seo-tool-page .seo-tool-projects-card .sb-list button,
+.seo-tool-page .seo-tool-projects-card .sb-list a {
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.seo-tool-page .seo-tool-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.seo-tool-page .seo-tool-stat-card {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--seo-tool-card-border);
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.seo-tool-page .seo-tool-stat-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+
+.seo-tool-page .seo-tool-stat-value {
+    display: block;
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #f8fafc;
+    line-height: 1.1;
+}
+
+.seo-tool-page .seo-tool-stat-value small {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.seo-tool-page .seo-tool-stat-hint {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.seo-tool-page .seo-tool-stat-critical .seo-tool-stat-value {
+    color: var(--seo-tool-red);
+}
+
+.seo-tool-page .seo-tool-stat-warn .seo-tool-stat-value {
+    color: var(--seo-tool-orange);
+}
+
+.seo-tool-page .score-band-good .seo-tool-stat-value {
+    color: var(--seo-tool-green);
+}
+
+.seo-tool-page .seo-tool-stat-legacy {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+/* Sidebar audit — dark integrated */
+.seo-tool-page .tech-sidebar-nav {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: calc(100vh - var(--digiseo-nav-fixed-offset, 68px) - 120px) !important;
+    background: rgba(15, 23, 42, 0.92) !important;
+    border: 1px solid var(--seo-tool-card-border) !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+}
+
+.seo-tool-page .tech-sidebar-nav.tech-sidebar-v2 {
+    max-height: none !important;
+    height: 100% !important;
+    overflow: visible !important;
+}
+
+.seo-tool-page .tech-nav-head {
+    background: rgba(59, 130, 246, 0.12) !important;
+    border-left: 3px solid var(--seo-tool-accent) !important;
+    color: #f1f5f9 !important;
+}
+
+.seo-tool-page .tech-nav-head.is-active {
+    background: rgba(59, 130, 246, 0.2) !important;
+}
+
+.seo-tool-page .tech-nav-divider {
+    background: rgba(148, 163, 184, 0.15) !important;
+}
+
+.seo-tool-page .tech-nav-pillar-label {
+    color: #64748b !important;
+}
+
+.seo-tool-page .tech-nav-row {
+    color: #cbd5e1 !important;
+}
+
+.seo-tool-page .tech-nav-row:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.seo-tool-page .tech-nav-row.is-active {
+    background: linear-gradient(90deg, rgba(30, 64, 175, 0.45) 0%, rgba(59, 130, 246, 0.18) 100%) !important;
+    border-left: 3px solid #3b82f6 !important;
+    color: #f8fafc !important;
+}
+
+.seo-tool-page .tech-nav-badge.ok,
+.seo-tool-page .tech-nav-stats.ok {
+    /* open pill styled via .tech-nav-stat-open */
+}
+
+.seo-tool-page .tech-nav-badge.mid,
+.seo-tool-page .tech-nav-badge.bad,
+.seo-tool-page .tech-nav-stats.mid,
+.seo-tool-page .tech-nav-stats.bad {
+    /* severity via stat-open */
+}
+
+.seo-tool-page .tech-nav-badge.neutral,
+.seo-tool-page .tech-nav-stats.neutral {
+    background: rgba(148, 163, 184, 0.15) !important;
+    color: #94a3b8 !important;
+}
+
+.seo-tool-page .tech-nav-stats {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 28px;
+}
+
+.seo-tool-page .tech-nav-stat-open {
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 999px;
+    line-height: 1.2;
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+}
+
+.seo-tool-page .tech-nav-stats.ok .tech-nav-stat-open {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+}
+
+.seo-tool-page .tech-nav-stats.mid .tech-nav-stat-open {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fcd34d;
+}
+
+.seo-tool-page .tech-nav-stats.bad .tech-nav-stat-open {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+}
+
+.seo-tool-page .tech-nav-stat-sub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    justify-content: flex-end;
+}
+
+.seo-tool-page .tech-nav-pill {
+    font-size: 0.52rem;
+    font-weight: 800;
+    padding: 0 4px;
+    border-radius: 4px;
+    line-height: 1.3;
+}
+
+.seo-tool-page .tech-nav-pill-c {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+}
+
+.seo-tool-page .tech-nav-pill-h {
+    background: rgba(249, 115, 22, 0.18);
+    color: #fdba74;
+}
+
+.seo-tool-page .tech-nav-pill-p {
+    background: rgba(16, 185, 129, 0.15);
+    color: #6ee7b7;
+}
+
+/* Passed Checks */
+.seo-tool-page .seo-tool-passed-checks {
+    margin-bottom: 12px;
+    border-color: rgba(16, 185, 129, 0.25) !important;
+}
+
+.seo-tool-page .seo-tool-passed-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 0;
+    background: transparent;
+    color: #e2e8f0;
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.seo-tool-page .seo-tool-passed-count {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    font-size: 0.78rem;
+}
+
+.seo-tool-page .seo-tool-passed-chev {
+    color: #64748b;
+    transition: transform 0.15s ease;
+}
+
+.seo-tool-page .seo-tool-passed-toggle.is-open .seo-tool-passed-chev {
+    transform: rotate(180deg);
+}
+
+.seo-tool-page .seo-tool-passed-body {
+    padding: 0 14px 14px;
+}
+
+.seo-tool-page .seo-tool-passed-hint {
+    margin: 0 0 10px;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.45;
+}
+
+.seo-tool-page .seo-tool-passed-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.seo-tool-page .seo-tool-passed-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.18);
+}
+
+.seo-tool-page .seo-tool-passed-item-title {
+    display: block;
+    font-size: 0.82rem;
+    color: #a7f3d0;
+    margin-bottom: 4px;
+}
+
+.seo-tool-page .seo-tool-passed-item-meta {
+    display: block;
+    font-size: 0.68rem;
+    color: #64748b;
+    text-transform: capitalize;
+}
+
+.seo-tool-page .seo-tool-passed-item-desc {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+/* Mobile category chips bar (main content) */
+.seo-tool-page .tech-category-chips-bar {
+    display: none;
+    margin-bottom: 12px;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.seo-tool-page .tech-category-chips-scroll {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 2px 8px;
+    max-width: 100%;
+    scrollbar-width: thin;
+}
+
+.seo-tool-page .tech-category-chip {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(30, 41, 59, 0.75);
+    color: #cbd5e1;
+    font-size: 0.74rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.seo-tool-page .tech-category-chip.is-active {
+    border-color: rgba(59, 130, 246, 0.45);
+    background: rgba(59, 130, 246, 0.18);
+    color: #93c5fd;
+}
+
+.seo-tool-page .tech-category-chip.has-issues {
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.seo-tool-page .tech-category-chip-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+    font-size: 0.65rem;
+}
+
+/* Table panel */
+.seo-tool-page .tool-table-panel {
+    padding: 0 20px 40px !important;
+    max-width: var(--seo-tool-content-max);
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.seo-tool-page .tool-table-panel .container--wide {
+    max-width: 100% !important;
+    padding: 0 !important;
+}
+
+.seo-tool-page .issues-table-wrap {
+    overflow-x: auto !important;
+    max-width: 100%;
+}
+
+.seo-tool-page #issuesCard.card {
+    overflow: hidden;
+}
+
+.seo-tool-page .auth-box {
+    right: 14px !important;
+}
+
+.seo-tool-page .seo-tool-export-card[hidden] {
+    display: none !important;
+}
+
+.seo-tool-page .technical-complete-banner[hidden],
+.seo-tool-page .seo-tool-results-overview[hidden] {
+    display: none !important;
+}
+
+/* —— SaaS Technical Results Overview —— */
+.seo-tool-page .seo-tool-results-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.seo-tool-page .seo-tool-saas-summary {
+    margin-bottom: 0;
+}
+
+.seo-tool-page .seo-tool-saas-health-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.seo-tool-page .seo-tool-saas-health-main {
+    grid-column: 1 / -1;
+    padding: 16px 18px;
+    border-radius: 12px;
+    border: 1px solid var(--seo-tool-card-border);
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.seo-tool-page .seo-tool-saas-health-main.score-band-good {
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.seo-tool-page .seo-tool-saas-health-main.score-band-mid {
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.seo-tool-page .seo-tool-saas-health-main.score-band-low {
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.seo-tool-page .seo-tool-saas-health-value {
+    display: block;
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #f8fafc;
+    line-height: 1;
+    margin: 4px 0 6px;
+}
+
+.seo-tool-page .score-band-good .seo-tool-saas-health-value {
+    color: var(--seo-tool-green);
+}
+
+.seo-tool-page .score-band-low .seo-tool-saas-health-value {
+    color: var(--seo-tool-red);
+}
+
+.seo-tool-page .seo-tool-saas-meta-line {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+.seo-tool-page .seo-tool-saas-stat {
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.45);
+    text-align: center;
+}
+
+.seo-tool-page .seo-tool-saas-stat span {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    margin-bottom: 4px;
+}
+
+.seo-tool-page .seo-tool-saas-stat strong {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #f1f5f9;
+}
+
+.seo-tool-page .seo-tool-saas-stat-critical strong {
+    color: #f87171;
+}
+
+.seo-tool-page .seo-tool-saas-stat-high strong {
+    color: #fb923c;
+}
+
+.seo-tool-page .seo-tool-saas-stat-medium strong {
+    color: #facc15;
+}
+
+.seo-tool-page .seo-tool-saas-stat-low strong {
+    color: #86efac;
+}
+
+.seo-tool-page .seo-tool-saas-stat-passed strong {
+    color: #6ee7b7;
+}
+
+.seo-tool-page .seo-tool-saas-stat-gsc strong,
+.seo-tool-page .seo-tool-saas-stat-mode strong {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.seo-tool-page .seo-tool-scan-mode {
+    font-size: 0.82rem !important;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.seo-tool-page .seo-tool-scan-mode-hybrid-gsc {
+    color: #6ee7b7 !important;
+}
+
+.seo-tool-page .seo-tool-scan-mode-partial-gsc {
+    color: #fcd34d !important;
+}
+
+/* Priority fixes */
+.seo-tool-page .seo-tool-card-hint {
+    margin: -4px 0 14px;
+    font-size: 0.82rem;
+    color: #94a3b8;
+    line-height: 1.45;
+}
+
+.seo-tool-page .seo-tool-priority-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.seo-tool-page .seo-tool-priority-card {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.seo-tool-page .seo-tool-priority-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.seo-tool-page .seo-tool-priority-rank {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.seo-tool-page .saas-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.seo-tool-page .saas-sev-critical {
+    background: rgba(239, 68, 68, 0.22);
+    color: #fca5a5;
+}
+
+.seo-tool-page .saas-sev-high {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fdba74;
+}
+
+.seo-tool-page .saas-sev-medium {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fcd34d;
+}
+
+.seo-tool-page .saas-sev-low {
+    background: rgba(34, 197, 94, 0.15);
+    color: #86efac;
+}
+
+.seo-tool-page .saas-src-crawl {
+    background: rgba(59, 130, 246, 0.18);
+    color: #93c5fd;
+}
+
+.seo-tool-page .saas-src-gsc {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+}
+
+.seo-tool-page .saas-src-hybrid {
+    background: rgba(168, 85, 247, 0.18);
+    color: #d8b4fe;
+}
+
+.seo-tool-page .seo-tool-priority-score {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .seo-tool-priority-title {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1.35;
+}
+
+.seo-tool-page .seo-tool-priority-meta {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+.seo-tool-page .seo-tool-priority-why {
+    margin: 0 0 10px;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.45;
+}
+
+.seo-tool-page .seo-tool-priority-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.seo-tool-page .seo-tool-priority-actions button {
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(30, 41, 59, 0.8);
+    color: #e2e8f0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.seo-tool-page .seo-tool-priority-actions button:hover:not(:disabled) {
+    border-color: rgba(59, 130, 246, 0.45);
+    color: #93c5fd;
+}
+
+.seo-tool-page .seo-tool-priority-actions button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.seo-tool-page .seo-tool-priority-urls,
+.seo-tool-page .seo-tool-priority-guide {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.seo-tool-page .seo-tool-priority-urls ul {
+    margin: 0;
+    padding-left: 16px;
+}
+
+.seo-tool-page .seo-tool-priority-urls a {
+    color: #93c5fd;
+    word-break: break-all;
+}
+
+.seo-tool-page .seo-tool-partial-warn {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    color: #fde68a;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.seo-tool-page .seo-tool-disclaimers {
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px dashed rgba(148, 163, 184, 0.25);
+}
+
+.seo-tool-page .seo-tool-disclaimer-line {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.45;
+}
+
+.seo-tool-page .seo-tool-disclaimer-line:last-child {
+    margin-bottom: 0;
+}
+
+.seo-tool-page .seo-tool-content .card h3,
+.seo-tool-page .tool-table-panel .card h3 {
+    font-size: 1rem;
+    color: #f1f5f9;
+}
+
+.seo-tool-page .google-inline-btns .btn-google-disconnect {
+    background: rgba(239, 68, 68, 0.15) !important;
+    border: 1px solid rgba(239, 68, 68, 0.35) !important;
+    color: #fca5a5 !important;
+}
+
+.seo-tool-page .google-inline-btns .btn-google-connect {
+    background: rgba(59, 130, 246, 0.15) !important;
+    border: 1px solid rgba(59, 130, 246, 0.35) !important;
+    color: #93c5fd !important;
+}
+
+/* User dock — gọn, không đè sidebar */
+.seo-tool-page .digiseo-user-dock-wrap.is-sidebar,
+.seo-tool-page .sidebar-user-dock {
+    z-index: 35 !important;
+}
+
+/* Chatbot offset */
+.seo-tool-page .digiseo-chatbot-root {
+    z-index: 90;
+}
+
+@media (min-width: 1025px) {
+    .seo-tool-page .seo-tool-url-row {
+        flex-direction: row;
+        align-items: stretch;
+    }
+
+    .seo-tool-page .seo-tool-url-row input[type="url"] {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .seo-tool-page .seo-tool-primary-btn,
+    .seo-tool-page #btnTechnical {
+        width: auto !important;
+        flex: 0 0 auto;
+        min-width: 220px;
+        white-space: nowrap;
+    }
+
+    .seo-tool-page .digiseo-user-dock-wrap.is-sidebar,
+    .seo-tool-page .sidebar-user-dock {
+        left: 14px !important;
+        width: calc(var(--seo-tool-sidebar-w) - 28px) !important;
+        max-width: calc(var(--seo-tool-sidebar-w) - 28px) !important;
+        bottom: 16px !important;
+    }
+
+    .seo-tool-page .digiseo-chatbot-root {
+        right: 20px !important;
+        bottom: 20px !important;
+    }
+}
+
+/* Tablet: 769–1024px — chi tiết trong seo-tool-responsive.css */
+
+/* —— GSC Hybrid Audit —— */
+.seo-tool-page .seo-tool-gsc-cta {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    color: #93c5fd;
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+.seo-tool-page .seo-tool-gsc-audit-options {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.seo-tool-page .seo-tool-gsc-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+
+.seo-tool-page .seo-tool-gsc-audit-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.seo-tool-page .seo-tool-gsc-audit-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .seo-tool-gsc-audit-grid select {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.65);
+    color: #f1f5f9;
+    font-size: 0.85rem;
+}
+
+.seo-tool-page .seo-tool-gsc-intel-card {
+    border-color: rgba(16, 185, 129, 0.28) !important;
+}
+
+.seo-tool-page .seo-tool-gsc-intel-meta {
+    margin: 0 0 12px;
+    font-size: 0.82rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .seo-tool-gsc-intel-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.seo-tool-page .seo-tool-gsc-stat {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.seo-tool-page .seo-tool-gsc-stat span {
+    display: block;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+
+.seo-tool-page .seo-tool-gsc-stat strong {
+    font-size: 1.1rem;
+    color: #f1f5f9;
+}
+
+.seo-tool-page .seo-tool-gsc-intel-note {
+    margin: 12px 0 0;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .seo-tool-gsc-intel-note.is-warn {
+    color: #fcd34d;
+}
+
+.seo-tool-page .seo-tool-gsc-opps h4 {
+    margin: 14px 0 8px;
+    font-size: 0.9rem;
+    color: #e2e8f0;
+}
+
+.seo-tool-page .seo-tool-gsc-opps-list {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.seo-tool-page .gsc-badge {
+    display: inline-block;
+    margin: 2px 4px 2px 0;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.seo-tool-page .gsc-badge-confirmed {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+}
+
+.seo-tool-page .gsc-badge-crawl {
+    background: rgba(59, 130, 246, 0.18);
+    color: #93c5fd;
+}
+
+.seo-tool-page .gsc-badge-inferred {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fcd34d;
+}
+
+.seo-tool-page .issue-gsc-metrics {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.18);
+    font-size: 0.75rem;
+    color: #a7f3d0;
+    line-height: 1.45;
+}
+
+@media (max-width: 1024px) {
+    .seo-tool-page .seo-tool-gsc-intel-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .seo-tool-page .seo-tool-gsc-audit-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .seo-tool-page .seo-tool-gsc-intel-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.seo-tool-page .tech-sidebar-site-snapshot {
+    margin: 8px 10px 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    font-size: 0.72rem;
+    line-height: 1.4;
+}
+
+.seo-tool-page .tech-sidebar-site-dl {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.seo-tool-page .tech-sidebar-site-row {
+    display: grid;
+    grid-template-columns: minmax(88px, 38%) 1fr;
+    gap: 8px;
+    align-items: start;
+}
+
+.seo-tool-page .tech-sidebar-site-row dt {
+    margin: 0;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.seo-tool-page .tech-sidebar-site-row dd {
+    margin: 0;
+    color: #e2e8f0;
+    word-break: break-word;
+}
+
+/* —— Mockup-style sidebar & results header —— */
+.seo-tool-page .tech-sidebar-brand-label {
+    margin: 0;
+    padding: 10px 12px 6px;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.seo-tool-page .tech-nav-count-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.seo-tool-page .tech-nav-count-pill.ok {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.seo-tool-page .tech-nav-count-pill.mid {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.seo-tool-page .tech-nav-count-pill.warn {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fdba74;
+}
+
+.seo-tool-page .tech-nav-count-pill.opp {
+    background: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+}
+
+.seo-tool-page .tech-nav-count-pill.bad {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.seo-tool-page .tech-nav-count-pill.neutral {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.seo-tool-page .tech-sidebar-section {
+    padding: 10px 10px 8px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.seo-tool-page .tech-sidebar-section-title {
+    margin: 0 0 8px;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.seo-tool-page .tech-sidebar-passed-list,
+.seo-tool-page .tech-sidebar-recent-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.seo-tool-page .tech-sidebar-passed-item {
+    margin: 0 0 4px;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: #166534;
+}
+
+.seo-tool-page .tech-sidebar-link-btn {
+    margin-top: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #2563eb;
+    cursor: pointer;
+}
+
+.seo-tool-page .tech-sidebar-recent-item {
+    padding: 6px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.seo-tool-page .tech-sidebar-recent-item:hover {
+    background: #f8fafc;
+}
+
+.seo-tool-page .tech-sidebar-recent-item.is-active {
+    background: #eff6ff;
+}
+
+.seo-tool-page .tech-sidebar-recent-domain {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #0f172a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.seo-tool-page .tech-sidebar-recent-meta {
+    font-size: 0.64rem;
+    color: #64748b;
+}
+
+.seo-tool-page .seo-tool-results-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 20px;
+    margin-bottom: 14px;
+}
+
+.seo-tool-page .seo-tool-results-header-titles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.seo-tool-page .seo-tool-results-title {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #f8fafc;
+}
+
+.seo-tool-page .seo-tool-status-badge {
+    display: inline-flex;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: rgba(34, 197, 94, 0.2);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.seo-tool-page .seo-tool-results-url {
+    margin: 6px 0 0;
+    font-size: 0.88rem;
+    color: #93c5fd;
+    word-break: break-all;
+}
+
+.seo-tool-page .seo-tool-results-meta {
+    margin: 4px 0 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .seo-tool-results-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* —— Issue Cards (normalized_issues) —— */
+.seo-tool-page .seo-tool-issues-toolbar {
+    margin-bottom: 14px;
+}
+
+.seo-tool-page .seo-tool-issues-toolbar-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.seo-tool-page .seo-tool-issues-title {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #f1f5f9;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.seo-tool-page .seo-tool-issues-view-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+.seo-tool-page .seo-tool-issues-view-toggle button {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.65);
+    color: #94a3b8;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.seo-tool-page .seo-tool-issues-view-toggle button.is-active {
+    border-color: rgba(59, 130, 246, 0.45);
+    background: rgba(59, 130, 246, 0.18);
+    color: #93c5fd;
+}
+
+.seo-tool-page .seo-tool-issues-search-row {
+    margin-bottom: 10px;
+}
+
+.seo-tool-page .seo-tool-issues-search-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+
+.seo-tool-page .seo-tool-issues-search {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.65);
+    color: #f1f5f9;
+    font-size: 0.88rem;
+}
+
+.seo-tool-page .seo-tool-issues-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.seo-tool-page .seo-tool-issues-filters button {
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(30, 41, 59, 0.55);
+    color: #cbd5e1;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.seo-tool-page .seo-tool-issues-filters button.is-active {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.14);
+    color: #6ee7b7;
+}
+
+.seo-tool-page .seo-tool-issues-count {
+    margin: 0;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+.seo-tool-page .seo-tool-issues-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.seo-tool-page .seo-tool-issue-card {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.5);
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.seo-tool-page .seo-tool-issue-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.seo-tool-page .seo-tool-issue-card-score {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .seo-tool-issue-card-title {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f8fafc;
+    line-height: 1.35;
+}
+
+.seo-tool-page .seo-tool-issue-card-meta {
+    margin: 0 0 6px;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.seo-tool-page .seo-tool-issue-card-desc,
+.seo-tool-page .seo-tool-issue-card-why {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.45;
+}
+
+.seo-tool-page .seo-tool-issue-gsc-metrics {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.18);
+    font-size: 0.75rem;
+    color: #a7f3d0;
+    line-height: 1.45;
+}
+
+.seo-tool-page .seo-tool-issue-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.seo-tool-page .seo-tool-issue-card-actions button {
+    padding: 7px 11px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(30, 41, 59, 0.8);
+    color: #e2e8f0;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.seo-tool-page .seo-tool-issue-card-actions button:hover:not(:disabled) {
+    border-color: rgba(59, 130, 246, 0.45);
+    color: #93c5fd;
+}
+
+.seo-tool-page .seo-tool-issue-card-actions button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.seo-tool-page .seo-tool-issue-url-panel,
+.seo-tool-page .seo-tool-issue-guide-panel {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.seo-tool-page .seo-tool-issue-url-panel ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.seo-tool-page .seo-tool-issue-url-panel li {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.seo-tool-page .seo-tool-issue-url-panel a {
+    color: #93c5fd;
+    word-break: break-all;
+    display: block;
+}
+
+.seo-tool-page .seo-tool-priority-urls ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.seo-tool-page .seo-tool-priority-urls li {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.seo-tool-page .seo-tool-priority-urls a {
+    word-break: break-all;
+    display: block;
+}
+
+.seo-tool-page .seo-tool-issues-empty {
+    margin: 0;
+    padding: 16px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.88rem;
+    grid-column: 1 / -1;
+}
+
+.seo-tool-page #issuesCard.card {
+    overflow: visible;
+    max-width: 100%;
+}
+
+.seo-tool-page #issuesScroll {
+    overflow-x: hidden;
+    max-width: 100%;
+}
+
+.seo-tool-page .badge.sev-critical {
+    background: rgba(239, 68, 68, 0.22);
+    color: #fca5a5;
+}
+
+.seo-tool-page .badge.sev-passed {
+    background: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+}
+
+/* —— Technical Analysis 2-column content —— */
+.seo-tool-page .tech-right-panel {
+    width: 100%;
+    min-width: 0;
+}
+
+.seo-tool-page .tech-content-header {
+    margin: 0 0 14px;
+    padding: 0 2px;
+}
+
+.seo-tool-page .tech-content-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #f8fafc;
+}
+
+.seo-tool-page .tech-content-subtitle {
+    margin: 6px 0 0;
+    font-size: 0.82rem;
+    color: #94a3b8;
+    line-height: 1.45;
+}
+
+.seo-tool-page .tech-empty-state {
+    margin: 12px 0 0;
+    padding: 20px 16px;
+    text-align: center;
+    border-radius: 12px;
+    border: 1px dashed rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.35);
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.seo-tool-page .tech-nav-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.seo-tool-page .tech-nav-mobile-select {
+    display: none;
+    width: 100%;
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.seo-tool-page .tech-nav-special {
+    margin: 4px 0 8px;
+}
+
+.seo-tool-page .seo-tool-issues-controls-row {
+    display: grid;
+    grid-template-columns: 1fr minmax(140px, 180px);
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.seo-tool-page .seo-tool-issues-sort {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.65);
+    color: #f1f5f9;
+    font-size: 0.86rem;
+}
+
+.seo-tool-page .seo-tool-issue-card-url {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    color: #93c5fd;
+    word-break: break-all;
+}
+
+.seo-tool-page .seo-tool-issue-card-impact,
+.seo-tool-page .seo-tool-issue-card-fix {
+    margin: 0 0 8px;
+    font-size: 0.84rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.seo-tool-page .seo-tool-issue-card.is-marked-fixed {
+    opacity: 0.55;
+    border-style: dashed;
+}
+
+.seo-tool-page .seo-tool-issue-detail-panel {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    font-size: 0.78rem;
+    color: #94a3b8;
+    white-space: pre-wrap;
+}
+
+.seo-tool-page .btn-issue-copy-fix,
+.seo-tool-page .btn-issue-mark-fixed,
+.seo-tool-page .btn-issue-details {
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(30, 41, 59, 0.7);
+    color: #e2e8f0;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.seo-tool-page .btn-issue-copy-fix:hover,
+.seo-tool-page .btn-issue-mark-fixed:hover,
+.seo-tool-page .btn-issue-details:hover {
+    border-color: rgba(59, 130, 246, 0.45);
+    color: #93c5fd;
+}
+
+.seo-tool-page .seo-tool-overview-passed-list {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.seo-tool-page .seo-tool-overview-passed-item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    font-size: 0.84rem;
+}
+
+.seo-tool-page .tech-overview-passed-count {
+    display: inline-flex;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.15);
+    font-size: 0.78rem;
+}
+
+.seo-tool-page .seo-tool-passed-card {
+    border-color: rgba(16, 185, 129, 0.25);
+    background: rgba(16, 185, 129, 0.06);
+}
+
+.seo-tool-page .saas-sev-passed {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+}
+
+.seo-tool-page .tech-category-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.seo-tool-page .tech-category-stat {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.45);
+    text-align: center;
+}
+
+.seo-tool-page .tech-category-stat span {
+    display: block;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.seo-tool-page .tech-category-stat strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 1.15rem;
+    color: #f1f5f9;
+}
+
+.seo-tool-page .tech-category-stat.crit strong { color: #fca5a5; }
+.seo-tool-page .tech-category-stat.high strong { color: #fdba74; }
+.seo-tool-page .tech-category-stat.med strong { color: #fde047; }
+.seo-tool-page .tech-category-stat.low strong { color: #93c5fd; }
+
+.seo-tool-page .tech-category-checklist-title {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    color: #f1f5f9;
+}
+
+.seo-tool-page .tech-category-checklist-hint {
+    margin: 0 0 10px;
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.seo-tool-page .tech-category-checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.seo-tool-page .tech-category-checklist-item {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 8px;
+    align-items: start;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    background: rgba(15, 23, 42, 0.4);
+    font-size: 0.8rem;
+}
+
+.seo-tool-page .tech-category-checklist-item.is-detected {
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(127, 29, 29, 0.15);
+}
+
+.seo-tool-page .tech-category-checklist-item.is-clear {
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.seo-tool-page .tech-category-checklist-idx {
+    font-weight: 700;
+    color: #64748b;
+}
+
+.seo-tool-page .tech-category-checklist-text {
+    color: #e2e8f0;
+    line-height: 1.4;
+}
+
+.seo-tool-page .tech-category-checklist-status {
+    font-size: 0.68rem;
+    font-weight: 700;
+    white-space: nowrap;
+    color: #94a3b8;
+}
+
+.seo-tool-page .tech-category-checklist-item.is-detected .tech-category-checklist-status {
+    color: #fca5a5;
+}
+
+.seo-tool-page .tech-category-checklist-item.is-clear .tech-category-checklist-status {
+    color: #6ee7b7;
+}
+
+.seo-tool-page .seo-tool-issue-url-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.seo-tool-page .seo-tool-issue-url-list a {
+    color: #93c5fd;
+    font-size: 0.78rem;
+    word-break: break-all;
+}
+
+.seo-tool-page .seo-tool-issue-url-more {
+    margin: 4px 0 0;
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+body.seo-tool-has-results.seo-tool-tab-active .tool-table-panel {
+    display: flex !important;
+}
+
+body.seo-tool-has-results.seo-tool-tab-active .tool-scroll-top .seo-tool-scan-card,
+body.seo-tool-has-results.seo-tool-tab-active .tool-scroll-top .seo-tool-gsc-card {
+    opacity: 0.92;
+}
+
+/* Issue / priority grid breakpoints — desktop + tablet trong seo-tool-desktop / responsive */

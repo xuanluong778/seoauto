@@ -2,20 +2,20 @@
   "documents": [
     {
       "id": "1c55e4c1-4b63-478f-9655-24e321ccc307",
-      "filename": "Sơ đồ tri thức — Giá phần mềm DigiSEO.txt",
-      "title": "Sơ đồ tri thức — Giá phần mềm DigiSEO",
+      "filename": "Sơ đồ tri thức — Giá phần mềm Seoauto.txt",
+      "title": "Sơ đồ tri thức — Giá phần mềm Seoauto",
       "content_format": "text",
       "char_count": 6234,
       "token_estimate": 1558,
       "chunks": [
         {
           "index": 0,
-          "text": "# SƠ ĐỒ TRI THỨC — GIÁ PHẦN MỀM DigiSEO (GLOBAL)\n\nDùng chung cho chatbot và AI — chỉ nêu giá theo tài liệu này.\n\n# SƠ ĐỒ TRI THỨC — GIÁ PHẦN MỀM DigiSEO (GLOBAL)\n\nKnowledge graph dùng chung cho mọi website / mọi user.\nMục đích: Chatbot và AI trả lời đúng bảng giá, quyền lợi gói, cách xem giá trên app — không bịa số liệu.\n\n============================================================\n## pricing knowledge — Bảng giá chính thức (VND, PayOS)\n============================================================",
+          "text": "# SƠ ĐỒ TRI THỨC — GIÁ PHẦN MỀM Seoauto (GLOBAL)\n\nDùng chung cho chatbot và AI — chỉ nêu giá theo tài liệu này.\n\n# SƠ ĐỒ TRI THỨC — GIÁ PHẦN MỀM Seoauto (GLOBAL)\n\nKnowledge graph dùng chung cho mọi website / mọi user.\nMục đích: Chatbot và AI trả lời đúng bảng giá, quyền lợi gói, cách xem giá trên app — không bịa số liệu.\n\n============================================================\n## pricing knowledge — Bảng giá chính thức (VND, PayOS)\n============================================================",
           "embedded": false
         },
         {
           "index": 1,
-          "text": "Cơ sở tính: giá 6 tháng × hệ số thời hạn (1 năm ×1.85, 2 năm ×3.35). Vĩnh viễn = giá cố định.\nTỷ giá tham chiếu PayPal: 1 USD ≈ 25.000 VND (làm tròn khi hiển thị USD).\nMở bảng giá trên app: nút **Upgrade plan** hoặc **View pricing** (modal DigiSEO Pricing).\n\n### Gói Basic\n- 6 tháng: 1.500.000đ\n- 1 năm: 2.775.000đ (~ 231.250đ/tháng)\n- 2 năm: 5.025.000đ\n- Vĩnh viễn: 12.500.000đ (thanh toán một lần)\n- Hạn mức: 50 bài AI/tháng, 3 project, 2 thiết bị\n- Không gồm Google Search Console tích hợp",
+          "text": "Cơ sở tính: giá 6 tháng × hệ số thời hạn (1 năm ×1.85, 2 năm ×3.35). Vĩnh viễn = giá cố định.\nTỷ giá tham chiếu PayPal: 1 USD ≈ 25.000 VND (làm tròn khi hiển thị USD).\nMở bảng giá trên app: nút **Upgrade plan** hoặc **View pricing** (modal Seoauto Pricing).\n\n### Gói Basic\n- 6 tháng: 1.500.000đ\n- 1 năm: 2.775.000đ (~ 231.250đ/tháng)\n- 2 năm: 5.025.000đ\n- Vĩnh viễn: 12.500.000đ (thanh toán một lần)\n- Hạn mức: 50 bài AI/tháng, 3 project, 2 thiết bị\n- Không gồm Google Search Console tích hợp",
           "embedded": false
         },
         {
@@ -40,12 +40,12 @@
         },
         {
           "index": 6,
-          "text": "- Một số thao tác AI tiêu tốn **credit** (hiển thị tại Cài đặt → Account)\n- Số dư credit **của từng user** chỉ lấy từ tài khoản đăng nhập — chatbot không được đoán credit người khác\n- Nâng cấp gói → mở thêm hạn mức bài/tháng, project, thiết bị (xem bảng gói)\n\n============================================================\n## faq knowledge — Giá & gói DigiSEO\n============================================================\n\nFAQ 1: DigiSEO có những gói nào?\nAnswer: Basic, Pro, Agency và Unlimited. Pro là gói phổ biến nhất. Xem chi tiết qua nút Upgrade plan / View pricing trên giao diện.",
+          "text": "- Một số thao tác AI tiêu tốn **credit** (hiển thị tại Cài đặt → Account)\n- Số dư credit **của từng user** chỉ lấy từ tài khoản đăng nhập — chatbot không được đoán credit người khác\n- Nâng cấp gói → mở thêm hạn mức bài/tháng, project, thiết bị (xem bảng gói)\n\n============================================================\n## faq knowledge — Giá & gói Seoauto\n============================================================\n\nFAQ 1: Seoauto có những gói nào?\nAnswer: Basic, Pro, Agency và Unlimited. Pro là gói phổ biến nhất. Xem chi tiết qua nút Upgrade plan / View pricing trên giao diện.",
           "embedded": false
         },
         {
           "index": 7,
-          "text": "FAQ 2: Giá gói Pro 6 tháng bao nhiêu?\nAnswer: 2.490.000đ (PayOS VND). 1 năm: 4.606.500đ. Vĩnh viễn: 20.500.000đ.\n\nFAQ 3: Làm sao xem bảng giá đầy đủ?\nAnswer: Đăng nhập → Cài đặt → Account → **View pricing**, hoặc bấm **Upgrade plan** trên thanh dock góc màn hình. Chọn 6 tháng / 1 năm / 2 năm / Lifetime và PayOS hoặc PayPal.\n\nFAQ 4: Thanh toán online đã hoạt động chưa?\nAnswer: Modal hiển thị giá tham chiếu; cổng PayOS/PayPal đang tích hợp. Nếu chưa thanh toán được, liên hệ admin DigiSEO để kích hoạt gói thủ công.",
+          "text": "FAQ 2: Giá gói Pro 6 tháng bao nhiêu?\nAnswer: 2.490.000đ (PayOS VND). 1 năm: 4.606.500đ. Vĩnh viễn: 20.500.000đ.\n\nFAQ 3: Làm sao xem bảng giá đầy đủ?\nAnswer: Đăng nhập → Cài đặt → Account → **View pricing**, hoặc bấm **Upgrade plan** trên thanh dock góc màn hình. Chọn 6 tháng / 1 năm / 2 năm / Lifetime và PayOS hoặc PayPal.\n\nFAQ 4: Thanh toán online đã hoạt động chưa?\nAnswer: Modal hiển thị giá tham chiếu; cổng PayOS/PayPal đang tích hợp. Nếu chưa thanh toán được, liên hệ admin Seoauto để kích hoạt gói thủ công.",
           "embedded": false
         },
         {
@@ -55,22 +55,22 @@
         },
         {
           "index": 9,
-          "text": "1. Chỉ nêu giá có trong tài liệu này hoặc KNOWLEDGE BASE Giá & Gói — không tự bịa.\n2. Nếu user hỏi giá affiliate/hoa hồng → hướng dẫn tab Affiliate trong Cài đặt (bảng hoa hồng riêng, có thể khác giá niêm yết).\n3. Không hứa giảm giá ngoài coupon chính thức.\n4. Ưu tiên VND khi user hỏi bằng tiếng Việt; có thể thêm USD nếu hỏi PayPal.\n5. Nhắc user mở modal **DigiSEO Pricing** để xem giá cập nhật nhất trên UI.\n\n============================================================\n## topic graph — Chatbot DigiSEO (giá phần mềm)\n============================================================",
+          "text": "1. Chỉ nêu giá có trong tài liệu này hoặc KNOWLEDGE BASE Giá & Gói — không tự bịa.\n2. Nếu user hỏi giá affiliate/hoa hồng → hướng dẫn tab Affiliate trong Cài đặt (bảng hoa hồng riêng, có thể khác giá niêm yết).\n3. Không hứa giảm giá ngoài coupon chính thức.\n4. Ưu tiên VND khi user hỏi bằng tiếng Việt; có thể thêm USD nếu hỏi PayPal.\n5. Nhắc user mở modal **Seoauto Pricing** để xem giá cập nhật nhất trên UI.\n\n============================================================\n## topic graph — Chatbot Seoauto (giá phần mềm)\n============================================================",
           "embedded": false
         },
         {
           "index": 10,
-          "text": "Vai trò: Trợ lý DigiSEO (góc phải màn hình) — trả lời Technical SEO, Content SEO và **giá phần mềm**.\n\nCâu hỏi nhanh chuẩn (nút trên chatbot):\n- **Giá phần mềm bao nhiêu?**\n\nKhi user hỏi (hoặc bấm nút trên), chatbot PHẢI trả lời bằng bảng giá chính thức:\n- Basic 6 tháng: 1.500.000đ | Pro 6 tháng: 2.490.000đ | Agency 6 tháng: 4.490.000đ | Unlimited 6 tháng: 6.990.000đ\n- Gói Pro phổ biến: GSC, 100 bài AI/tháng, 10 project\n- Xem đủ thời hạn: **Upgrade plan** hoặc Cài đặt → **View pricing**",
+          "text": "Vai trò: Trợ lý Seoauto (góc phải màn hình) — trả lời Technical SEO, Content SEO và **giá phần mềm**.\n\nCâu hỏi nhanh chuẩn (nút trên chatbot):\n- **Giá phần mềm bao nhiêu?**\n\nKhi user hỏi (hoặc bấm nút trên), chatbot PHẢI trả lời bằng bảng giá chính thức:\n- Basic 6 tháng: 1.500.000đ | Pro 6 tháng: 2.490.000đ | Agency 6 tháng: 4.490.000đ | Unlimited 6 tháng: 6.990.000đ\n- Gói Pro phổ biến: GSC, 100 bài AI/tháng, 10 project\n- Xem đủ thời hạn: **Upgrade plan** hoặc Cài đặt → **View pricing**",
           "embedded": false
         },
         {
           "index": 11,
-          "text": "Biến thể câu hỏi user (cùng intent):\n- giá phần mềm bao nhiêu\n- bảng giá DigiSEO\n- gói Pro giá bao nhiêu\n- mua DigiSEO\n- nâng cấp gói\n\nKHÔNG trả: «Tôi chưa có dữ liệu chính xác…» khi hỏi giá — luôn dùng mục pricing knowledge ở trên.",
+          "text": "Biến thể câu hỏi user (cùng intent):\n- giá phần mềm bao nhiêu\n- bảng giá Seoauto\n- gói Pro giá bao nhiêu\n- mua Seoauto\n- nâng cấp gói\n\nKHÔNG trả: «Tôi chưa có dữ liệu chính xác…» khi hỏi giá — luôn dùng mục pricing knowledge ở trên.",
           "embedded": false
         },
         {
           "index": 12,
-          "text": "FAQ Chatbot — Giá phần mềm bao nhiêu?\nAnswer:\nDigiSEO có 4 gói: **Basic, Pro, Agency, Unlimited** (6 tháng / 1 năm / 2 năm / Vĩnh viễn).\n- **Pro 6 tháng: 2.490.000đ** (phổ biến — có Google Search Console, 100 bài AI/tháng).\n- **Basic 6 tháng: 1.500.000đ** (50 bài/tháng, không GSC).\nMở **Upgrade plan** hoặc **View pricing** để xem đủ giá và thanh toán PayOS/PayPal.\nTrial **7 ngày**: thêm API key hợp lệ tại Cài đặt → Khóa API.",
+          "text": "FAQ Chatbot — Giá phần mềm bao nhiêu?\nAnswer:\nSeoauto có 4 gói: **Basic, Pro, Agency, Unlimited** (6 tháng / 1 năm / 2 năm / Vĩnh viễn).\n- **Pro 6 tháng: 2.490.000đ** (phổ biến — có Google Search Console, 100 bài AI/tháng).\n- **Basic 6 tháng: 1.500.000đ** (50 bài/tháng, không GSC).\nMở **Upgrade plan** hoặc **View pricing** để xem đủ giá và thanh toán PayOS/PayPal.\nTrial **7 ngày**: thêm API key hợp lệ tại Cài đặt → Khóa API.",
           "embedded": false
         }
       ],

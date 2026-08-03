@@ -10,6 +10,8 @@ import os
 import re
 from typing import Any
 
+from app.services.keyword_research_cost import check_and_record_live_call, volume_batch_size, volume_cache_ttl_seconds
+
 import json
 from datetime import datetime, timezone
 
@@ -146,7 +148,7 @@ def _redis_set(digest: str, payload: dict[str, Any]) -> None:
         r = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"), decode_responses=True)
         r.setex(
             f"volume:v1:{digest}",
-            int(os.getenv("VOLUME_CACHE_TTL_SECONDS", "2592000")),  # 30 days
+            volume_cache_ttl_seconds(),
             json.dumps(payload, ensure_ascii=False)[:30000],
         )
     except Exception:
@@ -241,11 +243,80 @@ def _cache_set_volume_row(row: dict[str, Any], *, country: str | None = None, la
     _db_set(dig, payload)
 
 
+def peek_volume_cache_status(
+    keywords: list[str],
+    *,
+    country: str | None = None,
+    language: str | None = None,
+) -> dict[str, Any]:
+    """Đếm cache hit/miss trước khi gọi API — không gọi DataForSEO."""
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for k in keywords or []:
+        s = str(k or "").strip()
+        if not s or len(s) > 200:
+            continue
+        low = s.lower()
+        if low in seen:
+            continue
+        seen.add(low)
+        cleaned.append(s)
+    if not cleaned:
+        return {"total": 0, "hits": 0, "misses": 0, "miss_keywords": []}
+
+    loc_country = (country or os.getenv("SERP_DEFAULT_COUNTRY", "vn")).strip().lower()
+    loc_language = (language or os.getenv("SERP_DEFAULT_LANGUAGE", "vi")).strip().lower()
+    digests = [_cache_key(kw, country=loc_country, language=loc_language) for kw in cleaned]
+    db_hits: dict[str, dict[str, Any]] = {}
+    try:
+        from app.db import SessionLocal
+        from app.models.keyword_volume_cache import KeywordVolumeCache
+
+        db = SessionLocal()
+        try:
+            chunk = int(os.getenv("VOLUME_DB_LOOKUP_CHUNK", "800"))
+            chunk = max(50, min(3000, chunk))
+            for i in range(0, len(digests), chunk):
+                dsub = digests[i : i + chunk]
+                rows = db.query(KeywordVolumeCache).filter(KeywordVolumeCache.digest.in_(dsub)).all()
+                for r in rows or []:
+                    db_hits[str(r.digest)] = {"volume_source": str(r.volume_source or "api_cache")}
+        finally:
+            db.close()
+    except Exception:
+        db_hits = {}
+
+    hits = 0
+    misses: list[str] = []
+    for kw, dig in zip(cleaned, digests):
+        hit = _redis_get(dig) or db_hits.get(dig)
+        if hit and isinstance(hit, dict):
+            vs = str(hit.get("volume_source") or "").lower()
+            if (
+                vs in ("estimated", "bench")
+                and os.getenv("VOLUME_API_ENABLED", "0").lower() in ("1", "true", "yes")
+            ):
+                misses.append(kw)
+                continue
+            hits += 1
+        else:
+            misses.append(kw)
+
+    return {
+        "total": len(cleaned),
+        "hits": hits,
+        "misses": len(misses),
+        "miss_keywords": misses,
+    }
+
+
 def enrich_keyword_volumes_cached(
     keywords: list[str],
     *,
     country: str | None = None,
     language: str | None = None,
+    allow_api: bool = True,
+    stats: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Batch-friendly cached fetch.
@@ -309,6 +380,13 @@ def enrich_keyword_volumes_cached(
     for kw, dig in zip(cleaned, digests):
         hit = _redis_get(dig) or db_hits.get(dig)
         if hit and isinstance(hit, dict) and hit.get("keyword"):
+            vs = str(hit.get("volume_source") or "").lower()
+            if (
+                vs in ("estimated", "bench")
+                and os.getenv("VOLUME_API_ENABLED", "0").lower() in ("1", "true", "yes")
+            ):
+                misses.append(kw)
+                continue
             row = {
                 "keyword": kw,
                 "search_volume": int(hit.get("search_volume") or 0),
@@ -328,22 +406,30 @@ def enrich_keyword_volumes_cached(
         else:
             misses.append(kw)
 
+    if stats is not None:
+        stats["cache_hits"] = stats.get("cache_hits", 0) + len(hits)
+        stats["keywords_total"] = len(cleaned)
+        stats["keywords_api"] = stats.get("keywords_api", 0)
+
     # Fetch real volumes in batches (DataForSEO first) if enabled
     fetched: dict[str, dict[str, Any]] = {}
-    if misses and os.getenv("VOLUME_API_ENABLED", "0").lower() in ("1", "true", "yes"):
+    if misses and allow_api and os.getenv("VOLUME_API_ENABLED", "0").lower() in ("1", "true", "yes"):
         # DataForSEO batch provider (optional)
         try:
             from app.services.volume_providers.dataforseo import fetch_dataforseo_search_volume_batch
 
-            batch_size = int(os.getenv("VOLUME_BATCH_SIZE", "100"))
-            batch_size = max(10, min(700, batch_size))
+            batch_size = volume_batch_size()
             for i in range(0, len(misses), batch_size):
                 chunk = misses[i : i + batch_size]
+                check_and_record_live_call(stats, label="search_volume_batch")
                 rows = fetch_dataforseo_search_volume_batch(
                     chunk,
                     country=loc_country,
                     language=loc_language,
                 )
+                if stats is not None:
+                    stats["api_tasks"] = stats.get("api_tasks", 0) + 1
+                    stats["keywords_api"] = stats.get("keywords_api", 0) + len(chunk)
                 for r in rows or []:
                     kw = str(r.get("keyword") or "").strip()
                     if not kw:
@@ -404,20 +490,24 @@ def monthly_search_volume_shape(
     """
     Build 12-month buckets around ``avg_monthly``.
 
-    * ``api``: months are flat at the provided average (planner rarely returns true monthly here).
+    * Real providers (``api``, ``dataforseo``, ``api_cache``): flat monthly at API average.
     * ``estimated``: deterministic seasonal projection — **not** real Google monthly data.
     """
     src = (volume_source or "estimated").lower()
-    avg = int(avg_monthly or 0)
-    if avg <= 0:
+    avg = int(avg_monthly or 0) if avg_monthly is not None else 0
+    real_sources = frozenset({"api", "dataforseo", "api_cache", "google_ads"})
+    is_real = src in real_sources
+
+    if avg <= 0 and not is_real:
         avg, _conf = _heuristic_volume(keyword)
         src = "estimated"
+        is_real = False
 
-    if src == "api":
+    if is_real:
         rounded = [max(0, int(round(avg)))] * 12
         recomputed_avg = float(avg)
         is_estimated = False
-        out_src = "api"
+        out_src = src
     else:
         h = int(hashlib.md5(keyword.strip().lower().encode(), usedforsecurity=False).hexdigest()[:8], 16)
         weights: list[float] = []

@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schema Generator</title>
+    {% include "partials/digiseo_theme_head.html" %}
+    <style>
+        :root { --text: #eef2ff; --muted: #cbd5e1; --line: rgba(255,255,255,.22); --card: rgba(255,255,255,.12); }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh; font-family: system-ui, sans-serif; color: var(--text);
+            background: linear-gradient(135deg, #050b18 0%, #0c1424 50%, #050b18 100%);
+        }
+        .wrap { max-width: 1200px; margin: 0 auto; padding: 16px 18px 48px; }
+        /* Top nav: static/css/digiseo-nav.css */
+        .nav-dd-menu {
+            display: none; position: absolute; left: 0; top: calc(100% + 14px); min-width: 240px; flex-direction: column;
+            gap: 4px; padding: 8px; border-radius: 12px; border: 1px solid var(--line);
+            background: rgba(15,23,42,.96); box-shadow: 0 12px 32px rgba(0,0,0,.35); z-index: 50;
+        }
+        .nav-dd:hover .nav-dd-menu, .nav-dd:focus-within .nav-dd-menu { display: flex; }
+        .nav-dd-menu a {
+            display: block; padding: 10px 12px; border-radius: 8px; color: #fff; text-decoration: none;
+            font-size: 14px; border: none; margin: 0;
+        }
+        .nav-dd-menu a:hover { background: rgba(255,255,255,.12); }
+        h1 { font-size: 1.5rem; margin: 0 0 8px; }
+        .sub { color: var(--muted); margin: 0 0 16px; font-size: 14px; line-height: 1.45; max-width: 720px; }
+
+        .schema-tabs {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
+        }
+        .schema-tab {
+            padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line);
+            background: rgba(255,255,255,.1); color: #fff; font-size: 14px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .schema-tab:hover { background: rgba(255,255,255,.16); }
+        .schema-tab.active { background: rgba(91,103,255,.55); border-color: #93c5fd; }
+
+        .schema-layout {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; margin-bottom: 24px;
+        }
+        @media (max-width: 920px) { .schema-layout { grid-template-columns: 1fr; } }
+
+        .manual-form-card {
+            background: #0F172A !important;
+            color: #ffffff;
+            border-radius: 16px;
+            padding: 22px 24px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        }
+        .manual-form-card .mf-title {
+            font-size: 0.95rem; font-weight: 700; color: #ffffff; margin: 0 0 6px;
+        }
+        .manual-form-card .mf-hint {
+            font-size: 0.8rem; color: rgba(255, 255, 255, 0.72); margin: 0 0 16px; line-height: 1.4;
+        }
+        .manual-form-card label.mf-lbl {
+            display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.8rem; color: #ffffff;
+        }
+        .manual-form-card input[type="text"],
+        .manual-form-card input[type="url"],
+        .manual-form-card input[type="email"],
+        .manual-form-card input[type="number"],
+        .manual-form-card input[type="datetime-local"],
+        .manual-form-card input[type="time"],
+        .manual-form-card select,
+        .manual-form-card textarea {
+            width: 100%; padding: 10px 12px; border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(15, 23, 42, 0.85); color: #ffffff;
+            font-size: 14px; font-family: inherit; margin-bottom: 0;
+            box-sizing: border-box;
+        }
+        .manual-form-card input::placeholder,
+        .manual-form-card textarea::placeholder {
+            color: rgba(255, 255, 255, 0.42);
+        }
+        .manual-form-card select option {
+            background: #0F172A; color: #ffffff;
+        }
+        .manual-form-card textarea { min-height: 80px; resize: vertical; }
+        .manual-form-card .mf-grid-2 {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px;
+        }
+        @media (max-width: 560px) { .manual-form-card .mf-grid-2 { grid-template-columns: 1fr; } }
+        .manual-form-card .mf-grid-span { grid-column: 1 / -1; }
+        .manual-form-card .mf-field { margin-bottom: 4px; min-width: 0; }
+        .manual-form-card .schema-kind-select {
+            font-size: 15px; font-weight: 600; padding: 12px 14px; border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(15, 23, 42, 0.85); color: #ffffff; cursor: pointer;
+            width: 100%; box-sizing: border-box;
+        }
+        .btn-add-row {
+            display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; margin-bottom: 6px;
+            padding: 8px 14px; border-radius: 10px; border: none; background: #2563eb; color: #fff;
+            font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .btn-add-row:hover { background: #1d4ed8; }
+        .btn-manual-build {
+            width: 100%; margin-top: 18px; padding: 12px 16px; border-radius: 12px; border: none;
+            background: #2563eb; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+        .btn-manual-build:hover { background: #1d4ed8; }
+        .manual-form-card .contact-block,
+        .manual-form-card .sameas-block {
+            margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        .manual-form-card .contact-row {
+            display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end;
+            margin-bottom: 10px; padding: 12px;
+            background: rgba(30, 41, 59, 0.65); border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        @media (max-width: 720px) {
+            .manual-form-card .contact-row { grid-template-columns: 1fr; }
+        }
+        .manual-form-card .oh-row {
+            display: grid;
+            grid-template-columns: minmax(200px, 2fr) 1fr 1fr auto;
+            gap: 10px;
+            align-items: end;
+            margin-bottom: 10px;
+            padding: 12px;
+            background: rgba(30, 41, 59, 0.65);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        @media (max-width: 900px) {
+            .manual-form-card .oh-row { grid-template-columns: 1fr 1fr auto; }
+            .manual-form-card .oh-row .oh-col-days { grid-column: 1 / -1; }
+        }
+        @media (max-width: 560px) {
+            .manual-form-card .oh-row { grid-template-columns: 1fr auto; }
+            .manual-form-card .oh-row .oh-time-opens { grid-column: 1; }
+            .manual-form-card .oh-row .oh-time-closes { grid-column: 1; }
+        }
+        .oh-day-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .manual-form-card .oh-day-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin: 0;
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(15, 23, 42, 0.85);
+            cursor: pointer;
+            font-size: 12px;
+            color: #ffffff;
+            user-select: none;
+        }
+        .manual-form-card .oh-day-pill.oh-day-on {
+            background: rgba(37, 99, 235, 0.35);
+            border-color: rgba(255, 255, 255, 0.35);
+            color: #ffffff;
+        }
+        .manual-form-card .oh-day-pill input { margin: 0; accent-color: #60a5fa; }
+        .manual-form-card .btn-icon {
+            padding: 8px 12px; border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(15, 23, 42, 0.85);
+            color: #ffffff; cursor: pointer; font-size: 13px;
+        }
+        .manual-form-card .btn-icon:hover {
+            background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(248, 113, 113, 0.45);
+        }
+        .manual-form-card .tag-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 10px; min-height: 8px; }
+        .manual-form-card .tag {
+            display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.22);
+            font-size: 12px; color: #ffffff; max-width: 100%;
+        }
+        .manual-form-card .tag button {
+            border: none; background: none; cursor: pointer; color: rgba(255, 255, 255, 0.65); padding: 0 2px; font-size: 14px; line-height: 1;
+        }
+        .manual-form-card .sameas-input-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        .manual-form-card .sameas-input-row input { flex: 1; min-width: 160px; margin: 0; }
+        .manual-form-card .sameas-input-row .btn-add-row { margin-top: 0; }
+        .manual-form-card .org-sameas-quick-btns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 8px 0 10px;
+        }
+        .manual-form-card .org-sameas-quick {
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(15, 23, 42, 0.85);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            color: #ffffff;
+            font-family: inherit;
+        }
+        .manual-form-card .org-sameas-quick:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.32);
+            color: #ffffff;
+        }
+        .product-img-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .product-img-row input { flex: 1; min-width: 140px; margin: 0; }
+        .manual-form-card .mf-lbl-hint { font-weight: 500; color: rgba(255, 255, 255, 0.65); font-size: 0.78em; }
+        .manual-form-card .mf-req { color: #f87171; font-weight: 700; }
+        .form-msg { margin-top: 10px; font-size: 13px; min-height: 1.2em; }
+        .form-msg.ok { color: #4ade80; }
+        .form-msg.err { color: #f87171; }
+        .manual-form-card .mf-section {
+            margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        .manual-form-card .mf-section:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+        .manual-form-card .mf-section h3 {
+            margin: 0 0 10px; font-size: 0.82rem; font-weight: 700; color: #ffffff;
+            text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .manual-form-card .mf-ex {
+            margin: -4px 0 10px; font-size: 0.75rem; color: rgba(255, 255, 255, 0.72); line-height: 1.45;
+        }
+        .manual-form-card .mf-ex code {
+            font-size: 0.72rem; background: rgba(255, 255, 255, 0.1);
+            padding: 1px 5px; border-radius: 4px; color: #ffffff;
+        }
+
+        .manual-preview-card {
+            background: #0f172a; border-radius: 16px; border: 1px solid rgba(255,255,255,.1);
+            overflow: hidden; min-height: 400px; display: flex; flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0,0,0,.25);
+        }
+        .manual-preview-head {
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+            padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,.1);
+        }
+        .manual-preview-head h2 {
+            margin: 0; font-size: 1.05rem; color: #f1f5f9; font-weight: 700;
+        }
+        .manual-preview-tools { display: flex; gap: 8px; align-items: center; }
+        .manual-preview-tools button {
+            padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2);
+            background: rgba(255,255,255,.08); color: #e2e8f0; font-size: 13px; font-weight: 600;
+            cursor: pointer; font-family: inherit; margin: 0;
+        }
+        .manual-preview-tools button:hover { background: rgba(255,255,255,.14); }
+        .manual-preview-code {
+            margin: 0; padding: 18px; font-size: 13px; line-height: 1.55; color: #7dd3fc;
+            overflow: auto; flex: 1; white-space: pre-wrap; word-break: break-word;
+            font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+            max-height: min(68vh, 640px);
+        }
+
+        #panelAnalyze { display: none; }
+        #panelAnalyze.is-visible { display: block; }
+        #panelManual.is-hidden { display: none; }
+
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+        .card h2 { font-size: 1.05rem; margin: 0 0 10px; }
+        .card label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px; }
+        .card input, .card textarea, .card button, .card select {
+            width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+            background: rgba(15,23,42,.35); color: #fff; font-size: 14px;
+        }
+        .card button { width: auto; margin-top: 10px; cursor: pointer; font-weight: 600; background: rgba(91,103,255,.55); }
+        .card textarea { min-height: 160px; font-family: ui-monospace, monospace; font-size: 12px; }
+        .card textarea.tall { min-height: 260px; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
+        .err { color: #fecaca; font-size: 13px; margin-top: 8px; }
+        .ok { color: #bbf7d0; font-size: 13px; margin-top: 8px; }
+        .pill { display: inline-block; padding: 4px 10px; margin: 4px 6px 0 0; border-radius: 999px; background: rgba(255,255,255,.15); font-size: 12px; }
+        .muted { color: var(--muted); font-size: 13px; }
+        ul.compact { margin: 0; padding-left: 1.1rem; }
+        ul.compact li { margin: 4px 0; font-size: 13px; }
+        .flex { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .card input[type="checkbox"] { width: auto; }
+
+        /* Seoauto bright-green accent overrides */
+        h1 { color: #00e676 !important; }
+        .nav-dd-menu a:hover { background: rgba(0, 230, 118, 0.12) !important; color: #00e676 !important; }
+        .nav-pro-badge {
+            display: inline-block;
+            margin-left: 6px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: linear-gradient(135deg, #f59e0b, #ea580c);
+            color: #111827;
+            vertical-align: middle;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body data-user-dock="upgrade-only">
+<div class="wrap">
+        {% set nav_active = 'schema' %}
+    {% include "partials/digiseo_nav.html" %}
+    <h1>Schema Generator</h1>
+    <p class="sub">Điền form để tạo JSON-LD hoàn chỉnh (dán vào <code>&lt;head&gt;</code>), hoặc chuyển sang tab <strong>Từ URL / HTML</strong> để hệ thống suy luận nhiều loại schema từ nội dung trang.</p>
+
+    <div class="schema-tabs" role="tablist">
+        <button type="button" class="schema-tab active" data-panel="manual" aria-selected="true">Tạo từ form</button>
+        <button type="button" class="schema-tab" data-panel="analyze" aria-selected="false">Từ URL / HTML</button>
+    </div>
+
+    <div id="panelManual" class="schema-layout">
+        <div class="manual-form-card">
+            <label class="mf-lbl" for="manualSchemaKind">Loại Schema bạn muốn tạo?</label>
+            <select id="manualSchemaKind" class="schema-kind-select" aria-label="Loại schema">
+                <option value="Organization">🏢 Organization</option>
+                <option value="LocalBusiness">📍 LocalBusiness</option>
+                <option value="Article">📰 Article</option>
+                <option value="Product">🛒 Product</option>
+                <option value="WebSite">🌐 WebSite</option>
+                <option value="Person">👤 Person</option>
+            </select>
+            <p class="mf-hint" id="manualSchemaHint">Organization — tên, mô tả, website, logo, email, điện thoại, địa chỉ, sameAs.</p>
+
+            <div id="blockOrg" class="mf-type-block">
+                <div class="mf-section" style="margin-top:0;padding-top:0;border-top:none;">
+                    <div class="mf-grid-2">
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="orgTypeMain">Loại Organization (@type)</label>
+                            <select id="orgTypeMain">
+                                <option value="Organization">Organization</option>
+                                <option value="Corporation">Corporation</option>
+                                <option value="EducationalOrganization">EducationalOrganization</option>
+                                <option value="GovernmentOrganization">GovernmentOrganization</option>
+                                <option value="NGO">NGO</option>
+                                <option value="NewsMediaOrganization">NewsMediaOrganization</option>
+                            </select>
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="orgTypeMore">Kiểu cụ thể hơn (tuỳ chọn)</label>
+                            <input id="orgTypeMore" type="text" placeholder="Ví dụ: Corporation">
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="orgName">Tên tổ chức <span class="mf-req">*</span></label>
+                            <input id="orgName" type="text" placeholder="Tên công ty">
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="orgDesc">Mô tả <span class="mf-lbl-hint">(khuyên dùng)</span></label>
+                            <textarea id="orgDesc" rows="3" placeholder="Mô tả về tổ chức"></textarea>
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="orgAltName">Tên thay thế (alternateName)</label>
+                            <input id="orgAltName" type="text" placeholder="Tên viết tắt / thương hiệu phụ (tuỳ chọn)">
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="orgUrl">Website <span class="mf-req">*</span></label>
+                            <input id="orgUrl" type="url" placeholder="https://example.com">
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="orgLogo">Logo URL <span class="mf-lbl-hint">(khuyên dùng)</span></label>
+                            <input id="orgLogo" type="url" placeholder="https://example.com/logo.png">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="orgEmail">Email</label>
+                            <input id="orgEmail" type="email" placeholder="contact@example.com">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="orgTelephone">Số điện thoại</label>
+                            <input id="orgTelephone" type="text" placeholder="+84 123 456 789">
+                        </div>
+                    </div>
+                </div>
+                <div class="mf-section">
+                    <h3>Địa chỉ</h3>
+                    <p class="mf-ex">PostalAddress — streetAddress, locality, region, country (ISO 3166-1 alpha-2, ví dụ <code>VN</code>).</p>
+                    <div class="mf-grid-2">
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="orgStreet">Địa chỉ đường (streetAddress)</label>
+                            <input id="orgStreet" type="text" placeholder="123 Đường ABC">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="orgLocality">Quận / Huyện (addressLocality)</label>
+                            <input id="orgLocality" type="text" placeholder="Quận 1">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="orgRegion">Tỉnh / Thành phố (addressRegion)</label>
+                            <input id="orgRegion" type="text" placeholder="TP. Hồ Chí Minh">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="orgCountry">Quốc gia (addressCountry)</label>
+                            <input id="orgCountry" type="text" placeholder="VN" maxlength="3">
+                        </div>
+                    </div>
+                </div>
+                <div class="contact-block">
+                    <span class="mf-lbl">ContactPoint bổ sung (tuỳ chọn)</span>
+                    <p class="mf-ex">Thêm số máy / email phòng ban khác (có contactType). Trường Email &amp; Số điện thoại phía trên map trực tiếp vào Organization.</p>
+                    <div id="contactList"></div>
+                    <button type="button" class="btn-add-row" id="btnAddContact">+ Contact</button>
+                </div>
+                <div class="sameas-block">
+                    <label class="mf-lbl">Mạng xã hội (sameAs) <span class="mf-lbl-hint">(khuyên dùng)</span></label>
+                    <p class="mf-ex">SameAs giúp Google liên kết kênh thương hiệu. Bấm nút nhanh để điền URL gốc, chỉnh đường dẫn rồi bấm «Thêm».</p>
+                    <div class="org-sameas-quick-btns">
+                        <button type="button" class="org-sameas-quick" data-base="https://www.facebook.com/">Facebook</button>
+                        <button type="button" class="org-sameas-quick" data-base="https://twitter.com/">Twitter / X</button>
+                        <button type="button" class="org-sameas-quick" data-base="https://www.linkedin.com/company/">LinkedIn</button>
+                        <button type="button" class="org-sameas-quick" data-base="https://www.youtube.com/">YouTube</button>
+                        <button type="button" class="org-sameas-quick" data-base="https://www.instagram.com/">Instagram</button>
+                        <button type="button" class="org-sameas-quick" data-base="https://www.tiktok.com/@">TikTok</button>
+                        <button type="button" class="org-sameas-quick" data-base="https://vi.wikipedia.org/wiki/">Wikipedia</button>
+                    </div>
+                    <div id="sameAsTags" class="tag-list"></div>
+                    <div class="sameas-input-row">
+                        <input type="url" id="sameAsInput" placeholder="https://www.facebook.com/…">
+                        <button type="button" class="btn-add-row" id="btnSameAsAdd">Thêm</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="blockLocal" class="mf-type-block" hidden>
+                <div class="mf-section" style="margin-top:0;padding-top:0;border-top:none;">
+                    <label class="mf-lbl" for="lbSubtype">Type — subtype cụ thể nhất có thể</label>
+                    <select id="lbSubtype">
+                        <option value="LocalBusiness">LocalBusiness</option>
+                        <option value="Restaurant">Restaurant</option>
+                        <option value="CafeOrCoffeeShop">CafeOrCoffeeShop</option>
+                        <option value="Store">Store</option>
+                        <option value="Dentist">Dentist</option>
+                        <option value="Pharmacy">Pharmacy</option>
+                        <option value="HairSalon">HairSalon</option>
+                        <option value="GasStation">GasStation</option>
+                        <option value="FoodEstablishment">FoodEstablishment</option>
+                        <option value="AutomotiveRepair">AutomotiveRepair</option>
+                    </select>
+                    <p class="mf-ex">Ví dụ prompt: <code>Restaurant</code>, <code>CafeOrCoffeeShop</code>, <code>Store</code>.</p>
+                </div>
+
+                <div class="mf-grid-2">
+                    <div class="mf-field mf-grid-span">
+                        <label class="mf-lbl" for="lbName">name — Business name</label>
+                        <input id="lbName" type="text" placeholder="[YOUR_NAME]">
+                        <p class="mf-ex">Ví dụ: «Cà phê Sáng» / «Nhà hàng Biển Đông».</p>
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-lbl" for="lbUrl">url — Website</label>
+                        <input id="lbUrl" type="url" placeholder="[URL]">
+                        <p class="mf-ex">Ví dụ: <code>https://www.example.com</code></p>
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-lbl" for="lbImage">image</label>
+                        <input id="lbImage" type="url" placeholder="https://…/photo.jpg">
+                        <p class="mf-ex">URL ảnh đại diện / cửa hàng.</p>
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-lbl" for="lbPhone">telephone — Phone</label>
+                        <input id="lbPhone" type="text" placeholder="[PHONE]">
+                        <p class="mf-ex">Ví dụ: <code>+84 28 3822 3344</code></p>
+                    </div>
+                    <div class="contact-block oh-block mf-grid-span">
+                        <span class="mf-lbl">Opening hours — openingHoursSpecification</span>
+                        <p class="mf-ex" style="margin-top:4px;">Chọn ngày trong tuần và giờ mở/đóng (HH:mm). Có thể thêm nhiều dòng cho khung giờ khác nhau.</p>
+                        <div id="openingHoursList"></div>
+                        <button type="button" class="btn-add-row" id="btnAddOpeningHours">+ Opening hours</button>
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-lbl" for="lbLat">latitude</label>
+                        <input id="lbLat" type="text" inputmode="decimal" placeholder="[LAT]">
+                        <p class="mf-ex">Ví dụ: <code>10.7769</code></p>
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-lbl" for="lbLng">longitude</label>
+                        <input id="lbLng" type="text" inputmode="decimal" placeholder="[LNG]">
+                        <p class="mf-ex">Ví dụ: <code>106.7008</code></p>
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-lbl" for="lbPriceRange">priceRange</label>
+                        <input id="lbPriceRange" type="text" placeholder="$$">
+                        <p class="mf-ex">Ví dụ: <code>$$</code> hoặc khoảng giá.</p>
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-lbl" for="lbAggRatingValue">aggregateRating.ratingValue</label>
+                        <input id="lbAggRatingValue" type="text" inputmode="decimal" placeholder="4.8">
+                    </div>
+                    <div class="mf-field">
+                        <label class="mf-lbl" for="lbAggReviewCount">aggregateRating.reviewCount</label>
+                        <input id="lbAggReviewCount" type="number" min="0" step="1" placeholder="128">
+                    </div>
+                </div>
+
+                <div class="mf-section">
+                    <h3>address — PostalAddress</h3>
+                    <p class="mf-ex">Tương ứng <code>Address: [FULL_ADDRESS]</code> trong prompt — tách thành các trường chuẩn (SEO local).</p>
+                    <div class="mf-grid-2">
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="lbStreet">streetAddress</label>
+                            <input id="lbStreet" type="text" placeholder="[FULL_ADDRESS] — số nhà, đường, phường">
+                            <p class="mf-ex">Ví dụ: «123 Lê Lợi, P. Bến Nghé».</p>
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="lbLocality">addressLocality</label>
+                            <input id="lbLocality" type="text" placeholder="TP. Hồ Chí Minh">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="lbRegion">addressRegion</label>
+                            <input id="lbRegion" type="text" placeholder="TP.HCM">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="lbPostal">postalCode</label>
+                            <input id="lbPostal" type="text" placeholder="700000">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="lbCountry">addressCountry</label>
+                            <input id="lbCountry" type="text" placeholder="VN" maxlength="3">
+                            <p class="mf-ex">ISO 3166-1 alpha-2, ví dụ <code>VN</code>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="blockArticle" class="mf-type-block" hidden>
+                <div class="mf-grid-2">
+                    <div class="mf-field mf-grid-span"><label class="mf-lbl" for="artHeadline">Headline</label><input id="artHeadline" type="text" placeholder="Tiêu đề bài viết"></div>
+                    <div class="mf-field"><label class="mf-lbl" for="artUrl">URL bài viết</label><input id="artUrl" type="url" placeholder="https://"></div>
+                    <div class="mf-field"><label class="mf-lbl" for="artImage">Image URL</label><input id="artImage" type="url" placeholder="https://"></div>
+                    <div class="mf-field"><label class="mf-lbl" for="artDate">datePublished</label><input id="artDate" type="datetime-local"></div>
+                    <div class="mf-field"><label class="mf-lbl" for="artAuthor">Tên tác giả</label><input id="artAuthor" type="text" placeholder=""></div>
+                    <div class="mf-field"><label class="mf-lbl" for="artPub">Tên tổ chức xuất bản</label><input id="artPub" type="text" placeholder=""></div>
+                </div>
+            </div>
+
+            <div id="blockProduct" class="mf-type-block" hidden>
+                <div class="mf-section" style="margin-top:0;padding-top:0;border-top:none;">
+                    <div class="mf-grid-2">
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="prName">Tên sản phẩm <span class="mf-req">*</span></label>
+                            <input id="prName" type="text" placeholder="Tên sản phẩm" required>
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="prDesc">Mô tả <span class="mf-lbl-hint">(khuyên dùng)</span></label>
+                            <textarea id="prDesc" rows="4" placeholder="Mô tả chi tiết sản phẩm"></textarea>
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl">Hình ảnh (URLs) <span class="mf-lbl-hint">(khuyên dùng)</span></label>
+                            <div id="prImageList"></div>
+                            <button type="button" class="btn-add-row" id="btnPrImageAdd">+ Thêm ảnh</button>
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="prBrand">Thương hiệu <span class="mf-lbl-hint">(khuyên dùng)</span></label>
+                            <input id="prBrand" type="text" placeholder="Tên thương hiệu">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="prSku">SKU</label>
+                            <input id="prSku" type="text" placeholder="Mã sản phẩm">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="prGtin">GTIN / Barcode</label>
+                            <input id="prGtin" type="text" inputmode="numeric" placeholder="Mã vạch (8–14 số)">
+                            <p class="mf-ex">Dùng cho <code>gtin8</code>…<code>gtin14</code> tùy độ dài chữ số.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mf-section">
+                    <h3>Giá bán (Offer)</h3>
+                    <div class="mf-grid-2">
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="prPrice">Giá <span class="mf-req">*</span></label>
+                            <input id="prPrice" type="number" step="0.01" min="0" placeholder="1000000" required>
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="prCur">Đơn vị tiền</label>
+                            <input id="prCur" type="text" placeholder="VND" maxlength="8">
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="prItemCondition">Tình trạng hàng (itemCondition)</label>
+                            <select id="prItemCondition">
+                                <option value="">Chọn…</option>
+                                <option value="https://schema.org/NewCondition">Mới (New)</option>
+                                <option value="https://schema.org/UsedCondition">Đã dùng (Used)</option>
+                                <option value="https://schema.org/RefurbishedCondition">Tân trang (Refurbished)</option>
+                                <option value="https://schema.org/DamagedCondition">Hư hỏng (Damaged)</option>
+                            </select>
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="prPriceValidUntil">Giá có hiệu lực đến <span class="mf-lbl-hint">(khuyên dùng)</span></label>
+                            <input id="prPriceValidUntil" type="date">
+                        </div>
+                        <div class="mf-field mf-grid-span">
+                            <label class="mf-lbl" for="prOfferUrl">URL sản phẩm (trang Offer)</label>
+                            <input id="prOfferUrl" type="url" placeholder="https://example.com/san-pham">
+                        </div>
+                    </div>
+                </div>
+                <div class="mf-section">
+                    <h3>Đánh giá tổng hợp <span class="mf-lbl-hint" style="text-transform:none;font-weight:600;">(khuyên dùng)</span></h3>
+                    <div class="mf-grid-2">
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="prAggRating">Điểm đánh giá (1–5)</label>
+                            <input id="prAggRating" type="number" step="0.1" min="1" max="5" placeholder="4.5">
+                        </div>
+                        <div class="mf-field">
+                            <label class="mf-lbl" for="prAggReviewCount">Số lượt đánh giá</label>
+                            <input id="prAggReviewCount" type="number" min="0" step="1" placeholder="100">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="blockWebSite" class="mf-type-block" hidden>
+                <div class="mf-grid-2">
+                    <div class="mf-field"><label class="mf-lbl" for="wsName">Tên website</label><input id="wsName" type="text" placeholder=""></div>
+                    <div class="mf-field"><label class="mf-lbl" for="wsUrl">URL</label><input id="wsUrl" type="url" placeholder="https://"></div>
+                    <div class="mf-field mf-grid-span"><label class="mf-lbl" for="wsSearch">URL tìm kiếm (có {search_term_string})</label><input id="wsSearch" type="url" placeholder="https://site.com/search?q={search_term_string}"></div>
+                </div>
+            </div>
+
+            <div id="blockPerson" class="mf-type-block" hidden>
+                <div class="mf-grid-2">
+                    <div class="mf-field"><label class="mf-lbl" for="peName">Họ tên</label><input id="peName" type="text" placeholder=""></div>
+                    <div class="mf-field"><label class="mf-lbl" for="peJob">Chức danh</label><input id="peJob" type="text" placeholder=""></div>
+                    <div class="mf-field"><label class="mf-lbl" for="peUrl">URL</label><input id="peUrl" type="url" placeholder="https://"></div>
+                    <div class="mf-field"><label class="mf-lbl" for="peImage">Ảnh URL</label><input id="peImage" type="url" placeholder=""></div>
+                </div>
+            </div>
+
+            <button type="button" class="btn-manual-build" id="btnManualBuild">Tạo schema</button>
+            <p id="manualMsg" class="form-msg" role="status"></p>
+        </div>
+
+        <div class="manual-preview-card">
+            <div class="manual-preview-head">
+                <h2>JSON-LD</h2>
+                <div class="manual-preview-tools">
+                    <button type="button" id="btnManualCopy" title="Sao chép toàn bộ thẻ script">Copy</button>
+                    <button type="button" id="btnManualReset">Reset</button>
+                    <button type="button" id="btnManualTest">Test</button>
+                </div>
+            </div>
+            <pre class="manual-preview-code" id="manualPreview"></pre>
+        </div>
+    </div>
+
+    <div id="panelAnalyze">
+    <div class="card">
+        <label for="mode">Nguồn dữ liệu</label>
+        <select id="mode" aria-label="Chế độ nhập">
+            <option value="url">URL (tải HTML)</option>
+            <option value="html">Dán HTML</option>
+            <option value="text">Chỉ văn bản</option>
+        </select>
+        <div id="blockUrl" style="margin-top:12px;">
+            <label for="u" id="lblUrl">URL trang (bắt buộc khi tải từ URL)</label>
+            <input id="u" type="url" placeholder="https://example.com/trang">
+        </div>
+        <div id="blockHtml" style="margin-top:12px; display:none;">
+            <label for="htmlIn">HTML</label>
+            <textarea id="htmlIn" class="tall" placeholder="&lt;html&gt;..."></textarea>
+        </div>
+        <div id="blockText" style="margin-top:12px; display:none;">
+            <label for="textIn">Nội dung</label>
+            <textarea id="textIn" class="tall"></textarea>
+        </div>
+        <div class="row" style="margin-top:12px;">
+            <div>
+                <label for="seed">Từ khóa gợi ý (tuỳ chọn)</label>
+                <input id="seed" type="text" placeholder="Để trống = dùng title / URL">
+            </div>
+            <div class="flex" style="align-self:end;padding-top:22px;">
+                <label class="flex" style="margin:0;font-weight:500;gap:8px;">
+                    <input type="checkbox" id="fetchSerp" checked>
+                    Phân tích Google để gợi ý schema
+                </label>
+            </div>
+        </div>
+        <button type="button" id="btnGen">Tạo schema</button>
+        <div id="msg" class="err"></div>
+    </div>
+
+    <div class="card" id="secTypes" style="display:none;">
+        <h2>1. Loại schema phát hiện</h2>
+        <div id="typesOut" class="muted"></div>
+    </div>
+
+    <div class="card" id="secJson" style="display:none;">
+        <h2>2. Mã JSON-LD</h2>
+        <p class="muted" style="margin-top:0;">Toàn bộ <code>schemas[]</code> + <code>primary_schema</code> (đặt trong một script tag hoặc tách graph tuỳ bạn).</p>
+        <button type="button" id="btnCopy" style="margin-top:0;">Sao chép</button>
+        <label style="margin-top:12px;">Output</label>
+        <textarea id="out" class="tall" readonly></textarea>
+    </div>
+
+    <div class="card" id="secVal" style="display:none;">
+        <h2>3. Kết quả kiểm tra</h2>
+        <div id="valOut"></div>
+    </div>
+
+    <div class="card" id="secSerp" style="display:none;">
+        <h2>4. Gợi ý căn chỉnh theo Google</h2>
+        <div id="serpOut"></div>
+    </div>
+    </div>
+</div>
+<script>
+(function () {
+    var manualPreviewEl = document.getElementById("manualPreview");
+    var manualMsg = document.getElementById("manualMsg");
+    var lastManualScript = "";
+
+    var KIND_HINTS = {
+        Organization: "Organization — tên, mô tả, website, logo, email, điện thoại, địa chỉ (PostalAddress), sameAs, ContactPoint.",
+        LocalBusiness: "LocalBusiness — chọn subtype, điền địa chỉ, giờ mở cửa, tọa độ, đánh giá.",
+        Article: "Article — tiêu đề, ảnh, ngày đăng, tác giả.",
+        Product: "Product — tên, mô tả, nhiều ảnh, thương hiệu, SKU/GTIN, Offer (giá, tiền tệ, tình trạng, URL, hạn giá), aggregateRating.",
+        WebSite: "WebSite — tên site, URL, tùy chọn ô tìm kiếm (SearchAction).",
+        Person: "Person — hồ sơ cá nhân cơ bản."
+    };
+
+    var sameAsUrls = [];
+    var contactRows = [];
+    var openingHoursRows = [];
+    var productImageRows = [""];
+    var WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    var DAY_ORDER = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+
+    function sortDayKeys(days) {
+        return days.slice().sort(function (a, b) {
+            return (DAY_ORDER[a] !== undefined ? DAY_ORDER[a] : 99) - (DAY_ORDER[b] !== undefined ? DAY_ORDER[b] : 99);
+        });
+    }
+
+    function el(id) { return document.getElementById(id); }
+
+    function stripEmpty(obj) {
+        if (obj === null || obj === undefined) return undefined;
+        if (Array.isArray(obj)) {
+            var arr = obj.map(stripEmpty).filter(function (x) { return x !== undefined && x !== "" && x !== null; });
+            return arr.length ? arr : undefined;
+        }
+        if (typeof obj === "object") {
+            var out = {};
+            Object.keys(obj).forEach(function (k) {
+                var v = stripEmpty(obj[k]);
+                if (v !== undefined && v !== "" && v !== null) {
+                    if (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0) return;
+                    out[k] = v;
+                }
+            });
+            return Object.keys(out).length ? out : undefined;
+        }
+        if (typeof obj === "string" && !obj.trim()) return undefined;
+        return obj;
+    }
+
+    function wrapScriptTag(jsonObj) {
+        var json = JSON.stringify(jsonObj, null, 2);
+        return "<script type=\"application/ld+json\">\n" + json + "\n<\/script>";
+    }
+
+    var manualPreviewTimer = null;
+    function updateLiveManualPreview() {
+        if (!manualPreviewEl) return;
+        try {
+            var jsonLd = buildManualJsonLd();
+            lastManualScript = wrapScriptTag(jsonLd);
+            manualPreviewEl.textContent = lastManualScript;
+        } catch (err) {
+            lastManualScript = "";
+            manualPreviewEl.textContent =
+                "Không tạo được JSON-LD: " + String(err && err.message ? err.message : err);
+        }
+    }
+    function scheduleManualPreview() {
+        if (manualPreviewTimer) clearTimeout(manualPreviewTimer);
+        manualPreviewTimer = setTimeout(function () {
+            manualPreviewTimer = null;
+            updateLiveManualPreview();
+        }, 100);
+    }
+
+    function renderSameAsTags() {
+        var box = el("sameAsTags");
+        if (!box) return;
+        box.innerHTML = "";
+        sameAsUrls.forEach(function (url, idx) {
+            var t = document.createElement("span");
+            t.className = "tag";
+            t.appendChild(document.createTextNode(url.length > 40 ? url.slice(0, 38) + "…" : url));
+            var b = document.createElement("button");
+            b.type = "button";
+            b.setAttribute("aria-label", "Xóa");
+            b.textContent = "×";
+            b.addEventListener("click", function () {
+                sameAsUrls.splice(idx, 1);
+                renderSameAsTags();
+            });
+            t.appendChild(b);
+            box.appendChild(t);
+        });
+        scheduleManualPreview();
+    }
+
+    function snapshotContactsFromDom() {
+        var list = el("contactList");
+        if (!list) return [];
+        var rows = list.querySelectorAll(".contact-row");
+        var saved = [];
+        rows.forEach(function (row) {
+            saved.push({
+                phone: ((row.querySelector(".c-phone") || {}).value || "").trim(),
+                type: (row.querySelector(".c-type") || {}).value || "customer service",
+                email: ((row.querySelector(".c-email") || {}).value || "").trim(),
+            });
+        });
+        return saved;
+    }
+
+    function renderContacts() {
+        var list = el("contactList");
+        if (!list) return;
+        list.innerHTML = "";
+        contactRows.forEach(function (row, idx) {
+            var wrap = document.createElement("div");
+            wrap.className = "contact-row";
+            wrap.innerHTML =
+                "<div><label class=\"mf-lbl\">Telephone</label><input type=\"text\" class=\"c-phone\" value=\"" +
+                escapeAttr(row.phone) +
+                "\" placeholder=\"+84…\"></div>" +
+                "<div><label class=\"mf-lbl\">contactType</label><select class=\"c-type\">" +
+                "<option" +
+                (row.type === "customer service" ? " selected" : "") +
+                ">customer service</option>" +
+                "<option" +
+                (row.type === "sales" ? " selected" : "") +
+                ">sales</option>" +
+                "<option" +
+                (row.type === "technical support" ? " selected" : "") +
+                ">technical support</option>" +
+                "<option" +
+                (row.type === "billing support" ? " selected" : "") +
+                ">billing support</option>" +
+                "</select></div>" +
+                "<div><label class=\"mf-lbl\">Email</label><input type=\"email\" class=\"c-email\" value=\"" +
+                escapeAttr(row.email) +
+                "\" placeholder=\"tu@chon.com\"></div>";
+            var rm = document.createElement("button");
+            rm.type = "button";
+            rm.className = "btn-icon";
+            rm.textContent = "Xóa";
+            rm.addEventListener("click", function () {
+                var snap = snapshotContactsFromDom();
+                snap.splice(idx, 1);
+                contactRows = snap;
+                renderContacts();
+            });
+            wrap.appendChild(rm);
+            list.appendChild(wrap);
+        });
+        scheduleManualPreview();
+    }
+
+    function snapshotOpeningHoursFromDom() {
+        var list = el("openingHoursList");
+        if (!list) return [];
+        var rows = list.querySelectorAll(".oh-row");
+        var saved = [];
+        rows.forEach(function (row) {
+            var days = [];
+            row.querySelectorAll(".oh-day-cb:checked").forEach(function (cb) {
+                days.push(cb.value);
+            });
+            saved.push({
+                days: days,
+                opens: ((row.querySelector(".oh-opens") || {}).value || "").trim(),
+                closes: ((row.querySelector(".oh-closes") || {}).value || "").trim(),
+            });
+        });
+        return saved;
+    }
+
+    function renderOpeningHoursRows() {
+        var list = el("openingHoursList");
+        if (!list) return;
+        list.innerHTML = "";
+        openingHoursRows.forEach(function (row, idx) {
+            var wrap = document.createElement("div");
+            wrap.className = "oh-row";
+
+            var colDays = document.createElement("div");
+            colDays.className = "oh-col-days";
+            var lblDays = document.createElement("span");
+            lblDays.className = "mf-lbl";
+            lblDays.textContent = "Day(s) of the week";
+            colDays.appendChild(lblDays);
+            var grid = document.createElement("div");
+            grid.className = "oh-day-grid";
+            WEEKDAYS.forEach(function (d) {
+                var lab = document.createElement("label");
+                lab.className = "oh-day-pill";
+                var cb = document.createElement("input");
+                cb.type = "checkbox";
+                cb.className = "oh-day-cb";
+                cb.value = d;
+                cb.checked = row.days.indexOf(d) !== -1;
+                if (cb.checked) lab.classList.add("oh-day-on");
+                cb.addEventListener("change", function () {
+                    lab.classList.toggle("oh-day-on", cb.checked);
+                });
+                lab.appendChild(cb);
+                var sp = document.createElement("span");
+                sp.textContent = d.slice(0, 3);
+                lab.appendChild(sp);
+                grid.appendChild(lab);
+            });
+            colDays.appendChild(grid);
+            wrap.appendChild(colDays);
+
+            var tOpen = document.createElement("div");
+            tOpen.className = "oh-time-opens";
+            var l1 = document.createElement("label");
+            l1.className = "mf-lbl";
+            l1.textContent = "Opens at (e.g. 08:00)";
+            var i1 = document.createElement("input");
+            i1.type = "time";
+            i1.className = "oh-opens";
+            i1.setAttribute("title", "Giờ mở cửa");
+            i1.setAttribute("aria-label", "Giờ mở cửa");
+            if (row.opens) i1.value = row.opens;
+            tOpen.appendChild(l1);
+            tOpen.appendChild(i1);
+            wrap.appendChild(tOpen);
+
+            var tClose = document.createElement("div");
+            tClose.className = "oh-time-closes";
+            var l2 = document.createElement("label");
+            l2.className = "mf-lbl";
+            l2.textContent = "Closes at (e.g. 21:00)";
+            var i2 = document.createElement("input");
+            i2.type = "time";
+            i2.className = "oh-closes";
+            i2.setAttribute("title", "Giờ đóng cửa");
+            i2.setAttribute("aria-label", "Giờ đóng cửa");
+            if (row.closes) i2.value = row.closes;
+            tClose.appendChild(l2);
+            tClose.appendChild(i2);
+            wrap.appendChild(tClose);
+
+            var rm = document.createElement("button");
+            rm.type = "button";
+            rm.className = "btn-icon";
+            rm.textContent = "Xóa";
+            rm.addEventListener("click", function () {
+                var snap = snapshotOpeningHoursFromDom();
+                snap.splice(idx, 1);
+                openingHoursRows = snap;
+                renderOpeningHoursRows();
+            });
+            wrap.appendChild(rm);
+
+            list.appendChild(wrap);
+        });
+        scheduleManualPreview();
+    }
+
+    function escapeAttr(s) {
+        return String(s || "")
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;");
+    }
+
+    function readOpeningHoursFromDom() {
+        var list = el("openingHoursList");
+        if (!list) return [];
+        var rows = list.querySelectorAll(".oh-row");
+        var out = [];
+        rows.forEach(function (row) {
+            var days = [];
+            row.querySelectorAll(".oh-day-cb:checked").forEach(function (cb) {
+                days.push(cb.value);
+            });
+            days = sortDayKeys(days);
+            var opens = ((row.querySelector(".oh-opens") || {}).value || "").trim();
+            var closes = ((row.querySelector(".oh-closes") || {}).value || "").trim();
+            if (opens.length > 5) opens = opens.slice(0, 5);
+            if (closes.length > 5) closes = closes.slice(0, 5);
+            if (!days.length || !opens || !closes) return;
+            out.push({
+                "@type": "OpeningHoursSpecification",
+                dayOfWeek: days.map(function (d) {
+                    return "https://schema.org/" + d;
+                }),
+                opens: opens,
+                closes: closes,
+            });
+        });
+        return out;
+    }
+
+    function readContactsFromDom() {
+        var list = el("contactList");
+        if (!list) return [];
+        var rows = list.querySelectorAll(".contact-row");
+        var out = [];
+        rows.forEach(function (row) {
+            var phone = (row.querySelector(".c-phone") || {}).value || "";
+            var typ = (row.querySelector(".c-type") || {}).value || "customer service";
+            var email = (row.querySelector(".c-email") || {}).value || "";
+            if (!phone.trim() && !email.trim()) return;
+            var cp = { "@type": "ContactPoint", contactType: typ };
+            if (phone.trim()) cp.telephone = phone.trim();
+            if (email.trim()) cp.email = email.trim();
+            out.push(cp);
+        });
+        return out;
+    }
+
+    function snapshotProductImagesFromDom() {
+        var list = el("prImageList");
+        if (!list) return [""];
+        var arr = [];
+        list.querySelectorAll(".pr-img-url").forEach(function (inp) {
+            arr.push((inp.value || "").trim());
+        });
+        return arr.length ? arr : [""];
+    }
+
+    function renderProductImages() {
+        var list = el("prImageList");
+        if (!list) return;
+        list.innerHTML = "";
+        productImageRows.forEach(function (url, idx) {
+            var wrap = document.createElement("div");
+            wrap.className = "product-img-row";
+            var inp = document.createElement("input");
+            inp.type = "url";
+            inp.className = "pr-img-url";
+            inp.placeholder = "https://…";
+            inp.value = url || "";
+            inp.setAttribute("autocomplete", "off");
+            wrap.appendChild(inp);
+            if (productImageRows.length > 1) {
+                var rm = document.createElement("button");
+                rm.type = "button";
+                rm.className = "btn-icon";
+                rm.textContent = "Xóa";
+                rm.addEventListener("click", function () {
+                    productImageRows = snapshotProductImagesFromDom();
+                    productImageRows.splice(idx, 1);
+                    if (!productImageRows.length) productImageRows = [""];
+                    renderProductImages();
+                });
+                wrap.appendChild(rm);
+            }
+            list.appendChild(wrap);
+        });
+        scheduleManualPreview();
+    }
+
+    function collectProductImageUrls() {
+        var list = el("prImageList");
+        if (!list) return [];
+        var out = [];
+        list.querySelectorAll(".pr-img-url").forEach(function (inp) {
+            var v = (inp.value || "").trim();
+            if (v) out.push(v);
+        });
+        return out;
+    }
+
+    function applyGtinToProduct(node, raw) {
+        var d = String(raw || "").replace(/\D/g, "");
+        if (!d) return;
+        if (d.length === 8) node.gtin8 = d;
+        else if (d.length === 12) node.gtin12 = d;
+        else if (d.length === 13) node.gtin13 = d;
+        else if (d.length === 14) node.gtin14 = d;
+        else node.gtin13 = d;
+    }
+
+    function buildManualJsonLd() {
+        var kind = el("manualSchemaKind").value;
+        var base = { "@context": "https://schema.org" };
+        var node;
+
+        if (kind === "Organization") {
+            var t1 = el("orgTypeMain").value;
+            var t2 = (el("orgTypeMore").value || "").trim();
+            var types = [t1];
+            if (t2) types.push(t2);
+            node = {
+                "@type": types.length === 1 ? types[0] : types,
+                name: el("orgName").value.trim(),
+                alternateName: el("orgAltName").value.trim(),
+                description: el("orgDesc").value.trim(),
+                url: el("orgUrl").value.trim(),
+                logo: el("orgLogo").value.trim(),
+                email: el("orgEmail").value.trim(),
+                telephone: el("orgTelephone").value.trim(),
+            };
+            var oStreet = el("orgStreet").value.trim();
+            var oLoc = el("orgLocality").value.trim();
+            var oReg = el("orgRegion").value.trim();
+            var oCtry = el("orgCountry").value.trim();
+            if (oStreet || oLoc || oReg || oCtry) {
+                node.address = {
+                    "@type": "PostalAddress",
+                    streetAddress: oStreet,
+                    addressLocality: oLoc,
+                    addressRegion: oReg,
+                    addressCountry: oCtry,
+                };
+            }
+            var sas = sameAsUrls.filter(Boolean);
+            if (sas.length) node.sameAs = sas;
+            var cps = readContactsFromDom();
+            if (cps.length) node.contactPoint = cps;
+        } else if (kind === "LocalBusiness") {
+            var lbType = el("lbSubtype").value || "LocalBusiness";
+            node = {
+                "@type": lbType,
+                name: el("lbName").value.trim(),
+                image: el("lbImage").value.trim(),
+                url: el("lbUrl").value.trim(),
+                telephone: el("lbPhone").value.trim(),
+            };
+            var street = el("lbStreet").value.trim();
+            var locality = el("lbLocality").value.trim();
+            var region = el("lbRegion").value.trim();
+            var postal = el("lbPostal").value.trim();
+            var country = el("lbCountry").value.trim();
+            if (street || locality || region || postal || country) {
+                node.address = {
+                    "@type": "PostalAddress",
+                    streetAddress: street,
+                    addressLocality: locality,
+                    addressRegion: region,
+                    postalCode: postal,
+                    addressCountry: country,
+                };
+            }
+            var lat = el("lbLat").value.trim();
+            var lng = el("lbLng").value.trim();
+            if (lat !== "" && lng !== "" && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+                node.geo = {
+                    "@type": "GeoCoordinates",
+                    latitude: Number(lat),
+                    longitude: Number(lng),
+                };
+            }
+            var ohSpecs = readOpeningHoursFromDom();
+            if (ohSpecs.length) node.openingHoursSpecification = ohSpecs;
+            var pr = el("lbPriceRange").value.trim();
+            if (pr) node.priceRange = pr;
+            var aggV = el("lbAggRatingValue").value.trim();
+            var aggC = el("lbAggReviewCount").value.trim();
+            var ar = { "@type": "AggregateRating" };
+            if (aggV !== "" && !isNaN(Number(aggV))) ar.ratingValue = Number(aggV);
+            if (aggC !== "" && !isNaN(parseInt(aggC, 10))) ar.reviewCount = parseInt(aggC, 10);
+            if (ar.ratingValue != null || ar.reviewCount != null) node.aggregateRating = ar;
+        } else if (kind === "Article") {
+            node = {
+                "@type": "Article",
+                headline: el("artHeadline").value.trim(),
+                url: el("artUrl").value.trim(),
+                image: el("artImage").value.trim(),
+            };
+            var dp = el("artDate").value;
+            if (dp) {
+                try {
+                    node.datePublished = new Date(dp).toISOString();
+                } catch (e) {
+                    node.datePublished = dp;
+                }
+            }
+            var an = el("artAuthor").value.trim();
+            var pn = el("artPub").value.trim();
+            if (an) node.author = { "@type": "Person", name: an };
+            if (pn) node.publisher = { "@type": "Organization", name: pn };
+        } else if (kind === "Product") {
+            var imgs = collectProductImageUrls();
+            node = {
+                "@type": "Product",
+                name: el("prName").value.trim(),
+            };
+            var descP = el("prDesc").value.trim();
+            if (descP) node.description = descP;
+            if (imgs.length === 1) node.image = imgs[0];
+            else if (imgs.length > 1) node.image = imgs;
+            var brandP = el("prBrand").value.trim();
+            if (brandP) node.brand = { "@type": "Brand", name: brandP };
+            var skuP = el("prSku").value.trim();
+            if (skuP) node.sku = skuP;
+            var gtinRaw = el("prGtin").value.trim();
+            if (gtinRaw) applyGtinToProduct(node, gtinRaw);
+            var priceP = el("prPrice").value.trim();
+            var curP = (el("prCur").value.trim() || "VND").toUpperCase();
+            var offerP = { "@type": "Offer", availability: "https://schema.org/InStock" };
+            if (priceP !== "" && !isNaN(Number(priceP))) {
+                offerP.price = Number(priceP);
+                offerP.priceCurrency = curP;
+            }
+            var offerUrlP = el("prOfferUrl").value.trim();
+            if (offerUrlP) offerP.url = offerUrlP;
+            var pvuP = el("prPriceValidUntil").value.trim();
+            if (pvuP) offerP.priceValidUntil = pvuP;
+            var icP = el("prItemCondition").value.trim();
+            if (icP) offerP.itemCondition = icP;
+            if (offerP.price != null || offerP.url) node.offers = offerP;
+            var rvP = el("prAggRating").value.trim();
+            var rcP = el("prAggReviewCount").value.trim();
+            var arP = { "@type": "AggregateRating" };
+            var hasAR = false;
+            if (rvP !== "" && !isNaN(Number(rvP))) {
+                arP.ratingValue = Number(rvP);
+                hasAR = true;
+            }
+            if (rcP !== "" && !isNaN(parseInt(rcP, 10))) {
+                arP.reviewCount = parseInt(rcP, 10);
+                hasAR = true;
+            }
+            if (hasAR) node.aggregateRating = arP;
+        } else if (kind === "WebSite") {
+            node = {
+                "@type": "WebSite",
+                name: el("wsName").value.trim(),
+                url: el("wsUrl").value.trim(),
+            };
+            var st = el("wsSearch").value.trim();
+            if (st.indexOf("{search_term_string}") !== -1) {
+                node.potentialAction = {
+                    "@type": "SearchAction",
+                    target: {
+                        "@type": "EntryPoint",
+                        urlTemplate: st,
+                    },
+                    "query-input": "required name=search_term_string",
+                };
+            }
+        } else if (kind === "Person") {
+            node = {
+                "@type": "Person",
+                name: el("peName").value.trim(),
+                jobTitle: el("peJob").value.trim(),
+                url: el("peUrl").value.trim(),
+                image: el("peImage").value.trim(),
+            };
+        }
+
+        var merged = Object.assign(base, node);
+        return stripEmpty(merged) || { "@context": "https://schema.org", "@type": kind };
+    }
+
+    function validateRequired(kind, data) {
+        if (kind === "Organization") {
+            if (!el("orgName").value.trim()) {
+                return "Nhập tên tổ chức (bắt buộc).";
+            }
+            if (!el("orgUrl").value.trim()) {
+                return "Nhập website (bắt buộc).";
+            }
+        }
+        if (kind === "LocalBusiness" && !el("lbName").value.trim()) {
+            return "Nhập tên doanh nghiệp (LocalBusiness).";
+        }
+        if (kind === "Article" && !el("artHeadline").value.trim()) {
+            return "Nhập headline cho Article.";
+        }
+        if (kind === "Product" && !el("prName").value.trim()) {
+            return "Nhập tên sản phẩm.";
+        }
+        if (kind === "Product") {
+            var prc = el("prPrice").value.trim();
+            if (!prc || isNaN(Number(prc))) {
+                return "Nhập giá hợp lệ (bắt buộc cho Offer / Merchant).";
+            }
+        }
+        if (kind === "WebSite" && !(el("wsName").value.trim() || el("wsUrl").value.trim())) {
+            return "Nhập tên hoặc URL website.";
+        }
+        if (kind === "Person" && !el("peName").value.trim()) {
+            return "Nhập họ tên.";
+        }
+        return "";
+    }
+
+    function syncTypeBlocks() {
+        var kind = el("manualSchemaKind").value;
+        var hint = el("manualSchemaHint");
+        if (hint) hint.textContent = KIND_HINTS[kind] || "";
+        ["blockOrg", "blockLocal", "blockArticle", "blockProduct", "blockWebSite", "blockPerson"].forEach(function (id) {
+            var b = el(id);
+            if (!b) return;
+            b.hidden = true;
+        });
+        var map = {
+            Organization: "blockOrg",
+            LocalBusiness: "blockLocal",
+            Article: "blockArticle",
+            Product: "blockProduct",
+            WebSite: "blockWebSite",
+            Person: "blockPerson",
+        };
+        var showId = map[kind];
+        if (showId && el(showId)) el(showId).hidden = false;
+        if (kind === "Product") {
+            productImageRows = snapshotProductImagesFromDom();
+            if (!productImageRows.length) productImageRows = [""];
+            renderProductImages();
+        }
+        scheduleManualPreview();
+    }
+
+    el("manualSchemaKind").addEventListener("change", syncTypeBlocks);
+
+    var manualFormCard = document.querySelector("#panelManual .manual-form-card");
+    if (manualFormCard) {
+        manualFormCard.addEventListener("input", scheduleManualPreview);
+        manualFormCard.addEventListener("change", scheduleManualPreview);
+        manualFormCard.addEventListener("click", function (e) {
+            var quick = e.target && e.target.closest && e.target.closest(".org-sameas-quick");
+            if (!quick || !manualFormCard.contains(quick)) return;
+            var base = quick.getAttribute("data-base");
+            if (!base) return;
+            var inp = el("sameAsInput");
+            if (inp) {
+                inp.value = base;
+                inp.focus();
+                scheduleManualPreview();
+            }
+        });
+    }
+
+    el("btnAddContact").addEventListener("click", function () {
+        contactRows = snapshotContactsFromDom();
+        contactRows.push({ phone: "", type: "customer service", email: "" });
+        renderContacts();
+    });
+
+    el("btnAddOpeningHours").addEventListener("click", function () {
+        openingHoursRows = snapshotOpeningHoursFromDom();
+        openingHoursRows.push({ days: [], opens: "", closes: "" });
+        renderOpeningHoursRows();
+    });
+
+    el("btnPrImageAdd").addEventListener("click", function () {
+        productImageRows = snapshotProductImagesFromDom();
+        productImageRows.push("");
+        renderProductImages();
+    });
+
+    el("btnSameAsAdd").addEventListener("click", function () {
+        var v = el("sameAsInput").value.trim();
+        if (!v) return;
+        try {
+            new URL(v);
+        } catch (e) {
+            manualMsg.textContent = "URL sameAs không hợp lệ.";
+            manualMsg.className = "form-msg err";
+            return;
+        }
+        sameAsUrls.push(v);
+        el("sameAsInput").value = "";
+        renderSameAsTags();
+    });
+
+    el("btnManualBuild").addEventListener("click", function () {
+        manualMsg.textContent = "";
+        manualMsg.className = "form-msg";
+        updateLiveManualPreview();
+        var kind = el("manualSchemaKind").value;
+        var err = validateRequired(kind, null);
+        if (err) {
+            manualMsg.textContent = err;
+            manualMsg.className = "form-msg err";
+            return;
+        }
+        manualMsg.textContent = "Dữ liệu hợp lệ — JSON-LD đang hiển thị bên phải; dán thẻ script vào HTML khi cần.";
+        manualMsg.className = "form-msg ok";
+    });
+
+    el("btnManualCopy").addEventListener("click", function () {
+        if (!lastManualScript) {
+            manualMsg.textContent = "Chưa có JSON-LD để sao chép — kiểm tra ô bên phải hoặc thử lại sau khi nhập form.";
+            manualMsg.className = "form-msg err";
+            return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(lastManualScript).then(
+                function () {
+                    manualMsg.textContent = "Đã sao chép vào clipboard.";
+                    manualMsg.className = "form-msg ok";
+                },
+                function () {
+                    fallbackCopy();
+                },
+            );
+        } else {
+            fallbackCopy();
+        }
+        function fallbackCopy() {
+            var ta = document.createElement("textarea");
+            ta.value = lastManualScript;
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand("copy");
+                manualMsg.textContent = "Đã sao chép.";
+                manualMsg.className = "form-msg ok";
+            } catch (e) {
+                manualMsg.textContent = "Không sao chép được — chọn và copy thủ công.";
+                manualMsg.className = "form-msg err";
+            }
+            document.body.removeChild(ta);
+        }
+    });
+
+    el("btnManualReset").addEventListener("click", function () {
+        [
+            "orgName",
+            "orgAltName",
+            "orgDesc",
+            "orgUrl",
+            "orgLogo",
+            "orgEmail",
+            "orgTelephone",
+            "orgStreet",
+            "orgLocality",
+            "orgRegion",
+            "orgCountry",
+            "orgTypeMore",
+            "lbName",
+            "lbUrl",
+            "lbPhone",
+            "lbImage",
+            "lbStreet",
+            "lbLocality",
+            "lbRegion",
+            "lbPostal",
+            "lbCountry",
+            "lbLat",
+            "lbLng",
+            "lbPriceRange",
+            "lbAggRatingValue",
+            "lbAggReviewCount",
+            "artHeadline",
+            "artUrl",
+            "artImage",
+            "artDate",
+            "artAuthor",
+            "artPub",
+            "prName",
+            "prDesc",
+            "prBrand",
+            "prSku",
+            "prGtin",
+            "prPrice",
+            "prCur",
+            "prOfferUrl",
+            "prPriceValidUntil",
+            "prAggRating",
+            "prAggReviewCount",
+            "wsName",
+            "wsUrl",
+            "wsSearch",
+            "peName",
+            "peJob",
+            "peUrl",
+            "peImage",
+            "sameAsInput",
+        ].forEach(function (id) {
+            var n = el(id);
+            if (n) n.value = "";
+        });
+        el("orgTypeMain").selectedIndex = 0;
+        el("lbSubtype").selectedIndex = 0;
+        if (el("prItemCondition")) el("prItemCondition").selectedIndex = 0;
+        sameAsUrls = [];
+        contactRows = [];
+        openingHoursRows = [];
+        productImageRows = [""];
+        renderProductImages();
+        renderSameAsTags();
+        renderContacts();
+        renderOpeningHoursRows();
+        scheduleManualPreview();
+        manualMsg.textContent = "";
+        manualMsg.className = "form-msg";
+    });
+
+    el("btnManualTest").addEventListener("click", function () {
+        if (lastManualScript && navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(lastManualScript);
+        }
+        window.open("https://validator.schema.org/", "_blank", "noopener");
+        manualMsg.textContent = "Đã mở validator.schema.org — dán JSON-LD (hoặc đã copy thẻ script).";
+        manualMsg.className = "form-msg ok";
+    });
+
+    document.querySelectorAll(".schema-tab").forEach(function (tab) {
+        tab.addEventListener("click", function () {
+            var panel = tab.getAttribute("data-panel");
+            document.querySelectorAll(".schema-tab").forEach(function (t) {
+                t.classList.toggle("active", t === tab);
+                t.setAttribute("aria-selected", t === tab ? "true" : "false");
+            });
+            var manual = el("panelManual");
+            var analyze = el("panelAnalyze");
+            if (panel === "manual") {
+                manual.classList.remove("is-hidden");
+                analyze.classList.remove("is-visible");
+            } else {
+                manual.classList.add("is-hidden");
+                analyze.classList.add("is-visible");
+            }
+        });
+    });
+
+    contactRows = [];
+    openingHoursRows = [];
+    productImageRows = [""];
+    renderContacts();
+    renderOpeningHoursRows();
+    renderProductImages();
+    renderSameAsTags();
+    syncTypeBlocks();
+
+    /* ——— Tab URL/HTML (giữ nguyên pipeline cũ) ——— */
+    var mode = el("mode");
+    var blockUrl = el("blockUrl");
+    var blockHtml = el("blockHtml");
+    var blockText = el("blockText");
+    var lblUrl = el("lblUrl");
+    mode.addEventListener("change", function () {
+        var v = mode.value;
+        blockHtml.style.display = v === "html" ? "block" : "none";
+        blockText.style.display = v === "text" ? "block" : "none";
+        if (v === "url") {
+            lblUrl.textContent = "URL trang (bắt buộc)";
+        } else {
+            lblUrl.textContent = "URL canonical (khuyến nghị — dùng cho @id WebPage / Product)";
+        }
+    });
+
+    function showSections(on) {
+        ["secTypes", "secJson", "secVal", "secSerp"].forEach(function (id) {
+            el(id).style.display = on ? "block" : "none";
+        });
+    }
+
+    el("btnGen").addEventListener("click", async function () {
+        var msg = el("msg");
+        msg.textContent = "";
+        msg.className = "err";
+        var body = { fetch_serp: el("fetchSerp").checked };
+        var seed = el("seed").value.trim();
+        if (seed) body.seed_keyword = seed;
+        var m = mode.value;
+        if (m === "url") {
+            var url = el("u").value.trim();
+            if (!url) {
+                msg.textContent = "Nhập URL.";
+                return;
+            }
+            body.url = url;
+        } else if (m === "html") {
+            var h = el("htmlIn").value.trim();
+            if (!h) {
+                msg.textContent = "Dán HTML.";
+                return;
+            }
+            body.html = h;
+            var u0 = el("u").value.trim();
+            if (u0) body.url = u0;
+        } else {
+            var t = el("textIn").value.trim();
+            if (!t) {
+                msg.textContent = "Nhập nội dung.";
+                return;
+            }
+            body.text = t;
+            var u1 = el("u").value.trim();
+            if (u1) body.url = u1;
+        }
+
+        var r = await fetch("/schema-generator", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        var data = await r.json();
+        if (!r.ok) {
+            msg.textContent = (data.meta && data.meta.error) || data.detail || "Lỗi " + r.status;
+            showSections(Object.keys(data).length > 0);
+        } else {
+            msg.textContent = "Hoàn tất.";
+            msg.className = "ok";
+            showSections(true);
+        }
+
+        var meta = data.meta || {};
+        var types = (meta.detected_types || [])
+            .map(function (t) {
+                return "<span class=\"pill\">" + t + "</span>";
+            })
+            .join(" ");
+        el("typesOut").innerHTML = types || "<span class=\"muted\">—</span>";
+        if (meta.page_intent) {
+            el("typesOut").innerHTML +=
+                "<br><span class=\"muted\">Intent (query heuristic): <strong>" + meta.page_intent + "</strong></span>";
+        }
+
+        var pack = { schemas: data.schemas, primary_schema: data.primary_schema, meta: meta };
+        el("out").value = JSON.stringify(pack, null, 2);
+
+        var v = data.validation || {};
+        var ve = el("valOut");
+        ve.innerHTML = "<p><strong>valid:</strong> " + v.valid + "</p>";
+        if ((v.errors || []).length) {
+            ve.innerHTML +=
+                "<p class=\"err\">Errors</p><ul class=\"compact\">" +
+                v.errors.map(function (e) {
+                    return "<li>" + e + "</li>";
+                }).join("") +
+                "</ul>";
+        }
+        if ((v.warnings || []).length) {
+            ve.innerHTML +=
+                "<p class=\"muted\">Warnings</p><ul class=\"compact\">" +
+                v.warnings.map(function (w) {
+                    return "<li>" + w + "</li>";
+                }).join("") +
+                "</ul>";
+        }
+
+        var s = data.serp_alignment || {};
+        var so = el("serpOut");
+        so.innerHTML =
+            "<p class=\"muted\">Dominant: <strong>" +
+            (s.serp_dominant_type || "—") +
+            "</strong> · score: " +
+            (s.alignment_score != null ? s.alignment_score : "—") +
+            "</p>";
+        ["matched", "gaps", "suggestions"].forEach(function (k) {
+            var arr = s[k] || [];
+            if (!arr.length) return;
+            so.innerHTML +=
+                "<p><strong>" +
+                k +
+                "</strong></p><ul class=\"compact\">" +
+                arr.map(function (x) {
+                    return "<li>" + x + "</li>";
+                }).join("") +
+                "</ul>";
+        });
+    });
+
+    el("btnCopy").addEventListener("click", function () {
+        var ta = el("out");
+        ta.select();
+        document.execCommand("copy");
+    });
+})();
+</script>
+<script>
+(() => {
+    try {
+        const path = (window.location && window.location.pathname) ? window.location.pathname.replace(/\/+$/, "") : "";
+        document.querySelectorAll('.nav a, nav[aria-label="Menu chính"] a').forEach((a) => {
+            const href = (a.getAttribute("href") || "").trim();
+            if (!href || href.startsWith("http")) return;
+            const h = href.replace(/\/+$/, "");
+            if (h && h === path) a.classList.add("active");
+        });
+        if (path === "/settings") {
+            document.querySelectorAll('a[href="/settings"]').forEach((b) => b.classList.add("active"));
+        }
+    } catch (_) {}
+})();
+</script>
+{% include "partials/digiseo_i18n.html" %}
+{% include "partials/digiseo_pricing_bundle.html" %}
+</body>
+</html>

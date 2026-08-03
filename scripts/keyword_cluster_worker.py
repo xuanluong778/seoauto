@@ -10,34 +10,9 @@ if str(ROOT) not in sys.path:
 
 
 def _run_job_payload(job_id: str, payload: dict) -> None:
-    from app.services.job_store import fail_job, finish_job, update_job
-    from app.services.keyword_cluster_pipeline import build_keyword_cluster_api_response
+    from app.services.cluster_job_runner import run_cluster_job
 
-    keywords = payload.get("keywords") or []
-    fetch_serp = bool(payload.get("fetch_serp"))
-    if os.getenv("BENCH_FAST", "0").lower() in ("1", "true", "yes"):
-        fetch_serp = False
-
-    def hook(p: int, msg: str) -> None:
-        update_job(job_id, progress=int(p), message=str(msg))
-
-    try:
-        res = build_keyword_cluster_api_response(
-            keywords,
-            fetch_serp=fetch_serp,
-            brand_host_hint=payload.get("brand_host_hint"),
-            serp_country=payload.get("serp_country"),
-            serp_language=payload.get("serp_language"),
-            serp_device=payload.get("serp_device"),
-            cluster_strictness=payload.get("cluster_strictness"),
-            progress_hook=hook,
-        )
-        finish_job(job_id, result=res)
-    except Exception as exc:
-        import traceback
-
-        fail_job(job_id, error=traceback.format_exc())
-        return
+    run_cluster_job(job_id, payload)
 
 
 def main() -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -9,7 +10,11 @@ from fastapi.responses import RedirectResponse
 from google_auth_oauthlib.flow import Flow
 from sqlalchemy.orm import Session
 
-from app.core.security import create_google_oauth_state, decode_google_oauth_state
+from app.core.security import (
+    create_google_oauth_state,
+    decode_google_oauth_state,
+    is_google_login_state,
+)
 from app.core.settings import GOOGLE_OAUTH_SCOPES, get_google_oauth_settings, google_oauth_client_config
 from app.db import get_db
 from app.models.user import User
@@ -30,10 +35,34 @@ from app.services.google_apis import (
 from app.services.google_token_store import disconnect_google, has_google_connection, save_google_refresh_token
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
+_LOG = logging.getLogger(__name__)
+
+_GOOGLE_LOGIN_ERRORS = {
+    "access_denied": (
+        "Bạn đã hủy hoặc Google chưa cho phép app đăng nhập với tài khoản này. "
+        "Nếu app OAuth đang ở chế độ Testing, thêm email vào Test users trong Google Cloud Console."
+    ),
+    "no_token": "Google không trả access token. Thử đăng nhập lại.",
+    "token": "Không đổi được mã đăng nhập từ Google (mạng chậm hoặc mã đã hết hạn). Vui lòng bấm Đăng nhập Google lại.",
+    "user": "Không tạo được tài khoản từ email Google.",
+}
+
+
+def _login_error_redirect(code: str) -> RedirectResponse:
+    msg = _GOOGLE_LOGIN_ERRORS.get(code, "Đăng nhập Google thất bại.")
+    from urllib.parse import quote
+
+    return RedirectResponse(
+        url=f"/?google_login_error={code}&detail={quote(msg)}",
+        status_code=302,
+    )
 
 
 def _google_oauth_redirect_uri(request: Request) -> str:
-    """URI callback phải trùng host với trình duyệt (localhost ≠ 127.0.0.1 với Google)."""
+    """Ưu tiên GOOGLE_OAUTH_REDIRECT_URI trong env.local (production https)."""
+    s = get_google_oauth_settings()
+    if s and s.get("redirect_uri"):
+        return s["redirect_uri"]
     base = str(request.base_url).rstrip("/")
     return f"{base}/integrations/google/callback"
 
@@ -103,10 +132,49 @@ def google_oauth_callback(
     error: str | None = None,
     db: Session = Depends(get_db),
 ):
+    login_flow = bool(state) and is_google_login_state(state)
     if error:
+        if login_flow or error == "access_denied":
+            return _login_error_redirect("access_denied" if error == "access_denied" else error)
         return RedirectResponse(url=f"/tool?google_error={error}", status_code=302)
     if not code or not state:
         raise HTTPException(status_code=400, detail="Thiếu code hoặc state từ Google.")
+
+    _require_google_config()
+    redirect_uri = _google_oauth_redirect_uri(request)
+    _allow_oauth_insecure_transport_local(request)
+
+    if login_flow:
+        from app.services.google_login import (
+            email_from_login_tokens,
+            exchange_login_code,
+            issue_login_token,
+            login_or_register_google_user,
+        )
+        from app.services.oauth_cookie import attach_seo_token_cookie
+
+        try:
+            token_data = exchange_login_code(request, redirect_uri)
+        except Exception:
+            _LOG.exception("Google login token exchange failed")
+            return _login_error_redirect("token")
+        if not token_data.get("access_token"):
+            return _login_error_redirect("no_token")
+        try:
+            email = email_from_login_tokens(token_data)
+            user, is_new = login_or_register_google_user(email, db)
+            if is_new:
+                from app.services.affiliate_service import try_attach_referral_from_request
+
+                try_attach_referral_from_request(request, user, db)
+            token = issue_login_token(user)
+        except Exception:
+            _LOG.exception("Google login user setup failed")
+            return _login_error_redirect("user")
+        response = RedirectResponse(url="/tool?google_login=1", status_code=302)
+        attach_seo_token_cookie(response, request, token)
+        return response
+
     try:
         user_id = decode_google_oauth_state(state)
     except ValueError as exc:
@@ -115,8 +183,6 @@ def google_oauth_callback(
     if not user:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng.")
 
-    _require_google_config()
-    redirect_uri = _google_oauth_redirect_uri(request)
     client_cfg = google_oauth_client_config(redirect_uri)
     flow = Flow.from_client_config(
         client_cfg,
@@ -125,8 +191,10 @@ def google_oauth_callback(
     )
     flow.redirect_uri = redirect_uri
     try:
-        _allow_oauth_insecure_transport_local(request)
-        flow.fetch_token(authorization_response=str(request.url))
+        os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+        from app.services.google_login import _public_callback_url
+
+        flow.fetch_token(authorization_response=_public_callback_url(request))
     except Exception as exc:
         raise HTTPException(
             status_code=400,

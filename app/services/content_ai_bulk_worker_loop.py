@@ -21,7 +21,12 @@ def content_ai_bulk_worker_loop() -> None:
         update_job,
     )
 
-    ensure_job_schema()
+    while True:
+        try:
+            ensure_job_schema()
+            break
+        except Exception:
+            time.sleep(2.0)
     poll = float(os.getenv("CONTENT_AI_BULK_POLL_SECONDS", "2.0"))
     watchdog = int(os.getenv("JOB_WATCHDOG_SECONDS", "900"))
     queue_stale = int(os.getenv("JOB_QUEUE_STALE_SECONDS", "180"))

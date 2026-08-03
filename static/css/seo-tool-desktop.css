@@ -1,0 +1,254 @@
+/**
+ * SEOAuto — /tool desktop layout (≥1025px)
+ * Sidebar 250px + main fluid. Table View chỉ desktop.
+ */
+
+@media (min-width: 1025px) {
+    .seo-tool-page {
+        --tool-sidebar-w: 252px;
+        --tool-sidebar-right-w: 0px;
+        --seo-tool-sidebar-w: 252px;
+    }
+
+    .seo-tool-page.seo-tool-page {
+        display: block !important;
+        overflow-x: clip;
+    }
+
+    .seo-tool-page > .sidebar {
+        position: fixed !important;
+        top: var(--digiseo-nav-fixed-offset, 68px) !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        width: var(--tool-sidebar-w) !important;
+        height: auto !important;
+        max-height: none !important;
+        padding: 10px 10px 16px !important;
+        z-index: 30 !important;
+        pointer-events: none;
+        overflow: visible !important;
+        background: transparent !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .seo-tool-page > .sidebar .digiseo-tool-panel-body,
+    .seo-tool-page > .sidebar .sidebar-main {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .seo-tool-page > .sidebar > * {
+        pointer-events: auto;
+    }
+
+    .seo-tool-page > .sidebar-right {
+        display: none !important;
+    }
+
+    .seo-tool-page > .tool-main {
+        display: block !important;
+        margin-left: var(--tool-sidebar-w) !important;
+        margin-right: 0 !important;
+        width: auto !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .seo-tool-page .tool-scroll-top {
+        padding: calc(var(--digiseo-nav-fixed-offset, 68px) + 12px) 0 12px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .seo-tool-page .seo-tool-content {
+        width: 100%;
+        max-width: var(--seo-tool-content-max);
+        margin: 0 auto;
+        padding-left: clamp(16px, 2vw, 24px);
+        padding-right: clamp(16px, 2vw, 24px);
+    }
+
+    .seo-tool-page .tool-table-panel {
+        width: 100%;
+        max-width: var(--seo-tool-content-max);
+        padding-left: clamp(16px, 2vw, 24px) !important;
+        padding-right: clamp(16px, 2vw, 24px) !important;
+    }
+
+    .seo-tool-page .auth-box {
+        right: 20px !important;
+        top: calc(var(--digiseo-nav-fixed-offset, 68px) + 10px) !important;
+    }
+
+    .seo-tool-page #digiseoTopNavStrip,
+    .seo-tool-page .nav-strip {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        z-index: 500 !important;
+    }
+
+    .seo-tool-page .digiseo-tool-collapse-btn {
+        display: none !important;
+    }
+
+    .seo-tool-page .digiseo-tool-panel-body {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .seo-tool-page .sidebar-main {
+        overflow: visible !important;
+        pointer-events: auto !important;
+    }
+
+    /* Category chips chỉ tablet/mobile */
+    .seo-tool-page .tech-category-chips-bar {
+        display: none !important;
+    }
+
+    /* Sidebar dọc — v2 tự fit viewport, không cuộn */
+    .seo-tool-page .tech-sidebar-nav:not(.tech-sidebar-v2) {
+        max-height: calc(100vh - var(--digiseo-nav-fixed-offset, 68px) - 100px) !important;
+    }
+
+    .seo-tool-page .tech-sidebar-nav.tech-sidebar-v2 {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        height: 100% !important;
+        overflow: visible !important;
+    }
+
+    .seo-tool-page .tech-nav-list {
+        flex-direction: column !important;
+        flex-wrap: nowrap !important;
+        overflow-x: visible !important;
+    }
+
+    .seo-tool-page .tech-nav-row {
+        flex-direction: row !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+    }
+
+    /* Score overview — grid 4 cột stat */
+    .seo-tool-page .seo-tool-saas-health-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    /* Priority fixes — 2 cột list */
+    .seo-tool-page .seo-tool-priority-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    /* GSC intelligence — 4 cột */
+    .seo-tool-page .seo-tool-gsc-intel-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    /* Issue cards — 2 cột khi đủ rộng */
+    .seo-tool-page .seo-tool-issues-cards-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Passed checks — 2 cột */
+    .seo-tool-page .seo-tool-passed-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Scan input — hàng ngang */
+    .seo-tool-page .seo-tool-url-row {
+        flex-direction: row;
+        align-items: stretch;
+    }
+
+    .seo-tool-page .seo-tool-url-row input[type="url"] {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .seo-tool-page .seo-tool-primary-btn,
+    .seo-tool-page #btnTechnical {
+        width: auto !important;
+        flex: 0 0 auto;
+        min-width: min(220px, 100%);
+        white-space: nowrap;
+    }
+
+    .seo-tool-page .seo-tool-advanced-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .seo-tool-page .seo-tool-gsc-audit-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Table View — chỉ desktop, cuộn trong khung */
+    .seo-tool-page .issues-table-wrap:not([hidden]) {
+        overflow-x: auto;
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .seo-tool-page .seo-tool-issues-view-toggle button[data-issues-view="table"] {
+        display: inline-block;
+    }
+
+    .seo-tool-page .digiseo-user-dock-wrap.is-sidebar,
+    .seo-tool-page .sidebar-user-dock {
+        left: 14px !important;
+        width: calc(var(--seo-tool-sidebar-w) - 28px) !important;
+        max-width: calc(var(--seo-tool-sidebar-w) - 28px) !important;
+        bottom: 16px !important;
+    }
+
+    .seo-tool-page .digiseo-chatbot-root {
+        right: 20px !important;
+        bottom: 20px !important;
+    }
+
+    /* Export — 2 cột + full width excel */
+    .seo-tool-page .seo-tool-export-btns {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .seo-tool-page .tech-issue-group-chrome {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .seo-tool-page .tech-v2-issue-table-wrap {
+        display: block;
+    }
+
+    .seo-tool-page .tech-nav-group-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
+/* Desktop hẹp 1025–1280: priority 1 cột nếu chật */
+@media (min-width: 1025px) and (max-width: 1280px) {
+    .seo-tool-page .seo-tool-priority-list {
+        grid-template-columns: 1fr;
+    }
+
+    .seo-tool-page .seo-tool-saas-health-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .seo-tool-page .seo-tool-gsc-intel-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}

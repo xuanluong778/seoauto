@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=4">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=10">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+    <link rel="stylesheet" href="/static/css/admin-integrations.css?v=1">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=1">
+</head>
+<body class="ab-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+    <div class="adm-wrap">
+        {% set admin_nav_active = 'integrations' %}
+        {% include "partials/admin_shell_header.html" %}
+
+        <div class="ab-card adm-int-card">
+            <div class="adm-int-head">
+                <div>
+                    <h2 class="adm-int-title">Sinbyte</h2>
+                    <p class="adm-int-lead">Cấu hình API submit indexing bên thứ ba (chỉ quản trị nội bộ).</p>
+                </div>
+                <span class="adm-int-status-pill" id="admSinbytePill" data-state="unknown">Đang tải…</span>
+            </div>
+
+            <div class="adm-int-meta" id="admSinbyteMeta" hidden></div>
+
+            <div class="adm-int-form">
+                <label class="adm-int-label" for="admSinbyteKey">API key</label>
+                <input
+                    type="password"
+                    id="admSinbyteKey"
+                    class="adm-int-input"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Dán API key từ app.sinbyte.com"
+                />
+                <p class="adm-int-hint">Key được mã hóa khi lưu. Giao diện chỉ hiển thị dạng <code>abcd********xyz</code>.</p>
+                <p class="adm-int-masked" id="admSinbyteMasked" hidden></p>
+            </div>
+
+            <div class="adm-int-actions">
+                <button type="button" class="ab-btn" id="btnAdmSinbyteSave">Lưu API key</button>
+                <button type="button" class="ab-btn secondary" id="btnAdmSinbyteTest">Test kết nối</button>
+                <button type="button" class="ab-btn secondary adm-int-btn-danger" id="btnAdmSinbyteDelete">Xóa API key</button>
+            </div>
+
+            <p class="adm-int-msg" id="admSinbyteMsg" hidden></p>
+        </div>
+
+        <div class="ab-card adm-int-card" id="admLeadScannerCard">
+            <div class="adm-int-head">
+                <div>
+                    <h2 class="gms-card-title adm-int-title">Lead Map Scanner</h2>
+                    <p class="adm-int-lead">Giám sát chi phí Google Places API &amp; giới hạn quét lead.</p>
+                </div>
+                <span class="adm-int-status-pill" id="admLeadScannerPill" data-state="unknown">Đang tải…</span>
+            </div>
+            <div class="adm-int-meta" id="admLeadScannerMeta"></div>
+            <p class="adm-int-hint">Credit cost &amp; giới hạn gói cấu hình qua env (<code>LEAD_SCANNER_*</code>, <code>CREDIT_COST_LEAD_*</code>).</p>
+            <p class="adm-int-msg" id="admLeadScannerMsg" hidden></p>
+        </div>
+    </div>
+
+    <div class="ab-toast" id="abToast" hidden></div>
+
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=4"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=7" defer></script>
+    <script src="/static/js/digiseo-social-auto-nav.js?v=1" defer></script>
+    <script src="/static/js/digiseo-mobile-nav.js?v=7" defer></script>
+    <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+    <script src="/static/js/admin-integrations.js?v=2"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

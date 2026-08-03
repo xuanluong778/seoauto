@@ -1,0 +1,298 @@
+<div id="cropBackdrop" class="modal-backdrop"></div>
+<div id="thamKhaoAppendModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="thamKhaoAppendTitle">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div>
+                <div class="modal-title" id="thamKhaoAppendTitle">Chèn link dạng «Tham khảo thêm»</div>
+                <div class="hint" style="margin-top:6px;">Không tìm thấy cụm anchor trong bài. Chọn link để thêm đoạn ngắn (có thể bỏ qua).</div>
+            </div>
+            <button type="button" class="modal-close-x" id="thamKhaoAppendClose" title="Đóng — không chèn">×</button>
+        </div>
+        <div class="modal-body">
+            <div id="thamKhaoAppendList" class="tham-khao-list"></div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="mini-btn" id="thamKhaoAppendCancel">Bỏ qua</button>
+            <button type="button" class="btn" id="thamKhaoAppendConfirm">Chèn đã chọn</button>
+        </div>
+    </div>
+</div>
+<div id="studioLightbox" class="studio-lightbox" aria-hidden="true" role="dialog" aria-label="Xem ảnh lớn">
+    <button type="button" class="studio-lightbox-close" id="studioLightboxClose" title="Đóng" aria-label="Đóng">×</button>
+    <img id="studioLightboxImg" src="" alt="Ảnh preview" />
+</div>
+<div id="cropModal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div class="modal-title">Cắt ảnh & chèn vào Content</div>
+            <button type="button" class="mini-btn danger" id="btnCropClose">Đóng</button>
+        </div>
+        <div class="modal-body">
+            <div class="crop-wrap">
+                <img id="cropImage" alt="Crop preview" />
+            </div>
+            <div class="side">
+                <label>Tuỳ chọn</label>
+                <div class="row2">
+                    <button type="button" class="mini-btn" id="btnCropRotateL">⟲ Xoay</button>
+                    <button type="button" class="mini-btn" id="btnCropRotateR">⟳ Xoay</button>
+                </div>
+                <div class="row2" style="margin-top:8px;">
+                    <button type="button" class="mini-btn" id="btnCropZoomIn">Zoom +</button>
+                    <button type="button" class="mini-btn" id="btnCropZoomOut">Zoom -</button>
+                </div>
+                <div style="margin-top:10px; font-size:0.78rem; color:var(--muted);">
+                    Mẹo: ưu tiên ảnh ngang ~1200×628 hoặc vuông 1200×1200 để hiển thị đẹp.
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn secondary" id="btnCropInsert">Cắt & chèn vào Content</button>
+        </div>
+    </div>
+</div>
+
+<div id="genBackdrop" class="modal-backdrop"></div>
+<div id="caContentViewBackdrop" class="modal-backdrop" aria-hidden="true"></div>
+<div id="caContentViewModal" class="modal ca-content-view-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="caContentViewTitle">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div class="modal-title" id="caContentViewTitle">Xem nội dung bài viết</div>
+            <div class="ca-content-view-head-actions">
+                <button type="button" class="mini-btn ca-content-view-action" id="btnContentViewEdit">Chỉnh sửa</button>
+                <button type="button" class="mini-btn ca-content-view-action" id="btnContentViewSave" hidden>Lưu</button>
+                <button type="button" class="mini-btn ca-content-view-action" id="btnContentViewCancelEdit" hidden>Hủy</button>
+                <button type="button" class="modal-close-x" id="btnCloseContentView" title="Đóng" aria-label="Đóng">×</button>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div id="caContentViewPreview" class="ca-content-demo-viewport" aria-live="polite"></div>
+        </div>
+    </div>
+</div>
+<div id="genModal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div class="modal-title">Đang tạo content…</div>
+            <button type="button" class="mini-btn danger" id="btnGenClose" disabled>Đóng</button>
+        </div>
+        <div class="gen-progress">
+            <div class="gen-bar"><div class="gen-fill" id="genFill"></div></div>
+            <div class="gen-pct" id="genPct">0%</div>
+        </div>
+        <div class="hint" id="genHint"></div>
+        <div class="gen-stream" id="genStream"></div>
+    </div>
+</div>
+<div id="wpProfilesBackdrop" class="modal-backdrop"></div>
+<div id="wpProfilesModal" class="modal wp-profiles-modal-wrap" aria-hidden="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div class="modal-title">Thêm site đăng bài</div>
+            <button type="button" class="mini-btn danger" id="btnWpProfilesClose">Đóng</button>
+        </div>
+        <div class="modal-body">
+            <div class="pub-platform-tabs" role="tablist" aria-label="Chọn nền tảng">
+                <button type="button" role="tab" class="pub-platform-tab active" data-platform="wordpress" aria-selected="true" id="pubTabWordpress">
+                    <span class="ppt-row">
+                        <span class="ppt-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#22c55e"/><path fill="#fff" d="M8 17l1.7-10h2L10 13l2.5-6h2l2 7 2.5-7h2L17 17h-2l-2.2-7.5L11 17H8z"/></svg></span>
+                        <span class="ppt-label">WordPress</span>
+                        <span class="ppt-count" data-count-for="wordpress">0</span>
+                    </span>
+                </button>
+                <button type="button" role="tab" class="pub-platform-tab" data-platform="shopify" aria-selected="false" id="pubTabShopify">
+                    <span class="ppt-row">
+                        <span class="ppt-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65"><path d="M9 11V8a3 3 0 016 0v3"/><rect x="5" y="11" width="14" height="10" rx="2"/></svg></span>
+                        <span class="ppt-label">Shopify</span>
+                        <span class="ppt-count" data-count-for="shopify">0</span>
+                    </span>
+                </button>
+                <button type="button" role="tab" class="pub-platform-tab" data-platform="haravan" aria-selected="false" id="pubTabHaravan">
+                    <span class="ppt-row">
+                        <span class="ppt-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 16V9l3.5 5L16 9v7"/></svg></span>
+                        <span class="ppt-label">Haravan</span>
+                        <span class="ppt-count" data-count-for="haravan">0</span>
+                    </span>
+                </button>
+                <button type="button" role="tab" class="pub-platform-tab" data-platform="webcake" aria-selected="false" id="pubTabWebcake">
+                    <span class="ppt-row">
+                        <span class="ppt-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 17c2.5-6 5.5-10 8-11"/></svg></span>
+                        <span class="ppt-label">Webcake</span>
+                        <span class="ppt-count" data-count-for="webcake">0</span>
+                    </span>
+                </button>
+            </div>
+            <div id="wpProfilesSavedList"></div>
+            <div class="pub-platform-panels">
+                <div class="pub-platform-panel active" data-platform-panel="wordpress" role="tabpanel">
+                    <label for="inpWpProfileName">Tên gợi nhớ (tuỳ chọn)</label>
+                    <input id="inpWpProfileName" type="text" placeholder="VD: Thế giới digi" autocomplete="off" />
+                    <label for="inpWpProfileUrl">URL WordPress</label>
+                    <input id="inpWpProfileUrl" type="text" placeholder="https://site-cua-ban.com" autocomplete="off" />
+                    <label for="inpWpProfileUsername">Username</label>
+                    <input id="inpWpProfileUsername" type="text" placeholder="Tài khoản WP" autocomplete="username" />
+                    <label for="inpWpProfileAppPassword">Application password</label>
+                    <input id="inpWpProfileAppPassword" type="password" placeholder="App password (WP)" autocomplete="new-password" />
+                    <label for="selWpProfileSeo">SEO plugin</label>
+                    <select id="selWpProfileSeo">
+                        <option value="auto">SEO Plugin: Auto detect</option>
+                        <option value="rankmath">SEO Plugin: RankMath</option>
+                        <option value="yoast">SEO Plugin: Yoast</option>
+                        <option value="none">SEO Plugin: None</option>
+                    </select>
+                </div>
+                <div class="pub-platform-panel" data-platform-panel="shopify" role="tabpanel">
+                    <label for="inpPubShopifyUrl">URL cửa hàng</label>
+                    <input id="inpPubShopifyUrl" type="text" placeholder="https://ten-cua-hang.myshopify.com hoặc domain custom" autocomplete="off" />
+                    <label for="inpPubShopifyName">Tên hiển thị (tuỳ chọn)</label>
+                    <input id="inpPubShopifyName" type="text" placeholder="VD: Shop ABC" autocomplete="off" />
+                    <label for="inpPubShopifyToken">Admin API access token</label>
+                    <input id="inpPubShopifyToken" type="password" placeholder="Token Admin API (đọc/ghi nội dung)" autocomplete="new-password" />
+                </div>
+                <div class="pub-platform-panel" data-platform-panel="haravan" role="tabpanel">
+                    <label for="inpPubHaravanUrl">URL cửa hàng Haravan</label>
+                    <input id="inpPubHaravanUrl" type="text" placeholder="https://ten-cua-hang.myharavan.com" autocomplete="off" />
+                    <label for="inpPubHaravanName">Tên hiển thị (tuỳ chọn)</label>
+                    <input id="inpPubHaravanName" type="text" placeholder="VD: Shop Haravan" autocomplete="off" />
+                    <label for="inpPubHaravanToken">Private app token</label>
+                    <input id="inpPubHaravanToken" type="password" placeholder="Private token / API key" autocomplete="new-password" />
+                </div>
+                <div class="pub-platform-panel" data-platform-panel="webcake" role="tabpanel">
+                    <label for="inpPubWebcakeUrl">URL website Webcake</label>
+                    <input id="inpPubWebcakeUrl" type="text" placeholder="https://site-webcake.com" autocomplete="off" />
+                    <label for="inpPubWebcakeName">Tên hiển thị (tuỳ chọn)</label>
+                    <input id="inpPubWebcakeName" type="text" placeholder="VD: Landing Webcake" autocomplete="off" />
+                    <label for="inpPubWebcakeToken">API token</label>
+                    <input id="inpPubWebcakeToken" type="password" placeholder="Token API Webcake" autocomplete="new-password" />
+                </div>
+            </div>
+            <div class="wp-profile-form-err" id="wpProfileFormErr" aria-live="polite"></div>
+            <div class="wp-profile-conn-actions" id="wpProfileConnActions">
+                <button type="button" class="mini-btn" id="btnWpProfileTestConn">Kiểm tra kết nối</button>
+                <button type="button" class="mini-btn" id="btnWpProfileSyncPosts">Đồng bộ bài viết</button>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn secondary" id="btnWpProfilesCancel">Đóng</button>
+                <button type="button" class="btn" id="btnWpProfileSaveConnect">Lưu &amp; áp dụng</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="bulkWriteModeBackdrop" class="modal-backdrop"></div>
+<div id="bulkWriteModeModal" class="modal bulk-write-mode-modal" aria-hidden="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div class="modal-title">Chọn phạm vi viết bài</div>
+        </div>
+        <div class="modal-body">
+            <div class="bulk-write-mode-choices">
+                <label for="bulkWriteModeAll">
+                    <input type="checkbox" id="bulkWriteModeAll" />
+                    Viết tất cả
+                </label>
+                <label for="bulkWriteModeSelected">
+                    <input type="checkbox" id="bulkWriteModeSelected" checked />
+                    Viết bài đã Chọn
+                </label>
+            </div>
+            <div class="delete-confirm-actions">
+                <button type="button" class="mini-btn" id="btnBulkWriteModeCancel">Hủy</button>
+                <button type="button" class="mini-btn" id="btnBulkWriteModeOk" style="background:rgba(34,197,94,0.2);border-color:rgba(34,197,94,0.5);color:#86efac;">Bắt đầu viết</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="siteArticlesBackdrop" class="modal-backdrop"></div>
+<div id="siteArticlesModal" class="modal site-articles-modal-wrap" aria-hidden="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div class="modal-title" id="siteArticlesModalTitle">Bài viết đã viết</div>
+            <button type="button" class="mini-btn danger" id="btnSiteArticlesClose">Đóng</button>
+        </div>
+        <div class="modal-body">
+            <div class="articles-board-toolbar">
+                <button type="button" class="btn" id="btnSiteArticlesAdd" style="margin-top:0;padding:8px 14px;">+ Bài mới</button>
+                <label class="ab-search">
+                    <span aria-hidden="true">🔍</span>
+                    <input type="search" id="siteArticlesSearch" placeholder="Tìm bài viết…" autocomplete="off" />
+                </label>
+                <div class="articles-board-stats" id="siteArticlesStats"></div>
+                <button type="button" class="mini-btn" id="btnSiteArticlesRefresh" title="Làm mới">↻</button>
+                <button type="button" class="btn secondary btn-site-articles-gen-thumbs" id="btnSiteArticlesGenThumbs" title="Thumbnail + chèn ảnh vào content">🔍 Ảnh tự động</button>
+                <button type="button" class="btn secondary" id="btnSiteArticlesAutoImages" title="Chèn ảnh vào nội dung các bài đã có content">🖼 Chèn ảnh vào bài</button>
+            </div>
+            <div class="articles-board-publish-filter" id="siteArticlesPublishFilterBar">
+                <label for="siteArticlesPublishFilter">Lọc bài viết</label>
+                <select id="siteArticlesPublishFilter" aria-label="Lọc trạng thái đăng bài">
+                    <option value="all">Tất cả</option>
+                    <option value="published">Đã đăng</option>
+                    <option value="unpublished">Chưa đăng</option>
+                    <option value="setup_draft">Bản nháp</option>
+                </select>
+            </div>
+            <div class="articles-board-filters" id="siteArticlesFilters"></div>
+            <div class="articles-board-table-wrap">
+                <table class="articles-board-table no-digiseo-table">
+                    <thead>
+                        <tr>
+                            <th style="width:28px;"><input type="checkbox" id="siteArticlesSelectAll" title="Chọn tất cả" /></th>
+                            <th style="width:64px;">Ảnh</th>
+                            <th>Tiêu đề</th>
+                            <th class="col-stats">Thống kê</th>
+                            <th class="col-progress">GSC</th>
+                            <th>Status</th>
+                            <th style="width:100px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="siteArticlesModalList"></tbody>
+                </table>
+                <div class="articles-board-empty" id="siteArticlesEmpty" hidden>Chưa có bài viết cho site này.</div>
+            </div>
+            <div class="hint" id="siteArticlesModalHint" hidden></div>
+        </div>
+    </div>
+</div>
+<div id="allArticlesBackdrop" class="modal-backdrop"></div>
+<div id="allArticlesModal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div class="modal-title" id="allPublishingSitesModalTitle">Tất cả website đăng bài</div>
+            <button type="button" class="mini-btn danger" id="btnAllArticlesClose">Đóng</button>
+        </div>
+        <div class="modal-body">
+            <input type="search" id="allArticlesSearch" placeholder="Tìm domain website…" autocomplete="off" />
+            <div class="all-articles-modal-count" id="allProjectsModalCount" hidden></div>
+            <div id="allArticlesList" class="all-articles-list" role="list"></div>
+            <div class="hint" id="allArticlesEmpty" hidden>Chưa có website đăng bài. Thêm site tại Cài đặt → Xuất bản.</div>
+        </div>
+    </div>
+</div>
+<div id="articleDetailBackdrop" class="modal-backdrop"></div>
+<div id="articleDetailModal" class="modal article-detail-modal" aria-hidden="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <button type="button" class="mini-btn" id="btnArticleDetailBack">← Danh sách</button>
+            <div class="modal-title" id="articleDetailHeadTitle">Chi tiết bài viết</div>
+            <button type="button" class="mini-btn danger" id="btnArticleDetailClose">Đóng</button>
+        </div>
+        <div class="modal-body" id="articleDetailBody"></div>
+    </div>
+</div>
+<div id="caQuotaModalBackdrop" class="modal-backdrop ca-quota-backdrop" aria-hidden="true" role="dialog" aria-labelledby="caQuotaModalTitle">
+    <div class="modal ca-quota-modal" id="caQuotaModal">
+        <div class="modal-card">
+            <div class="modal-head">
+                <div>
+                    <div class="modal-title" id="caQuotaModalTitle">Đã hết quota tháng</div>
+                    <div class="hint ca-quota-modal-msg" id="caQuotaModalMessage">Nâng cấp gói để tiếp tục dùng Content AI.</div>
+                </div>
+                <button type="button" class="modal-close-x" id="caQuotaModalClose" title="Đóng">×</button>
+            </div>
+            <div class="modal-foot ca-quota-modal-foot">
+                <button type="button" class="mini-btn" id="caQuotaModalDismiss">Để sau</button>
+                <button type="button" class="btn" id="caQuotaModalUpgrade">Nâng cấp gói</button>
+            </div>
+        </div>
+    </div>
+</div>

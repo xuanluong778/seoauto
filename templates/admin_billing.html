@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=4">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=10">
+    <link rel="stylesheet" href="/static/css/admin-billing.css?v=1">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=1">
+</head>
+<body class="ab-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+    <div class="adm-wrap">
+        {% include "partials/admin_shell_header.html" %}
+
+        <div class="ab-card">
+            <div class="adm-toolbar adm-billing-toolbar">
+                <input type="search" id="admBillSearch" placeholder="order_code, email hoặc user_id…" aria-label="Tìm đơn" />
+                <select id="admBillStatus" aria-label="Lọc trạng thái">
+                    <option value="">Mọi trạng thái</option>
+                    <option value="pending">pending</option>
+                    <option value="paid">paid</option>
+                    <option value="expired">expired</option>
+                    <option value="partial_paid">partial_paid</option>
+                    <option value="cancelled">cancelled</option>
+                    <option value="activation_failed">activation_failed</option>
+                </select>
+                <button type="button" class="ab-btn secondary adm-btn-sm" id="btnAdmBillSearch">Tìm</button>
+                <button type="button" class="ab-btn secondary adm-btn-sm" id="btnAdmBillRefresh">Làm mới</button>
+            </div>
+
+            <div class="ab-loading" id="admBillLoading" hidden>Đang tải đơn hàng…</div>
+            <div class="ab-error" id="admBillError" hidden></div>
+
+            <div class="ab-table-wrap" id="admBillTableWrap">
+                <table class="ab-table" id="admBillTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>User</th>
+                            <th>Order code</th>
+                            <th>Product</th>
+                            <th>Số tiền</th>
+                            <th>Trạng thái</th>
+                            <th>Tạo</th>
+                            <th>Thanh toán</th>
+                            <th>SePay</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="ab-mobile-cards" id="admBillCards"></div>
+            <div class="ab-empty" id="admBillEmpty" hidden>
+                <p><strong>Chưa có đơn hàng</strong></p>
+                <p class="ab-muted-text">Đơn thanh toán sẽ hiện khi user tạo checkout.</p>
+            </div>
+            <div class="ab-pager" id="admBillPager" hidden></div>
+        </div>
+    </div>
+
+    <div class="ab-aff-modal" id="admBillDetailModal" role="dialog" aria-modal="true" hidden>
+        <div class="ab-aff-modal-box adm-bill-detail-box">
+            <div class="adm-bill-detail-head">
+                <h3 id="admBillDetailTitle">Chi tiết đơn hàng</h3>
+                <button type="button" class="ab-payment-close" id="btnAdmBillDetailClose" aria-label="Đóng">&times;</button>
+            </div>
+            <div id="admBillDetailBody"></div>
+            <div class="ab-actions adm-bill-detail-actions" id="admBillDetailActions"></div>
+        </div>
+    </div>
+
+    <div class="ab-toast" id="abToast" hidden></div>
+
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=4"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=7" defer></script>
+    <script src="/static/js/digiseo-social-auto-nav.js?v=1" defer></script>
+    <script src="/static/js/digiseo-mobile-nav.js?v=7" defer></script>
+    <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+    <script src="/static/js/admin-billing.js?v=1"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

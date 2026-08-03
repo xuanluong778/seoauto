@@ -33,8 +33,8 @@ PERIOD_LABELS: dict[str, str] = {
     "none": "",
 }
 
-# 4 cột pricing: Free trial 5d → Basic → Pro → Agency (không Unlimited)
-PRICING_SLUG_ORDER: list[str] = ["free_trial_5d", "starter", "pro", "agency"]
+# Public pricing: paid plans only — trial_3d is activated in-app, not a pricing column.
+PRICING_SLUG_ORDER: list[str] = ["starter", "pro", "agency", "business"]
 PUBLIC_PRICING_SLUGS = frozenset(PRICING_SLUG_ORDER)
 
 FREE_TRIAL_5D_DISPLAY: dict = {
@@ -122,6 +122,8 @@ def format_billing_cycle_label(billing_cycle: str) -> str:
         return "Thanh toán theo tháng"
     if cycle == "yearly":
         return "Thanh toán theo năm"
+    if cycle == "semi_annual":
+        return "Thanh toán 6 tháng"
     return cycle or "—"
 
 
@@ -149,7 +151,7 @@ def _paid_feature_flags(slug: str) -> dict[str, bool]:
 
 
 def get_pricing_plans(db: Session) -> list[dict]:
-    """Public catalog: Dùng tool 5 ngày miễn phí + Basic + Pro + Agency (4 cột)."""
+    """Public catalog: Basic + Pro + Agency + Business (trial_3d kích hoạt trong app)."""
     cards_by_slug: dict[str, dict] = {}
 
     for plan in plan_service.list_active_plans(db, public_only=True):

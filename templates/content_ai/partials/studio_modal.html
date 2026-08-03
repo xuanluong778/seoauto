@@ -1,0 +1,12 @@
+<div class="ca-studio-overlay" id="caStudioOverlay" hidden aria-hidden="true">
+    <div class="ca-studio-backdrop" id="caStudioBackdrop" aria-hidden="true"></div>
+    <div class="ca-studio-dialog" role="dialog" aria-modal="true" aria-labelledby="caStudioModalTitle">
+        <div class="ca-studio-dialog-head">
+            <h2 class="ca-studio-dialog-title" id="caStudioModalTitle">Content AI Studio</h2>
+            <button type="button" class="ca-studio-dialog-close mini-btn" id="btnCaStudioClose" aria-label="Đóng">✕</button>
+        </div>
+        <div class="ca-studio-dialog-body">
+            {% include "content_ai/partials/studio_panel.html" %}
+        </div>
+    </div>
+</div>

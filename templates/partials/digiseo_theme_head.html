@@ -1,10 +1,50 @@
 <link rel="stylesheet" href="/static/css/digiseo-theme.css">
-<link rel="stylesheet" href="/static/css/digiseo-tables.css?v=3">
-<link rel="stylesheet" href="/static/css/digiseo-nav.css?v=8">
-<link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=1">
-<link rel="stylesheet" href="/static/css/digiseo-keyword-tools.css?v=8">
-<link rel="stylesheet" href="/static/css/digiseo-chatbot.css?v=4">
+<link rel="stylesheet" href="/static/css/digiseo-auth-modal.css?v=3">
+<link rel="stylesheet" href="/static/css/digiseo-tables.css?v=5">
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+<link rel="stylesheet" href="/static/css/digiseo-mobile-responsive.css?v=6">
+<link rel="stylesheet" href="/static/css/digiseo-mobile-nav-panel.css?v=6">
+<link rel="icon" type="image/png" href="/static/images/seoauto-logo.png?v=2">
+<link rel="apple-touch-icon" href="/static/images/seoauto-logo.png?v=2">
+<link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=5">
+<link rel="stylesheet" href="/static/css/digiseo-keyword-tools.css?v=15">
+<link rel="stylesheet" href="/static/css/digiseo-help.css?v=1">
+<link rel="stylesheet" href="/static/css/digiseo-chatbot.css?v=28">
+<link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=5">
+<link rel="stylesheet" href="/static/css/account-billing.css?v=20">
+<link rel="stylesheet" href="/static/css/digiseo-credit-modal.css?v=4">
+<script src="/static/js/digiseo-i18n.js?v=4"></script>
+<script>
+(function () {
+    function bootI18n() {
+        if (window.DigiSeoI18n && typeof window.DigiSeoI18n.init === "function") {
+            window.DigiSeoI18n.init();
+        }
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootI18n);
+    } else {
+        bootI18n();
+    }
+    window.addEventListener("digiseo:system-prefs", function (e) {
+        if (e.detail && e.detail.language && window.DigiSeoI18n) {
+            window.DigiSeoI18n.apply(e.detail.language);
+        }
+    });
+})();
+</script>
+<script src="/static/js/digiseo-auth-token.js?v=3"></script>
+<script src="/static/js/digiseo-auth-me.js?v=4"></script>
+<script src="/static/js/digiseo-auth-route.js?v=1"></script>
+<script src="/static/js/digiseo-auth-modal.js?v=1" defer></script>
 <script src="/static/js/digiseo-theme-boot.js"></script>
-<script src="/static/js/digiseo-nav-active.js?v=3" defer></script>
-<script src="/static/js/digiseo-admin-nav.js?v=3" defer></script>
-<script src="/static/js/digiseo-nav-auth.js?v=2" defer></script>
+<script src="/static/js/digiseo-nav-active.js?v=7" defer></script>
+<script src="/static/js/digiseo-mobile-nav.js?v=7" defer></script>
+<script src="/static/js/digiseo-mobile-responsive.js?v=1" defer></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=10" defer></script>
+    <script src="/static/js/digiseo-social-auto-nav.js?v=1" defer></script>
+    <script src="/static/js/digiseo-chatbot-cskh-nav.js?v=2" defer></script>
+<script src="/static/js/digiseo-nav-auth.js?v=13" defer></script>
+<script src="/static/js/digiseo-saas-trial-banner.js?v=6" defer></script>
+<script src="/static/js/sepay-payment-flow.js?v=1" defer></script>
+<script src="/static/js/digiseo-credit-modal.js?v=6" defer></script>

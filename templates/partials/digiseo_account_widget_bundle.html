@@ -1,0 +1,5 @@
+{% if not skip_account_widget|default(false) %}
+{% include "partials/digiseo_account_widget.html" %}
+{% include "partials/digiseo_credit_modal.html" %}
+<script src="/static/js/digiseo-account-widget.js?v=12" defer></script>
+{% endif %}

@@ -25,10 +25,20 @@ from app.services.search_intent import classify_search_intent
 from app.services.editorial_seo_checklist import build_editorial_checklist_table
 from app.services.seo_fifteen_pillars import build_fifteen_pillar_assessment
 from app.services.serp_top10_crawl import crawl_serp_top_urls
-from app.services.url_seo_optimization_report import build_url_seo_optimization_report
+from app.services.url_seo_optimization_report import (
+    attach_evidence_to_scoreboard,
+    build_url_seo_optimization_report,
+)
 from app.services.serp_competitor_analysis import analyze_serp_competitors
 from app.services.serp_fetcher import fetch_serp
 from app.services.serp_intent_classifier import classify_serp_results
+from app.services.url_seo_ten_group_scoring import (
+    GROUP_LABELS,
+    GROUP_WEIGHTS,
+    analyze_page_links,
+    build_ten_group_scoreboard,
+    ensure_ten_groups_complete,
+)
 
 # Intent quan trọng nhất; các trụ còn lại cân bằng theo impact SEO phổ biến.
 PILLAR_WEIGHTS: dict[str, float] = {
@@ -730,10 +740,20 @@ def _pillar_ctr(
     return round(min(100.0, score), 1), {"title_len": tl, "meta_len": ml, "position_used": pos, "ctr_proxy": round(ctr, 4)}, issues
 
 
+def _parse_secondary_keywords(raw: list[str] | str | None) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [p.strip() for p in re.split(r"[,;\n]+", raw) if p.strip()]
+    return [str(p).strip() for p in raw if p and str(p).strip()]
+
+
 def build_url_seo_scoreboard(
     url: str,
     *,
     keyword: str | None = None,
+    secondary_keywords: list[str] | str | None = None,
+    page_type: str | None = None,
     search_volume: int | None = None,
     current_serp_position: int | None = None,
 ) -> dict[str, Any]:
@@ -742,10 +762,20 @@ def build_url_seo_scoreboard(
     html = str(fetch.get("html") or "")
     headers = dict(fetch.get("headers") or {})
     final_u = str(fetch.get("final_url") or nu)
-    page_data = parse_page_seo_data(html or "")
+    page_data = parse_page_seo_data(html or "", base_url=final_u or nu)
     content_pkg = analyze_content(html) if html else {"word_count": 0, "content_depth": "thin", "heading_structure_score": 0.0, "keyword_density_estimate": {}}
     soup = _soup(html)
+    link_profile = analyze_page_links(
+        html or "",
+        final_u or nu,
+        soup=soup,
+        parsed_links=list(page_data.get("links") or []),
+    )
+    page_data["link_profile"] = link_profile
+    if link_profile.get("links"):
+        page_data["links"] = link_profile["links"]
     ld_blocks = _extract_ld_json_blocks(html)
+    schema_validation = validate_schemas(ld_blocks) if ld_blocks else {"valid": False, "errors": ["no_ld_json"], "warnings": []}
 
     serp_intent_pkg: dict[str, Any] | None = None
     serp_pos_snap: int | None = None
@@ -888,6 +918,19 @@ def build_url_seo_scoreboard(
         "title": str(page_data.get("title") or ""),
         "meta_description": str(page_data.get("meta_description") or ""),
         "h1_count": int(page_data.get("h1_count") or 0),
+        "h2_count": int(page_data.get("h2_count") or 0),
+        "canonical": str(page_data.get("canonical") or ""),
+        "headings": page_data.get("headings") or {},
+        "intro": page_data.get("intro") or content_pkg.get("intro") or {},
+        "intro_text": str(page_data.get("intro_text") or content_pkg.get("intro_text") or ""),
+        "content_sections": list(page_data.get("content_sections") or content_pkg.get("content_sections") or []),
+        "images": page_data.get("images") or [],
+        "links": page_data.get("links") or [],
+        "link_profile": page_data.get("link_profile") or {},
+        "images_total": int(page_data.get("images_total") or 0),
+        "images_missing_alt": int(page_data.get("images_missing_alt") or 0),
+        "images_missing_size": int(page_data.get("images_missing_size") or 0),
+        "visible_text": str(page_data.get("visible_text") or "")[:4000],
     }
 
     try:
@@ -943,6 +986,9 @@ def build_url_seo_scoreboard(
             "ctr": "Title/meta length + keyword + vị trí & CTR heuristic.",
         },
         "page_snapshot": page_snapshot,
+        "_content_pkg": content_pkg,
+        "_ld_blocks": ld_blocks,
+        "_schema_validation": schema_validation,
         "editorial_checklist": editorial_checklist,
         "fifteen_pillar_assessment": fifteen_pkg,
         "serp_top10_crawl": serp_top10_crawl,
@@ -955,4 +1001,46 @@ def build_url_seo_scoreboard(
             "error": "Không tạo được báo cáo tối ưu (fallback).",
             "checklist": ["Thử chấm điểm lại; kiểm tra log server."],
         }
+
+    sec_kw = _parse_secondary_keywords(secondary_keywords)
+    try:
+        out["ten_group_scoreboard"] = build_ten_group_scoreboard(
+            url=(url or "").strip(),
+            normalized_url=nu,
+            fetch=fetch,
+            page_data=page_data,
+            content_pkg=content_pkg,
+            html=html,
+            headers=headers,
+            ld_blocks=ld_blocks,
+            soup=soup,
+            primary_keyword=(keyword or "").strip() or None,
+            secondary_keywords=sec_kw,
+            page_type=(page_type or "").strip() or None,
+            breakdown=breakdown,
+            legacy_issues=all_issues,
+            serp_intent_pkg=serp_intent_pkg,
+            link_profile=link_profile,
+        )
+        out["scores"]["ten_group_total"] = out["ten_group_scoreboard"].get("total_score")
+    except Exception:
+        out["ten_group_scoreboard"] = {
+            "total_score": round(total, 1),
+            "group_scores": {gid: 0.0 for gid in GROUP_WEIGHTS},
+            "groups": ensure_ten_groups_complete([]),
+            "strengths": [],
+            "weaknesses": [],
+            "priority_fixes": [],
+            "ai_suggestions": ["Không tạo được báo cáo 10 nhóm — thử lại."],
+            "penalties_applied": [],
+            "weights": GROUP_WEIGHTS,
+            "group_labels": GROUP_LABELS,
+        }
+
+    try:
+        attach_evidence_to_scoreboard(out)
+        out["optimization_report"] = build_url_seo_optimization_report(out)
+    except Exception:
+        pass
+
     return out

@@ -23,6 +23,7 @@ def _smtp_password_raw() -> str:
 
 
 def get_smtp_settings() -> dict:
+    refresh_env_local()
     return {
         "host": os.getenv("SMTP_HOST", "smtp.gmail.com"),
         "port": int(os.getenv("SMTP_PORT", "587")),
@@ -30,7 +31,7 @@ def get_smtp_settings() -> dict:
         "user": os.getenv("SMTP_USER", ""),
         "password": _smtp_password_raw(),
         "from_email": os.getenv("SMTP_FROM_EMAIL", os.getenv("SMTP_USER", "")),
-        "from_name": os.getenv("SMTP_FROM_NAME", "SEO Tool"),
+        "from_name": os.getenv("SMTP_FROM_NAME", "Seoauto"),
         "otp_length": int(os.getenv("OTP_LENGTH", "6")),
         "otp_expire_seconds": int(os.getenv("OTP_EXPIRE_SECONDS", "300")),
         "otp_subject": os.getenv("OTP_EMAIL_SUBJECT", "Mã OTP đăng nhập"),

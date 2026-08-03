@@ -1,0 +1,190 @@
+.adm-pricing-wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+}
+
+.adm-pricing-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.adm-pricing-head h1 {
+    margin: 0 0 6px;
+    font-size: 1.45rem;
+}
+
+.adm-pricing-head p {
+    margin: 0;
+    color: var(--ab-muted);
+    font-size: 0.9rem;
+}
+
+.adm-pricing-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    align-items: center;
+}
+
+.adm-pricing-toolbar {
+    margin-bottom: 14px;
+}
+
+.adm-pricing-toolbar code {
+    font-size: 0.82rem;
+    color: #cbd5e1;
+}
+
+.adm-pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.adm-plan-card {
+    background: var(--ab-panel);
+    border: 1px solid var(--ab-line);
+    border-radius: 12px;
+    padding: 14px;
+}
+
+.adm-plan-card.is-popular {
+    border-color: rgba(0, 230, 118, 0.35);
+    box-shadow: 0 0 0 1px rgba(0, 230, 118, 0.08);
+}
+
+.adm-plan-card.is-inactive {
+    opacity: 0.72;
+}
+
+.adm-plan-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.adm-plan-card-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.adm-plan-slug {
+    font-size: 0.75rem;
+    color: var(--ab-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.adm-plan-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+}
+
+.adm-plan-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.adm-plan-field label {
+    font-size: 0.76rem;
+    color: var(--ab-muted);
+    font-weight: 700;
+}
+
+.adm-plan-field input[type="number"],
+.adm-plan-field input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--ab-line);
+    background: rgba(2, 8, 20, 0.8);
+    color: var(--ab-text);
+    font-size: 0.88rem;
+}
+
+.adm-plan-checks {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 2px;
+}
+
+.adm-plan-checks label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--ab-text);
+    font-weight: 600;
+}
+
+.adm-plan-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ab-line);
+}
+
+.adm-pricing-blocked {
+    max-width: 520px;
+    margin: 48px auto;
+    padding: 24px;
+    text-align: center;
+    color: var(--ab-text);
+}
+
+.adm-pricing-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(2, 6, 23, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.adm-pricing-modal[hidden] {
+    display: none !important;
+}
+
+.adm-pricing-modal-box {
+    width: min(460px, 100%);
+    background: var(--ab-panel);
+    border: 1px solid var(--ab-line);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.adm-pricing-modal-box h3 {
+    margin: 0 0 8px;
+}
+
+@media (max-width: 900px) {
+    .adm-pricing-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+    .adm-plan-form {
+        grid-template-columns: 1fr;
+    }
+}

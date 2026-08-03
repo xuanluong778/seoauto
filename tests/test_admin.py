@@ -44,6 +44,15 @@ def _ensure_user_columns() -> None:
 
 _ensure_user_columns()
 
+
+def _ensure_credit_ledger_admin_columns() -> None:
+    from app.migrations.ensure_credit_ledger_admin_columns import ensure_credit_ledger_admin_columns
+
+    ensure_credit_ledger_admin_columns()
+
+
+_ensure_credit_ledger_admin_columns()
+
 app = FastAPI()
 app.include_router(auth_router)
 app.include_router(api_router, prefix="/admin/api")
@@ -240,6 +249,39 @@ def test_admin_api_legacy_prefix_still_works():
     assert r.status_code == 200
 
 
+def test_admin_can_create_user():
+    db = SessionLocal()
+    try:
+        admin = _create_user(db, "admin_create_user@example.com", role="admin")
+        token = create_access_token(user_id=admin.id)
+    finally:
+        db.close()
+    email = f"new_user_{uuid.uuid4().hex[:8]}@example.com"
+    r = client.post(
+        "/admin/api/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "email": email,
+            "password": "TestPass123!",
+            "role": "user",
+            "status": "active",
+            "initial_credits": 50,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["ok"] is True
+    assert data["user"]["email"] == email
+    assert data["user"]["credit_balance"] >= 50
+
+    r_dup = client.post(
+        "/admin/api/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"email": email, "password": "TestPass123!"},
+    )
+    assert r_dup.status_code == 400
+
+
 def test_admin_can_update_user_status():
     db = SessionLocal()
     try:
@@ -262,3 +304,105 @@ def test_admin_can_update_user_status():
         assert row.status == "inactive"
     finally:
         db.close()
+
+
+def test_admin_grant_credits_success():
+    db = SessionLocal()
+    try:
+        admin = _create_user(db, "admin_grant_credit@example.com", role="admin")
+        target = _create_user(db, "target_grant_credit@example.com", role="user")
+        target_id = target.id
+        token = create_access_token(user_id=admin.id)
+    finally:
+        db.close()
+
+    r = client.post(
+        f"/api/admin/users/{target_id}/grant-credits",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "credit_type": "admin_adjustment",
+            "amount": 120,
+            "reason": "Bù credit hỗ trợ khách",
+            "note": "Ticket #99",
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["ok"] is True
+    assert data["message"] == "Đã tặng credit thành công."
+    assert data["new_balance"] >= 120
+    assert data["user"]["credit_balance"] >= 120
+
+    detail = client.get(
+        f"/api/admin/users/{target_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert detail.status_code == 200
+    hist = detail.json().get("credit_history") or []
+    assert any(row.get("amount") == 120 and row.get("grant_reason") == "Bù credit hỗ trợ khách" for row in hist)
+
+
+def test_admin_grant_credits_forbidden_for_regular_user():
+    db = SessionLocal()
+    try:
+        user = _create_user(db, "regular_grant_credit@example.com", role="user")
+        target = _create_user(db, "target_grant_credit2@example.com", role="user")
+        target_id = target.id
+        token = create_access_token(user_id=user.id)
+    finally:
+        db.close()
+
+    r = client.post(
+        f"/api/admin/users/{target_id}/grant-credits",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "credit_type": "admin_adjustment",
+            "amount": 10,
+            "reason": "test",
+        },
+    )
+    assert r.status_code == 403
+    assert "quyền" in r.json().get("detail", "").lower()
+
+
+def test_admin_grant_credits_invalid_amount():
+    db = SessionLocal()
+    try:
+        admin = _create_user(db, "admin_grant_invalid@example.com", role="admin")
+        target = _create_user(db, "target_grant_invalid@example.com", role="user")
+        target_id = target.id
+        token = create_access_token(user_id=admin.id)
+    finally:
+        db.close()
+
+    r = client.post(
+        f"/api/admin/users/{target_id}/grant-credits",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "credit_type": "admin_adjustment",
+            "amount": 0,
+            "reason": "test",
+        },
+    )
+    assert r.status_code == 422
+
+
+def test_admin_grant_credits_user_not_found():
+    db = SessionLocal()
+    try:
+        admin = _create_user(db, "admin_grant_missing@example.com", role="admin")
+        token = create_access_token(user_id=admin.id)
+    finally:
+        db.close()
+
+    r = client.post(
+        "/api/admin/users/999999999/grant-credits",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "credit_type": "admin_adjustment",
+            "amount": 10,
+            "reason": "test",
+        },
+    )
+    assert r.status_code == 404
+    assert "Không tìm thấy user" in r.json().get("detail", "")

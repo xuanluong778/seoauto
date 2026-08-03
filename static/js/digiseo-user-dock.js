@@ -11,6 +11,9 @@
     }
 
     function getToken() {
+        if (typeof window.DigiSeoGetAuthToken === "function") {
+            return window.DigiSeoGetAuthToken();
+        }
         try {
             let t = (sessionStorage.getItem(TOKEN_KEY) || "").trim();
             if (!t) {
@@ -133,11 +136,12 @@
         }
         setSessionRow(true);
         try {
-            const r = await fetch("/auth/me", {
-                credentials: "same-origin",
-                headers: { Authorization: "Bearer " + token },
-            });
-            const d = r.ok ? await r.json().catch(() => null) : null;
+            const d = window.DigiSeoFetchAuthMe
+                ? await window.DigiSeoFetchAuthMe()
+                : await fetch("/auth/me", {
+                    credentials: "same-origin",
+                    headers: { Authorization: "Bearer " + token },
+                }).then((r) => (r.ok ? r.json().catch(() => null) : null));
             if (!d || !d.email) {
                 if (label) label.textContent = "Đã đăng nhập";
                 if (avatar) {
@@ -190,7 +194,11 @@
             } catch (_) {}
             return;
         }
-        window.location.href = "/tool";
+        if (typeof window.DigiSeoGoLogin === "function") {
+            window.DigiSeoGoLogin();
+            return;
+        }
+        window.location.assign("/tool");
     }
 
     function triggerLogout() {
@@ -270,7 +278,7 @@
             window.opendigiseoPricingModal();
             return;
         }
-        window.location.href = "/pricing";
+        window.location.href = "/account-billing?tab=plans";
     }
 
     function wireDock() {

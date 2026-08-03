@@ -1,5 +1,5 @@
 """
-Tri thức sản phẩm DigiSEO — giá gói, trial, thanh toán (global KB).
+Tri thức sản phẩm Seoauto — giá gói, trial, thanh toán (global KB).
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ _PRICING_QUERY_TOKENS = (
     "đăng ký",
     "phần mềm",
     "phan mem",
-    "DigiSEO",
+    "Seoauto",
     "nâng cấp gói",
 )
 
@@ -92,7 +92,7 @@ def _fmt_vnd(n: int) -> str:
 def pricing_summary_compact() -> str:
     """Tóm tắt giá 6 tháng + lifetime — luôn inject khi hỏi giá (chatbot)."""
     lines = [
-        "DigiSEO — Bảng giá tham chiếu (VND, PayOS):",
+        "Seoauto — Bảng giá tham chiếu (VND, PayOS):",
         "Mở modal: Upgrade plan / View pricing.",
     ]
     for pid, label in (
@@ -105,7 +105,7 @@ def pricing_summary_compact() -> str:
         life = _LIFETIME_VND[pid]
         y1 = int(round(b6 * 1.85))
         lines.append(f"- {label}: 6 tháng {_fmt_vnd(b6)} | 1 năm {_fmt_vnd(y1)} | Vĩnh viễn {_fmt_vnd(life)}")
-    lines.append("Trial 7 ngày: thêm API key hợp lệ (Cài đặt → Khóa API). GSC: Pro+.")
+    lines.append("Trial 3 ngày: kích hoạt qua banner hoặc mua/tặng credit. GSC: Pro+.")
     lines.append("Thanh toán online PayOS/PayPal: đang tích hợp — liên hệ admin nếu cần kích hoạt thủ công.")
     return "\n".join(lines)
 
@@ -134,7 +134,7 @@ def build_product_kb_context(query: str, *, limit: int = 6, force_summary: bool 
         parts.append(pricing_summary_compact())
     hits = search_product_knowledge(query, limit=limit)
     if hits:
-        lines = ["Chi tiết Knowledge Base — Giá & Gói DigiSEO:"]
+        lines = ["Chi tiết Knowledge Base — Giá & Gói Seoauto:"]
         for h in hits:
             title = h.get("document_title") or "doc"
             snip = str(h.get("snippet") or "")[:520]
@@ -162,22 +162,23 @@ def match_pricing_faq(message: str) -> str | None:
             "Vĩnh viễn **12.500.000đ**. 50 bài/tháng, 3 project — không có GSC."
         )
     if any(x in q for x in ("bảng giá", "bang gia", "các gói", "cac goi", "những gói")):
-        return pricing_summary_compact() + "\n\nMở **DigiSEO Pricing** trên app để chọn thời hạn PayOS/PayPal."
+        return pricing_summary_compact() + "\n\nMở **Seoauto Pricing** trên app để chọn thời hạn PayOS/PayPal."
     if any(x in q for x in ("trial", "dùng thử", "dung thu", "miễn phí")):
         return (
-            "**Dùng thử 7 ngày**: thêm API key hợp lệ tại **Cài đặt → Khóa API** (một lần/user). "
+            "**Dùng thử 3 ngày**: kích hoạt qua banner hoặc mua/tặng credit. "
+            "Mọi user dùng API hệ thống — không cần thêm khóa API riêng. "
             "Hết hạn trial: chỉ xem dữ liệu cũ, không tạo mới."
         )
     if any(x in q for x in ("thanh toán", "mua", "payos", "paypal")):
         return (
-            "Chọn gói trên modal **DigiSEO Pricing** (PayOS VND / PayPal USD). "
+            "Chọn gói trên modal **Seoauto Pricing** (PayOS VND / PayPal USD). "
             "Cổng thanh toán tự động đang tích hợp; nếu chưa thanh toán được, liên hệ **admin** kích hoạt gói thủ công."
         )
     return None
 
 
 def resolve_pricing_reply(message: str) -> str | None:
-    """Trả lời giá DigiSEO — ưu tiên FAQ cụ thể, sau đó bảng tóm tắt chính thức."""
+    """Trả lời giá Seoauto — ưu tiên FAQ cụ thể, sau đó bảng tóm tắt chính thức."""
     if not is_pricing_query(message):
         return None
     specific = match_pricing_faq(message)

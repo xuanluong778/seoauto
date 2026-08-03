@@ -109,6 +109,44 @@ def delete_kb_docs(kb_id: str) -> None:
             log.warning("Could not delete knowledge docs file %s", path)
 
 
+def clone_kb_docs(source_kb_id: str, target_kb_id: str) -> dict[str, int]:
+    """Deep-copy documents from source KB to a new user-owned KB."""
+    src = _read_store(source_kb_id)
+    docs = src.get("documents") or []
+    if not isinstance(docs, list):
+        docs = []
+    copied: list[dict[str, Any]] = []
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        chunks_in = doc.get("chunks") or []
+        chunks_out: list[dict[str, Any]] = []
+        if isinstance(chunks_in, list):
+            for ch in chunks_in:
+                if not isinstance(ch, dict):
+                    continue
+                nc = dict(ch)
+                nc.pop("embedding", None)
+                nc["embedded"] = False
+                chunks_out.append(nc)
+        full_text = _document_full_text(doc)
+        copied.append(
+            {
+                "id": str(uuid.uuid4()),
+                "filename": doc.get("filename"),
+                "title": doc.get("title"),
+                "content_format": doc.get("content_format") or "text",
+                "char_count": int(doc.get("char_count") or len(full_text)),
+                "token_estimate": int(doc.get("token_estimate") or _estimate_tokens(full_text)),
+                "chunks": chunks_out,
+                "created_at": _now(),
+                "updated_at": _now(),
+            }
+        )
+    _write_store(target_kb_id, {"documents": copied})
+    return get_kb_stats(target_kb_id)
+
+
 def get_kb_stats(kb_id: str) -> dict[str, int]:
     docs = _read_store(kb_id).get("documents") or []
     chunks_total = 0

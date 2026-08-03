@@ -1,0 +1,141 @@
+    <div class="card" id="contentAiSinglePanel">
+        <div class="ca-inline-step-slot" data-ca-inline-slot="research">
+            {% include "content_ai/partials/step_panel_brief.html" %}
+        </div>
+        <div class="ca-inline-step-slot" data-ca-inline-slot="outline">
+            {% include "content_ai/partials/step_panel_outline.html" %}
+        </div>
+
+        <div class="msg" id="msg"></div>
+        <div class="inline-progress" id="inlineProgress">
+            <div class="bar"><div class="fill" id="inlineProgressFill"></div></div>
+            <div class="pct" id="inlineProgressPct">0%</div>
+        </div>
+
+        <div class="ca-main-actions ca-main-actions--write-row">
+            <div class="ca-main-actions__ai">
+                <label class="ca-main-actions__label" for="contentAiLlmProvider">AI viết bài</label>
+                <select id="contentAiLlmProvider" class="ca-main-actions__select" aria-describedby="hint-contentAiLlmProvider">
+                    <option value="auto">Tự động – Khuyên dùng</option>
+                    <option value="openai">OpenAI GPT</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="anthropic">Claude</option>
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="qwen">Qwen</option>
+                </select>
+                <span class="hint ca-main-actions__ai-hint" id="hint-contentAiLlmProvider" hidden aria-hidden="true"></span>
+            </div>
+            <button class="btn secondary ca-main-actions__btn" type="button" id="btnCreateContent">Tạo content</button>
+            <button class="btn secondary ca-main-actions__btn" type="button" id="btnDraft">Lưu Nháp</button>
+        </div>
+        <div class="hint ca-llm-fallback-notice" id="contentAiLlmFallbackNotice" hidden aria-live="polite"></div>
+
+        <div class="ca-inline-step-slot ca-inline-step-slot--modal-only" data-ca-inline-slot="publish">
+            {% include "content_ai/partials/step_panel_publish.html" %}
+        </div>
+
+        <div class="ca-inline-step-slot ca-inline-step-slot--modal-only" data-ca-inline-slot="media">
+            {% include "content_ai/partials/step_panel_images.html" %}
+        </div>
+
+        <div class="ca-inline-step-slot ca-inline-step-slot--modal-only" data-ca-inline-slot="links">
+            {% include "content_ai/partials/step_panel_links.html" %}
+        </div>
+
+        <div class="ca-inline-step-slot ca-inline-step-slot--modal-only" data-ca-inline-slot="content" hidden>
+            {% include "content_ai/partials/step_panel_content.html" %}
+        </div>
+
+        <div class="preview-shell ca-editor-pro" id="previewShell">
+            <div class="ca-editor-status-bar" id="caEditorStatusBar">
+                <div class="ca-ed-stat">Từ: <strong id="caEditorWordCount">0</strong> · Ký tự: <strong id="caEditorCharCount">0</strong></div>
+                <span class="ca-autosave saved" id="caAutosaveIndicator">Đã lưu nháp</span>
+            </div>
+            <p class="stats-bar-title">Thống kê nội dung <span>· cập nhật tự động khi bạn sửa editor</span></p>
+            <div class="stats-row">
+                <div class="stat"><div class="k">SỐ TỪ</div><div class="v" id="statWords">0</div></div>
+                <div class="stat"><div class="k">KÝ TỰ</div><div class="v" id="statChars">0</div></div>
+                <div class="stat"><div class="k">SỐ CÂU</div><div class="v" id="statSentences">0</div></div>
+                <div class="stat"><div class="k">ĐOẠN VĂN</div><div class="v" id="statParagraphs">0</div></div>
+                <div class="stat"><div class="k">SỐ TRANG</div><div class="v" id="statPages">0</div></div>
+            </div>
+            <div class="preview-head content-ai-aux-hidden" aria-hidden="true">
+                <div class="preview-title">Preview content</div>
+                <div class="preview-tools">
+                    <button type="button" class="mini-btn content-ai-aux-hidden" id="btnDownloadScreamingFrog" disabled>Tải file Screaming Frog</button>
+                    <button type="button" class="mini-btn content-ai-aux-hidden" id="btnSeoJsonFill">SEO JSON → Đổ vào form</button>
+                </div>
+            </div>
+            <div class="preview-body">
+                <div class="editor-shell">
+                    <div class="editor-tools" id="editorTools">
+                        <button type="button" class="mini-btn" id="btnModeVisual">Visual</button>
+                        <button type="button" class="mini-btn" id="btnModeCode">Code</button>
+                        <select id="editorBlockFormat" class="mini-btn" style="height:30px; width:15%; color:#fff;">
+                            <option value="p">Paragraph</option>
+                            <option value="h1">Heading 1</option>
+                            <option value="h2">Heading 2</option>
+                            <option value="h3">Heading 3</option>
+                            <option value="h4">Heading 4</option>
+                            <option value="h5">Heading 5</option>
+                            <option value="h6">Heading 6</option>
+                            <option value="blockquote">Blockquote</option>
+                        </select>
+                        <button type="button" class="mini-btn" id="btnToolBold"><b>B</b></button>
+                        <button type="button" class="mini-btn" id="btnToolItalic"><i>I</i></button>
+                        <button type="button" class="mini-btn" id="btnToolUnderline"><u>U</u></button>
+                        <button type="button" class="mini-btn" id="btnToolQuote">❝ Quote</button>
+                        <button type="button" class="mini-btn" id="btnToolH2">H2</button>
+                        <button type="button" class="mini-btn" id="btnToolH3">H3</button>
+                        <button type="button" class="mini-btn" id="btnToolUl">• List</button>
+                        <button type="button" class="mini-btn" id="btnToolOl">1. List</button>
+                        <button type="button" class="mini-btn" id="btnToolAlignLeft">⇤</button>
+                        <button type="button" class="mini-btn" id="btnToolAlignCenter">≡</button>
+                        <button type="button" class="mini-btn" id="btnToolAlignRight">⇥</button>
+                        <button type="button" class="mini-btn" id="btnToolUndo">↶</button>
+                        <button type="button" class="mini-btn" id="btnToolRedo">↷</button>
+                        <button type="button" class="mini-btn" id="btnToolLink">🔗 Link</button>
+                        <button type="button" class="mini-btn" id="btnToolHr">— HR</button>
+                        <button type="button" class="mini-btn" id="btnToolTable">Table</button>
+                        <button type="button" class="mini-btn" id="btnToolClear">Tx</button>
+                    </div>
+                    <div class="ca-editor-write-error" id="caEditorWriteError" hidden role="alert"></div>
+                    <div class="ca-editor-write-bar" id="caEditorWriteBar" hidden>
+                        <span class="ca-editor-write-status" id="caEditorWriteStatus">Đang viết bài…</span>
+                        <button type="button" class="mini-btn danger" id="btnStopContentWrite">Dừng viết</button>
+                    </div>
+                    <div class="ca-content-view-bar">
+                        <button type="button" class="btn ca-content-view-btn" id="btnViewContentPreview" aria-label="Xem lớn nội dung bài viết">
+                            <svg class="ca-content-view-btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M15 3h6v6"></path>
+                                <path d="M9 21H3v-6"></path>
+                                <path d="M21 3l-7 7"></path>
+                                <path d="M3 21l7-7"></path>
+                            </svg>
+                            <span>Xem Lớn</span>
+                        </button>
+                    </div>
+                    <div class="ca-content-editor-stage" id="caContentEditorStage">
+                        <div class="content-render" id="contentRender" aria-label="Content editor" contenteditable="true"></div>
+                        <div class="ca-content-write-overlay" id="caContentWriteOverlay" hidden aria-hidden="true">
+                            <div class="ca-content-write-spinner" role="status" aria-live="polite" aria-busy="true">
+                                <div class="ca-content-write-ring" aria-hidden="true"></div>
+                                <span class="ca-content-write-overlay-label" id="caContentWriteOverlayLabel">Đang viết bài…</span>
+                            </div>
+                        </div>
+                    </div>
+                    <textarea id="content" style="display:none;"></textarea>
+                    <div class="publish-checklist-panel ca-checklist-mirrored" id="publishChecklistPanel" style="display:none;" aria-live="polite">
+                        <div class="pch">Checklist SEO <span>— hệ thống tự kiểm tra, không hiển thị trong bài đăng</span></div>
+                        <ul class="publish-checklist-list" id="publishChecklistList"></ul>
+                    </div>
+                    <div class="hint" id="hint-content"></div>
+                </div>
+            </div>
+            <div class="preview-loading" id="previewLoading">
+                <div class="txt" id="previewLoadingText">Đang tạo nội dung...</div>
+                <div class="bar"><div class="fill" id="previewLoadingFill"></div></div>
+                <div class="pct" id="previewLoadingPct">0%</div>
+            </div>
+        </div>
+    </div>

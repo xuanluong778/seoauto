@@ -1,4 +1,4 @@
-/* DigiSEO user dock — popover + pill + upgrade (system-wide) */
+/* Seoauto user dock — popover + pill + upgrade (system-wide) */
 
 .digiseo-user-dock-wrap,
 .global-user-dock-wrap {
@@ -272,5 +272,25 @@ body.page-content-ai .global-user-dock-wrap {
     }
     50% {
         box-shadow: 0 0 0 3px rgba(0, 230, 118, 0.35);
+    }
+}
+
+/* user-pill + upgrade strip — chỉ desktop (ẩn mobile & tablet) */
+@media (max-width: 1024px) {
+    .digiseo-user-dock-wrap .user-pill,
+    .global-user-dock-wrap .user-pill,
+    .sidebar-user-dock .user-pill,
+    .digiseo-user-dock-wrap .digiseo-upgrade-strip,
+    .global-user-dock-wrap .digiseo-upgrade-strip,
+    .sidebar-user-dock .digiseo-upgrade-strip {
+        display: none !important;
+    }
+
+    .digiseo-user-dock-wrap,
+    .global-user-dock-wrap,
+    .sidebar-user-dock {
+        display: none !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
     }
 }

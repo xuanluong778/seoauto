@@ -1,8 +1,8 @@
-"""5-day trial activated once per user when a valid API key is saved."""
+"""Legacy BYOK 5-day trial — disabled for new activations; use trial_3d instead."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -12,7 +12,9 @@ from app.models.user_trial import TrialKeyClaim, UserTrial
 from app.services.api_key_fingerprint import api_key_fingerprint
 from app.services.rbac import is_admin
 
+# Legacy constant — kept for existing rows / admin reference only.
 TRIAL_DAYS = 5
+_LEGACY_DISABLED_MSG = "Bạn chưa kích hoạt dùng thử 3 ngày."
 
 
 def _utc_now() -> datetime:
@@ -24,7 +26,7 @@ def get_trial_row(db: Session, user_id: int) -> UserTrial | None:
 
 
 def _trial_payload(**kwargs: Any) -> dict[str, Any]:
-    base = {"trial_days": TRIAL_DAYS}
+    base = {"trial_days": TRIAL_DAYS, "legacy_byok_trial": True}
     base.update(kwargs)
     return base
 
@@ -45,24 +47,16 @@ def trial_status_snapshot(db: Session, user_id: int, *, role: str = "user") -> d
 
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user and bool(getattr(user, "api_access_enabled", False)):
-        use_pool = bool(getattr(user, "use_admin_api_pool", False))
-        msg = (
-            f"Admin đã cấp quyền API — dùng được Content AI / LLM không cần trial {TRIAL_DAYS} ngày."
-        )
-        if use_pool:
-            msg += " Đang dùng khóa hệ thống (API Admin bật)."
-        else:
-            msg += " User nhập khóa riêng tại Cài đặt → Khóa API (nếu cần)."
         return _trial_payload(
             has_trial=False,
-            is_active=True,
+            is_active=False,
             is_admin_bypass=False,
-            is_api_grant_bypass=True,
+            is_api_grant_bypass=False,
             started_at=None,
             ends_at=None,
             days_remaining=0,
-            never_used=False,
-            message=msg,
+            never_used=True,
+            message="Bạn chưa kích hoạt dùng thử 3 ngày.",
         )
 
     row = get_trial_row(db, user_id)
@@ -77,10 +71,7 @@ def trial_status_snapshot(db: Session, user_id: int, *, role: str = "user") -> d
             ends_at=None,
             days_remaining=0,
             never_used=True,
-            message=(
-                f"Chưa kích hoạt dùng thử {TRIAL_DAYS} ngày. Thêm API key hợp lệ trong mục Khóa API, "
-                "hoặc admin bật「Cho phép dùng API」."
-            ),
+            message=_LEGACY_DISABLED_MSG,
         )
 
     ends = row.ends_at
@@ -104,16 +95,17 @@ def trial_status_snapshot(db: Session, user_id: int, *, role: str = "user") -> d
         days_remaining=remaining if active else 0,
         never_used=False,
         message=(
-            f"Dùng thử {TRIAL_DAYS} ngày — còn {remaining} ngày."
+            f"Legacy BYOK trial — còn {remaining} ngày."
             if active
-            else f"Dùng thử {TRIAL_DAYS} ngày đã hết hạn — chỉ xem dữ liệu cũ, không tạo mới."
+            else "Legacy BYOK trial đã hết hạn."
         ),
     )
 
 
 def user_can_mutate_with_trial(db: Session, user_id: int, *, role: str = "user") -> bool:
+    """Only legacy users with an active BYOK trial row may mutate via this path."""
     snap = trial_status_snapshot(db, user_id, role=role)
-    return bool(snap.get("is_active"))
+    return bool(snap.get("is_active") and snap.get("has_trial"))
 
 
 def try_activate_trial(
@@ -123,47 +115,18 @@ def try_activate_trial(
     plain_api_key: str,
 ) -> dict[str, Any]:
     """
-    Kích hoạt trial (TRIAL_DAYS) nếu:
-    - User chưa từng có bản ghi trial
-    - Fingerprint chưa được user khác dùng để kích hoạt trial
-  Không reset trial khi gọi lại với key mới.
+    Legacy BYOK trial activation — disabled for new users.
+    trial_3d is the official trial path.
     """
-    fp = api_key_fingerprint(plain_api_key)
-    existing = get_trial_row(db, user_id)
-    if existing:
-        return {
-            "activated": False,
-            "reason": "already_used_trial",
-            "message": "Tài khoản đã từng dùng thử — không gia hạn khi thêm khóa mới.",
-            "trial": trial_status_snapshot(db, user_id),
-        }
-
-    claim = db.query(TrialKeyClaim).filter(TrialKeyClaim.key_fingerprint == fp).first()
-    if claim and int(claim.user_id) != int(user_id):
-        return {
-            "activated": False,
-            "reason": "key_used_elsewhere",
-            "message": "API key này đã kích hoạt dùng thử trên tài khoản khác.",
-            "trial": trial_status_snapshot(db, user_id),
-        }
-
-    now = _utc_now()
-    ends = now + timedelta(days=TRIAL_DAYS)
-    db.add(
-        UserTrial(
-            user_id=int(user_id),
-            started_at=now,
-            ends_at=ends,
-            activated_by_key_fingerprint=fp,
-        )
-    )
-    if not claim:
-        db.add(TrialKeyClaim(key_fingerprint=fp, user_id=int(user_id)))
-    db.commit()
-
+    _ = api_key_fingerprint(plain_api_key)
     return {
-        "activated": True,
-        "reason": "started",
-        "message": f"Đã kích hoạt dùng thử {TRIAL_DAYS} ngày.",
-        "trial": trial_status_snapshot(db, user_id),
+        "activated": False,
+        "reason": "legacy_disabled",
+        "message": _LEGACY_DISABLED_MSG,
+        "trial": {
+            "legacy_byok_trial": True,
+            "is_active": False,
+            "never_used": True,
+            "has_trial": False,
+        },
     }

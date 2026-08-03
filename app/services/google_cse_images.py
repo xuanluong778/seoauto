@@ -10,6 +10,14 @@ from uuid import uuid4
 import requests
 from dotenv import dotenv_values
 
+from app.services.cost_control.executor import (
+    CostControlBypassError,
+    execute_guarded_external,
+    guarded_requests_get,
+)
+from app.services.cost_control.settings import cost_control_enforced
+from app.services.cost_control.types import ExternalApiProvider
+
 
 @lru_cache(maxsize=1)
 def _env_map() -> dict[str, str | None]:
@@ -141,7 +149,22 @@ def _cse_image_request(*, api_key: str, cx: str, q: str, num: int, extra: dict[s
         "num": num,
     }
     params.update(extra)
-    return requests.get("https://www.googleapis.com/customsearch/v1", params=params, timeout=25)
+
+    def _call() -> requests.Response:
+        if cost_control_enforced():
+            return guarded_requests_get(
+                ExternalApiProvider.GOOGLE_CSE,
+                "image_search",
+                "https://www.googleapis.com/customsearch/v1",
+                params=params,
+                timeout=25,
+            )
+        return requests.get("https://www.googleapis.com/customsearch/v1", params=params, timeout=25)
+
+    try:
+        return execute_guarded_external(ExternalApiProvider.GOOGLE_CSE, "image_search", _call)
+    except CostControlBypassError as exc:
+        raise ValueError("Google CSE image search blocked by cost control.") from exc
 
 
 def google_cse_probe(*, test_query: str = "technology") -> dict[str, Any]:
@@ -242,7 +265,13 @@ def google_cse_image_search(*, q: str, num: int = 8) -> list[dict[str, Any]]:
     return out
 
 
-def import_remote_image_url(src: str, *, stem: str = "google-image") -> str:
+def import_remote_image_url(
+    src: str,
+    *,
+    stem: str = "google-image",
+    user_id: int | None = None,
+    project_id: str | None = None,
+) -> str:
     url = str(src or "").strip()
     if not url or not url.lower().startswith(("http://", "https://")):
         raise ValueError("URL ảnh không hợp lệ.")
@@ -287,9 +316,18 @@ def import_remote_image_url(src: str, *, stem: str = "google-image") -> str:
     elif url.lower().endswith(".webp"):
         ext = ".webp"
     safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", stem).strip("-").lower() or "google-image"
+    target_name = f"{safe_stem}-{uuid4().hex[:8]}{ext}"
     target_dir = Path("static") / "uploads" / "content-ai"
     target_dir.mkdir(parents=True, exist_ok=True)
-    target_name = f"{safe_stem}-{uuid4().hex[:8]}{ext}"
     target_file = target_dir / target_name
     target_file.write_bytes(data)
+    if user_id is not None and int(user_id) > 0:
+        try:
+            from app.services.user_data_paths import user_upload_dir
+
+            user_dir = user_upload_dir(int(user_id), project_id=project_id)
+            user_dir.mkdir(parents=True, exist_ok=True)
+            (user_dir / target_name).write_bytes(data)
+        except Exception:
+            pass
     return f"/static/uploads/content-ai/{target_name}"

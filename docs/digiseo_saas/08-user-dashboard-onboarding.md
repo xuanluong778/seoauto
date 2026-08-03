@@ -69,7 +69,7 @@ Kết nối WordPress
 Sau đăng ký, user nên đi qua onboarding.
 
 ```txt
-Bước 1: Bạn muốn dùng DigiSEO để làm gì?
+Bước 1: Bạn muốn dùng Seoauto để làm gì?
 - Audit Technical SEO
 - Viết content SEO
 - Research keyword

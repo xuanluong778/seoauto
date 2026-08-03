@@ -1,13 +1,17 @@
 /**
- * Top nav: highlight tab trùng trang hiện tại (mọi layout: nav-strip, div.nav, Tailwind flex).
+ * Top nav: highlight tab trùng trang hiện tại + active ngay khi click (không nhảy layout).
  */
 (function () {
     var TOP_NAV_LINK =
-        '[aria-label="Menu chính"] > a, ' +
-        '.nav-strip .nav > a, .nav-strip nav > a, ' +
-        '.header-inner .main-nav > a, ' +
-        '.report-top > a, p.report-top > a, ' +
-        '.pricing-page-nav .inner > a';
+        '[aria-label="Menu chính"] a[href], ' +
+        '.digiseo-nav-links > a[href], ' +
+        '.nav-strip .nav > a[href], .nav-strip nav > a[href], ' +
+        '.header-inner .main-nav > a[href], ' +
+        '.report-top > a[href], p.report-top > a[href], ' +
+        '.pricing-page-nav .inner > a[href], .pricing-page-nav .digiseo-nav-links > a[href]';
+
+    var NAV_CONTAINERS =
+        '#digiseoNavMenu, .digiseo-nav-links, nav[aria-label="Menu chính"]';
 
     function normPath(p) {
         if (!p) return "/";
@@ -48,6 +52,22 @@
             return pagePath === "/content-ai" || pagePath.indexOf("/content-ai/") === 0;
         }
 
+        if (linkPath === "/social-auto") {
+            return pagePath === "/social-auto" || pagePath.indexOf("/social-auto/") === 0;
+        }
+
+        if (linkPath === "/index-control") {
+            return pagePath === "/index-control" || pagePath.indexOf("/index-control/") === 0;
+        }
+
+        if (linkPath === "/google-map-seo") {
+            return pagePath === "/google-map-seo" || pagePath.indexOf("/google-map-seo/") === 0;
+        }
+
+        if (linkPath === "/chatbot-cskh") {
+            return pagePath === "/chatbot-cskh" || pagePath.indexOf("/chatbot-cskh/") === 0;
+        }
+
         if (linkPath === "/schema") {
             return pagePath === "/schema" || pagePath.indexOf("/schema/") === 0;
         }
@@ -58,6 +78,10 @@
 
         if (linkPath === "/settings") {
             return pagePath === "/settings" || pagePath.indexOf("/settings/") === 0;
+        }
+
+        if (linkPath === "/account-billing") {
+            return pagePath === "/account-billing" || pagePath.indexOf("/account-billing/") === 0;
         }
 
         if (linkPath === "/admin") {
@@ -71,37 +95,75 @@
         return Array.prototype.slice.call(document.querySelectorAll(TOP_NAV_LINK));
     }
 
-    function markTopNavActive() {
-        var pagePath = normPath(window.location && window.location.pathname);
-        var links = topNavLinks();
+    function clearActive(links) {
         links.forEach(function (a) {
             a.classList.remove("active", "is-active");
             a.removeAttribute("aria-current");
         });
+    }
+
+    function setActive(a) {
+        a.classList.add("active", "is-active");
+        a.setAttribute("aria-current", "page");
+    }
+
+    function markTopNavActive() {
+        var pagePath = normPath(window.location && window.location.pathname);
+        var links = topNavLinks();
+        clearActive(links);
         links.forEach(function (a) {
             var linkPath = normHref(a.getAttribute("href") || "");
             if (!linkPath || linkPath === "/") return;
             if (pathMatches(linkPath, pagePath)) {
-                a.classList.add("active");
-                a.setAttribute("aria-current", "page");
+                setActive(a);
             }
         });
     }
 
     function bindTopNavClicks() {
-        topNavLinks().forEach(function (a) {
-            if (a.dataset.digiseoNavBound) return;
-            a.dataset.digiseoNavBound = "1";
-            a.addEventListener("click", function () {
+        document.querySelectorAll(NAV_CONTAINERS).forEach(function (wrap) {
+            if (wrap.dataset.digiseoNavBound) return;
+            wrap.dataset.digiseoNavBound = "1";
+            wrap.addEventListener("click", function (e) {
+                var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+                if (!a || !wrap.contains(a)) return;
                 if (a.target === "_blank" || a.hasAttribute("download")) return;
+                if (a.classList.contains("digiseo-brand-link")) return;
                 var linkPath = normHref(a.getAttribute("href") || "");
                 if (!linkPath || linkPath === "/") return;
-                topNavLinks().forEach(function (x) {
-                    x.classList.remove("active", "is-active");
-                    x.removeAttribute("aria-current");
-                });
-                a.classList.add("active");
-                a.setAttribute("aria-current", "page");
+                clearActive(topNavLinks());
+                setActive(a);
+            });
+        });
+    }
+
+    var prefetchedHrefs = Object.create(null);
+    function prefetchTopNavLink(a) {
+        if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+        var href = a.href;
+        if (!href || href.indexOf("#") >= 0) return;
+        try {
+            var u = new URL(href, window.location.href);
+            if (u.origin !== window.location.origin) return;
+            if (normPath(u.pathname) === normPath(window.location.pathname)) return;
+            if (prefetchedHrefs[href]) return;
+            prefetchedHrefs[href] = 1;
+            var link = document.createElement("link");
+            link.rel = "prefetch";
+            link.href = href;
+            document.head.appendChild(link);
+        } catch (_) {}
+    }
+
+    function bindPrefetch() {
+        topNavLinks().forEach(function (a) {
+            if (a.dataset.digiseoNavPrefetch) return;
+            a.dataset.digiseoNavPrefetch = "1";
+            a.addEventListener("mouseenter", function () {
+                prefetchTopNavLink(a);
+            }, { passive: true });
+            a.addEventListener("focus", function () {
+                prefetchTopNavLink(a);
             });
         });
     }
@@ -109,8 +171,12 @@
     function init() {
         markTopNavActive();
         bindTopNavClicks();
+        bindPrefetch();
         if (window.DigiSeoI18n && typeof window.DigiSeoI18n.init === "function") {
-            window.addEventListener("digiseo:i18n-applied", markTopNavActive);
+            window.addEventListener("digiseo:i18n-applied", function () {
+                markTopNavActive();
+                bindPrefetch();
+            });
         }
     }
 
@@ -119,7 +185,11 @@
     } else {
         init();
     }
-    window.setTimeout(markTopNavActive, 0);
+    window.setTimeout(function () {
+        markTopNavActive();
+        bindTopNavClicks();
+        bindPrefetch();
+    }, 0);
     window.addEventListener("pageshow", markTopNavActive);
     window.addEventListener("popstate", markTopNavActive);
     window.markdigiseoTopNavActive = markTopNavActive;

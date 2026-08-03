@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=7">
+    <link rel="stylesheet" href="/static/css/admin-affiliate.css?v=2">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+    <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=1">
+</head>
+<body class="ab-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+    <div class="adm-wrap">
+        {% include "partials/admin_shell_header.html" %}
+
+        <nav class="ab-subtabs" id="admTabs" aria-label="Affiliate admin">
+            <button type="button" class="ab-subtab is-active" data-adm-tab="overview">Tổng quan</button>
+            <button type="button" class="ab-subtab" data-adm-tab="accounts">Danh sách Affiliate</button>
+            <button type="button" class="ab-subtab" data-adm-tab="commissions">Duyệt hoa hồng</button>
+            <button type="button" class="ab-subtab" data-adm-tab="payouts">Yêu cầu rút tiền</button>
+            <button type="button" class="ab-subtab" data-adm-tab="fraud">Cảnh báo bất thường</button>
+            <button type="button" class="ab-subtab" data-adm-tab="settings">Cài đặt</button>
+        </nav>
+
+        <div class="ab-loading" id="admGlobalLoading" hidden>Đang tải…</div>
+        <div class="ab-error" id="admError" hidden></div>
+
+        <!-- Tổng quan -->
+        <div class="ab-aff-panel is-active" data-adm-panel="overview">
+            <div class="ab-grid adm-overview-grid" id="admOverviewStats"></div>
+        </div>
+
+        <!-- Danh sách Affiliate -->
+        <div class="ab-aff-panel" data-adm-panel="accounts">
+            <div class="ab-card">
+                <div class="adm-toolbar">
+                    <input type="search" id="admAccSearch" placeholder="Tìm email hoặc mã referral…" />
+                    <select id="admAccStatus">
+                        <option value="">Mọi trạng thái</option>
+                        <option value="active">Hoạt động</option>
+                        <option value="review">Cần xem xét</option>
+                        <option value="suspended">Tạm khóa</option>
+                    </select>
+                    <button type="button" class="ab-btn secondary adm-btn-sm" id="btnAdmAccSearch">Tìm</button>
+                </div>
+                <div class="ab-loading" id="admAccLoading" hidden>Đang tải danh sách…</div>
+                <div class="adm-table-wrap ab-table-wrap">
+                    <table class="ab-table" id="admAccountsTable">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Referral code</th>
+                                <th>Trạng thái</th>
+                                <th>Click</th>
+                                <th>Signup</th>
+                                <th>Paid users</th>
+                                <th>Tổng commission</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="adm-mobile-cards" id="admAccountsCards"></div>
+                <div class="ab-empty" id="admAccountsEmpty" hidden>
+                    <div class="ab-empty-icon">👤</div>
+                    <p>Không tìm thấy affiliate.</p>
+                </div>
+                <div class="adm-pagination" id="admAccPager" hidden>
+                    <span id="admAccPagerInfo"></span>
+                    <div class="adm-pagination-btns">
+                        <button type="button" id="admAccPrev">← Trước</button>
+                        <button type="button" id="admAccNext">Sau →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Duyệt hoa hồng -->
+        <div class="ab-aff-panel" data-adm-panel="commissions">
+            <div class="ab-card">
+                <div class="adm-toolbar">
+                    <input type="search" id="admCommSearch" placeholder="Tìm affiliate…" />
+                    <select id="admCommStatus">
+                        <option value="pending">Chờ duyệt</option>
+                        <option value="approved">Đã duyệt</option>
+                        <option value="rejected">Từ chối</option>
+                        <option value="paid">Đã thanh toán</option>
+                        <option value="cancelled">Đã hủy</option>
+                    </select>
+                    <button type="button" class="ab-btn secondary adm-btn-sm" id="btnAdmCommSearch">Tải lại</button>
+                </div>
+                <div class="ab-loading" id="admCommLoading" hidden>Đang tải hoa hồng…</div>
+                <div class="adm-table-wrap ab-table-wrap">
+                    <table class="ab-table" id="admCommTable">
+                        <thead>
+                            <tr>
+                                <th>Affiliate</th>
+                                <th>Khách hàng</th>
+                                <th>Đơn hàng</th>
+                                <th>Giá trị đơn</th>
+                                <th>Hoa hồng</th>
+                                <th>Ngày tạo</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="adm-mobile-cards" id="admCommCards"></div>
+                <div class="ab-empty" id="admCommEmpty" hidden>
+                    <div class="ab-empty-icon">💰</div>
+                    <p>Không có hoa hồng phù hợp.</p>
+                </div>
+                <div class="adm-pagination" id="admCommPager" hidden>
+                    <span id="admCommPagerInfo"></span>
+                    <div class="adm-pagination-btns">
+                        <button type="button" id="admCommPrev">← Trước</button>
+                        <button type="button" id="admCommNext">Sau →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Yêu cầu rút tiền -->
+        <div class="ab-aff-panel" data-adm-panel="payouts">
+            <div class="ab-card">
+                <div class="adm-toolbar">
+                    <input type="search" id="admPayoutSearch" placeholder="Tìm affiliate…" />
+                    <select id="admPayoutStatus">
+                        <option value="requested">Đã gửi yêu cầu</option>
+                        <option value="">Mọi trạng thái</option>
+                        <option value="processing">Đang xử lý</option>
+                        <option value="paid">Đã thanh toán</option>
+                        <option value="rejected">Từ chối</option>
+                    </select>
+                    <button type="button" class="ab-btn secondary adm-btn-sm" id="btnAdmPayoutSearch">Tải lại</button>
+                </div>
+                <div class="ab-loading" id="admPayoutLoading" hidden>Đang tải yêu cầu rút tiền…</div>
+                <div class="adm-table-wrap ab-table-wrap">
+                    <table class="ab-table" id="admPayoutTable">
+                        <thead>
+                            <tr>
+                                <th>Affiliate</th>
+                                <th>Số tiền</th>
+                                <th>Thông tin ngân hàng</th>
+                                <th>Trạng thái</th>
+                                <th>Ngày yêu cầu</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="adm-mobile-cards" id="admPayoutCards"></div>
+                <div class="ab-empty" id="admPayoutEmpty" hidden>
+                    <div class="ab-empty-icon">🏦</div>
+                    <p>Không có yêu cầu rút tiền.</p>
+                </div>
+                <div class="adm-pagination" id="admPayoutPager" hidden>
+                    <span id="admPayoutPagerInfo"></span>
+                    <div class="adm-pagination-btns">
+                        <button type="button" id="admPayoutPrev">← Trước</button>
+                        <button type="button" id="admPayoutNext">Sau →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cảnh báo -->
+        <div class="ab-aff-panel" data-adm-panel="fraud">
+            <div class="ab-card">
+                <p class="ab-muted-text">Các affiliate được <strong>gắn cờ</strong> để admin xem xét — hệ thống không tự khóa tài khoản.</p>
+                <div class="ab-loading" id="admFraudLoading" hidden>Đang tải cảnh báo…</div>
+                <div id="admFraudList"></div>
+                <div class="ab-empty" id="admFraudEmpty" hidden>
+                    <div class="ab-empty-icon">✅</div>
+                    <p>Không có cảnh báo bất thường.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cài đặt -->
+        <div class="ab-aff-panel" data-adm-panel="settings">
+            <div class="ab-card">
+                <form class="ab-form adm-settings-form" id="admSettingsForm">
+                    <label class="ab-field-label" for="admSetRate">Tỷ lệ hoa hồng mặc định (%)</label>
+                    <input type="number" id="admSetRate" min="0" max="100" />
+                    <label class="ab-field-label" for="admSetCookie">Số ngày lưu cookie</label>
+                    <input type="number" id="admSetCookie" min="1" max="365" />
+                    <label class="ab-field-label" for="admSetMinPayout">Số tiền rút tối thiểu (VND)</label>
+                    <input type="number" id="admSetMinPayout" min="0" step="1000" />
+                    <label class="ab-field-label" for="admSetHold">Số ngày giữ commission trước khi duyệt</label>
+                    <input type="number" id="admSetHold" min="0" max="90" />
+                    <div class="adm-check-row">
+                        <input type="checkbox" id="admSetAutoApprove" />
+                        <label for="admSetAutoApprove" style="margin:0;cursor:pointer;">Bật tự động duyệt commission (sau thời gian giữ)</label>
+                    </div>
+                    <button type="submit" class="ab-btn">Lưu cài đặt</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirm -->
+    <div class="adm-modal" id="admConfirmModal" role="dialog" aria-modal="true">
+        <div class="adm-modal-box">
+            <h3 id="admConfirmTitle">Xác nhận</h3>
+            <p class="adm-modal-desc" id="admConfirmDesc"></p>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmConfirmCancel">Hủy</button>
+                <button type="button" class="ab-btn" id="btnAdmConfirmOk">Xác nhận</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Reject commission -->
+    <div class="adm-modal" id="admRejectModal" role="dialog" aria-modal="true">
+        <div class="adm-modal-box">
+            <h3>Từ chối hoa hồng</h3>
+            <p class="adm-modal-desc">Nhập lý do từ chối — affiliate sẽ thấy trong ghi chú.</p>
+            <label class="ab-field-label" for="admRejectReason">Lý do từ chối</label>
+            <textarea id="admRejectReason" rows="4" placeholder="VD: Đơn hàng hoàn tiền / nghi ngờ gian lận…"></textarea>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmRejectCancel">Hủy</button>
+                <button type="button" class="ab-btn" id="btnAdmRejectConfirm">Xác nhận từ chối</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Mark payout paid -->
+    <div class="adm-modal" id="admPayoutModal" role="dialog" aria-modal="true">
+        <div class="adm-modal-box">
+            <h3>Xác nhận đã chuyển khoản</h3>
+            <p class="adm-modal-desc" id="admPayoutModalDesc"></p>
+            <label class="ab-field-label" for="admPayoutRef">Mã giao dịch</label>
+            <input type="text" id="admPayoutRef" placeholder="FT… / mã chuyển khoản" />
+            <label class="ab-field-label" for="admPayoutNote">Ghi chú</label>
+            <textarea id="admPayoutNote" rows="3" placeholder="Ghi chú nội bộ (tùy chọn)"></textarea>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmPayoutCancel">Hủy</button>
+                <button type="button" class="ab-btn" id="btnAdmPayoutConfirm">Xác nhận đã chuyển</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Reject payout -->
+    <div class="adm-modal" id="admPayoutRejectModal" role="dialog" aria-modal="true">
+        <div class="adm-modal-box">
+            <h3>Từ chối yêu cầu rút tiền</h3>
+            <p class="adm-modal-desc">Nhập lý do từ chối — affiliate sẽ thấy trong ghi chú.</p>
+            <label class="ab-field-label" for="admPayoutRejectReason">Lý do từ chối</label>
+            <textarea id="admPayoutRejectReason" rows="4" placeholder="VD: Thông tin ngân hàng không hợp lệ…"></textarea>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmPayoutRejectCancel">Hủy</button>
+                <button type="button" class="ab-btn" id="btnAdmPayoutRejectConfirm">Xác nhận từ chối</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Account detail -->
+    <div class="adm-modal" id="admDetailModal" role="dialog" aria-modal="true">
+        <div class="adm-modal-box" style="max-width:560px;">
+            <h3>Chi tiết Affiliate</h3>
+            <div id="admDetailBody"></div>
+            <div class="ab-actions">
+                <button type="button" class="ab-btn secondary" id="btnAdmDetailClose">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="adm-toast" id="admToast" role="status" hidden></div>
+
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=1"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=6" defer></script>
+    <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
+    <script src="/static/js/admin-affiliate.js?v=7"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

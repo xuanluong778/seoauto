@@ -16,10 +16,12 @@ from app.services.rbac import normalize_role, require_write_user
 from app.services.security_audit_log import log_audit_event
 from app.services.user_api_access import (
     api_access_enabled_for,
-    assert_user_may_use_api,
+    assert_user_may_manage_api_keys,
+    describe_user_llm_source,
+    may_manage_custom_api_keys,
     use_admin_api_pool_for,
 )
-from app.services.user_trial_service import trial_status_snapshot, try_activate_trial
+from app.services.user_trial_service import trial_status_snapshot
 from sqlalchemy.orm import Session
 
 from app.services.api_keys_store import (
@@ -44,6 +46,7 @@ from app.services.publishing_sites_store import (
 )
 from app.services.ai_knowledge_store import (
     TONES as _KB_TONES,
+    clone_base as _kb_clone,
     create_base as _kb_create,
     delete_base as _kb_delete,
     get_base as _kb_get,
@@ -82,12 +85,11 @@ def _verify_and_activate_trial(
             "trial_activation": None,
             "trial": trial_status_snapshot(db, user_id),
         }
-    activation = try_activate_trial(db, user_id=user_id, plain_api_key=plain_key)
     return {
         "verified": True,
         "verify_message": verify_msg,
-        "trial_activation": activation,
-        "trial": activation.get("trial") or trial_status_snapshot(db, user_id),
+        "trial_activation": None,
+        "trial": trial_status_snapshot(db, user_id),
     }
 
 
@@ -179,6 +181,7 @@ def settings_api_keys_list(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
+    assert_user_may_manage_api_keys(db, current_user)
     return JSONResponse(
         {
             "providers": _SETTINGS_API_PROVIDERS,
@@ -188,6 +191,8 @@ def settings_api_keys_list(
             "api_access": {
                 "enabled": api_access_enabled_for(current_user),
                 "use_admin_pool": use_admin_api_pool_for(current_user),
+                "can_manage_api_keys": may_manage_custom_api_keys(db, current_user),
+                "llm_source": describe_user_llm_source(db, current_user),
             },
         }
     )
@@ -199,7 +204,7 @@ def settings_api_keys_verify(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
-    assert_user_may_use_api(current_user)
+    assert_user_may_manage_api_keys(db, current_user)
     check = _verify_and_activate_trial(
         db,
         user_id=current_user.id,
@@ -224,7 +229,7 @@ def settings_api_keys_create(
     current_user: User = Depends(require_write_user),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
-    assert_user_may_use_api(current_user)
+    assert_user_may_manage_api_keys(db, current_user)
     check = _verify_and_activate_trial(
         db,
         user_id=current_user.id,
@@ -257,7 +262,12 @@ def settings_api_keys_create(
 
 
 @router.get("/api-keys/{key_id}")
-def settings_api_keys_get(key_id: str, current_user: User = Depends(get_current_user)) -> JSONResponse:
+def settings_api_keys_get(
+    key_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    assert_user_may_manage_api_keys(db, current_user)
     item = _settings_get_key(key_id, user_id=current_user.id, reveal_key=True)
     if not item:
         return JSONResponse({"detail": "not found"}, status_code=404)
@@ -272,7 +282,7 @@ def settings_api_keys_update(
     current_user: User = Depends(require_write_user),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
-    assert_user_may_use_api(current_user)
+    assert_user_may_manage_api_keys(db, current_user)
     patch = payload.model_dump(exclude_unset=True)
     trial_extra: dict = {}
     if patch.get("api_key"):
@@ -310,8 +320,9 @@ def settings_api_keys_delete(
     request: Request,
     key_id: str,
     current_user: User = Depends(require_write_user),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
-    assert_user_may_use_api(current_user)
+    assert_user_may_manage_api_keys(db, current_user)
     ok = _settings_delete_key(key_id, user_id=current_user.id)
     if not ok:
         return JSONResponse({"detail": "not found"}, status_code=404)
@@ -331,7 +342,7 @@ def settings_api_keys_test(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
-    assert_user_may_use_api(current_user)
+    assert_user_may_manage_api_keys(db, current_user)
     item = _settings_get_key(key_id, user_id=current_user.id, reveal_key=True)
     if not item:
         return JSONResponse({"detail": "not found"}, status_code=404)
@@ -384,10 +395,47 @@ def _pub_summary(*, user_id: int) -> dict:
     }
 
 
+def _sync_pub_plugin_flags_from_helper(db: Session, user: User) -> None:
+    """Align publishing-site badges with active SEO Helper plugin connections."""
+    try:
+        from app.models.wordpress_plugin import WordpressConnection
+        from app.services.publishing_sites_store import mark_seo_helper_installed
+        from app.services.wordpress_pairing_service import resolve_organization_id
+        from app.services.wordpress_plugin_security import normalize_domain
+
+        org_id = resolve_organization_id(user, None)
+        rows = (
+            db.query(WordpressConnection)
+            .filter(
+                WordpressConnection.organization_id == int(org_id),
+                WordpressConnection.user_id == int(user.id),
+                WordpressConnection.status.in_(("active", "pending")),
+            )
+            .all()
+        )
+        domains: set[str] = set()
+        urls: list[str] = []
+        for row in rows:
+            dom = str(getattr(row, "domain_normalized", "") or "").strip().lower()
+            if not dom:
+                dom = normalize_domain(str(getattr(row, "site_url", "") or ""))
+            if dom:
+                domains.add(dom)
+            if getattr(row, "site_url", None):
+                urls.append(str(row.site_url))
+        if domains or urls:
+            mark_seo_helper_installed(user_id=int(user.id), domains=domains, site_urls=urls)
+    except Exception:
+        # Listing must not fail if helper tables are unavailable.
+        return
+
+
 @router.get("/publishing-sites")
 def settings_publishing_sites_list(
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
+    _sync_pub_plugin_flags_from_helper(db, current_user)
     return JSONResponse(_pub_summary(user_id=current_user.id))
 
 
@@ -513,6 +561,19 @@ def _check_wp_site(site: dict) -> dict:
             "message": "Xác thực WordPress thất bại.",
         }
     plugin_installed = False
+    plugin_probe_ok = False
+
+    def _name_looks_like_helper(value: str) -> bool:
+        low = (value or "").lower()
+        return (
+            "seoauto" in low
+            or "digiseo" in low
+            or "gen-seo" in low
+            or "gen_seo" in low
+            or "seo helper" in low
+        )
+
+    # 1) Preferred: WP plugins list (requires manage_plugins capability).
     try:
         pl, _ = wp_get_json(
             "/wp-json/wp/v2/plugins",
@@ -523,19 +584,70 @@ def _check_wp_site(site: dict) -> dict:
             params={"per_page": 100},
         )
         if pl.status_code < 400:
-            data = pl.json() if pl.headers.get("content-type", "").startswith("application/json") else []
+            plugin_probe_ok = True
+            data = pl.json() if "json" in (pl.headers.get("content-type") or "").lower() else []
             if isinstance(data, list):
                 for item in data:
-                    name = str((item or {}).get("plugin") or (item or {}).get("name") or "").lower()
-                    if "DigiSEO" in name or "gen-seo" in name or "gen_seo" in name:
+                    blob = " ".join(
+                        [
+                            str((item or {}).get("plugin") or ""),
+                            str((item or {}).get("name") or ""),
+                            str((item or {}).get("textdomain") or ""),
+                        ]
+                    )
+                    if _name_looks_like_helper(blob):
                         plugin_installed = True
                         break
     except Exception:
-        plugin_installed = False
+        plugin_probe_ok = False
+
+    # 2) Fallback: REST namespace registered by SEOAuto SEO Helper (works even when
+    # /wp/v2/plugins is forbidden for Application Password users).
+    if not plugin_installed:
+        try:
+            idx, _ = wp_get_json(
+                "/wp-json/",
+                url=url,
+                headers=headers,
+                auth=(user, pwd),
+                timeout=12,
+            )
+            if idx.status_code < 400:
+                payload = idx.json() if "json" in (idx.headers.get("content-type") or "").lower() else {}
+                namespaces = payload.get("namespaces") or []
+                if isinstance(namespaces, list):
+                    for ns in namespaces:
+                        nslow = str(ns or "").lower()
+                        if nslow.startswith("seoauto/") or nslow.startswith("digiseo/"):
+                            plugin_installed = True
+                            break
+                if not plugin_installed:
+                    routes = payload.get("routes") or {}
+                    if isinstance(routes, dict):
+                        for route in routes:
+                            rlow = str(route or "").lower()
+                            if "/seoauto/v1" in rlow or "/digiseo/v1" in rlow:
+                                plugin_installed = True
+                                break
+        except Exception:
+            pass
+
+    if plugin_installed:
+        message = "Kết nối WordPress thành công. Đã phát hiện SEOAuto SEO Helper."
+    elif plugin_probe_ok:
+        message = (
+            "Kết nối WordPress thành công, nhưng chưa thấy plugin SEOAuto SEO Helper "
+            "trên website. Hãy Upload plugin seoauto-seo-helper.zip → Activate, rồi bấm Kiểm tra lại."
+        )
+    else:
+        message = (
+            "Kết nối WordPress thành công, nhưng không đọc được danh sách plugin "
+            "(thiếu quyền manage_plugins). Hãy dùng tài khoản Admin hoặc kiểm tra REST /seoauto/v1."
+        )
     return {
         "verified": True,
         "plugin_installed": plugin_installed,
-        "message": "Kết nối WordPress thành công.",
+        "message": message,
     }
 
 
@@ -543,6 +655,50 @@ class WordPressConnectionBody(BaseModel):
     url: str
     username: str
     app_password: str
+
+
+class WordPressCategoriesBody(BaseModel):
+    """Categories can be loaded by saved site id or explicit WP credentials."""
+
+    wp_site_id: str | None = None
+    url: str | None = None
+    username: str | None = None
+    app_password: str | None = None
+
+
+def _resolve_wp_category_credentials(
+    *,
+    user_id: int,
+    wp_site_id: str | None = None,
+    url: str | None = None,
+    username: str | None = None,
+    app_password: str | None = None,
+) -> tuple[str, str, str]:
+    sid = str(wp_site_id or "").strip()
+    if sid:
+        site = _pub_get(sid, user_id=user_id, reveal_password=True)
+        if not site:
+            raise HTTPException(status_code=404, detail="Không tìm thấy website đã lưu.")
+        if str(site.get("platform") or "").lower() != "wordpress":
+            raise HTTPException(status_code=400, detail="Website không phải WordPress.")
+        site_url = str(site.get("url") or "").strip()
+        site_user = str(site.get("username") or "").strip()
+        site_pwd = str(site.get("app_password") or "").strip()
+        if not site_url or not site_user or not site_pwd:
+            raise HTTPException(
+                status_code=400,
+                detail="Website thiếu URL / username / Application password.",
+            )
+        return site_url, site_user, site_pwd
+    site_url = str(url or "").strip()
+    site_user = str(username or "").strip()
+    site_pwd = str(app_password or "").strip()
+    if not site_url or not site_user or not site_pwd:
+        raise HTTPException(
+            status_code=400,
+            detail="Cần wp_site_id hoặc đủ url + username + app_password.",
+        )
+    return site_url, site_user, site_pwd
 
 
 class HaravanConnectionBody(BaseModel):
@@ -674,16 +830,23 @@ def settings_publishing_wordpress_test(
 
 @router.post("/publishing-sites/wordpress/categories")
 def settings_publishing_wordpress_categories(
-    payload: WordPressConnectionBody,
+    payload: WordPressCategoriesBody,
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Danh mục WP — route dự phòng cho Content AI (khi /content-ai/... chưa có trên server cũ)."""
     from app.services.wp_categories import fetch_wordpress_categories
 
-    result = fetch_wordpress_categories(
+    url, username, app_password = _resolve_wp_category_credentials(
+        user_id=int(current_user.id),
+        wp_site_id=payload.wp_site_id,
         url=payload.url,
         username=payload.username,
         app_password=payload.app_password,
+    )
+    result = fetch_wordpress_categories(
+        url=url,
+        username=username,
+        app_password=app_password,
     )
     return JSONResponse(content=result)
 
@@ -706,9 +869,9 @@ def settings_publishing_wordpress_sync_preview(
     if count is None:
         return JSONResponse({"ok": False, "count": None, "message": msg})
     plugin_note = (
-        " DigiSEO SEO Helper đã cài."
+        " Seoauto SEO Helper đã cài."
         if check["plugin_installed"]
-        else " DigiSEO SEO Helper chưa cài — nên cài plugin để tối ưu SEO khi đăng bài."
+        else " Seoauto SEO Helper chưa cài — nên cài plugin để tối ưu SEO khi đăng bài."
     )
     return JSONResponse({"ok": True, "count": count, "message": msg + plugin_note})
 
@@ -928,6 +1091,11 @@ class AiKnowledgeBaseCreate(BaseModel):
     enabled: bool | None = True
     is_default: bool | None = False
     scope: str | None = "user"
+    inherit_mode: str | None = "all"
+    inherit_websites: list[str] | str | None = None
+    industry: str | None = ""
+    tags: list[str] | str | None = None
+    project_id: str | None = ""
 
 
 class AiKnowledgeBasePatch(BaseModel):
@@ -943,6 +1111,15 @@ class AiKnowledgeBasePatch(BaseModel):
     custom_instructions: str | None = None
     enabled: bool | None = None
     is_default: bool | None = None
+    inherit_mode: str | None = None
+    inherit_websites: list[str] | str | None = None
+    industry: str | None = None
+    tags: list[str] | str | None = None
+    project_id: str | None = None
+
+
+class AiKnowledgeCloneBody(BaseModel):
+    name: str | None = None
 
 
 class AiKnowledgeSearchBody(BaseModel):
@@ -1070,13 +1247,47 @@ def settings_ai_knowledge_bases_delete(
     return JSONResponse({"ok": True, "items": _kb_items_with_stats(user_id=current_user.id, role=role)})
 
 
+@router.post("/ai-knowledge-bases/{kb_id}/clone")
+def settings_ai_knowledge_bases_clone(
+    request: Request,
+    kb_id: str,
+    payload: AiKnowledgeCloneBody | None = None,
+    current_user: User = Depends(require_write_user),
+) -> JSONResponse:
+    role = normalize_role(current_user.role)
+    try:
+        item = _kb_clone(
+            kb_id,
+            user_id=current_user.id,
+            role=role,
+            name=(payload.name if payload else None),
+        )
+    except PermissionError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=403)
+    except ValueError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    item["stats"] = _kb_stats(str(item.get("id") or ""))
+    log_audit_event(
+        action="knowledge_base.clone",
+        user_id=current_user.id,
+        resource_type="knowledge_base",
+        resource_id=str(item.get("id") or ""),
+        detail={"source_kb_id": kb_id, "name": item.get("name")},
+        request=request,
+    )
+    return JSONResponse(
+        {"item": item, "items": _kb_items_with_stats(user_id=current_user.id, role=role)}
+    )
+
+
 @router.get("/ai-knowledge-bases/{kb_id}/documents")
 def settings_ai_knowledge_bases_documents(
     kb_id: str,
     doc_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    if not _kb_get(kb_id, user_id=current_user.id):
+    role = normalize_role(current_user.role)
+    if not _kb_get(kb_id, user_id=current_user.id, role=role):
         return JSONResponse({"detail": "not found"}, status_code=404)
     if doc_id and str(doc_id).strip():
         doc = _kb_get_document(kb_id, str(doc_id).strip())
@@ -1092,7 +1303,8 @@ def settings_ai_knowledge_bases_document_get(
     doc_id: str,
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    if not _kb_get(kb_id, user_id=current_user.id):
+    role = normalize_role(current_user.role)
+    if not _kb_get(kb_id, user_id=current_user.id, role=role):
         return JSONResponse({"detail": "not found"}, status_code=404)
     doc = _kb_get_document(kb_id, doc_id)
     if not doc:
@@ -1122,7 +1334,7 @@ async def settings_ai_knowledge_bases_import(
             return JSONResponse({"detail": "Cần upload file hoặc dán văn bản."}, status_code=400)
     except ValueError as exc:
         return JSONResponse({"detail": str(exc)}, status_code=400)
-    item = _kb_get(kb_id, user_id=current_user.id)
+    item = _kb_get(kb_id, user_id=current_user.id, role=role)
     if item:
         item["stats"] = result.get("stats") or _kb_stats(kb_id)
     log_audit_event(
@@ -1180,7 +1392,8 @@ def settings_ai_knowledge_bases_search(
     payload: AiKnowledgeSearchBody,
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    if not _kb_get(kb_id, user_id=current_user.id):
+    role = normalize_role(current_user.role)
+    if not _kb_get(kb_id, user_id=current_user.id, role=role):
         return JSONResponse({"detail": "not found"}, status_code=404)
     hits = _kb_search(kb_id, payload.query, limit=int(payload.limit or 8))
     return JSONResponse({"query": payload.query, "hits": hits})

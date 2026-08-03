@@ -15,6 +15,10 @@ from app.services.content_ai_project_store import (
     get_content_ai_project,
     update_content_ai_project_fields,
 )
+from app.services.content_ai_openrouter_images import (
+    OPENROUTER_IMAGE_MODELS,
+    default_image_model,
+)
 from app.services.content_ai_thumbnail import generate_openai_image_variants
 from app.services.image_prompt_engine import (
     build_professional_image_prompt,
@@ -99,6 +103,7 @@ def generate_professional_previews(
     include_text: bool = False,
     text_hint: str = "",
     project_id: str | None = None,
+    image_model: str | None = None,
 ) -> dict[str, Any]:
     """
     Generate 2–4 preview images without modifying project content.
@@ -190,6 +195,9 @@ def generate_professional_previews(
             stem=f"studio-{stem}",
             custom_width=cw if use_custom else None,
             custom_height=ch if use_custom else None,
+            model=image_model,
+            user_id=user_id,
+            project_id=project_id,
         )
     except ValueError:
         raise
@@ -253,6 +261,17 @@ def insert_selected_image(
     img_url = str(url or "").strip()
     if not img_url:
         raise ValueError("Thiếu URL ảnh.")
+    from app.services.content_ai_image_guard import validate_image_url_for_insert
+
+    site_base = ""
+    if project:
+        site_base = str(project.get("target_website") or "").strip().rstrip("/")
+    img_url = validate_image_url_for_insert(
+        img_url,
+        source="studio_insert",
+        site_base=site_base,
+        probe_remote=True,
+    )
     mode_l = str(mode or "inline").strip().lower()
     if mode_l not in ("inline", "featured", "append"):
         mode_l = "inline"
@@ -279,9 +298,10 @@ def insert_selected_image(
     if mode_l == "featured":
         updates["featured_image"] = img_url
     elif mode_l == "append":
-        from app.services.content_ai_content_images import _figure_snippet
+        from app.services.content_ai_image_inserter import build_figure_html
 
-        new_html = (html or "") + _figure_snippet(img_url, alt_text, cap)
+        fig_html = build_figure_html(url=img_url, alt=alt_text, caption=cap)
+        new_html = (html or "") + fig_html
         updates["content"] = new_html
     else:
         insert: dict[str, Any] = {
@@ -353,4 +373,6 @@ def studio_catalog() -> dict[str, Any]:
             {"id": "tech", "label_vi": "Công nghệ"},
             {"id": "neutral", "label_vi": "Trung tính"},
         ],
+        "image_models": list(OPENROUTER_IMAGE_MODELS),
+        "default_image_model": default_image_model(),
     }

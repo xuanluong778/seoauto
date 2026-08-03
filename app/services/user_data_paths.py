@@ -11,6 +11,11 @@ def user_data_dir(user_id: int) -> Path:
     return root
 
 
+def user_index_control_history_file(user_id: int) -> Path:
+    """Legacy JSON path — hiện dùng DB; giữ helper nếu cần migrate."""
+    return user_data_dir(user_id) / "index_control_history.json"
+
+
 def user_action_plan_notes_file(user_id: int) -> Path:
     return user_data_dir(user_id) / "action_plan_notes.json"
 
@@ -41,6 +46,22 @@ def user_upload_dir(user_id: int, *, project_id: str | None = None) -> Path:
 def user_upload_relative_path(*, project_id: str | None, filename: str) -> str:
     segment = _safe_segment(project_id or "general")
     return f"content-ai/{segment}/{filename}"
+
+
+def user_gbp_media_dir(user_id: int, location_key: str) -> Path:
+    import re
+
+    safe_loc = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(location_key or "general"))[:48]
+    root = user_data_dir(user_id) / "uploads" / "gbp-media" / safe_loc
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def user_gbp_media_relative_path(location_key: str, filename: str) -> str:
+    import re
+
+    safe_loc = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(location_key or "general"))[:48]
+    return f"gbp-media/{safe_loc}/{filename}"
 
 
 def resolve_user_upload_file(user_id: int, relative_path: str) -> Path | None:

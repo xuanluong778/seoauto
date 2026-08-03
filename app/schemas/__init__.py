@@ -10,6 +10,18 @@ class AnalyzeRequest(BaseModel):
 class TechnicalAnalyzeRequest(BaseModel):
     url: str
     max_pages: int = Field(default=25, ge=1, le=200)
+    use_gsc: bool = Field(
+        default=False,
+        description="Bật hybrid audit với Google Search Console (cần đã kết nối OAuth).",
+    )
+    gsc_property: str | None = Field(
+        default=None,
+        description="Property GSC, vd https://www.example.com/ hoặc sc-domain:example.com",
+    )
+    gsc_date_range: Literal["28d", "90d", "custom"] = Field(default="28d")
+    gsc_start_date: str | None = Field(default=None, description="YYYY-MM-DD khi gsc_date_range=custom")
+    gsc_end_date: str | None = Field(default=None, description="YYYY-MM-DD khi gsc_date_range=custom")
+    url_inspection_limit: int = Field(default=10, ge=0, le=50)
 
 
 class SEOIssue(BaseModel):
@@ -80,6 +92,25 @@ class TechnicalIssue(BaseModel):
     decision_source: str | None = Field(default=None, description="e.g. multi_signal_v2")
     suppressed: bool | None = Field(default=None)
     suppression_reason: str | None = Field(default=None)
+    priority_score: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="0–100 remediation priority (GSC traffic + severity).",
+    )
+    gsc_badge: str | None = Field(
+        default=None,
+        description="gsc_confirmed | crawl_detected | inferred_warning",
+    )
+    gsc_clicks: int | None = Field(default=None, ge=0)
+    gsc_impressions: int | None = Field(default=None, ge=0)
+    gsc_ctr: float | None = Field(default=None, ge=0)
+    gsc_position: float | None = Field(default=None, ge=0)
+    gsc_index_verdict: str | None = None
+    gsc_coverage_state: str | None = None
+    gsc_user_canonical: str | None = None
+    gsc_google_canonical: str | None = None
+    gsc_last_crawl_time: str | None = None
 
 
 class BrokenInternalLink(BaseModel):
@@ -189,6 +220,68 @@ class TechnicalAnalyzeResponse(BaseModel):
     seo_intelligence_core: dict[str, Any] = Field(
         default_factory=dict,
         description="SEO Intelligence Core v3: indexability, ranking_decision, SERP/trust/penalties, strategy.",
+    )
+    gsc_summary: dict[str, Any] | None = Field(
+        default=None,
+        description="GSC Search Analytics + inspection summary (hybrid audit).",
+    )
+    gsc_enriched_pages: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Per-page GSC clicks/impressions/CTR/position + optional inspection.",
+    )
+    gsc_confirmed_issues: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Issues confirmed by URL Inspection API.",
+    )
+    gsc_opportunities: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="CTR opportunity, traffic drop, high-impression technical issues.",
+    )
+    url_inspection_results: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Raw/normalized URL Inspection API results (quota-limited).",
+    )
+    confidence_overall: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Overall audit confidence when GSC hybrid layer is used.",
+    )
+    saas_summary: dict[str, Any] | None = Field(
+        default=None,
+        description="Normalized SaaS summary (technical_score, counts, scan_mode).",
+    )
+    priority_fixes: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Top priority fixes from technical_output_normalizer.",
+    )
+    category_summaries: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Per-category issue summaries.",
+    )
+    normalized_issues: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Merged crawl + GSC normalized issues.",
+    )
+    passed_checks: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Checks passed with no detected issue.",
+    )
+    gsc_intelligence_summary: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Compact GSC intelligence block.",
+    )
+    partial_data: bool = Field(
+        default=False,
+        description="True when GSC data is incomplete (quota/permission).",
+    )
+    disclaimers: list[str] = Field(
+        default_factory=list,
+        description="User-facing disclaimers (crawl-only, GSC partial, inferred index).",
+    )
+    technical_dashboard_v2: dict[str, Any] = Field(
+        default_factory=dict,
+        description="SaaS dashboard v2: grouped issues with evidence, severity critical/warning/opportunity.",
     )
 
 

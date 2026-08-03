@@ -429,6 +429,27 @@ def detect_article_topic(
     return "general"
 
 
+def _section_body_text(body_html: str) -> str:
+    """Trích text ngữ cảnh section — không chỉ <p>, gồm list/table/blockquote."""
+    body_html = str(body_html or "")
+    if not body_html.strip():
+        return ""
+    chunks: list[str] = []
+    for pat in (
+        r"<p\b[^>]*>(.*?)</p>",
+        r"<li\b[^>]*>(.*?)</li>",
+        r"<td\b[^>]*>(.*?)</td>",
+        r"<blockquote\b[^>]*>(.*?)</blockquote>",
+    ):
+        for m in re.finditer(pat, body_html, flags=re.I | re.S):
+            t = _strip_html_text(m.group(1))
+            if t:
+                chunks.append(t)
+    if chunks:
+        return " ".join(chunks)[:1200]
+    return _strip_html_text(body_html)[:1200]
+
+
 def extract_image_contexts_from_article(
     article_html: str = "",
     article_text: str = "",
@@ -467,9 +488,7 @@ def extract_image_contexts_from_article(
             level = int(m.group(1)[1])
             heading = _strip_html_text(m.group(2))
             body_html = m.group(3) or ""
-            paras = re.findall(r"<p\b[^>]*>(.*?)</p>", body_html, flags=re.I | re.S)
-            body_parts = [_strip_html_text(p) for p in paras if _strip_html_text(p)]
-            content = " ".join(body_parts)[:1200]
+            content = _section_body_text(body_html)
             if not heading:
                 continue
             contexts.append(
@@ -565,6 +584,7 @@ def build_image_search_query_for_section(
         primary_keyword=kw,
         title=heading or kw,
         section_heading=heading,
+        section_content=section_content,
     )
     if llm_q and len(llm_q) >= 4:
         return llm_q[:120]

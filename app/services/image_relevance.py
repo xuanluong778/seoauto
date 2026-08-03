@@ -61,6 +61,47 @@ def is_blocked_image_url(url: str) -> bool:
     return False
 
 
+_GENERIC_BRAND_NOISE_RE = re.compile(
+    r"(google\s*pay|g\s*pay|google\s*logo|googlegemini|wooden.{0,24}google|"
+    r"google\s*search\s*(homepage|page)|alphabet\s*inc|play\s*store)",
+    re.I,
+)
+_IRRELEVANT_NOISE_RE = re.compile(
+    r"(lượng\s*tử|quantum|google\s*pay|wooden.{0,20}google|gemini\s*logo|"
+    r"homepage|play\s*store|celebrity|meme)",
+    re.I,
+)
+
+
+def _keyword_semantic_not_brand(keyword: str) -> bool:
+    kw = str(keyword or "").lower()
+    hints = (
+        "thuật toán", "algorithm", "seo", "tối ưu", "ranking", "hướng dẫn",
+        "là gì", "cách ", "chiến lược", "minh họa", "sơ đồ", "diagram",
+    )
+    return any(h in kw for h in hints)
+
+
+def is_generic_brand_noise_image(item: dict[str, Any], keyword: str) -> bool:
+    """Ảnh logo/homepage thương hiệu không phù hợp khi chủ đề là khái niệm SEO."""
+    if not _keyword_semantic_not_brand(keyword):
+        return False
+    blob = " ".join(
+        [
+            str(item.get("title") or ""),
+            str(item.get("link") or ""),
+            str(item.get("context") or ""),
+        ]
+    ).lower()
+    if _GENERIC_BRAND_NOISE_RE.search(blob):
+        return True
+    kw_tokens = keyword_tokens(keyword, min_len=4)
+    non_brand = [t for t in kw_tokens if t not in ("google", "gmail", "youtube")]
+    if non_brand and "google" in blob:
+        return not any(t in blob for t in non_brand[:4])
+    return False
+
+
 def score_image_relevance(item: dict[str, Any], terms: list[str]) -> float:
     blob = " ".join(
         [
@@ -75,7 +116,7 @@ def score_image_relevance(item: dict[str, Any], terms: list[str]) -> float:
 
     all_tokens: list[str] = []
     for term in terms:
-        all_tokens.extend(keyword_tokens(term, min_len=3))
+        all_tokens.extend(keyword_tokens(term, min_len=4))
 
     if not all_tokens:
         return 0.0
@@ -94,6 +135,28 @@ def score_image_relevance(item: dict[str, Any], terms: list[str]) -> float:
     important = [t for t in all_tokens if len(t) >= 4]
     if important and not any(t in blob for t in important):
         score *= 0.25
+
+    primary = str(terms[0] or "").strip() if terms else ""
+    if _keyword_semantic_not_brand(primary) and _GENERIC_BRAND_NOISE_RE.search(blob):
+        score -= 55.0
+    if _keyword_semantic_not_brand(primary) and _IRRELEVANT_NOISE_RE.search(blob):
+        score -= 40.0
+
+    kw_tokens = keyword_tokens(primary, min_len=4)
+    non_brand = [t for t in kw_tokens if t not in ("google", "gmail", "youtube")]
+    if non_brand and "google" in blob.lower():
+        if not any(t in blob for t in non_brand[:4]):
+            score -= 35.0
+
+    kw_low = primary.lower()
+    concept_boosts: tuple[str, ...] = ()
+    if "thuật toán" in kw_low:
+        concept_boosts = ("algorithm", "ranking", "diagram", "flowchart", "infographic", "analytics", "search engine")
+    elif "seo" in kw_low or "tối ưu" in kw_low:
+        concept_boosts = ("seo", "optimization", "ranking", "analytics", "dashboard", "marketing", "search engine")
+    hits = sum(1 for term in concept_boosts if term in blob)
+    if hits:
+        score += hits * 10.0
 
     return score
 
@@ -138,13 +201,17 @@ def build_llm_image_search_query(
     primary_keyword: str,
     title: str = "",
     section_heading: str = "",
+    section_content: str = "",
 ) -> str:
     """Tạo câu truy vấn ảnh ngắn, sát chủ đề (ưu tiên tiếng Việt)."""
     pk = re.sub(r"\s+", " ", str(primary_keyword or "").strip())
     h2 = re.sub(r"\s+", " ", str(section_heading or "").strip())
     t = re.sub(r"\s+", " ", str(title or "").split("|", 1)[0].strip())
+    section = re.sub(r"\s+", " ", str(section_content or "").strip())[:280]
 
-    if h2 and pk:
+    if h2 and section:
+        base = f"{pk} {h2} {section[:80]}".strip()
+    elif h2 and pk:
         base = f"{pk} {h2}"
     elif pk:
         base = pk
@@ -156,9 +223,15 @@ def build_llm_image_search_query(
     system = (
         "Bạn tạo 1 câu tìm kiếm ảnh minh họa cho bài blog SEO tiếng Việt. "
         "Chỉ trả về đúng 1 câu 4-12 từ, không dấu ngoặc, không giải thích. "
-        "Ảnh phải là photo thật liên quan chủ đề, không logo, không meme, không người nổi tiếng ngẫu nhiên."
+        "Ảnh phải là photo/diagram thật liên quan chủ đề bài viết. "
+        "KHÔNG tìm logo Google, Google Pay, homepage Google, ảnh gỗ chữ GOOGLE, văn phòng generic. "
+        "Ưu tiên: sơ đồ, infographic, minh họa khái niệm, dashboard SEO phù hợp từ khóa."
     )
-    user = f"Từ khóa chính: {pk}\nTiêu đề bài: {t}\nMục trong bài: {h2 or '(ảnh đại diện)'}"
+    user = (
+        f"Từ khóa chính: {pk}\nTiêu đề bài: {t}\n"
+        f"Mục trong bài: {h2 or '(ảnh đại diện)'}\n"
+        f"Nội dung đoạn: {section or '(chưa có)'}"
+    )
     llm_q = _openai_chat(system=system, user=user, max_tokens=60)
     llm_q = re.sub(r"^[\"'“”]+|[\"'“”]+$", "", llm_q).strip()
     if 4 <= len(llm_q) <= 120:
@@ -172,8 +245,14 @@ def pick_best_image_candidate(
     primary_keyword: str,
     title: str = "",
     section_heading: str = "",
+    section_content: str = "",
 ) -> dict[str, Any] | None:
-    terms = [primary_keyword, title.split("|", 1)[0].strip() if title else "", section_heading]
+    terms = [
+        primary_keyword,
+        title.split("|", 1)[0].strip() if title else "",
+        section_heading,
+        section_content[:200] if section_content else "",
+    ]
     terms = [re.sub(r"\s+", " ", t).strip() for t in terms if t]
 
     pool: list[dict[str, Any]] = []
@@ -206,6 +285,7 @@ def pick_best_image_candidate(
         )
     ctx = (
         f"Từ khóa: {primary_keyword}\nTiêu đề: {title}\nMục: {section_heading or 'ảnh đại diện'}\n"
+        f"Đoạn văn: {(section_content or '')[:300]}\n"
         f"Chọn 1 ảnh PHÙ HỢP NHẤT (photo minh họa đúng chủ đề). Trả JSON: {{\"index\": 0}}\n"
         f"Nếu không có ảnh phù hợp: {{\"index\": -1}}\n\n"
         + "\n".join(lines)
