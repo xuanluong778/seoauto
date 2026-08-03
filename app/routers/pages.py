@@ -57,7 +57,9 @@ from app.services.content_ai_project_store import (
 )
 from app.services.content_ai_content_images import (
     auto_insert_images_to_project,
+    collect_allowed_urls_from_project,
     count_content_images,
+    sanitize_invalid_content_images,
     _resolve_project_content,
 )
 from app.services.content_ai_google_thumbnail import fetch_and_attach_google_thumbnail
@@ -68,6 +70,11 @@ from app.services.content_ai_image_studio import (
     studio_catalog,
 )
 from app.services.google_cse_images import import_remote_image_url
+from app.services.content_ai_web_image_insert import (
+    insert_web_image_into_content,
+    search_web_images_for_content,
+    web_image_catalog,
+)
 from app.services.web_image_search import image_search_status, search_web_images
 from app.services.content_ai_image_finder import search_contextual_images
 from app.services.content_draft_builder import build_draft_payload, detect_search_intent
@@ -666,6 +673,98 @@ def content_ai_google_images_import(
         raise HTTPException(status_code=502, detail=f"Không tải được ảnh: {exc}") from exc
     name = Path(local_url).name
     return JSONResponse(content={"url": local_url, "name": name})
+
+
+@router.get("/content-ai/web-images/catalog")
+def content_ai_web_images_catalog(
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    return JSONResponse(content=web_image_catalog())
+
+
+class ContentAiWebImageSearchRequest(BaseModel):
+    query_mode: str = "keyword"
+    primary_keyword: str = ""
+    title: str = ""
+    h2_heading: str = ""
+    custom_query: str = ""
+    content_html: str = ""
+    outline_content: str = ""
+    num: int = 12
+
+
+@router.post("/content-ai/web-images/search")
+def content_ai_web_images_search(
+    payload: ContentAiWebImageSearchRequest,
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    try:
+        out = search_web_images_for_content(
+            query_mode=payload.query_mode,
+            primary_keyword=payload.primary_keyword,
+            title=payload.title,
+            h2_heading=payload.h2_heading,
+            custom_query=payload.custom_query,
+            content_html=payload.content_html,
+            outline_content=payload.outline_content,
+            num=max(1, min(int(payload.num or 12), 20)),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Tìm ảnh thất bại: {exc}") from exc
+    return JSONResponse(content=out)
+
+
+class ContentAiWebImageInsertRequest(BaseModel):
+    url: str
+    mode: str = "inline"
+    project_id: str | None = None
+    content_html: str = ""
+    outline_content: str = ""
+    title: str = ""
+    primary_keyword: str = ""
+    section_heading: str = ""
+    h2_index: int | None = None
+    size_preset: str = ""
+    target_width: int | None = None
+    target_height: int | None = None
+    output_format: str = "webp"
+    download_to_server: bool = True
+    alt: str = ""
+    caption: str = ""
+
+
+@router.post("/content-ai/web-images/insert")
+def content_ai_web_images_insert(
+    payload: ContentAiWebImageInsertRequest,
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    try:
+        out = insert_web_image_into_content(
+            user_id=current_user.id,
+            remote_url=payload.url,
+            content_html=payload.content_html,
+            outline_content=payload.outline_content,
+            title=payload.title,
+            primary_keyword=payload.primary_keyword,
+            section_heading=payload.section_heading,
+            h2_index=payload.h2_index,
+            project_id=payload.project_id,
+            size_preset=payload.size_preset,
+            target_width=payload.target_width,
+            target_height=payload.target_height,
+            output_format=payload.output_format,
+            download_to_server=bool(payload.download_to_server),
+            mode=payload.mode,
+            alt=payload.alt,
+            caption=payload.caption,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Chèn ảnh thất bại: {exc}") from exc
+    return JSONResponse(content=out)
 
 
 @router.get("/content-ai/projects")
@@ -1509,6 +1608,9 @@ class ContentAiStudioInsertRequest(BaseModel):
     h2_index: int | None = None
     alt: str = ""
     caption: str = ""
+    output_format: str = ""
+    target_width: int | None = None
+    target_height: int | None = None
 
 
 @router.post("/content-ai/images/insert-selected")
@@ -1530,6 +1632,9 @@ def content_ai_images_insert_selected(
             h2_index=payload.h2_index,
             alt=payload.alt,
             caption=payload.caption,
+            output_format=payload.output_format,
+            target_width=payload.target_width,
+            target_height=payload.target_height,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1934,6 +2039,7 @@ def content_ai_postprocess_content(
     out = postprocess_content_blockquotes(out)
     out = strip_publish_checklist_from_html(out)
     out = enhance_tables_in_html(out)
+    out, _ = sanitize_invalid_content_images(out)
     stats = postprocess_stats(out)
     return JSONResponse(content={"content_html": out, "stats": stats})
 
@@ -2024,6 +2130,7 @@ class InternalLinkApplyRequest(BaseModel):
     article_primary_keyword: str | None = None
     article_secondary_keywords: str | None = None
     use_llm_rewrite: bool | None = False  # True = LLM viết đoạn ngắn + chèn anchor (không dùng popup Tham khảo thêm)
+    preview_only: bool | None = False  # Xem trước nhanh — không LLM, không chặn khi 0 link chèn
     apply_mode: str | None = "full"  # full | append_only
     append_lead: str | None = "Tham khảo thêm:"
     confirmed_append_urls: list[str] | None = None
@@ -2053,15 +2160,9 @@ def _normalize_site_base(raw: str) -> str:
 
 
 def _norm_url_for_compare(url: str) -> str:
-    raw = str(url or "").strip()
-    if not raw:
-        return ""
-    try:
-        p = urlparse(raw if "://" in raw else f"https://x.local/{raw.lstrip('/')}")
-        path = re.sub(r"/{2,}", "/", p.path or "/").rstrip("/")
-        return f"{(p.netloc or '').lower()}{path.lower()}"
-    except Exception:
-        return raw.lower().rstrip("/")
+    from app.services.wp_internal_link_apply import norm_url_for_compare
+
+    return norm_url_for_compare(url)
 
 
 def _fetch_wp_term_map(base: str, taxonomy: str, ids: set[int]) -> dict[int, str]:
@@ -3494,14 +3595,18 @@ def content_ai_internal_link_apply(
             ),
         )
 
-    use_llm = True if payload.use_llm_rewrite is None else bool(payload.use_llm_rewrite)
+    preview_only = bool(payload.preview_only)
+    use_llm = False if preview_only else (
+        True if payload.use_llm_rewrite is None else bool(payload.use_llm_rewrite)
+    )
     pk_a = str(payload.article_primary_keyword or "").strip()
     sec_a = str(payload.article_secondary_keywords or "").strip()
     llm_available = False
-    try:
-        llm_available = bool(load_llm_config())
-    except Exception:
-        llm_available = False
+    if use_llm:
+        try:
+            llm_available = bool(load_llm_config())
+        except Exception:
+            llm_available = False
 
     def _run_apply() -> dict[str, Any]:
         return apply_merged_internal_links(
@@ -3536,7 +3641,7 @@ def content_ai_internal_link_apply(
         merged = _run_apply()
     updates = merged.get("updates") or []
     pending = merged.get("pending_append_offers") or []
-    if not updates and not pending:
+    if not updates and not pending and not preview_only:
         detail = str(merged.get("error") or "Không chèn được internal link.")
         raise HTTPException(status_code=422, detail=detail)
     return JSONResponse(
@@ -3550,6 +3655,7 @@ def content_ai_internal_link_apply(
             "insert_mode": str(merged.get("insert_mode") or "minimal"),
             "pending_append_offers": pending,
             "verification": merged.get("verification") or {"ok": True, "issues": []},
+            "preview_only": preview_only,
         }
     )
 

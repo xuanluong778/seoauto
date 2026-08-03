@@ -5,15 +5,17 @@ import logging
 import os
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Iterable, Sequence
+from typing import TYPE_CHECKING, Iterable, Sequence
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import Session
 
 from app.services.internal_linking.models import InternalLinkArticle, InternalLinkChunk
 
 log = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 
 DEFAULT_MODEL = os.getenv("IL_EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2").strip()
@@ -24,6 +26,8 @@ def get_embedding_model(model_name: str | None = None) -> SentenceTransformer:
     name = (model_name or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     log.info("Loading sentence-transformers model=%s", name)
     # SentenceTransformer handles its own caching under ~/.cache by default.
+    from sentence_transformers import SentenceTransformer
+
     return SentenceTransformer(name)
 
 

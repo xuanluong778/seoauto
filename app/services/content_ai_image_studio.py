@@ -6,10 +6,20 @@ import re
 from typing import Any
 
 from app.services.content_ai_content_images import (
-    inject_images_into_content_html,
+    inject_image_smart_into_content_html,
     prepare_content_html_for_images,
-    suggest_image_alt_text,
     suggest_image_caption,
+)
+from app.services.content_ai_image_output import (
+    build_seo_image_alt,
+    build_seo_image_filename,
+    list_output_formats,
+    list_size_presets,
+    normalize_output_format,
+    parse_size_preset,
+    reencode_content_ai_image_at_url,
+    slugify_seo,
+    validate_dimensions,
 )
 from app.services.content_ai_project_store import (
     get_content_ai_project,
@@ -155,7 +165,23 @@ def generate_professional_previews(
     cw = int(custom_width) if custom_width else None
     ch = int(custom_height) if custom_height else None
     if use_custom and cw and ch:
+        cw, ch = validate_dimensions(cw, ch)
         ar_label = f"{cw}x{ch}"
+    out_fmt = normalize_output_format(output_format) if output_format else "png"
+    tw = th = None
+    if target_width and target_height:
+        tw, th = validate_dimensions(target_width, target_height)
+        ar_label = f"{tw}x{th}"
+    elif size_preset:
+        dims = parse_size_preset(size_preset)
+        if dims:
+            tw, th = dims
+            ar_label = f"{tw}x{th}"
+    elif not use_custom:
+        dims = parse_size_preset(aspect_ratio)
+        if dims:
+            tw, th = dims
+            ar_label = f"{tw}x{th}"
 
     n = _clamp_count(count)
     preset = normalize_style_preset(style_preset)
@@ -187,12 +213,17 @@ def generate_professional_previews(
         )
         slot_meta.append({"section_heading": h2, "h2_index": h2_idx})
 
-    stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", pk)[:36].strip("-") or "studio"
+    filename_stems = []
+    for i, meta in enumerate(slot_meta):
+        h2 = str(meta.get("section_heading") or "")
+        filename_stems.append(
+            build_seo_image_filename(pk, section_heading=h2, variation_index=i, output_format=out_fmt)
+        )
     try:
         variants = generate_openai_image_variants(
             prompts=prompts,
             aspect_ratio=aspect_ratio,
-            stem=f"studio-{stem}",
+            stem=f"studio-{slugify_seo(pk)[:24]}",
             custom_width=cw if use_custom else None,
             custom_height=ch if use_custom else None,
             model=image_model,
@@ -209,13 +240,23 @@ def generate_professional_previews(
         meta = slot_meta[vi] if vi < len(slot_meta) else slot_meta[0] if slot_meta else {}
         h2 = str(meta.get("section_heading") or "")
         summary = section_snippet_for_h2(html, h2) if h2 else ""
-        img_ctx = {"heading": h2, "content": summary}
+        alt = build_seo_image_alt(
+            primary_keyword=pk,
+            section_heading=h2,
+            section_summary=summary,
+            title=str(ctx.get("title") or ""),
+        )
         previews.append(
             {
                 "url": v["url"],
                 "index": v.get("index", vi),
                 "prompt": v.get("prompt", ""),
-                "alt": suggest_image_alt_text(img_ctx, pk),
+                "alt": alt,
+                "filename": filename_stems[vi] if vi < len(filename_stems) else "",
+                "mime_type": v.get("mime_type", ""),
+                "output_format": v.get("output_format", out_fmt),
+                "width": v.get("width") or tw,
+                "height": v.get("height") or th,
                 "section_heading": h2,
                 "h2_index": meta.get("h2_index"),
             }
@@ -236,6 +277,9 @@ def generate_professional_previews(
         "section_headings": h2_labels,
         "h2_indices": [t[1] for t in h2_targets if t[1] is not None],
         "count": len(previews),
+        "output_format": out_fmt,
+        "target_width": tw,
+        "target_height": th,
         "message": f"Đã tạo {len(previews)} ảnh preview{msg_extra} — chọn ảnh rồi bấm Chèn vào bài hoặc Featured.",
     }
 
@@ -253,6 +297,9 @@ def insert_selected_image(
     h2_index: int | None = None,
     alt: str = "",
     caption: str = "",
+    output_format: str = "",
+    target_width: int | None = None,
+    target_height: int | None = None,
 ) -> dict[str, Any]:
     """
     Insert a user-selected preview URL into content or set featured_image.
@@ -288,12 +335,38 @@ def insert_selected_image(
     outline = str((project or {}).get("outline_content") or "")
     html = prepare_content_html_for_images(html, outline)
 
-    img_ctx = {"heading": section_heading, "content": ""}
-    alt_text = str(alt or "").strip() or suggest_image_alt_text(img_ctx, pk)
+    summary = section_snippet_for_h2(html, section_heading) if section_heading else ""
+    alt_text = str(alt or "").strip() or build_seo_image_alt(
+        primary_keyword=pk,
+        section_heading=section_heading,
+        section_summary=summary,
+        title=ttl,
+    )
+    img_ctx = {"heading": section_heading, "content": summary}
     cap = str(caption or "").strip() or suggest_image_caption(img_ctx)
+
+    fmt = normalize_output_format(output_format) if output_format else ""
+    tw = th = None
+    if target_width and target_height:
+        tw, th = validate_dimensions(target_width, target_height)
+    if fmt or (tw and th):
+        seo_name = build_seo_image_filename(
+            pk, section_heading=section_heading, output_format=fmt or "webp"
+        )
+        try:
+            img_url = reencode_content_ai_image_at_url(
+                img_url,
+                output_format=fmt or "webp",
+                width=tw,
+                height=th,
+                filename=seo_name,
+            )
+        except ValueError:
+            pass
 
     updates: dict[str, Any] = {}
     new_html = html
+    placement_meta: dict[str, Any] = {}
 
     if mode_l == "featured":
         updates["featured_image"] = img_url
@@ -303,23 +376,19 @@ def insert_selected_image(
         fig_html = build_figure_html(url=img_url, alt=alt_text, caption=cap)
         new_html = (html or "") + fig_html
         updates["content"] = new_html
+        placement_meta = {"placement": "append"}
     else:
         insert: dict[str, Any] = {
             "url": img_url,
             "alt": alt_text,
             "caption": cap,
+            "section_heading": section_heading,
         }
         if h2_index is not None:
             insert["h2_index"] = int(h2_index)
-        elif section_heading:
-            h2s = extract_h2_list(html, outline)
-            try:
-                insert["h2_index"] = h2s.index(section_heading.strip())
-            except ValueError:
-                insert["h2_index"] = 0
-        else:
-            insert["h2_index"] = 0
-        new_html = inject_images_into_content_html(html, [insert])
+        new_html, placement_meta = inject_image_smart_into_content_html(
+            html, insert, outline=outline
+        )
         updates["content"] = new_html
 
     gallery: list[str] = []
@@ -343,6 +412,7 @@ def insert_selected_image(
         "featured_image": updates.get("featured_image") or (project or {}).get("featured_image") or "",
         "gallery_images": updates.get("gallery_images") or gallery,
         "alt": alt_text,
+        "placement": placement_meta,
         "project": updated_project,
         "project_id": project_id,
     }
@@ -358,11 +428,16 @@ def studio_catalog() -> dict[str, Any]:
             {"id": "social_cover", "label_vi": "Ảnh bìa social"},
             {"id": "ads_creative", "label_vi": "Creative quảng cáo"},
         ],
+        "output_formats": list_output_formats(),
+        "size_presets": list_size_presets(),
         "aspect_ratios": [
             {"id": "16:9", "label_vi": "16:9 Ngang (blog)"},
             {"id": "1:1", "label_vi": "1:1 Vuông"},
             {"id": "9:16", "label_vi": "9:16 Dọc"},
             {"id": "4:3", "label_vi": "4:3"},
+            {"id": "800x400", "label_vi": "800×400 px"},
+            {"id": "1200x630", "label_vi": "1200×630 px"},
+            {"id": "1024x1024", "label_vi": "1024×1024 px"},
             {"id": "custom", "label_vi": "Tùy chỉnh (px)"},
         ],
         "brand_tones": [
