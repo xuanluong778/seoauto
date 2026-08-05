@@ -110,6 +110,7 @@ def record_cskh_ai_reply(db: Session, user_id: int, bot_id: int, plan_slug: str 
         if credits_enforced():
             charged = cost_chatbot_cskh_reply(db=db)
             if charged > 0:
+                rid = new_request_id()
                 consume_credits(
                     db,
                     user_id=int(user_id),
@@ -118,8 +119,11 @@ def record_cskh_ai_reply(db: Session, user_id: int, bot_id: int, plan_slug: str 
                     note=f"bot_id={bot_id}",
                     module="chatbot_cskh",
                     action="reply_overage",
-                    request_id=new_request_id(),
+                    request_id=rid,
                     source="overage",
+                    feature_code="chatbot_cskh_reply",
+                    job_id=rid,
+                    idempotency_key=f"cskh_overage:{user_id}:{bot_id}:{month_key()}:{rid}"[:128],
                 )
     increment_reply_usage(db, user_id, bot_id, replies=1)
     return {"overage": overage, "credit_charged": charged}

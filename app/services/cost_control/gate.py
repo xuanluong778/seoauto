@@ -146,9 +146,39 @@ def cost_gate_session(req: CostGateRequest) -> Iterator[CostGateSession]:
   """
   Run pre-flight cost checks before any billable external API call.
 
-  Order: cache → single-flight → rate limit → cooldown → plan → quota → credit.
+  Order: SaaS feature/access (always, including cache) → cache → single-flight
+  → rate limit → cooldown → plan → quota → credit precheck.
+  Guest callers are rejected when SAAS_ENFORCEMENT requires a user.
   """
   session = CostGateSession(request=req, credit_required=max(0, int(req.credit_cost)))
+
+  # Central SaaS access + feature (trial blocks) BEFORE cache short-circuit
+  if req.user is None:
+    raise HTTPException(
+      status_code=status.HTTP_401_UNAUTHORIZED,
+      detail={"code": "auth_required", "message": "Đăng nhập để tiếp tục."},
+    )
+  try:
+    from app.services.saas_gate import enforce_saas_access
+
+    if req.feature_key:
+      session.plan_slug = enforce_saas_access(
+        req.db,
+        req.user,
+        feature_code=str(req.feature_key),
+        quantity=max(1, int(req.quota_units or 1)),
+        require_feature=True,
+      )
+    elif req.require_paid_plan:
+      session.plan_slug = _check_plan(req.db, req.user, require_paid_plan=True)
+    else:
+      # Soft software access for other billable external calls
+      session.plan_slug = _check_plan(req.db, req.user, require_paid_plan=True)
+  except HTTPException:
+    raise
+  except Exception:
+    _LOG.exception("cost_gate saas access failed user_id=%s", getattr(req.user, "id", None))
+    raise
 
   if req.cache_lookup is not None:
     try:
@@ -193,7 +223,8 @@ def cost_gate_session(req: CostGateRequest) -> Iterator[CostGateSession]:
       if req.cooldown_key:
         ensure_not_cooldown(req.cooldown_key, message=req.cooldown_message)
 
-    session.plan_slug = _check_plan(req.db, req.user, require_paid_plan=req.require_paid_plan)
+    if not session.plan_slug:
+      session.plan_slug = _check_plan(req.db, req.user, require_paid_plan=req.require_paid_plan)
 
     if req.feature_key and cost_control_enforced() and not is_admin(req.user):
       session.quota_remaining = _check_quota(

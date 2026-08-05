@@ -558,6 +558,8 @@ def finalize_seo_score_ai_fix_credit(db, user, *, success: bool, url: str, issue
         }
     cost = cost_seo_score_ai_fix(db=db)
     if cost > 0 and credits_enforced():
+        import hashlib
+        idem = hashlib.sha256(f"seo_score_ai_fix:{user.id}:{issue_id}:{url}".encode()).hexdigest()[:48]
         consume_credits(
             db,
             user_id=user.id,
@@ -566,6 +568,9 @@ def finalize_seo_score_ai_fix_credit(db, user, *, success: bool, url: str, issue
             module="seo_score",
             action="ai_fix",
             note=f"{issue_id}:{url}"[:500],
+            feature_code="seo_score",
+            job_id=idem,
+            idempotency_key=f"seo_score_ai_fix:{idem}"[:128],
         )
         return {"charged": cost, "billing_enabled": True}
     return {"charged": 0, "billing_enabled": True}

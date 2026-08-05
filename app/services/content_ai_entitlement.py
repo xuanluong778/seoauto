@@ -238,6 +238,11 @@ def assert_content_ai_feature(
     feature_key: str,
     quantity: int = 1,
 ) -> EntitlementResult:
+    from app.services.saas_gate import enforce_saas_access
+
+    # Central SaaS gate (software access + trial/feature) even when serving cache
+    if not bypass_entitlement(user):
+        enforce_saas_access(db, user, feature_code=feature_key, quantity=quantity)
     result = check_content_ai_feature(db, user, feature_key, quantity=quantity)
     raise_if_denied(result)
     return result

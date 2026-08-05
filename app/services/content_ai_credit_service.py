@@ -365,6 +365,9 @@ def charge_content_ai_write(
         action=tier,
         request_id=req_id,
         source="content_ai_write",
+        feature_code="content_ai_article" if requested == "content" else "content_ai_brief",
+        job_id=req_id,
+        idempotency_key=f"content_ai_write:{req_id}"[:128],
     )
     return {"request_id": req_id, "charged": amount, "reason": reason}
 

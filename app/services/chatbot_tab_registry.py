@@ -321,6 +321,7 @@ def consume_workflow_credits(
 
     intent = str(intent or "").strip()
     note = f"wf={workflow_id[:32]};intent={intent[:40]}"
+    idem_base = f"chatbot_wf:{workflow_id}"[:100]
 
     if intent == INTENT_QUICK_KEYWORD_ARTICLE:
         from app.services.credits import consume_quick_write_credits
@@ -349,44 +350,52 @@ def consume_workflow_credits(
 
     if intent == INTENT_KEYWORD_RESEARCH:
         if est.get("research", 0) > 0:
-            consume_credits(db, user_id=user_id, amount=est["research"], reason="chatbot_keyword_research", note=note)
+            consume_credits(db, user_id=user_id, amount=est["research"], reason="chatbot_keyword_research", note=note,
+                            feature_code="keyword_research", job_id=workflow_id, idempotency_key=f"{idem_base}:research")
         return {**est, "charged": True}
 
     if intent == INTENT_KEYWORD_RESEARCH_CLUSTER:
         if est.get("research", 0) > 0:
-            consume_credits(db, user_id=user_id, amount=est["research"], reason="chatbot_keyword_research", note=note)
+            consume_credits(db, user_id=user_id, amount=est["research"], reason="chatbot_keyword_research", note=note,
+                            feature_code="keyword_research", job_id=workflow_id, idempotency_key=f"{idem_base}:research")
         if est.get("clustering", 0) > 0:
-            consume_credits(db, user_id=user_id, amount=est["clustering"], reason="chatbot_keyword_cluster", note=note)
+            consume_credits(db, user_id=user_id, amount=est["clustering"], reason="chatbot_keyword_cluster", note=note,
+                            feature_code="keyword_cluster", job_id=workflow_id, idempotency_key=f"{idem_base}:cluster")
         return {**est, "charged": True}
 
     if intent == INTENT_URL_SEO_SCOREBOARD:
         amt = cost_url_seo_scoreboard()
         if amt > 0:
-            consume_credits(db, user_id=user_id, amount=amt, reason="url_seo_scoreboard", note=note)
+            consume_credits(db, user_id=user_id, amount=amt, reason="url_seo_scoreboard", note=note,
+                            feature_code="seo_score", job_id=workflow_id, idempotency_key=f"{idem_base}:seo")
         return {**est, "charged": True}
 
     if intent == INTENT_CONTENT_SEO_SCORE:
         amt = cost_content_seo_score()
         if amt > 0:
-            consume_credits(db, user_id=user_id, amount=amt, reason="content_seo_score", note=note)
+            consume_credits(db, user_id=user_id, amount=amt, reason="content_seo_score", note=note,
+                            feature_code="seo_score", job_id=workflow_id, idempotency_key=f"{idem_base}:content_seo")
         return {**est, "charged": True}
 
     if intent == INTENT_TECHNICAL_QUICK_AUDIT:
         amt = cost_technical_quick_audit()
         if amt > 0:
-            consume_credits(db, user_id=user_id, amount=amt, reason="technical_quick_audit", note=note)
+            consume_credits(db, user_id=user_id, amount=amt, reason="technical_quick_audit", note=note,
+                            feature_code="technical_audit", job_id=workflow_id, idempotency_key=f"{idem_base}:tech_q")
         return {**est, "charged": True}
 
     if intent == INTENT_TECHNICAL_DEEP_AUDIT:
         amt = cost_technical_deep_audit()
         if amt > 0:
-            consume_credits(db, user_id=user_id, amount=amt, reason="technical_deep_audit", note=note)
+            consume_credits(db, user_id=user_id, amount=amt, reason="technical_deep_audit", note=note,
+                            feature_code="technical_audit", job_id=workflow_id, idempotency_key=f"{idem_base}:tech_d")
         return {**est, "charged": True}
 
     if intent == INTENT_TECHNICAL_SINGLE_URL:
         amt = cost_technical_single_url()
         if amt > 0:
-            consume_credits(db, user_id=user_id, amount=amt, reason="technical_single_url", note=note)
+            consume_credits(db, user_id=user_id, amount=amt, reason="technical_single_url", note=note,
+                            feature_code="technical_audit", job_id=workflow_id, idempotency_key=f"{idem_base}:tech_u")
         return {**est, "charged": True}
 
     return {**est, "charged": False}

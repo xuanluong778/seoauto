@@ -26,8 +26,10 @@ from app.services.api_payload_optimizer import (
     shape_keyword_research_response,
 )
 from app.services.auth import get_billing_user, get_current_user
+from app.services.trial_access import require_active_trial
 from app.services.rbac import normalize_role
 from app.services.user_scope import assert_job_access
+from app.services.async_task_registry import assert_task_owner, register_task_owner
 from app.services.credits import (
     consume_credits,
     cost_cluster_async,
@@ -45,6 +47,9 @@ from app.services.keyword_export import export_cluster_flat_to_excel, export_to_
 from app.services.keyword_research_cost import KeywordResearchCostExceeded
 from app.services.keyword_research_pipeline import build_keyword_research_api_response
 from app.services.search_volume import enrich_keyword_volumes_cached
+from app.services.saas_gate import enforce_saas_access, saas_action_gate, build_job_id
+from app.services.saas_trial_service import TRIAL_BLOCKED_FEATURES
+import uuid
 
 router = APIRouter(prefix="/keywords", tags=["keywords"])
 templates = Jinja2Templates(directory="templates")
@@ -97,75 +102,85 @@ class VolumeBatchBody(BaseModel):
 def api_keyword_volume_batch(
     body: VolumeBatchBody,
     db: Session = Depends(get_db),
-    billing_user: User | None = Depends(get_billing_user),
+    current_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     from app.services.dataforseo_billing_service import (
         DataforseoStats,
-        charge_volume_batch_credits,
         log_dataforseo_usage,
         preview_volume_batch_billing,
         user_may_use_dataforseo_live,
     )
+    from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
 
     kws = [str(s).strip() for s in body.keywords if str(s).strip()]
     if not kws:
         raise HTTPException(status_code=400, detail="At least one keyword required")
 
+    billing_user = current_user
+    feature = feature_key_for("keyword_research")
+    enforce_saas_access(db, billing_user, feature_code=feature, quantity=max(1, (len(kws) + 99) // 100))
+
     stats: dict[str, Any] = {}
-    allow_live = True
-    preview = None
-    plan_slug = None
+    allow_live = user_may_use_dataforseo_live(db, billing_user)
+    preview = preview_volume_batch_billing(
+        db,
+        billing_user,
+        keywords=kws,
+        country=body.country,
+        language=body.language,
+    )
+    plan_slug = resolve_cau_ai_plan_slug(db, billing_user)
+    credit_cost = int(preview.credit_cost or 0)
+    job_id = build_job_id("volume_batch", billing_user.id, uuid.uuid4().hex[:10])
+    gate_req = CostGateRequest(
+        db=db,
+        user=billing_user,
+        provider=ExternalApiProvider.DATAFORSEO,
+        action="volume_batch",
+        credit_cost=0,
+        feature_key=feature,
+        quota_units=max(1, (len(kws) + 99) // 100),
+        require_paid_plan=True,
+        skip_credit_check=True,
+        single_flight_key=f"volume_batch:{billing_user.id}",
+    )
+    with saas_action_gate(
+        db,
+        billing_user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=max(1, (len(kws) + 99) // 100),
+        job_id=job_id,
+        idempotency_key=job_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            with cost_gate_session(gate_req):
+                rows = enrich_keyword_volumes_cached(
+                    kws,
+                    country=body.country,
+                    language=body.language,
+                    allow_api=allow_live,
+                    stats=stats,
+                )
+        except Exception:
+            sgate.release(reason="job_failed")
+            raise
 
-    if billing_user:
-        from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
+        out: dict[str, dict] = {}
+        for r in rows or []:
+            kw = str(r.get("keyword") or "").strip()
+            if not kw:
+                continue
+            out[kw] = {
+                "search_volume": int(r.get("search_volume") or 0),
+                "volume_source": str(r.get("volume_source") or ""),
+                "confidence": float(r.get("confidence") or 0.0),
+            }
 
-        allow_live = user_may_use_dataforseo_live(db, billing_user)
-        preview = preview_volume_batch_billing(
-            db,
-            billing_user,
-            keywords=kws,
-            country=body.country,
-            language=body.language,
-        )
-        plan_slug = resolve_cau_ai_plan_slug(db, billing_user)
-        gate_req = CostGateRequest(
-            db=db,
-            user=billing_user,
-            provider=ExternalApiProvider.DATAFORSEO,
-            action="volume_batch",
-            credit_cost=int(preview.credit_cost),
-            feature_key=feature_key_for("keyword_research"),
-            quota_units=max(1, (len(kws) + 99) // 100),
-            require_paid_plan=True,
-            single_flight_key=f"volume_batch:{billing_user.id}",
-        )
-        with cost_gate_session(gate_req):
-            rows = enrich_keyword_volumes_cached(
-                kws,
-                country=body.country,
-                language=body.language,
-                allow_api=allow_live,
-                stats=stats,
-            )
-    else:
-        rows = enrich_keyword_volumes_cached(kws, country=body.country, language=body.language)
-
-    out: dict[str, dict] = {}
-    for r in rows or []:
-        kw = str(r.get("keyword") or "").strip()
-        if not kw:
-            continue
-        out[kw] = {
-            "search_volume": int(r.get("search_volume") or 0),
-            "volume_source": str(r.get("volume_source") or ""),
-            "confidence": float(r.get("confidence") or 0.0),
-        }
-
-    charged = 0
-    if billing_user and preview is not None:
+        sgate.commit()
         dfs_stats = DataforseoStats()
         dfs_stats.merge(stats)
-        charged = charge_volume_batch_credits(db, billing_user, preview=preview, stats=dfs_stats)
         log_dataforseo_usage(
             db,
             user_id=billing_user.id,
@@ -173,7 +188,7 @@ def api_keyword_volume_batch(
             endpoint="search_volume/live",
             api_mode="live" if dfs_stats.api_tasks > 0 else "cache",
             tasks_count=dfs_stats.api_tasks,
-            credit_charged=charged,
+            credit_charged=credit_cost,
             cache_hit=int(preview.cache_hits),
             api_called=dfs_stats.api_tasks,
             keyword_count=len(kws),
@@ -209,7 +224,7 @@ def api_cluster_save(
     body: ClusterSaveBody,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    billing_user: User | None = Depends(get_billing_user),
+    billing_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     kws = [str(s).strip() for s in body.keywords if str(s).strip()]
     if not kws:
@@ -338,12 +353,11 @@ def api_keyword_research(
     cluster_fetch_serp: str | None = Query(default=None, max_length=8),
     cluster_max_keywords: int | None = Query(default=None),
     db: Session = Depends(get_db),
-    billing_user: User | None = Depends(get_billing_user),
+    billing_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
     from app.services.dataforseo_billing_service import (
         DataforseoStats,
-        charge_research_credits,
         log_dataforseo_usage,
         preview_research_billing,
         user_may_use_dataforseo_live,
@@ -354,68 +368,63 @@ def api_keyword_research(
         cfs = str(cluster_fetch_serp).lower() in ("1", "true", "yes", "on")
 
     seeds = [seed_keyword.strip()]
-    allow_live = user_may_use_dataforseo_live(db, billing_user) if billing_user else True
-    preview = (
-        preview_research_billing(db, billing_user, seeds=seeds, country=country, language=language)
-        if billing_user
-        else None
+    feature = feature_key_for("keyword_research")
+    enforce_saas_access(db, billing_user, feature_code=feature, quantity=1)
+    allow_live = user_may_use_dataforseo_live(db, billing_user)
+    preview = preview_research_billing(db, billing_user, seeds=seeds, country=country, language=language)
+    credit_cost = int(preview.credit_cost or 0)
+    job_id = build_job_id("keyword_research_get", billing_user.id, uuid.uuid4().hex[:10])
+    gate_req = CostGateRequest(
+        db=db,
+        user=billing_user,
+        provider=ExternalApiProvider.DATAFORSEO,
+        action="keyword_research_get",
+        credit_cost=0,
+        feature_key=feature,
+        quota_units=1,
+        require_paid_plan=True,
+        skip_credit_check=True,
+        single_flight_key=f"keyword_research_get:{billing_user.id}",
     )
+    with saas_action_gate(
+        db,
+        billing_user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=1,
+        job_id=job_id,
+        idempotency_key=job_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            with cost_gate_session(gate_req):
+                stats: dict[str, Any] = {}
+                payload = build_keyword_research_api_response(
+                    seed_keyword=seed_keyword,
+                    domain=domain,
+                    url=url,
+                    engine=engine,
+                    language=language,
+                    country=country,
+                    device=device,
+                    cluster_mode=cluster_mode,
+                    cluster_strictness=cluster_strictness,
+                    cluster_fetch_serp=cfs,
+                    cluster_max_keywords=cluster_max_keywords,
+                    allow_dataforseo_live=allow_live,
+                    billing_stats=stats,
+                )
+        except Exception:
+            sgate.release(reason="job_failed")
+            raise
 
-    if billing_user and preview is not None:
-        gate_req = CostGateRequest(
-            db=db,
-            user=billing_user,
-            provider=ExternalApiProvider.DATAFORSEO,
-            action="keyword_research_get",
-            credit_cost=int(preview.credit_cost),
-            feature_key=feature_key_for("keyword_research"),
-            quota_units=1,
-            require_paid_plan=True,
-            single_flight_key=f"keyword_research_get:{billing_user.id}",
-        )
-        with cost_gate_session(gate_req):
-            stats: dict[str, Any] = {}
-            payload = build_keyword_research_api_response(
-                seed_keyword=seed_keyword,
-                domain=domain,
-                url=url,
-                engine=engine,
-                language=language,
-                country=country,
-                device=device,
-                cluster_mode=cluster_mode,
-                cluster_strictness=cluster_strictness,
-                cluster_fetch_serp=cfs,
-                cluster_max_keywords=cluster_max_keywords,
-                allow_dataforseo_live=allow_live,
-                billing_stats=stats,
-            )
-    else:
-        stats = {}
-        payload = build_keyword_research_api_response(
-            seed_keyword=seed_keyword,
-            domain=domain,
-            url=url,
-            engine=engine,
-            language=language,
-            country=country,
-            device=device,
-            cluster_mode=cluster_mode,
-            cluster_strictness=cluster_strictness,
-            cluster_fetch_serp=cfs,
-            cluster_max_keywords=cluster_max_keywords,
-            allow_dataforseo_live=allow_live,
-            billing_stats=stats,
-        )
+        if payload.get("meta", {}).get("error"):
+            sgate.release(reason="bad_request")
+            return JSONResponse(status_code=400, content=payload)
 
-    if payload.get("meta", {}).get("error"):
-        return JSONResponse(status_code=400, content=payload)
-    if billing_user and preview is not None:
+        sgate.commit()
         dfs_stats = DataforseoStats()
         dfs_stats.merge(stats)
-        charged = charge_research_credits(
-            db, billing_user, preview=preview, stats=dfs_stats, seeds_count=1,
-        )
         log_dataforseo_usage(
             db,
             user_id=billing_user.id,
@@ -423,7 +432,7 @@ def api_keyword_research(
             endpoint="keywords_for_keywords/live",
             api_mode=preview.api_mode,
             tasks_count=dfs_stats.api_tasks,
-            credit_charged=charged,
+            credit_charged=credit_cost,
             cache_hit=dfs_stats.cache_hits,
             api_called=dfs_stats.api_tasks,
             keyword_count=1,
@@ -438,12 +447,11 @@ def api_keyword_research_run(
     body: ResearchRunBody,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    billing_user: User | None = Depends(get_billing_user),
+    billing_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
     from app.services.dataforseo_billing_service import (
         DataforseoStats,
-        charge_research_credits,
         log_dataforseo_usage,
         preview_research_billing,
         user_may_use_dataforseo_live,
@@ -452,7 +460,9 @@ def api_keyword_research_run(
     seeds = [str(s).strip() for s in body.seeds if str(s).strip()][:50]
     if not seeds:
         raise HTTPException(status_code=400, detail="At least one keyword required")
-    charge_user = billing_user or current_user
+    charge_user = billing_user  # require_active_trial always supplies user
+    feature = feature_key_for("keyword_research")
+    enforce_saas_access(db, charge_user, feature_code=feature, quantity=max(1, len(seeds)))
     allow_live = user_may_use_dataforseo_live(db, charge_user)
     preview = preview_research_billing(
         db,
@@ -461,94 +471,109 @@ def api_keyword_research_run(
         country=body.country,
         language=body.language,
     )
-    credit_cost = int(preview.credit_cost)
+    credit_cost = int(preview.credit_cost or 0)
+    job_id = build_job_id("keyword_research", charge_user.id, uuid.uuid4().hex[:10])
     gate_req = CostGateRequest(
         db=db,
         user=charge_user,
         provider=ExternalApiProvider.DATAFORSEO,
         action="keyword_research",
-        credit_cost=credit_cost,
-        feature_key=feature_key_for("keyword_research"),
+        credit_cost=0,
+        feature_key=feature,
         quota_units=max(1, len(seeds)),
         require_paid_plan=True,
+        skip_credit_check=True,
         single_flight_key=f"keyword_research:{current_user.id}",
     )
     stats: dict[str, Any] = {}
-    try:
-        with cost_gate_session(gate_req):
-            payload = build_keyword_research_api_response(
-                seed_keywords=seeds,
-                domain=body.domain,
-                url=body.url,
-                engine=body.engine,
-                language=body.language,
-                country=body.country,
-                device=body.device,
-                cluster_mode=body.cluster_mode,
-                cluster_strictness=body.cluster_strictness,
-                cluster_fetch_serp=body.cluster_fetch_serp,
-                cluster_max_keywords=body.cluster_max_keywords,
-                max_keywords=body.max_keywords,
-                deep_analysis=body.deep_analysis,
-                allow_dataforseo_live=allow_live,
-                billing_stats=stats,
-            )
-    except KeywordResearchCostExceeded as exc:
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "code": "keyword_research_cost_limit",
-                "message": str(exc),
-                "cost": (exc.stats or stats),
-            },
-        ) from exc
-    if payload.get("meta", {}).get("error"):
-        return JSONResponse(status_code=400, content=payload)
-    charged = 0
-    if billing_user:
+    with saas_action_gate(
+        db,
+        charge_user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=max(1, len(seeds)),
+        job_id=job_id,
+        idempotency_key=job_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            with cost_gate_session(gate_req):
+                payload = build_keyword_research_api_response(
+                    seed_keywords=seeds,
+                    domain=body.domain,
+                    url=body.url,
+                    engine=body.engine,
+                    language=body.language,
+                    country=body.country,
+                    device=body.device,
+                    cluster_mode=body.cluster_mode,
+                    cluster_strictness=body.cluster_strictness,
+                    cluster_fetch_serp=body.cluster_fetch_serp,
+                    cluster_max_keywords=body.cluster_max_keywords,
+                    max_keywords=body.max_keywords,
+                    deep_analysis=body.deep_analysis,
+                    allow_dataforseo_live=allow_live,
+                    billing_stats=stats,
+                )
+        except KeywordResearchCostExceeded as exc:
+            sgate.release(reason="cost_limit")
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "keyword_research_cost_limit",
+                    "message": str(exc),
+                    "cost": (exc.stats or stats),
+                },
+            ) from exc
+        except Exception:
+            sgate.release(reason="job_failed")
+            raise
+
+        if payload.get("meta", {}).get("error"):
+            sgate.release(reason="bad_request")
+            return JSONResponse(status_code=400, content=payload)
+
+        sgate.commit()
         dfs_stats = DataforseoStats()
         dfs_stats.merge(stats)
-        charged = charge_research_credits(
-            db, billing_user, preview=preview, stats=dfs_stats, seeds_count=len(seeds),
-        )
         record_quota_usage(
             db,
-            billing_user.id,
-            feature_key_for("keyword_research"),
+            charge_user.id,
+            feature,
             quantity=max(1, len(seeds)),
-            credits_used=charged,
+            credits_used=credit_cost,
         )
         log_dataforseo_usage(
             db,
-            user_id=billing_user.id,
+            user_id=charge_user.id,
             action="keyword_research",
             endpoint="keywords_for_keywords/live",
             api_mode=preview.api_mode,
             tasks_count=dfs_stats.api_tasks,
-            credit_charged=charged,
+            credit_charged=credit_cost,
             cache_hit=dfs_stats.cache_hits,
             api_called=dfs_stats.api_tasks,
             keyword_count=len(seeds),
-            plan_slug=resolve_cau_ai_plan_slug(db, billing_user),
+            plan_slug=resolve_cau_ai_plan_slug(db, charge_user),
         )
-    label = " + ".join(seeds[:10])
-    if len(seeds) > 10:
-        label += " + …"
-    row = KeywordResearchProject(
-        user_id=current_user.id,
-        keywords_label=label[:2000],
-        seeds_json=json.dumps(seeds, ensure_ascii=False),
-        language=body.language,
-        country=body.country,
-        engine=body.engine,
-        location_label=_country_label(body.country),
-        status="completed",
-        result_json=json.dumps(payload, ensure_ascii=False),
-    )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    payload["meta"]["project_id"] = row.id
+        label = " + ".join(seeds[:10])
+        if len(seeds) > 10:
+            label += " + …"
+        row = KeywordResearchProject(
+            user_id=current_user.id,
+            keywords_label=label[:2000],
+            seeds_json=json.dumps(seeds, ensure_ascii=False),
+            language=body.language,
+            country=body.country,
+            engine=body.engine,
+            location_label=_country_label(body.country),
+            status="completed",
+            result_json=json.dumps(payload, ensure_ascii=False),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        payload["meta"]["project_id"] = row.id
     return JSONResponse(content=payload)
 
 
@@ -658,7 +683,7 @@ def api_research_delete_alias(
 def api_keyword_research_run_async(
     body: ResearchRunBody,
     db: Session = Depends(get_db),
-    billing_user: User | None = Depends(get_billing_user),
+    billing_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     """Queue full research + clustering on Celery (``KEYWORD_RESEARCH_ASYNC_CELERY=1`` + worker)."""
     if os.getenv("KEYWORD_RESEARCH_ASYNC_CELERY", "0").lower() not in ("1", "true", "yes"):
@@ -673,10 +698,10 @@ def api_keyword_research_run_async(
     seeds = [str(s).strip() for s in body.seeds if str(s).strip()][:50]
     if not seeds:
         raise HTTPException(status_code=400, detail="At least one keyword required")
-    if not billing_user:
-        raise HTTPException(status_code=401, detail="Cần đăng nhập để chạy nghiên cứu từ khóa bất đồng bộ.")
     from app.services.dataforseo_billing_service import preview_research_billing
 
+    feature = feature_key_for("keyword_research")
+    enforce_saas_access(db, billing_user, feature_code=feature, quantity=max(1, len(seeds)))
     preview = preview_research_billing(
         db,
         billing_user,
@@ -684,31 +709,52 @@ def api_keyword_research_run_async(
         country=body.country,
         language=body.language,
     )
+    credit_cost = int(preview.credit_cost or 0)
+    job_id = build_job_id("keyword_research_async", billing_user.id, uuid.uuid4().hex[:12])
     gate_req = CostGateRequest(
         db=db,
         user=billing_user,
         provider=ExternalApiProvider.DATAFORSEO,
         action="keyword_research_async",
-        credit_cost=int(preview.credit_cost),
-        feature_key=feature_key_for("keyword_research"),
+        credit_cost=0,
+        feature_key=feature,
         quota_units=max(1, len(seeds)),
         require_paid_plan=True,
+        skip_credit_check=True,
         single_flight_key=f"keyword_research_async:{billing_user.id}",
     )
     with cost_gate_session(gate_req):
         pass
-    owner_id = int(billing_user.id)
-    payload = body.model_dump()
-    payload["_owner_user_id"] = owner_id
-    task = run_keyword_research_task.delay(payload)
-    register_task_owner(task.id, owner_id)
-    return JSONResponse(
-        content={
-            "task_id": task.id,
-            "state": "QUEUED",
-            "poll_url": f"/keywords/research/task/{task.id}",
-        }
-    )
+    with saas_action_gate(
+        db,
+        billing_user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=max(1, len(seeds)),
+        job_id=job_id,
+        idempotency_key=job_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            owner_id = int(billing_user.id)
+            payload = body.model_dump()
+            payload["_owner_user_id"] = owner_id
+            payload["_credit_reservation_id"] = sgate.reservation_id
+            payload["_credit_job_id"] = job_id
+            task = run_keyword_research_task.delay(payload)
+            register_task_owner(task.id, owner_id)
+            sgate.commit()
+            db.commit()
+        except Exception:
+            sgate.release(reason="enqueue_failed")
+            raise
+        return JSONResponse(
+            content={
+                "task_id": task.id,
+                "state": "QUEUED",
+                "poll_url": f"/keywords/research/task/{task.id}",
+            }
+        )
 
 
 @router.get("/research/task/{task_id}")
@@ -737,7 +783,7 @@ def api_keyword_research_task_status(
 async def api_keyword_cluster(
     request: Request,
     db: Session = Depends(get_db),
-    billing_user: User | None = Depends(get_billing_user),
+    billing_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     """SERP-primary clustering: merge keyword pairs with >=3 shared top-10 Google URLs."""
     body = await request.json()
@@ -755,26 +801,34 @@ async def api_keyword_cluster(
     serp_device = str(body.get("device") or "").strip() or None
     strict = body.get("cluster_strictness")
     strict_s = str(strict).strip().lower() if strict is not None else None
-    payload = build_keyword_cluster_api_response(
-        strings,
-        fetch_serp=fetch_on,
-        brand_host_hint=brand_hint,
-        serp_country=serp_country,
-        serp_language=serp_language,
-        serp_device=serp_device,
-        cluster_strictness=strict_s,
-    )
-    if billing_user:
-        c = cost_cluster_sync()
-        if c > 0:
-            consume_credits(
-                db,
-                user_id=billing_user.id,
-                amount=c,
-                reason="keyword_cluster_sync",
-                note=f"kw={len(strings)}",
+    feature = "keyword_cluster"
+    credit_cost = cost_cluster_sync()
+    job_id = build_job_id("keyword_cluster", billing_user.id, uuid.uuid4().hex[:10])
+    with saas_action_gate(
+        db,
+        billing_user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=1,
+        job_id=job_id,
+        idempotency_key=job_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            payload = build_keyword_cluster_api_response(
+                strings,
+                fetch_serp=fetch_on,
+                brand_host_hint=brand_hint,
+                serp_country=serp_country,
+                serp_language=serp_language,
+                serp_device=serp_device,
+                cluster_strictness=strict_s,
             )
-            db.commit()
+        except Exception:
+            sgate.release(reason="job_failed")
+            raise
+        sgate.commit()
+        db.commit()
     return JSONResponse(content=payload)
 
 
@@ -783,7 +837,7 @@ async def api_keyword_cluster_async(
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    billing_user: User | None = Depends(get_billing_user),
+    billing_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     """
     Run clustering in background and expose progress % via polling.
@@ -824,17 +878,21 @@ async def api_keyword_cluster_async(
         "cluster_strictness": strict_s,
     }
     job = create_job(job_type="keyword_cluster", message="Queued", payload=job_payload)
-    if billing_user:
-        c = cost_cluster_async()
-        if c > 0:
-            consume_credits(
-                db,
-                user_id=billing_user.id,
-                amount=c,
-                reason="keyword_cluster_async",
-                note=f"kw={len(strings)}",
-            )
-            db.commit()
+    feature = "keyword_cluster"
+    credit_cost = cost_cluster_async()
+    job_credit_id = build_job_id("keyword_cluster_async", billing_user.id, job.job_id)
+    with saas_action_gate(
+        db,
+        billing_user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=1,
+        job_id=job_credit_id,
+        idempotency_key=job_credit_id,
+        charge_mode="reserve",
+    ) as sgate:
+        sgate.commit()
+        db.commit()
 
     inline = os.getenv("KEYWORD_CLUSTER_INLINE", "1").lower() in ("1", "true", "yes")
     if inline:
@@ -890,7 +948,7 @@ def api_keyword_cluster_job(
 async def api_import_keywords_excel(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    billing_user: User | None = Depends(get_billing_user),
+    billing_user: User = Depends(require_active_trial),
 ) -> JSONResponse:
     """
     Upload an Excel (.xlsx) and extract keyword list.

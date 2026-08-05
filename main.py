@@ -496,6 +496,15 @@ def _ensure_credit_ledger_v3() -> None:
 _ensure_credit_ledger_v3()
 
 
+def _ensure_credit_saas_gate_schema() -> None:
+    from app.migrations.ensure_credit_saas_gate import ensure_credit_saas_gate
+
+    ensure_credit_saas_gate()
+
+
+_ensure_credit_saas_gate_schema()
+
+
 def _reconcile_stale_user_credit_balances() -> None:
     from app.db import SessionLocal
     from app.services.credits import reconcile_stale_credit_balances
@@ -788,6 +797,12 @@ _ensure_wordpress_plugin_tables()
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request) -> HTMLResponse:
     return _templates.TemplateResponse(request=request, name="home.html", context={})
+
+
+@app.get("/login", tags=["pages"])
+def login_redirect() -> RedirectResponse:
+    """Legacy/nav link — auth uses modal on home."""
+    return RedirectResponse(url="/?login=1", status_code=302)
 
 
 @app.get("/pricing", response_class=HTMLResponse, tags=["pages"])

@@ -159,6 +159,8 @@ def chatbot_cskh_llm_gate(
                 "upgrade_url": "/pricing",
             },
         )
+    from app.services.saas_gate import enforce_saas_access
+    enforce_saas_access(db, owner, feature_code="chatbot_cskh_reply", quantity=1, require_feature=True)
     assert_can_consume_reply(db, owner.id, plan_slug)
 
     provider = llm_provider_for_config(llm_cfg)
@@ -168,6 +170,7 @@ def chatbot_cskh_llm_gate(
         provider=provider,
         action=action,
         credit_cost=0,
+        feature_key="chatbot_cskh_reply",
         require_paid_plan=True,
         skip_credit_check=True,
         single_flight_key=f"cskh_llm:{owner.id}:{bot_id}:{action}",

@@ -588,7 +588,11 @@ def _append_consumption_log(
     action: str | None = None,
     request_id: str | None = None,
     source: str | None = None,
-) -> None:
+    organization_id: int | None = None,
+    feature_code: str | None = None,
+    job_id: str | None = None,
+    idempotency_key: str | None = None,
+) -> CreditLedger:
     from app.services.credit_cost_registry import REASON_TO_MODULE_ACTION
 
     mod = (module or "").strip().lower() or None
@@ -597,20 +601,30 @@ def _append_consumption_log(
         mapped = REASON_TO_MODULE_ACTION.get(str(reason or "").strip().lower())
         if mapped:
             mod, act = mapped
-    db.add(
-        CreditLedger(
-            user_id=user_id,
-            delta=-int(amount),
-            balance_after=int(balance_after),
-            reason=reason[:64],
-            note=(note or "")[:2000] or None,
-            module=mod,
-            action=act,
-            credit_used=max(0, int(amount)),
-            request_id=(request_id or "")[:64] or None,
-            source=(source or "")[:32] or None,
-        )
+    row = CreditLedger(
+        user_id=user_id,
+        delta=-int(amount),
+        balance_after=int(balance_after),
+        reason=reason[:64],
+        note=(note or "")[:2000] or None,
+        module=mod,
+        action=act,
+        credit_used=max(0, int(amount)),
+        request_id=(request_id or "")[:64] or None,
+        source=(source or "")[:32] or None,
     )
+    # Optional SaaS gate columns (present after ensure_credit_saas_gate)
+    for attr, val in (
+        ("organization_id", organization_id),
+        ("feature_code", (feature_code or "")[:64] or None),
+        ("job_id", (job_id or "")[:128] or None),
+        ("idempotency_key", (idempotency_key or "")[:128] or None),
+    ):
+        if hasattr(CreditLedger, attr) and val is not None:
+            setattr(row, attr, val)
+    db.add(row)
+    db.flush()
+    return row
 
 
 def grant_credits(
@@ -691,6 +705,18 @@ def public_credit_transaction_note(row: CreditLedger) -> str | None:
     return row.note
 
 
+def _find_ledger_by_idempotency(db: Session, idempotency_key: str | None) -> CreditLedger | None:
+    key = (idempotency_key or "").strip()[:128]
+    if not key or not hasattr(CreditLedger, "idempotency_key"):
+        return None
+    return (
+        db.query(CreditLedger)
+        .filter(CreditLedger.idempotency_key == key)  # type: ignore[attr-defined]
+        .order_by(CreditLedger.id.desc())
+        .first()
+    )
+
+
 def consume_credits(
     db: Session,
     *,
@@ -702,13 +728,23 @@ def consume_credits(
     action: str | None = None,
     request_id: str | None = None,
     source: str | None = None,
+    organization_id: int | None = None,
+    feature_code: str | None = None,
+    job_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> int:
     """
     Subtract credits FIFO (soonest expiry first). Caller must commit.
     Returns new balance.
     Admin / super_admin: no deduction (unlimited access).
+    If idempotency_key matches an existing consumption ledger, no double-spend.
     """
     if amount <= 0:
+        return get_available_balance(db, user_id)
+
+    prior = _find_ledger_by_idempotency(db, idempotency_key)
+    if prior is not None and int(prior.delta or 0) < 0:
+        # Already charged for this key — idempotent no-op
         return get_available_balance(db, user_id)
 
     user = _user_query_for_update(db, user_id).one_or_none()
@@ -727,7 +763,11 @@ def consume_credits(
     ensure_plan_monthly_credits(db, user_id)
 
     need = int(amount)
-    buckets = _active_buckets_query(db, user_id).all()
+    # Lock buckets with user row held to reduce concurrent double-spend
+    buckets_q = _active_buckets_query(db, user_id)
+    if db.bind is not None and db.bind.dialect.name != "sqlite":
+        buckets_q = buckets_q.with_for_update()
+    buckets = buckets_q.all()
     available = sum(int(b.remaining_amount or 0) for b in buckets)
     if available < need:
         from app.services.monthly_bonus_credit_service import sum_locked_monthly_bonus
@@ -760,6 +800,12 @@ def consume_credits(
             bucket.status = "consumed"
 
     balance = _sync_user_balance(db, user)
+    if balance < 0:
+        # Safety: never allow negative wallet
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={"message": "Không đủ credit (sau khóa).", "balance": balance, "required": need},
+        )
     _append_consumption_log(
         db,
         user_id=user_id,
@@ -771,15 +817,221 @@ def consume_credits(
         action=action,
         request_id=request_id,
         source=source,
+        organization_id=organization_id,
+        feature_code=feature_code,
+        job_id=job_id,
+        idempotency_key=idempotency_key,
     )
+    try:
+        add_trial_credit_used(db, user_id, need)
+    except Exception:
+        pass
     try:
         from app.services.saas_economics_guard import check_economics_after_burn
 
         check_economics_after_burn(db, trigger="credit_burn")
     except Exception:
         pass
-    add_trial_credit_used(db, user_id, need)
     return balance
+
+
+def reserve_credits(
+    db: Session,
+    *,
+    user_id: int,
+    amount: int,
+    feature_code: str,
+    job_id: str | None = None,
+    idempotency_key: str | None = None,
+    organization_id: int | None = None,
+    reason: str = "credit_reserve",
+    note: str | None = None,
+) -> dict:
+    """
+    Atomically hold credits for a job (debit now, commit/release later).
+    Idempotent on idempotency_key via credit_reservations + ledger.
+    """
+    from app.models.credit_reservation import CreditReservation
+
+    amt = max(0, int(amount))
+    key = (idempotency_key or "").strip()[:128] or None
+    feat = str(feature_code or "unknown")[:64]
+    jid = (job_id or "")[:128] or None
+
+    if key:
+        existing = (
+            db.query(CreditReservation)
+            .filter(CreditReservation.idempotency_key == key)
+            .one_or_none()
+        )
+        if existing is not None:
+            st = str(existing.status or "")
+            if st == "committed":
+                return {
+                    "reservation_id": int(existing.id),
+                    "amount": int(existing.amount),
+                    "status": st,
+                    "already_committed": True,
+                    "balance_after": get_available_balance(db, user_id),
+                }
+            if st == "reserved":
+                return {
+                    "reservation_id": int(existing.id),
+                    "amount": int(existing.amount),
+                    "status": st,
+                    "already_committed": False,
+                    "balance_after": get_available_balance(db, user_id),
+                }
+            # released/refunded → allow a new hold under same key only by updating row
+            if st in ("released", "refunded") and amt > 0:
+                balance = consume_credits(
+                    db,
+                    user_id=user_id,
+                    amount=amt,
+                    reason=reason[:64],
+                    note=note,
+                    module="saas_gate",
+                    action="reserve",
+                    request_id=key[:64],
+                    source="reserve",
+                    organization_id=organization_id,
+                    feature_code=feat,
+                    job_id=jid,
+                    # New ledger key to avoid collision with original reserve log
+                    idempotency_key=f"rehold:{key}"[:128],
+                )
+                existing.amount = amt
+                existing.status = "reserved"
+                existing.feature_code = feat
+                existing.job_id = jid
+                existing.organization_id = organization_id
+                existing.note = (note or "")[:2000] or None
+                db.flush()
+                return {
+                    "reservation_id": int(existing.id),
+                    "amount": amt,
+                    "status": "reserved",
+                    "already_committed": False,
+                    "balance_after": balance,
+                }
+
+    if amt <= 0:
+        row = CreditReservation(
+            user_id=int(user_id),
+            organization_id=organization_id,
+            amount=0,
+            status="committed",
+            feature_code=feat,
+            job_id=jid,
+            idempotency_key=key,
+            request_id=(key or "")[:64] or None,
+            note=note,
+        )
+        db.add(row)
+        db.flush()
+        return {
+            "reservation_id": int(row.id),
+            "amount": 0,
+            "status": "committed",
+            "already_committed": True,
+            "balance_after": get_available_balance(db, user_id),
+        }
+
+    balance = consume_credits(
+        db,
+        user_id=user_id,
+        amount=amt,
+        reason=reason[:64],
+        note=note,
+        module="saas_gate",
+        action="reserve",
+        request_id=(key or "")[:64] or None,
+        source="reserve",
+        organization_id=organization_id,
+        feature_code=feat,
+        job_id=jid,
+        idempotency_key=key,
+    )
+    row = CreditReservation(
+        user_id=int(user_id),
+        organization_id=organization_id,
+        amount=amt,
+        status="reserved",
+        feature_code=feat,
+        job_id=jid,
+        idempotency_key=key,
+        request_id=(key or "")[:64] or None,
+        note=note,
+    )
+    db.add(row)
+    db.flush()
+    return {
+        "reservation_id": int(row.id),
+        "amount": amt,
+        "status": "reserved",
+        "already_committed": False,
+        "balance_after": balance,
+    }
+
+
+def commit_reservation(
+    db: Session,
+    *,
+    reservation_id: int,
+    user_id: int,
+) -> None:
+    from app.models.credit_reservation import CreditReservation
+
+    row = (
+        db.query(CreditReservation)
+        .filter(
+            CreditReservation.id == int(reservation_id),
+            CreditReservation.user_id == int(user_id),
+        )
+        .one_or_none()
+    )
+    if row is None:
+        return
+    if str(row.status) in ("committed", "released", "refunded"):
+        return
+    row.status = "committed"
+    db.flush()
+
+
+def release_reservation(
+    db: Session,
+    *,
+    reservation_id: int,
+    user_id: int,
+    reason: str = "job_failed",
+) -> int:
+    """Refund held credits. Returns amount released."""
+    from app.models.credit_reservation import CreditReservation
+
+    q = db.query(CreditReservation).filter(
+        CreditReservation.id == int(reservation_id),
+        CreditReservation.user_id == int(user_id),
+    )
+    if db.bind is not None and db.bind.dialect.name != "sqlite":
+        q = q.with_for_update()
+    row = q.one_or_none()
+    if row is None:
+        return 0
+    if str(row.status) != "reserved":
+        return 0
+    amt = max(0, int(row.amount or 0))
+    if amt > 0:
+        grant_credits(
+            db,
+            user_id=int(user_id),
+            amount=amt,
+            reason="failed_refund",
+            note=f"release reservation_id={reservation_id};reason={reason}"[:500],
+            source_type="refund",
+        )
+    row.status = "released"
+    db.flush()
+    return amt
 
 
 def ensure_plan_monthly_credits(db: Session, user_id: int) -> int | None:

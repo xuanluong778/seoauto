@@ -87,6 +87,36 @@ from fastapi import HTTPException
 
 from app.services.credits import get_available_balance
 
+def _workflow_feature_codes(intent: str) -> list[str]:
+    """Feature codes that must pass SaaS gate before billable workflow starts."""
+    intent = str(intent or "").strip()
+    if intent in (INTENT_KEYWORD_RESEARCH, INTENT_KEYWORD_RESEARCH_CLUSTER):
+        codes = ["keyword_research"]
+        if intent == INTENT_KEYWORD_RESEARCH_CLUSTER:
+            codes.append("keyword_cluster")
+        return codes
+    if intent == INTENT_KEYWORD_CLUSTER_TO_ARTICLE:
+        return ["keyword_cluster", "content_ai_article"]
+    if intent == INTENT_QUICK_KEYWORD_ARTICLE:
+        return ["content_ai_article"]
+    if intent in (INTENT_URL_SEO_SCOREBOARD, INTENT_CONTENT_SEO_SCORE):
+        return ["seo_score"]
+    if intent in (INTENT_TECHNICAL_QUICK_AUDIT, INTENT_TECHNICAL_DEEP_AUDIT, INTENT_TECHNICAL_SINGLE_URL):
+        return ["technical_audit"]
+    return []
+
+
+def _enforce_workflow_saas_gate(db: Session, user_id: int, intent: str) -> None:
+    from app.models.user import User
+    from app.services.saas_gate import enforce_saas_access
+
+    user = db.get(User, int(user_id))
+    if user is None:
+        raise HTTPException(status_code=401, detail="Cần đăng nhập.")
+    for code in _workflow_feature_codes(intent):
+        enforce_saas_access(db, user, feature_code=code, quantity=1)
+
+
 _LOG = logging.getLogger(__name__)
 
 _GUEST_WORKFLOW_MSG = (
@@ -198,6 +228,7 @@ def prepare_workflow_from_params(
     merged = dict(params or {})
     if planning_snapshot:
         merged["planning_snapshot"] = planning_snapshot
+    _enforce_workflow_saas_gate(db, user_id, intent)
     clean = validate_prepare_params(intent, merged)
     quote = quote_workflow_credits(db, user_id, intent, clean)
     credits = quote["credits"]
@@ -428,6 +459,36 @@ def _refund_failed_workflow(*, workflow_id: str, user_id: int, error_reason: str
         from app.db import SessionLocal
         from app.services.credits import get_available_balance
 
+def _workflow_feature_codes(intent: str) -> list[str]:
+    """Feature codes that must pass SaaS gate before billable workflow starts."""
+    intent = str(intent or "").strip()
+    if intent in (INTENT_KEYWORD_RESEARCH, INTENT_KEYWORD_RESEARCH_CLUSTER):
+        codes = ["keyword_research"]
+        if intent == INTENT_KEYWORD_RESEARCH_CLUSTER:
+            codes.append("keyword_cluster")
+        return codes
+    if intent == INTENT_KEYWORD_CLUSTER_TO_ARTICLE:
+        return ["keyword_cluster", "content_ai_article"]
+    if intent == INTENT_QUICK_KEYWORD_ARTICLE:
+        return ["content_ai_article"]
+    if intent in (INTENT_URL_SEO_SCOREBOARD, INTENT_CONTENT_SEO_SCORE):
+        return ["seo_score"]
+    if intent in (INTENT_TECHNICAL_QUICK_AUDIT, INTENT_TECHNICAL_DEEP_AUDIT, INTENT_TECHNICAL_SINGLE_URL):
+        return ["technical_audit"]
+    return []
+
+
+def _enforce_workflow_saas_gate(db: Session, user_id: int, intent: str) -> None:
+    from app.models.user import User
+    from app.services.saas_gate import enforce_saas_access
+
+    user = db.get(User, int(user_id))
+    if user is None:
+        raise HTTPException(status_code=401, detail="Cần đăng nhập.")
+    for code in _workflow_feature_codes(intent):
+        enforce_saas_access(db, user, feature_code=code, quantity=1)
+
+
         db = SessionLocal()
         try:
             update_workflow(workflow_id, balance=get_available_balance(db, int(user_id)))
@@ -614,6 +675,7 @@ def start_workflow(
         )
 
     ensure_workflow_intent_supported(intent)
+    _enforce_workflow_saas_gate(db, user_id, intent)
 
     total = int(quote["credit_required"] or 0)
     create_credit_log(

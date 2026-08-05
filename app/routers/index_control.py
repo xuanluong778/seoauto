@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.user import User
 from app.services.auth import get_current_user
+from app.services.saas_gate import enforce_saas_access
+from app.services.trial_access import require_active_trial
 from app.services.index_control_check import URL_TYPE_LABELS, check_index_urls, normalize_url_type
 from app.services.index_control_history_store import (
     delete_all_check_free_sessions,
@@ -300,9 +302,11 @@ class CheckFreeExportRequest(BaseModel):
 @router.post("/submit-indexing")
 def index_control_submit_indexing(
     body: SubmitIndexingRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_trial),
     db: Session = Depends(get_db),
 ) -> dict:
+    # Trial-blocked feature: never call SinByte/Index provider without SaaS gate
+    enforce_saas_access(db, user, feature_code="index_control_submit", quantity=max(1, len(body.urls or [])))
     role = getattr(user, "role", None)
     return submit_indexing_urls(
         db,
