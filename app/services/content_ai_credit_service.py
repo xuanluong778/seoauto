@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, field as dc_field
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -15,7 +16,15 @@ from app.services.credit_cost_registry import (
     new_request_id,
     resolve_credit_cost,
 )
-from app.services.credits import consume_credits, credits_enforced, get_available_balance, grant_credits
+from app.services.credits import (
+    commit_reservation,
+    consume_credits,
+    credits_enforced,
+    get_available_balance,
+    grant_credits,
+    release_reservation,
+    reserve_credits,
+)
 from app.services.rbac import is_admin
 
 
@@ -332,6 +341,143 @@ def _ledger_note(quote: dict[str, Any], *, field: str, extra: dict[str, Any] | N
     return json.dumps(payload, ensure_ascii=False)[:500]
 
 
+
+@dataclass
+class ContentAiCreditHold:
+    """Hold credits reserved before a provider call."""
+
+    db: Session
+    user: User
+    amount: int
+    request_id: str
+    reservation_id: int | None
+    feature_code: str
+    field: str
+    reason: str
+    _done: bool = dc_field(default=False, repr=False)
+
+    def commit(self) -> dict[str, Any] | None:
+        if self._done:
+            return {"request_id": self.request_id, "charged": self.amount, "already": True}
+        if self.reservation_id and self.amount > 0:
+            commit_reservation(
+                self.db,
+                reservation_id=int(self.reservation_id),
+                user_id=int(self.user.id),
+            )
+        self._done = True
+        return {
+            "request_id": self.request_id,
+            "charged": int(self.amount),
+            "reason": self.reason,
+            "reservation_id": self.reservation_id,
+            "mode": "reserve_commit",
+        }
+
+    def release(self, *, reason: str = "job_failed") -> None:
+        if self._done:
+            return
+        if self.reservation_id and self.amount > 0:
+            release_reservation(
+                self.db,
+                reservation_id=int(self.reservation_id),
+                user_id=int(self.user.id),
+                reason=reason,
+            )
+        self._done = True
+
+
+def _should_charge_quote(user: User, quote: dict[str, Any]) -> tuple[bool, int, str]:
+    if not quote.get("charge_credits"):
+        return False, 0, ""
+    amount = int(quote.get("credit_cost") or 0)
+    if not credits_enforced() or amount <= 0 or is_admin(user):
+        return False, 0, ""
+    req_id = str(quote.get("request_id") or new_request_id())
+    return True, amount, req_id
+
+
+def reserve_content_ai_write(
+    db: Session,
+    user: User,
+    quote: dict[str, Any],
+    *,
+    field: str,
+    feature_code: str | None = None,
+) -> ContentAiCreditHold | None:
+    """Reserve credits BEFORE provider/LLM. Idempotent on quote request_id."""
+    ok, amount, req_id = _should_charge_quote(user, quote)
+    requested = (field or "content").strip().lower()
+    feat = feature_code or ("content_ai_article" if requested == "content" else "content_ai_brief")
+    reason = "content_ai_article" if requested == "content" else "content_ai_brief_suggest"
+    if not ok:
+        return None
+    quote["request_id"] = req_id
+    res = reserve_credits(
+        db,
+        user_id=int(user.id),
+        amount=amount,
+        feature_code=feat,
+        job_id=req_id,
+        idempotency_key=f"content_ai_write:{req_id}"[:128],
+        reason=f"reserve:{reason}"[:64],
+        note=_ledger_note(quote, field=requested),
+    )
+    hold = ContentAiCreditHold(
+        db=db,
+        user=user,
+        amount=int(res.get("amount") or amount),
+        request_id=req_id,
+        reservation_id=int(res["reservation_id"]) if res.get("reservation_id") else None,
+        feature_code=feat,
+        field=requested,
+        reason=reason,
+    )
+    if res.get("already_committed"):
+        hold._done = True
+    return hold
+
+
+@contextmanager
+def content_ai_provider_credit_session(
+    db: Session,
+    user: User,
+    quote: dict[str, Any],
+    *,
+    field: str,
+    feature_code: str | None = None,
+):
+    """
+    Reserve → yield → commit on success; release on exception / abort.
+    Provider (LLM) must run inside the yielded block.
+    """
+    hold = reserve_content_ai_write(db, user, quote, field=field, feature_code=feature_code)
+    aborted = {"v": False}
+
+    class _Ctrl:
+        def abort(self, reason: str = "aborted") -> None:
+            aborted["v"] = True
+            if hold is not None:
+                hold.release(reason=reason)
+
+        @property
+        def hold(self) -> ContentAiCreditHold | None:
+            return hold
+
+    ctrl = _Ctrl()
+    try:
+        yield ctrl
+        if hold is not None and not aborted["v"] and not hold._done:
+            hold.commit()
+    except Exception:
+        if hold is not None and not hold._done:
+            try:
+                hold.release(reason="job_failed")
+            except Exception:
+                pass
+        raise
+
+
 def charge_content_ai_write(
     db: Session,
     user: User,
@@ -340,36 +486,34 @@ def charge_content_ai_write(
     field: str,
     llm_used: bool,
     used_fallback: bool = False,
+    hold: ContentAiCreditHold | None = None,
 ) -> dict[str, Any] | None:
-    """Trừ credit sau LLM thành công. Không trừ khi fallback rule hoặc lỗi."""
+    """
+    Finalize credit: commit pre-reserved hold, or (legacy) reserve+commit once with idempotency.
+    Prefer reserve-first via content_ai_provider_credit_session; this is kept for bulk paths.
+    """
     if not llm_used or used_fallback:
+        if hold is not None:
+            hold.release(reason="fallback_or_no_llm")
         return None
     if not quote.get("charge_credits"):
+        if hold is not None:
+            hold.release(reason="not_chargeable")
         return None
-    amount = int(quote.get("credit_cost") or 0)
-    if not credits_enforced() or amount <= 0 or is_admin(user):
+    if hold is not None:
+        return hold.commit()
+
+    ok, amount, req_id = _should_charge_quote(user, quote)
+    if not ok:
         return None
-
-    requested = (field or "content").strip().lower()
-    reason = "content_ai_article" if requested == "content" else "content_ai_brief_suggest"
-    tier = str(quote.get("tier_action") or "article_short")
-    req_id = str(quote.get("request_id") or new_request_id())
-
-    consume_credits(
-        db,
-        user_id=int(user.id),
-        amount=amount,
-        reason=reason,
-        note=_ledger_note(quote, field=requested),
-        module="content_ai",
-        action=tier,
-        request_id=req_id,
-        source="content_ai_write",
-        feature_code="content_ai_article" if requested == "content" else "content_ai_brief",
-        job_id=req_id,
-        idempotency_key=f"content_ai_write:{req_id}"[:128],
-    )
-    return {"request_id": req_id, "charged": amount, "reason": reason}
+    quote["request_id"] = req_id
+    # Atomic reserve-then-commit (still safe vs double-spend via idempotency_key)
+    h = reserve_content_ai_write(db, user, quote, field=field)
+    if h is None:
+        return None
+    if h._done:
+        return {"request_id": h.request_id, "charged": h.amount, "mode": "idempotent"}
+    return h.commit()
 
 
 def charge_content_ai_from_html(
@@ -383,8 +527,9 @@ def charge_content_ai_from_html(
     request_id: str | None = None,
     llm_used: bool = True,
     used_fallback: bool = False,
+    hold: ContentAiCreditHold | None = None,
 ) -> dict[str, Any] | None:
-    """Quote + charge from actual generated HTML word count (anti client tampering)."""
+    """Quote from HTML word count; commit pre-hold or reserve+commit with stable key."""
     from app.services.content_ai_word_count_policy import billing_word_count_for_content
 
     bill_wc = billing_word_count_for_content(html)
@@ -398,6 +543,13 @@ def charge_content_ai_from_html(
     )
     if request_id:
         quote["request_id"] = request_id
+    if hold is not None:
+        # Hold already took pre-estimate; commit that amount (no second debit).
+        # HTML re-quote is used for logging only when costs match path.
+        if not llm_used or used_fallback:
+            hold.release(reason="fallback_or_no_llm")
+            return None
+        return hold.commit()
     return charge_content_ai_write(
         db,
         user,
@@ -441,3 +593,4 @@ def should_refund_system_failure(*, charged: bool, used_fallback: bool, http_sta
     if http_status is not None and http_status >= 500:
         return True
     return False
+

@@ -743,10 +743,11 @@ def api_keyword_research_run_async(
             payload["_credit_job_id"] = job_id
             task = run_keyword_research_task.delay(payload)
             register_task_owner(task.id, owner_id)
-            sgate.commit()
+            # Keep reservation status=reserved until worker success; persist hold only.
             db.commit()
         except Exception:
             sgate.release(reason="enqueue_failed")
+            db.commit()
             raise
         return JSONResponse(
             content={

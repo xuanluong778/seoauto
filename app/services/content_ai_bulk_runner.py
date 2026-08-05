@@ -580,6 +580,28 @@ def _write_one_article(
     if use_system and (db is None or user is None):
         db, user = _open_system_llm_db_user(user_id)
         owns_gate_db = True
+    credit_hold = None
+    if db is not None and user is not None and not skip_llm_credit_check:
+        try:
+            from app.services.content_ai_credit_service import quote_content_ai_write, reserve_content_ai_write
+
+            pre_q = quote_content_ai_write(
+                db,
+                user,
+                field="content",
+                word_count=max(200, int(target_word_count or 1000)),
+                use_system_llm=True,
+            )
+            if req_id:
+                pre_q["request_id"] = req_id
+            credit_hold = reserve_content_ai_write(
+                db, user, pre_q, field="content", feature_code="content_ai_article"
+            )
+            if owns_gate_db:
+                db.commit()
+        except Exception:
+            credit_hold = None
+            raise
     try:
         sec_str = ", ".join(str(x).strip() for x in (secondary_keywords or []) if str(x).strip())
         c_title = re.sub(r"\s+", " ", str(custom_title or "").strip())
@@ -868,9 +890,6 @@ def _write_one_article(
         if db is not None and user is not None and str(content or "").strip() and not skip_llm_credit_check:
             from app.services.content_ai_credit_service import charge_content_ai_from_html
 
-            req_id = None
-            if job_id and article_index is not None:
-                req_id = f"bulk:{job_id}:{int(article_index)}"
             used_llm_content = True
             charge_content_ai_from_html(
                 db,
@@ -881,7 +900,9 @@ def _write_one_article(
                 request_id=req_id,
                 llm_used=used_llm_content,
                 used_fallback=False,
+                hold=credit_hold,
             )
+            credit_hold = None  # committed
             from app.services.content_ai_word_count_policy import (
                 build_word_count_response,
                 log_word_count_event,
@@ -917,6 +938,17 @@ def _write_one_article(
             out["seo_issue_count"] = seo_issue_count
         return out
     finally:
+        if credit_hold is not None:
+            try:
+                credit_hold.release(reason="bulk_write_failed_or_incomplete")
+                if db is not None:
+                    db.commit()
+            except Exception:
+                try:
+                    if db is not None:
+                        db.rollback()
+                except Exception:
+                    pass
         if owns_gate_db and db is not None:
             db.close()
 

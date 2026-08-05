@@ -496,13 +496,14 @@ def _ensure_credit_ledger_v3() -> None:
 _ensure_credit_ledger_v3()
 
 
-def _ensure_credit_saas_gate_schema() -> None:
-    from app.migrations.ensure_credit_saas_gate import ensure_credit_saas_gate
+def _assert_credit_saas_gate_schema() -> None:
+    """Startup: verify schema only — no DDL (migration runs at deploy)."""
+    from app.migrations.ensure_credit_saas_gate import assert_credit_saas_gate_schema
 
-    ensure_credit_saas_gate()
+    assert_credit_saas_gate_schema()
 
 
-_ensure_credit_saas_gate_schema()
+_assert_credit_saas_gate_schema()
 
 
 def _reconcile_stale_user_credit_balances() -> None:

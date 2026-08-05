@@ -43,8 +43,13 @@ def normalize_page_field(page_field: str) -> str:
 
 
 def seo_score_ai_fix_billing_enabled() -> bool:
-    # TODO: bật SEO_SCORE_AI_FIX_BILLING_ENABLED=1 khi product xác nhận thu phí
+    """Product policy: off by default → NOT_BILLABLE until flag explicitly enabled."""
     return os.getenv("SEO_SCORE_AI_FIX_BILLING_ENABLED", "").strip().lower() in ("1", "true", "yes")
+
+
+def seo_score_ai_fix_billing_status() -> str:
+    """BILLABLE when SEO_SCORE_AI_FIX_BILLING_ENABLED=1, else NOT_BILLABLE (no credit debit)."""
+    return "BILLABLE" if seo_score_ai_fix_billing_enabled() else "NOT_BILLABLE"
 
 
 def _clip(text: str, max_len: int) -> str:
@@ -545,21 +550,29 @@ def run_seo_score_ai_fix(
 
 
 def finalize_seo_score_ai_fix_credit(db, user, *, success: bool, url: str, issue_id: str) -> dict[str, Any]:
-    """Hook credit action seo_score/ai_fix — chỉ trừ khi success và billing bật."""
+    """Hook credit: BILLABLE only when flag on; otherwise NOT_BILLABLE (zero charge)."""
     from app.services.credits import consume_credits, cost_seo_score_ai_fix, credits_enforced
 
+    status = seo_score_ai_fix_billing_status()
     if not success:
-        return {"charged": 0, "billing_enabled": seo_score_ai_fix_billing_enabled(), "skipped": "ai_error"}
-    if not seo_score_ai_fix_billing_enabled():
+        return {
+            "charged": 0,
+            "billing_enabled": status == "BILLABLE",
+            "billing_status": status,
+            "skipped": "ai_error",
+        }
+    if status == "NOT_BILLABLE":
         return {
             "charged": 0,
             "billing_enabled": False,
-            "todo": "Set SEO_SCORE_AI_FIX_BILLING_ENABLED=1 to charge seo_score/ai_fix",
+            "billing_status": "NOT_BILLABLE",
+            "policy": "SEO_SCORE_AI_FIX_BILLING_ENABLED unset/false — no credit debit",
         }
     cost = cost_seo_score_ai_fix(db=db)
     if cost > 0 and credits_enforced():
         import hashlib
         idem = hashlib.sha256(f"seo_score_ai_fix:{user.id}:{issue_id}:{url}".encode()).hexdigest()[:48]
+        # reserve-first deferred to router when BILLABLE; finalize still supports post-success commit path
         consume_credits(
             db,
             user_id=user.id,
@@ -572,5 +585,5 @@ def finalize_seo_score_ai_fix_credit(db, user, *, success: bool, url: str, issue
             job_id=idem,
             idempotency_key=f"seo_score_ai_fix:{idem}"[:128],
         )
-        return {"charged": cost, "billing_enabled": True}
-    return {"charged": 0, "billing_enabled": True}
+        return {"charged": cost, "billing_enabled": True, "billing_status": "BILLABLE"}
+    return {"charged": 0, "billing_enabled": True, "billing_status": "BILLABLE"}

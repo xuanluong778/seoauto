@@ -3831,8 +3831,12 @@ def content_ai_suggest(
     current_user: User = Depends(require_active_trial),
     db: Session = Depends(get_db),
 ) -> Response:
-    from app.services.content_ai_credit_service import charge_content_ai_write, charge_content_ai_from_html
-    from app.services.content_ai_credit_service import billing_flags_from_request
+    from app.services.content_ai_credit_service import (
+        billing_flags_from_request,
+        charge_content_ai_from_html,
+        charge_content_ai_write,
+        content_ai_provider_credit_session,
+    )
     from app.services.content_ai_request_cache import reset_request_cache
     from app.services.content_ai_word_count_policy import (
         WordCountTimer,
@@ -3915,83 +3919,68 @@ def content_ai_suggest(
     suggestion = ""
     llm_used = False
     used_fallback = False
-    try:
-        with content_ai_llm_gate(
-            db,
-            current_user,
-            action="suggest",
-            field=requested,
-            use_system_llm=bool(llm_gate.get("use_system_llm")),
-            llm_cfg=llm_cfg,
-            credit_cost=int(llm_gate.get("unit_cost") or 0),
-            word_count=prompt_wc if requested == "content" else payload.target_word_count,
-        ):
-            write_timer.mark(STEP_LLM, field=requested)
-            suggestion = generate_content_ai_suggestion(
-                field=payload.field,
-                title=payload.title or "",
-                content=payload.content or "",
-                target_website=payload.target_website or "",
-                slug=payload.slug or "",
-                tags=payload.tags or "",
-                meta_description=payload.meta_description or "",
-                primary_keyword=payload.primary_keyword or "",
-                secondary_keywords=payload.secondary_keywords or "",
-                outline_content=payload.outline_content or "",
-                target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
-                user_id=int(current_user.id),
-                use_system_llm=bool(llm_gate.get("use_system_llm")),
-                ai_provider=ai_provider,
-            )
-            llm_used = bool(str(suggestion or "").strip())
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise _map_content_ai_exc_to_http(exc) from exc
-
-    if not str(suggestion or "").strip():
-        _raise_content_ai_llm_unavailable("llm_empty_output")
-    # Defensive: some providers may return multiple lines; normalize for single-line fields.
-    if requested in {"title", "meta_description", "slug", "tags", "primary_keyword", "secondary_keywords", "target_website"}:
-        parts = [x.strip() for x in str(suggestion or "").replace("\r", "").split("\n") if x.strip()]
-        suggestion = parts[0] if parts else str(suggestion or "").strip()
-    if requested in {"title", "meta_description", "secondary_keywords"} and (payload.primary_keyword or "").strip():
-        from app.services.content_draft_builder import content_ai_finalize_brief_field_value
-
-        suggestion = content_ai_finalize_brief_field_value(
-            field=requested,
-            text=str(suggestion or ""),
-            pk=str(payload.primary_keyword or "").strip(),
-        )
     charge_meta = None
-    if llm_gate.get("charge_credits") and str(suggestion or "").strip():
-        if requested == "content" and llm_used and not used_fallback:
-            charge_meta = charge_content_ai_from_html(
+    quote = llm_gate.get("quote") or {}
+    # Reserve credits before provider call; commit on success / release on failure or empty output
+    with content_ai_provider_credit_session(
+        db,
+        current_user,
+        quote,
+        field=requested,
+        feature_code=feature_key,
+    ) as credit_ctrl:
+        try:
+            with content_ai_llm_gate(
                 db,
                 current_user,
-                str(suggestion),
-                field="content",
-                use_system_llm=bool(llm_gate.get("use_system_llm")),
-                flags=billing_flags_from_request(
-                    field=requested,
-                    outline_content=payload.outline_content or "",
-                    content=payload.content or "",
-                    billing=billing_raw,
-                    title=payload.title or "",
-                    primary_keyword=payload.primary_keyword or "",
-                ),
-                llm_used=llm_used,
-                used_fallback=used_fallback,
-            )
-        else:
-            charge_meta = charge_content_ai_write(
-                db,
-                current_user,
-                llm_gate.get("quote") or {},
+                action="suggest",
                 field=requested,
-                llm_used=llm_used,
-                used_fallback=used_fallback,
+                use_system_llm=bool(llm_gate.get("use_system_llm")),
+                llm_cfg=llm_cfg,
+                credit_cost=0,  # held by content_ai_provider_credit_session
+                word_count=prompt_wc if requested == "content" else payload.target_word_count,
+                skip_credit_check=True,
+            ):
+                write_timer.mark(STEP_LLM, field=requested)
+                suggestion = generate_content_ai_suggestion(
+                    field=payload.field,
+                    title=payload.title or "",
+                    content=payload.content or "",
+                    target_website=payload.target_website or "",
+                    slug=payload.slug or "",
+                    tags=payload.tags or "",
+                    meta_description=payload.meta_description or "",
+                    primary_keyword=payload.primary_keyword or "",
+                    secondary_keywords=payload.secondary_keywords or "",
+                    outline_content=payload.outline_content or "",
+                    target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
+                    user_id=int(current_user.id),
+                    use_system_llm=bool(llm_gate.get("use_system_llm")),
+                    ai_provider=ai_provider,
+                )
+                llm_used = bool(str(suggestion or "").strip())
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise _map_content_ai_exc_to_http(exc) from exc
+
+        if not str(suggestion or "").strip():
+            credit_ctrl.abort(reason="llm_empty_output")
+            _raise_content_ai_llm_unavailable("llm_empty_output")
+        # Defensive: some providers may return multiple lines; normalize for single-line fields.
+        if requested in {"title", "meta_description", "slug", "tags", "primary_keyword", "secondary_keywords", "target_website"}:
+            parts = [x.strip() for x in str(suggestion or "").replace("\r", "").split("\n") if x.strip()]
+            suggestion = parts[0] if parts else str(suggestion or "").strip()
+        if requested in {"title", "meta_description", "secondary_keywords"} and (payload.primary_keyword or "").strip():
+            from app.services.content_draft_builder import content_ai_finalize_brief_field_value
+
+            suggestion = content_ai_finalize_brief_field_value(
+                field=requested,
+                text=str(suggestion or ""),
+                pk=str(payload.primary_keyword or "").strip(),
             )
+        if credit_ctrl.hold is not None and llm_used and not used_fallback:
+            charge_meta = credit_ctrl.hold.commit()
     fmt = (request.query_params.get("format") or "").strip().lower()
     if fmt == "text":
         return Response(content=str(suggestion or ""), media_type="text/plain; charset=utf-8")
