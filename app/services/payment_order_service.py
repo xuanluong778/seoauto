@@ -372,10 +372,16 @@ def get_pending_payment_order_by_code(db: Session, order_code: str) -> PaymentOr
     )
 
 
-def get_fulfillable_payment_order_by_code(db: Session, order_code: str) -> PaymentOrder | None:
+def get_fulfillable_payment_order_by_code(
+    db: Session,
+    order_code: str,
+    *,
+    for_update: bool = False,
+) -> PaymentOrder | None:
     """
     Find an order that can still be fulfilled from a SePay webhook.
     Accepts pending, partial_paid, or expired (customer paid after countdown).
+    When for_update=True, row is locked (SELECT FOR UPDATE) for webhook race safety.
     """
     code = str(order_code or "").strip().upper()
     if not code:
@@ -385,16 +391,42 @@ def get_fulfillable_payment_order_by_code(db: Session, order_code: str) -> Payme
     if compact and compact != code:
         candidates.append(compact)
 
-    order = (
+    q = (
         db.query(PaymentOrder)
         .filter(
             PaymentOrder.order_code.in_(candidates),
             PaymentOrder.status.in_(("pending", "partial_paid", "expired")),
         )
         .order_by(PaymentOrder.id.desc())
-        .first()
     )
+    if for_update:
+        # skip_locked=False so concurrent webhook blocks until first finishes
+        if db.bind is not None and db.bind.dialect.name != "sqlite":
+            q = q.with_for_update()
+        else:
+            q = q.with_for_update()
+    order = q.first()
     return order
+
+
+def get_payment_order_by_code_any_status(
+    db: Session,
+    order_code: str,
+    *,
+    for_update: bool = False,
+) -> PaymentOrder | None:
+    """Lookup order by code without status filter (already paid → skip re-fulfill)."""
+    code = str(order_code or "").strip().upper()
+    if not code:
+        return None
+    compact = "".join(ch for ch in code if ch.isalnum()).upper()
+    candidates = [code]
+    if compact and compact != code:
+        candidates.append(compact)
+    q = db.query(PaymentOrder).filter(PaymentOrder.order_code.in_(candidates)).order_by(PaymentOrder.id.desc())
+    if for_update:
+        q = q.with_for_update()
+    return q.first()
 
 
 def mark_payment_order_paid(db: Session, order: PaymentOrder, *, at: datetime | None = None) -> None:
@@ -405,6 +437,12 @@ def mark_payment_order_paid(db: Session, order: PaymentOrder, *, at: datetime | 
 
 def mark_payment_order_partial_paid(db: Session, order: PaymentOrder) -> None:
     order.status = "partial_paid"
+
+
+def mark_payment_order_failed(db: Session, order: PaymentOrder, *, reason: str) -> None:
+    order.status = "failed"
+    order.activation_status = "activation_failed"
+    order.activation_error = (reason or "failed")[:2000]
 
 
 def payment_order_to_dict(order: PaymentOrder) -> dict[str, Any]:

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 
 PAYMENT_ORDER_STATUSES = frozenset(
-    {"pending", "paid", "expired", "partial_paid", "cancelled", "refunded"}
+    {"pending", "paid", "expired", "partial_paid", "cancelled", "refunded", "failed"}
 )
 PAYMENT_ORDER_ACTIVATION_STATUSES = frozenset(
     {"activated", "activation_failed"}

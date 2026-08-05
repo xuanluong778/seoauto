@@ -52,6 +52,7 @@ from app.models.monthly_usage import MonthlyUsage  # noqa: F401
 from app.models.payment_transaction import PaymentTransaction  # noqa: F401
 from app.models.platform_integration import PlatformIntegration  # noqa: F401
 from app.models.sepay_payment_transaction import SepayPaymentTransaction  # noqa: F401
+from app.models.sepay_webhook_event import SepayWebhookEvent  # noqa: F401
 from app.models.user_quota_addon import UserQuotaAddon  # noqa: F401
 from app.models.affiliate import (  # noqa: F401
     AffiliateAccount,
@@ -476,6 +477,15 @@ def _ensure_sepay_payment_transactions_table() -> None:
 
 
 _ensure_sepay_payment_transactions_table()
+
+
+def _ensure_sepay_webhook_idempotency() -> None:
+    from app.migrations.ensure_sepay_webhook_idempotency import ensure_sepay_webhook_idempotency
+
+    ensure_sepay_webhook_idempotency()
+
+
+_ensure_sepay_webhook_idempotency()
 
 
 def _ensure_billing_activation_schema() -> None:

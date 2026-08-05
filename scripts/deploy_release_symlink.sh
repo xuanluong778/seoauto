@@ -65,6 +65,32 @@ else
   log "Schema already OK (migration previously applied)"
 fi
 
+log "Applying SePay webhook idempotency migration (deploy-time)"
+# App role may not own sepay_payment_transactions — use superuser for ALTER when needed
+docker exec -i seoauto-postgres psql -U seoauto -d digiseo -v ON_ERROR_STOP=1 <<'SQL' || true
+ALTER TABLE sepay_payment_transactions ADD COLUMN IF NOT EXISTS process_status VARCHAR(24);
+ALTER TABLE sepay_payment_transactions ADD COLUMN IF NOT EXISTS failure_reason VARCHAR(512);
+ALTER TABLE sepay_payment_transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sepay_webhook_events_idempotency
+  ON sepay_webhook_events (idempotency_key);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sepay_webhook_events_provider_tx
+  ON sepay_webhook_events (provider_transaction_id)
+  WHERE provider_transaction_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sepay_tx_idempotency
+  ON sepay_payment_transactions (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_provider_tx
+  ON payment_transactions (provider, provider_transaction_id)
+  WHERE provider_transaction_id IS NOT NULL;
+SQL
+"${NEW_REL}/.venv/bin/python" -c "
+from app.migrations.ensure_sepay_webhook_idempotency import apply_sepay_webhook_idempotency_migration, schema_status
+print(apply_sepay_webhook_idempotency_migration())
+st = schema_status()
+assert st.get('ok') and not st.get('missing'), st
+print('sepay_webhook_idempotency_ok', st)
+" || die "sepay webhook idempotency migration failed"
+
 # 3) Internal smoke on alternate port (does not touch live 8899 yet)
 log "Starting smoke uvicorn on :${SMOKE_PORT}"
 SMOKE_PID_FILE="${LOG_DIR}/smoke-${STAMP}.pid"
@@ -89,7 +115,7 @@ for i in $(seq 1 40); do
 done
 [[ "${ok}" == "1" ]] || die "smoke health failed (see ${LOG_DIR}/smoke-${STAMP}.err.log)"
 
-for path in / /health /content-ai /pricing /api/saas/plans; do
+for path in / /health /content-ai /pricing /api/saas/plans /api/payments/sepay/webhook; do
   code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${SMOKE_PORT}${path}" || true)"
   log "smoke ${code} ${path}"
   [[ "${code}" == "200" ]] || die "smoke path failed ${path}=${code}"

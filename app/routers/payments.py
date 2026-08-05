@@ -1,4 +1,4 @@
-"""SePay payment webhooks."""
+"""SePay payment webhooks — auth, store event, process once, always success after auth."""
 
 from __future__ import annotations
 
@@ -37,7 +37,10 @@ async def sepay_webhook(
 ):
     """
     SePay bank-transfer webhook.
-    Always returns {"success": true} for authenticated, parseable requests (even when skipped).
+
+    Flow: verify auth → process (stores raw event first, idempotent) → commit.
+    Authenticated requests always return {"success": true} so provider does not hammer retries
+    on business skips; already-processed events return success without re-applying plan/credit.
     """
     if is_production() and not is_sepay_webhook_configured():
         from app.services.payment_config import sepay_webhook_require_auth
@@ -92,14 +95,24 @@ async def sepay_webhook(
             logger.warning("sepay_webhook_invalid_json")
             return {"success": True}
 
-        result = process_sepay_webhook(db, payload)
+        # Durable raw log *before* business application (survives process crash/rollback)
+        from app.services.sepay_webhook_service import store_raw_webhook_event
+
+        store_raw_webhook_event(db, payload, raw_body=body)
         db.commit()
-        logger.info("sepay_webhook_done result=%s", result)
+
+        result = process_sepay_webhook(db, payload, raw_body=body)
+        db.commit()
+        logger.info("sepay_webhook_done result=%s", {k: result.get(k) for k in ("reason", "handled", "order_code", "replay", "event_id")})
         return {"success": True}
     except Exception:
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass
         logger.exception(
             "sepay_webhook_process_failed payload_keys=%s",
             list(payload.keys()) if isinstance(payload, dict) else None,
         )
+        # Still 200 so SePay does not infinite-retry on our bugs; FAILED is logged if event was stored.
         return {"success": True}
