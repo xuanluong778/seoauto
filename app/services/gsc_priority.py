@@ -23,9 +23,15 @@ HIGH_IMPACT_TYPES: frozenset[str] = frozenset(
         "broken_internal_link",
         "broken_internal_http_error",
         "crawl_page_non_200",
+        "crawl_http_4xx",
+        "crawl_http_5xx",
+        "crawl_timeout",
+        "meta_robots_noindex",
+        "x_robots_tag_noindex",
         "http_status_error",
         "http_status_non_200",
         "https_not_used",
+        "mixed_content",
         "robots_unreachable",
         "robots_disallow_all",
         "sitemap_unreachable",
@@ -60,6 +66,26 @@ GSC_DISCLAIMER = "Không thể xác nhận bằng GSC (chưa có URL Inspection 
 
 SEVERITY_BASE: dict[str, float] = {"high": 72.0, "medium": 48.0, "low": 22.0}
 
+# Multiplicative priority model (0–1 factors → score 0–100)
+SEVERITY_FACTOR: dict[str, float] = {
+    "critical": 1.0,
+    "high": 0.92,
+    "medium": 0.68,
+    "low": 0.40,
+}
+
+SEO_IMPACT_HIGH: float = 1.0
+SEO_IMPACT_DEFAULT: float = 0.78
+SEO_IMPACT_LOW: float = 0.55
+
+PAGE_TYPE_FACTOR: dict[str, float] = {
+    "homepage": 1.12,
+    "landing": 1.08,
+    "category": 1.05,
+    "article": 1.02,
+    "unknown": 1.0,
+}
+
 PAGE_TYPE_BOOST: dict[str, float] = {
     "homepage": 18.0,
     "landing": 14.0,
@@ -67,6 +93,13 @@ PAGE_TYPE_BOOST: dict[str, float] = {
     "article": 6.0,
     "unknown": 0.0,
 }
+
+PRIORITY_TIER_THRESHOLDS: tuple[tuple[str, float], ...] = (
+    ("P0", 80.0),
+    ("P1", 60.0),
+    ("P2", 35.0),
+    ("P3", 0.0),
+)
 
 
 def _clamp(v: float, lo: float = 0.0, hi: float = 100.0) -> float:
@@ -107,37 +140,134 @@ def inspection_index_risk(inspection: dict[str, Any] | None) -> float:
     return min(20.0, boost)
 
 
+def priority_tier_from_score(score: float) -> str:
+    """Map 0–100 score to P0–P3."""
+    val = float(score or 0.0)
+    for tier, minimum in PRIORITY_TIER_THRESHOLDS:
+        if val >= minimum:
+            return tier
+    return "P3"
+
+
+def _severity_factor(severity: str) -> float:
+    sev = str(severity or "medium").lower()
+    return SEVERITY_FACTOR.get(sev, SEVERITY_FACTOR["medium"])
+
+
+def _seo_impact_factor(issue_type: str, page_type: str) -> float:
+    itype = str(issue_type or "")
+    base = SEO_IMPACT_HIGH if itype in HIGH_IMPACT_TYPES else SEO_IMPACT_DEFAULT
+    if itype in LOW_TRAFFIC_DOWNGRADE_TYPES:
+        base = SEO_IMPACT_LOW
+    pt = str(page_type or "unknown").lower()
+    return min(1.0, base * PAGE_TYPE_FACTOR.get(pt, 1.0))
+
+
+def _affected_urls_factor(count: int | None) -> float:
+    """Log-scaled URL spread — more affected URLs raise priority."""
+    c = max(1, int(count or 1))
+    return min(1.0, 0.55 + 0.45 * (math.log10(c + 1) / math.log10(501)))
+
+
+def _confidence_factor(confidence: float | None) -> float:
+    if confidence is None:
+        return 0.85
+    try:
+        val = float(confidence)
+    except (TypeError, ValueError):
+        return 0.85
+    return max(0.40, min(1.0, val))
+
+
+def _gsc_impact_factor(
+    *,
+    has_gsc: bool,
+    impressions: int,
+    clicks: int,
+    position: float,
+    inspection: dict[str, Any] | None,
+    issue_type: str,
+) -> float:
+    """0.72–1.0 multiplier from GSC traffic + URL Inspection signals."""
+    base = 0.78 if has_gsc else 0.72
+    tb = traffic_boost(impressions, clicks, position)
+    insp = inspection_index_risk(inspection)
+    factor = base + min(0.14, tb / 100.0 * 0.50) + min(0.12, insp / 100.0 * 0.60)
+    itype = str(issue_type or "")
+    if has_gsc and itype in LOW_TRAFFIC_DOWNGRADE_TYPES and impressions < 5 and clicks == 0:
+        factor *= 0.82
+    return min(1.0, factor)
+
+
+def compute_priority_components(
+    issue: dict[str, Any],
+    *,
+    page_metrics: dict[str, Any] | None = None,
+    inspection: dict[str, Any] | None = None,
+    has_gsc: bool = False,
+    affected_url_count: int | None = None,
+    confidence: float | None = None,
+) -> dict[str, Any]:
+    """
+    Deterministic priority: Severity × SEO Impact × Affected URLs × Confidence × GSC Impact.
+    Returns factors (0–1), priority_score (0–100), priority_tier (P0–P3).
+    """
+    sev = str(issue.get("severity") or "medium").lower()
+    itype = str(issue.get("type") or issue.get("issue_type") or "")
+    page_type = str(issue.get("page_type") or "unknown").lower()
+    pm = page_metrics or {}
+    impressions = int(pm.get("impressions") or 0)
+    clicks = int(pm.get("clicks") or 0)
+    position = float(pm.get("position") or 0.0)
+
+    sev_f = _severity_factor(sev)
+    seo_f = _seo_impact_factor(itype, page_type)
+    url_f = _affected_urls_factor(affected_url_count)
+    conf_raw = confidence if confidence is not None else issue.get("confidence")
+    conf_f = _confidence_factor(conf_raw)
+    gsc_f = _gsc_impact_factor(
+        has_gsc=has_gsc,
+        impressions=impressions,
+        clicks=clicks,
+        position=position,
+        inspection=inspection,
+        issue_type=itype,
+    )
+
+    score = 100.0 * sev_f * seo_f * url_f * conf_f * gsc_f
+    score = round(_clamp(score), 1)
+    return {
+        "severity_factor": round(sev_f, 4),
+        "seo_impact_factor": round(seo_f, 4),
+        "affected_urls_factor": round(url_f, 4),
+        "confidence_factor": round(conf_f, 4),
+        "gsc_impact_factor": round(gsc_f, 4),
+        "priority_score": score,
+        "priority_tier": priority_tier_from_score(score),
+    }
+
+
 def compute_issue_priority_score(
     issue: dict[str, Any],
     *,
     page_metrics: dict[str, Any] | None = None,
     inspection: dict[str, Any] | None = None,
     has_gsc: bool = False,
+    affected_url_count: int | None = None,
+    confidence: float | None = None,
 ) -> float:
     """
     Priority score 0–100 for remediation ordering.
     High-traffic URLs with severe technical issues rank highest.
     """
-    sev = str(issue.get("severity") or "medium").lower()
-    base = SEVERITY_BASE.get(sev, 40.0)
-    itype = str(issue.get("type") or "")
-    if itype in HIGH_IMPACT_TYPES:
-        base += 12.0
-    page_type = str(issue.get("page_type") or "unknown").lower()
-    base += PAGE_TYPE_BOOST.get(page_type, 0.0)
-
-    pm = page_metrics or {}
-    impressions = int(pm.get("impressions") or 0)
-    clicks = int(pm.get("clicks") or 0)
-    position = float(pm.get("position") or 0.0)
-    base += traffic_boost(impressions, clicks, position)
-    base += inspection_index_risk(inspection)
-
-    # Down-rank minor on-page issues on zero-traffic URLs when GSC data exists
-    if has_gsc and itype in LOW_TRAFFIC_DOWNGRADE_TYPES and impressions < 5 and clicks == 0:
-        base -= 18.0
-
-    return round(_clamp(base), 1)
+    return compute_priority_components(
+        issue,
+        page_metrics=page_metrics,
+        inspection=inspection,
+        has_gsc=has_gsc,
+        affected_url_count=affected_url_count,
+        confidence=confidence,
+    )["priority_score"]
 
 
 def gsc_evidence_badge(
@@ -172,9 +302,29 @@ def _inspection_confirms_issue(issue: dict[str, Any], inspection: dict[str, Any]
             return True
         if "not indexed" in coverage or "excluded" in coverage:
             return True
-    if itype in ("broken_internal_link", "broken_internal_http_error", "crawl_page_non_200"):
-        if str(inspection.get("page_fetch_state") or "").upper() in ("SOFT_404", "NOT_FOUND", "SERVER_ERROR"):
+    if itype in (
+        "broken_internal_link",
+        "broken_internal_http_error",
+        "crawl_page_non_200",
+        "crawl_http_4xx",
+        "crawl_http_5xx",
+        "http_status_non_200",
+    ):
+        fetch = str(inspection.get("page_fetch_state") or "").upper()
+        if fetch in ("SOFT_404", "NOT_FOUND", "SERVER_ERROR", "REDIRECT_ERROR"):
             return True
+    if itype in ("meta_robots_noindex", "x_robots_tag_noindex"):
+        indexing = str(inspection.get("indexing_state") or "").upper()
+        return "META_TAG" in indexing or "HTTP_HEADER" in indexing or "NOINDEX" in indexing
+    if itype == "crawled_url_robots_blocked":
+        robots = str(inspection.get("robots_txt_state") or "").upper()
+        indexing = str(inspection.get("indexing_state") or "").upper()
+        fetch = str(inspection.get("page_fetch_state") or "").upper()
+        return (
+            "DISALLOWED" in robots
+            or "BLOCKED_BY_ROBOTS" in indexing
+            or "BLOCKED_ROBOTS" in fetch
+        )
     return False
 
 

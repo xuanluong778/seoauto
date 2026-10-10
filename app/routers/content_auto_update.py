@@ -530,19 +530,29 @@ def api_list_posts(
     })
 
 
+@router.get("/content-ai/llm/jobs/{job_id}")
+def api_llm_routed_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    from app.services.llm_routed_jobs import poll_llm_job
+
+    payload = poll_llm_job(job_id, user_id=current_user.id)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Không tìm thấy job.")
+    return JSONResponse(payload)
+
+
 @router.get("/content-ai/auto-update/jobs/{job_id}")
 def api_cau_crawl_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Legacy poll endpoint — CAU list posts now runs synchronously."""
-    from app.services.job_store import get_job
+    from app.services.job_store import get_job_for_user
 
-    job = get_job(job_id)
+    job = get_job_for_user(job_id, user_id=current_user.id)
     if not job:
-        raise HTTPException(status_code=404, detail="Không tìm thấy job.")
-    payload = job.payload if isinstance(job.payload, dict) else {}
-    if int(payload.get("user_id") or 0) != int(current_user.id):
         raise HTTPException(status_code=404, detail="Không tìm thấy job.")
     state = str(job.state or "").upper()
     return JSONResponse({
@@ -1811,7 +1821,7 @@ def api_modal_assistant_patch(
         "patch": patch.to_dict(),
         "credits_charged": charged,
         "charge_on_apply": False,
-        "message": "Đã tạo patch. Áp dụng preview không trừ credit thêm.",
+        "message": "Đã tạo patch.",
     })
 
 
@@ -1888,7 +1898,7 @@ def api_modal_assistant_refresh_run(
         "patches": out_patches,
         "credits_charged": charged_total,
         "charge_on_apply": False,
-        "message": "Đã tạo patch làm mới. Áp dụng không trừ credit thêm.",
+        "message": "Đã tạo patch làm mới.",
     })
 
 
@@ -2085,7 +2095,7 @@ def api_modal_insert_generate(
         "preview": preview,
         "credits_charged": charged,
         "charge_on_apply": False,
-        "message": "Preview đã tạo. Áp dụng vào bài không trừ credit thêm.",
+        "message": "Preview đã tạo.",
     })
 
 

@@ -1,0 +1,10 @@
+# Optional: pip install pre-commit && pre-commit install
+# Hooks Path alternative: git config core.hooksPath .githooks
+repos:
+  - repo: local
+    hooks:
+      - id: seoauto-secret-scan
+        name: SEOAuto secret scan
+        entry: bash scripts/secret_scan.sh --staged
+        language: system
+        pass_filenames: false

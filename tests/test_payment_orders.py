@@ -104,7 +104,7 @@ def test_create_payment_order_sets_bank_and_amount(client):
     db.commit()
     order = create_payment_order(db, user_id=user.id, product_code="STARTER_M")
     db.commit()
-    assert order.amount == _vat_price(399_000)
+    assert order.amount == _vat_price(499_000)
     assert order.bank_code == "ACB"
     assert order.bank_account == "7982468"
     assert order.bank_holder == "Cong ty TNHH The Gioi Digi"

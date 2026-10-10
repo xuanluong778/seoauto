@@ -56,11 +56,18 @@ def _mock_fetch(*_a, **_k):
 
 
 def _mock_serp(*_a, **_k):
-    return {"serp_results": [], "keyword": "seo test"}
+    return {
+        "keyword": "seo test",
+        "rows": [],
+        "source": "test",
+        "cache_hit": False,
+        "provider_called": False,
+        "snap": {},
+    }
 
 
 def _scoreboard(keyword: str = "seo test") -> dict:
-    with patch("app.services.url_seo_scoreboard.fetch_serp", side_effect=_mock_serp), patch(
+    with patch("app.services.url_seo_scoreboard.fetch_seo_score_serp", side_effect=_mock_serp), patch(
         "app.services.url_seo_scoreboard._safe_fetch", side_effect=_mock_fetch
     ):
         return build_url_seo_scoreboard("https://example.com/test-page", keyword=keyword)
@@ -306,7 +313,10 @@ def test_15_reset_button_clears_results_and_modal():
     assert "function clearFormAndResults" in html
     assert "lastResponseData = null" in html
     assert "closeAiFixModal()" in html
-    assert 'id="ssTenNav"' in html
+    assert 'id="ssHeroSection"' in html
+    assert 'id="ssTop3Section"' in html
+    assert 'id="ssGroupsSection"' in html
+    assert "Phân tích chuyên sâu" in html
 
 
 def test_16_mobile_and_dark_theme_css():

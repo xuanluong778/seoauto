@@ -32,11 +32,11 @@ class KbNodeCreateBody(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     content: str = Field(default="", max_length=100_000)
     node_type: str = Field(default="node", max_length=32)
-    parent_id: int | None = Field(default=None, ge=1)
+    parent_id: str | None = Field(default=None, max_length=80)
     tags: list[str] = Field(default_factory=list)
     priority: int = Field(default=0, ge=0, le=1000)
     is_active: bool = Field(default=True)
-    target_node_id: int | None = Field(default=None, ge=1)
+    target_node_id: str | None = Field(default=None, max_length=80)
     relation_type: str = Field(default="child", max_length=32)
 
 
@@ -44,7 +44,7 @@ class KbNodeUpdateBody(BaseModel):
     title: str | None = Field(default=None, max_length=200)
     content: str | None = Field(default=None, max_length=100_000)
     node_type: str | None = Field(default=None, max_length=32)
-    parent_id: int | None = Field(default=None, ge=1)
+    parent_id: str | None = Field(default=None, max_length=80)
     clear_parent: bool = Field(default=False)
     tags: list[str] | None = Field(default=None)
     priority: int | None = Field(default=None, ge=0, le=1000)
@@ -53,13 +53,13 @@ class KbNodeUpdateBody(BaseModel):
 
 class KbImportSourcesBody(BaseModel):
     source_ids: list[int] = Field(default_factory=list)
-    parent_id: int | None = Field(default=None, ge=1)
+    parent_id: str | None = Field(default=None, max_length=80)
 
 
 class KbImportBody(BaseModel):
     bot_id: int = Field(..., ge=1)
     source_ids: list[int] = Field(default_factory=list)
-    parent_id: int | None = Field(default=None, ge=1)
+    parent_id: str | None = Field(default=None, max_length=80)
 
 
 class KbImportTextBody(BaseModel):
@@ -67,7 +67,7 @@ class KbImportTextBody(BaseModel):
     content: str = Field(..., min_length=2, max_length=500_000)
     tags: list[str] = Field(default_factory=list)
     format: str = Field(default="plain", max_length=16)
-    parent_id: int | None = Field(default=None, ge=1)
+    parent_id: str | None = Field(default=None, max_length=80)
     filename: str = Field(default="", max_length=255)
     on_duplicate: str = Field(default="update", max_length=16)
 
@@ -76,7 +76,7 @@ class KbImportXlsxBody(BaseModel):
     filename: str = Field(default="import.xlsx", max_length=255)
     content_base64: str = Field(..., min_length=8)
     tags: list[str] = Field(default_factory=list)
-    parent_id: int | None = Field(default=None, ge=1)
+    parent_id: str | None = Field(default=None, max_length=80)
     on_duplicate: str = Field(default="update", max_length=16)
 
 
@@ -125,7 +125,7 @@ def kb_create_node(
 
 @router.put("/kb/nodes/{node_id}")
 def kb_update_node(
-    node_id: int,
+    node_id: str,
     body: KbNodeUpdateBody,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -151,7 +151,7 @@ def kb_update_node(
 
 @router.delete("/kb/nodes/{node_id}")
 def kb_delete_node(
-    node_id: int,
+    node_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -162,7 +162,7 @@ def kb_delete_node(
 
 @router.post("/kb/nodes/{node_id}/toggle")
 def kb_toggle_node(
-    node_id: int,
+    node_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict[str, Any]:

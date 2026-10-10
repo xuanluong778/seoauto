@@ -30,7 +30,7 @@
     justify-content: center;
     width: 64px;
     height: 64px;
-    margin-left: auto;
+    margin-left: 0;
     padding: 0;
     border: none;
     border-radius: 50%;
@@ -1662,5 +1662,177 @@
     .gcb-tab {
         font-size: 10px;
         padding: 7px 8px;
+    }
+}
+
+/* Chatbot CSKH inbox notify — sits next to the Chatbot FAB */
+.digiseo-chatbot-fab-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.digiseo-inbox-notify {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.digiseo-inbox-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10040;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: default;
+}
+
+.digiseo-inbox-notify.is-open .digiseo-inbox-backdrop {
+    display: block;
+}
+
+.digiseo-inbox-fab {
+    position: relative;
+    z-index: 10052;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #fff;
+    background: linear-gradient(180deg, #3b3fad 0%, #2e3192 100%);
+    box-shadow: 0 8px 24px rgba(46, 49, 146, 0.4);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.digiseo-inbox-fab svg {
+    width: 22px;
+    height: 22px;
+}
+
+.digiseo-inbox-fab:hover {
+    transform: scale(1.06);
+    box-shadow: 0 10px 28px rgba(46, 49, 146, 0.5);
+}
+
+.digiseo-inbox-fab:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 3px;
+}
+
+.digiseo-inbox-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #e11d48;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+.digiseo-inbox-dropdown {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    width: min(320px, calc(100vw - 24px));
+    max-height: min(380px, 60vh);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22);
+    z-index: 10051;
+}
+
+.digiseo-inbox-notify.is-open .digiseo-inbox-dropdown {
+    display: flex;
+}
+
+.digiseo-inbox-fab.is-active {
+    box-shadow: 0 10px 28px rgba(46, 49, 146, 0.55);
+    transform: scale(1.04);
+}
+
+.digiseo-inbox-dropdown-head {
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.digiseo-inbox-dropdown-list {
+    overflow-y: auto;
+    max-height: 320px;
+}
+
+.digiseo-inbox-empty {
+    margin: 0;
+    padding: 18px 14px;
+    font-size: 13px;
+    color: #64748b;
+    text-align: center;
+}
+
+.digiseo-inbox-item {
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    border-bottom: 1px solid #f1f5f9;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+
+.digiseo-inbox-item:hover,
+.digiseo-inbox-item:focus-visible {
+    background: #f8fafc;
+}
+
+.digiseo-inbox-item-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.digiseo-inbox-item-preview {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: #475569;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.digiseo-inbox-item-time {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+@media (max-width: 480px) {
+    .digiseo-inbox-fab {
+        width: 48px;
+        height: 48px;
     }
 }

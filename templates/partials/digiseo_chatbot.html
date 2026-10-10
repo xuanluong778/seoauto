@@ -38,7 +38,24 @@
             </button>
         </footer>
     </div>
-    <button type="button" class="digiseo-chatbot-fab" id="digiseoChatbotFab" aria-label="Mở Chatbot AI" title="Chatbot AI">
-        <img src="/static/img/digiseo-chatbot-avatar.png" width="56" height="56" alt="">
-    </button>
+    <div class="digiseo-chatbot-fab-row">
+        <div class="digiseo-inbox-notify" id="digiseoInboxNotify" hidden>
+            <button type="button" class="digiseo-inbox-backdrop" id="digiseoInboxBackdrop" hidden tabindex="-1" aria-hidden="true"></button>
+            <button type="button" class="digiseo-inbox-fab" id="digiseoInboxFab" aria-label="Tin nhắn Chatbot CSKH" title="Tin nhắn Chatbot CSKH" aria-expanded="false" aria-controls="digiseoInboxDropdown">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                </svg>
+                <span class="digiseo-inbox-badge" id="digiseoInboxBadge" hidden>0</span>
+            </button>
+            <div class="digiseo-inbox-dropdown" id="digiseoInboxDropdown" hidden role="dialog" aria-label="Tin nhắn Chatbot mới" aria-modal="true">
+                <div class="digiseo-inbox-dropdown-head">Tin nhắn mới</div>
+                <div class="digiseo-inbox-dropdown-list" id="digiseoInboxList">
+                    <p class="digiseo-inbox-empty">Chưa có tin nhắn mới.</p>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="digiseo-chatbot-fab" id="digiseoChatbotFab" aria-label="Mở Chatbot AI" title="Chatbot AI">
+            <img src="/static/img/digiseo-chatbot-avatar.png" width="56" height="56" alt="">
+        </button>
+    </div>
 </div>

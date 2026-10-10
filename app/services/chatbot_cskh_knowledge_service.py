@@ -130,6 +130,18 @@ def add_knowledge_source(
     db.add(row)
     db.commit()
     db.refresh(row)
+    try:
+        from app.services.shared_knowledge import sync_source_to_kb
+
+        sync_source_to_kb(
+            user_id,
+            source_id=int(row.id),
+            title=row.title or title_s,
+            content=body,
+            source_type=st,
+        )
+    except Exception:
+        pass
     return knowledge_source_to_dict(row, full_content=True)
 
 
@@ -162,6 +174,19 @@ def update_knowledge_source(
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
+    if (row.content or "").strip():
+        try:
+            from app.services.shared_knowledge import sync_source_to_kb
+
+            sync_source_to_kb(
+                user_id,
+                source_id=int(row.id),
+                title=row.title or "",
+                content=row.content or "",
+                source_type=row.source_type or "faq",
+            )
+        except Exception:
+            pass
     return knowledge_source_to_dict(row, full_content=True)
 
 
@@ -249,4 +274,17 @@ def crawl_website_knowledge(
 
     db.commit()
     db.refresh(row)
+    if (row.content or "").strip() and str(row.status or "") in ("ready", "active"):
+        try:
+            from app.services.shared_knowledge import sync_source_to_kb
+
+            sync_source_to_kb(
+                user_id,
+                source_id=int(row.id),
+                title=row.title or "",
+                content=row.content or "",
+                source_type=row.source_type or "website",
+            )
+        except Exception:
+            pass
     return knowledge_source_to_dict(row, full_content=True)

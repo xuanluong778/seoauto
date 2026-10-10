@@ -1,20 +1,10 @@
-"""Admin accounts: skip OTP; email list from ADMIN_EMAIL env."""
+"""Admin accounts: skip OTP; email list from ADMIN_EMAIL env only (no hard-coded emails)."""
 
 from __future__ import annotations
 
 import os
 
 from app.models.user import User
-
-# Chỉ các email này thấy tab / trang Administrator trong UI (legacy allowlist).
-# Quyền SaaS/credit dựa trên role admin|super_admin qua rbac.is_admin — không hard-code email ở nhiều chỗ.
-PLATFORM_ADMIN_EMAILS = frozenset(
-    {
-        "xuanluong778@gmail.com",
-        "xuanluongmarketing@gmail.com",
-        "thegioimarketingdigi@gmail.com",
-    }
-)
 
 
 def _is_admin_role(user: User) -> bool:
@@ -27,8 +17,26 @@ def normalize_email(email: str) -> str:
     return str(email or "").strip().lower()
 
 
+def admin_emails_from_env() -> frozenset[str]:
+    """ADMIN_EMAIL and optional PLATFORM_ADMIN_EMAILS (comma-separated)."""
+    parts: list[str] = []
+    for key in ("ADMIN_EMAIL", "PLATFORM_ADMIN_EMAILS"):
+        raw = (os.getenv(key) or "").strip()
+        if not raw:
+            continue
+        for chunk in raw.replace(";", ",").split(","):
+            e = chunk.strip().lower()
+            if e:
+                parts.append(e)
+    return frozenset(parts)
+
+
+# Backward-compatible name: now env-derived only (empty if unset).
+PLATFORM_ADMIN_EMAILS = admin_emails_from_env()
+
+
 def is_platform_admin_email(email: str) -> bool:
-    return normalize_email(email) in PLATFORM_ADMIN_EMAILS
+    return normalize_email(email) in admin_emails_from_env()
 
 
 def is_platform_admin(user: User | None) -> bool:
@@ -37,20 +45,8 @@ def is_platform_admin(user: User | None) -> bool:
     return is_platform_admin_email(str(getattr(user, "email", "") or ""))
 
 
-def admin_emails_from_env() -> frozenset[str]:
-    raw = (os.getenv("ADMIN_EMAIL") or "").strip()
-    if not raw:
-        return frozenset()
-    parts: list[str] = []
-    for chunk in raw.replace(";", ",").split(","):
-        e = chunk.strip().lower()
-        if e:
-            parts.append(e)
-    return frozenset(parts)
-
-
 def is_configured_admin_email(email: str) -> bool:
-    return email.strip().lower() in admin_emails_from_env()
+    return normalize_email(email) in admin_emails_from_env()
 
 
 def skips_otp_for_user(user: User | None, email: str) -> bool:

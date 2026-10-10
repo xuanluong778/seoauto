@@ -182,7 +182,10 @@ def fetch_dataforseo_search_volume_batch(
                     "cpc_avg": cpc_f,
                     "cpc_min": cpc_f,
                     "cpc_max": cpc_f,
+                    "competition_index": row.get("competition_index") if row.get("competition_index") is not None else row.get("competition"),
+                    "monthly_searches": row.get("monthly_searches"),
                     "volume_source": "dataforseo",
+                    "provider": "dataforseo",
                     "confidence": 0.9,
                 }
             )
@@ -287,6 +290,7 @@ def fetch_dataforseo_keywords_for_keywords(
                     "competition_index": row.get("competition_index"),
                     "monthly_searches": row.get("monthly_searches"),
                     "volume_source": "dataforseo",
+                    "provider": "dataforseo",
                     "confidence": 0.92,
                 }
             )

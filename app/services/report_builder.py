@@ -974,6 +974,9 @@ def build_seo_report_from_text(
     }
 
 
+_REPORT_CACHE: dict[str, tuple[float, int, dict]] = {}
+
+
 def build_seo_report_from_file(
     file_path: str,
     group_filter: str | None = None,
@@ -982,12 +985,26 @@ def build_seo_report_from_file(
     user_id: int | None = None,
 ) -> dict:
     path = Path(file_path)
+    cache_key = f"{path.resolve()}|{group_filter or ''}|{status_filter or ''}|{user_id or 0}"
+    try:
+        mtime = int(path.stat().st_mtime)
+    except OSError:
+        mtime = 0
+    from app.services.business_api_rollout import business_api_cache_enabled
+
+    if business_api_cache_enabled():
+        hit = _REPORT_CACHE.get(cache_key)
+        if hit and hit[0] == mtime:
+            return hit[2]
     raw_text = path.read_text(encoding="utf-8", errors="ignore")
     if path.name.lower() == "technical-checklist-oke.txt":
         raw_text = convert_oke_prose_to_tsv(raw_text)
     project_root = _PROJECT_ROOT
     raw_text = apply_gsc_indexing_count_overrides(raw_text, project_root=project_root, user_id=user_id)
-    return build_seo_report_from_text(raw_text, group_filter=group_filter, status_filter=status_filter)
+    report = build_seo_report_from_text(raw_text, group_filter=group_filter, status_filter=status_filter)
+    if business_api_cache_enabled():
+        _REPORT_CACHE[cache_key] = (mtime, user_id or 0, report)
+    return report
 
 
 ACTION_PLAN_CSV_COLUMNS = [

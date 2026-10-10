@@ -1,0 +1,56 @@
+# WAVE 8 — Security / Multi-Tenant Hardening
+
+**Result:** `WAVE_8_SECURITY_MULTI_TENANT = FULL PASS`
+**Snapshot:** 2026-09-02T14:37:53.283438+00:00
+
+## Scope
+
+Audit chain: JWT/Auth → RBAC → Controller/API → Service → PostgreSQL → Redis → Celery → Webhook → Upload
+
+## Gates
+
+- ACCOUNT_DISABLE_REVOKE: **PASS**
+- AUDIT_LOG: **PASS**
+- AUTH_REGRESSION: **PASS**
+- AUTH_SECURITY: **PASS**
+- CACHE_ISOLATION: **PASS**
+- CONTENT_AI_SECURITY_REGRESSION: **PASS**
+- CREDIT_ISOLATION: **PASS**
+- IDOR: **PASS**
+- JWT_SHORT_LIVED_ACCESS: **PASS**
+- KNOWN_FAILURES_NOT_INCREASED: **PASS**
+- LEGACY_USER_JWT_BLOCKED: **PASS**
+- LOGOUT_REVOKE: **PASS**
+- MULTI_TENANT_DB: **PASS**
+- MULTI_TENANT_QUEUE: **PASS**
+- MULTI_TENANT_REDIS: **PASS**
+- OLD_720H_TOKEN_AFTER_CUTOFF: **PASS**
+- PASSWORD_CHANGE_REVOKE: **PASS**
+- RATE_LIMIT_SECURITY: **PASS**
+- RBAC: **PASS**
+- REFRESH_REUSE_BLOCKED: **PASS**
+- REFRESH_TOKEN_HTTPONLY_ONLY: **PASS**
+- REFRESH_TOKEN_ROTATION: **PASS**
+- ROLE_CHANGE_REVOKE: **PASS**
+- SECRET_EXPOSURE: **PASS**
+- SERVER_SIDE_SESSION_REVOKE: **PASS**
+- SERVICE_TOKEN_COMPATIBILITY: **PASS**
+- SESSION_DB_MIGRATION: **PASS**
+- SSRF: **PASS**
+- STOLEN_TOKEN_AFTER_REVOKE: **PASS**
+- UI_API_REGRESSION: **PASS**
+- UPLOAD_SECURITY: **PASS**
+- WEBHOOK_SECURITY: **PASS**
+- WORDPRESS_SECURITY_REGRESSION: **PASS**
+
+## Run
+
+```bash
+PYTHONPATH=. .venv/bin/python scripts/wave8_security_multitenant.py
+```
+
+## Evidence
+
+- `wave8_report.json` — all gate results
+- `ISSUES.md` — ISSUE → ROOT_CAUSE → FIX → ATTACK TEST → AFTER
+- `idor_attack_matrix.json` — live cross-tenant probes (when 2+ tenants available)

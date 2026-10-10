@@ -24,6 +24,7 @@ from app.services.content_ai_publish_schedule_service import (
 
 @pytest.fixture()
 def db_session():
+    import app.models.payment_order  # noqa: F401
     import app.models.seo  # noqa: F401
     import app.models.user  # noqa: F401
     import app.models.knowledge  # noqa: F401

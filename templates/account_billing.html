@@ -6,7 +6,7 @@
     {% include "partials/digiseo_seo_head.html" %}
     <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
     <link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=4">
-    <link rel="stylesheet" href="/static/css/account-billing.css?v=21">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=26">
     <link rel="stylesheet" href="/static/css/digiseo-account-widget.css?v=2">
 </head>
 <body class="ab-page" data-user-dock="hidden">
@@ -131,18 +131,25 @@
             </nav>
 
             <div class="ab-plans-panel is-active" data-plans-panel="packages">
-                <div class="ab-card">
-                    <h3 class="ab-section-title">Chọn gói phù hợp</h3>
-                    <p class="ab-muted-text">4 gói Starter, Pro, Agency, Business — rút gọn từ trang bảng giá.</p>
-                    <div class="ab-billing-toggle" role="group" aria-label="Chu kỳ thanh toán">
-                        <button type="button" class="ab-billing-btn is-active" data-ab-billing="monthly" aria-pressed="true">Tháng</button>
-                        <button type="button" class="ab-billing-btn" data-ab-billing="semi_annual" aria-pressed="false">6 tháng</button>
-                        <button type="button" class="ab-billing-btn" data-ab-billing="yearly" aria-pressed="false">Năm</button>
-                    </div>
-                    <p class="ab-billing-semi-note" id="abBillingSemiNote" hidden>Trả tiền 5 tháng, dùng 6 tháng, tặng thêm 1 tháng credit</p>
-                    <p class="ab-billing-semi-note" id="abBillingYearNote" hidden>Trả 12 tháng, dùng 14 tháng, tặng thêm 2 tháng credit</p>
+                <div class="ab-card ab-plans-shell">
+                    <header class="ab-plans-hero">
+                        <h3 class="ab-section-title">Chọn gói phù hợp</h3>
+                        <p class="ab-plans-lead">Quota SEO mạnh theo gói. Credit Premium chỉ dùng cho tác vụ đắt như AI Image, Places và Deep Research.</p>
+                        <div class="ab-billing-toggle-wrap">
+                            <div class="ab-billing-toggle" role="group" aria-label="Chu kỳ thanh toán">
+                                <button type="button" class="ab-billing-btn is-active" data-ab-billing="monthly" aria-pressed="true">Tháng</button>
+                                <button type="button" class="ab-billing-btn" data-ab-billing="semi_annual" aria-pressed="false">6 tháng</button>
+                                <button type="button" class="ab-billing-btn" data-ab-billing="yearly" aria-pressed="false">Năm</button>
+                            </div>
+                        </div>
+                        <p class="ab-billing-semi-note" id="abBillingSemiNote" hidden>Trả tiền 5 tháng, dùng 6 tháng, tặng thêm 1 tháng credit</p>
+                        <p class="ab-billing-semi-note" id="abBillingYearNote" hidden>Trả 12 tháng, dùng 14 tháng, tặng thêm 2 tháng credit</p>
+                    </header>
                     <div class="ab-plans-grid" id="abPlansGrid">
                         <div class="ab-loading">Đang tải gói…</div>
+                    </div>
+                    <div class="ab-plans-compare-actions">
+                        <button type="button" class="ab-btn secondary ab-plans-compare-btn" id="abOpenPlansCompare">Xem đầy đủ tính năng</button>
                     </div>
                 </div>
             </div>
@@ -670,6 +677,18 @@
         </div>
     </div>
 
+    <div class="ab-aff-modal" id="abPlansCompareModal" role="dialog" aria-modal="true" aria-labelledby="abPlansCompareTitle" hidden>
+        <div class="ab-aff-modal-box ab-plans-compare-modal">
+            <div class="ab-payment-head">
+                <h3 id="abPlansCompareTitle">So sánh đầy đủ tính năng</h3>
+                <button type="button" class="ab-payment-close" id="abClosePlansCompare" aria-label="Đóng">&times;</button>
+            </div>
+            <div class="ab-plans-compare-body" id="abPlansCompareBody">
+                <div class="ab-loading">Đang tải…</div>
+            </div>
+        </div>
+    </div>
+
     <div class="ab-aff-modal" id="affAdminPayoutRejectModal" role="dialog" aria-modal="true" hidden>
         <div class="ab-aff-modal-box">
             <h3>Từ chối yêu cầu rút tiền</h3>
@@ -689,7 +708,7 @@
     <script src="/static/js/digiseo-mobile-nav.js?v=7" defer></script>
     <script src="/static/js/digiseo-nav-auth.js?v=9" defer></script>
     <script src="/static/js/sepay-payment-flow.js?v=1"></script>
-    <script src="/static/js/account-billing.js?v=23"></script>
+    <script src="/static/js/account-billing.js?v=27"></script>
     {% include "partials/digiseo_account_widget_bundle.html" %}
 </body>
 </html>

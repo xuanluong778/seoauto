@@ -258,12 +258,12 @@
         if (btnCancel) btnCancel.addEventListener("click", resetForm);
         var btnImport = $("stgKbBtnImport");
         if (btnImport) btnImport.addEventListener("click", function () {
-            window.location.href = "/chatbot-cskh?tab=kb&import=1";
+            window.location.href = "/settings#ai-knowledge-base";
         });
         var linkCskh = $("stgKbLinkCskh");
         if (linkCskh) linkCskh.addEventListener("click", function (e) {
             e.preventDefault();
-            window.location.href = "/chatbot-cskh?tab=kb";
+            window.location.href = "/settings#ai-knowledge-base";
         });
     }
 

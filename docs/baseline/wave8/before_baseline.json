@@ -1,0 +1,4 @@
+{
+  "note": "Pre-WAVE8 security baseline \u2014 audit chain JWT\u2192RBAC\u2192API\u2192Service\u2192DB\u2192Redis\u2192Celery\u2192Webhook\u2192Upload",
+  "captured_at": "2026-09-02T10:06:59.835103+00:00"
+}

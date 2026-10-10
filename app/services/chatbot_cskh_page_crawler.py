@@ -311,11 +311,15 @@ def fetch_and_extract_url(url: str) -> dict[str, Any]:
     normalized = _normalize_url(url)
 
     def _fetch() -> requests.Response:
-        return requests.get(
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        blocked = validate_public_http_url(normalized)
+        if blocked:
+            raise ValueError(blocked)
+        return safe_requests_get(
             normalized,
             headers={"User-Agent": _USER_AGENT, "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"},
             timeout=_FETCH_TIMEOUT,
-            allow_redirects=True,
         )
 
     try:
@@ -323,7 +327,7 @@ def fetch_and_extract_url(url: str) -> dict[str, Any]:
             resp = execute_guarded_external(ExternalApiProvider.CRAWL, "cskh_fetch_page", _fetch)
         else:
             resp = _fetch()
-    except requests.RequestException as exc:
+    except (requests.RequestException, ValueError) as exc:
         raise CrawlFetchError(f"Không tải được trang: {exc}") from exc
 
     if resp.status_code >= 400:

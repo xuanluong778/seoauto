@@ -161,7 +161,7 @@
                 });
                 self.renderPatchQueue();
                 self.renderHistory();
-                self.setHint("ok", data.message || "Đã tạo patch (áp dụng không trừ credit thêm).");
+                self.setHint("ok", data.message || "Đã tạo patch.");
             })
             .catch(function (e) {
                 var msg = (e && (e.detail || e.message)) || "Tạo patch thất bại";
@@ -189,7 +189,6 @@
                 "<span>+" + (p.words_added || 0) + " / −" + (p.words_removed || 0) + " từ</span>" +
                 "<span>SEO: " + (p.seo_score_before != null ? p.seo_score_before : "—") +
                 " → " + (p.seo_score_after_est != null ? p.seo_score_after_est : "—") + "</span>" +
-                "<span>Credit: " + (p.credit_charged || 0) + " / ước tính " + (p.credit_estimate || 0) + "</span>" +
                 "</div>" +
                 '<div class="cau-patch-card__cols">' +
                 "<div><label>Cũ</label><pre>" + esc(plain(p.old_html).slice(0, 400)) + "</pre></div>" +
@@ -255,7 +254,7 @@
                 self.renderChanges();
                 self.renderHistory();
                 self.onContentApplied(data.content_html || "");
-                self.setHint("ok", "Đã áp dụng patch (không trừ credit).");
+                self.setHint("ok", "Đã áp dụng patch.");
             })
             .catch(function (e) {
                 var msg = (e && (e.detail || e.message)) || "Áp dụng thất bại";

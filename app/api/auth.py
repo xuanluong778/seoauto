@@ -32,7 +32,17 @@ from app.schemas.auth import (
     UserResponse,
 )
 from app.services.admin_auth import ensure_admin_user_fields, is_configured_admin_email, is_platform_admin_email, skips_otp_for_user
-from app.services.auth import get_current_user, get_optional_current_user, login_user, register_user
+from app.services.auth import (
+    get_bearer_or_cookie_token,
+    get_current_user,
+    get_optional_current_user,
+    get_token_optional,
+    login_user,
+    register_user,
+    user_from_token,
+)
+from app.services.auth_tokens import public_token_json
+from app.services.session_auth_rollout import refresh_token_http_only_only, server_sessions_enabled
 from app.services.affiliate_service import try_attach_referral_from_request
 from app.services.rbac import normalize_role
 from app.services.security_audit_log import log_audit_event
@@ -45,10 +55,128 @@ from app.services.credits import (
     public_credit_transaction_note,
 )
 from app.services.otp_flow import send_login_otp, verify_login_otp
-from app.services.oauth_cookie import attach_seo_token_cookie
+from app.services.oauth_cookie import (
+    SEO_REFRESH_COOKIE,
+    attach_session_cookies,
+    attach_seo_token_cookie,
+    clear_seo_token_cookie,
+)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/logout", response_model=MessageResponse)
+def logout(request: Request, db: Session = Depends(get_db)) -> JSONResponse:
+    if server_sessions_enabled():
+        from app.services.user_session_service import revoke_session_by_access_token
+
+        access = (request.cookies.get("seo_token") or "").strip()
+        if not access:
+            access = (request.headers.get("authorization") or "").replace("Bearer ", "", 1).strip()
+        if access:
+            revoke_session_by_access_token(db, access, reason="logout")
+            db.commit()
+    response = JSONResponse(content={"message": "Đã đăng xuất."})
+    clear_seo_token_cookie(response, request)
+    return response
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def auth_refresh(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    if not server_sessions_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    refresh = (request.cookies.get(SEO_REFRESH_COOKIE) or "").strip()
+    if not refresh:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+    from app.services.user_session_service import refresh_user_session, tokens_to_response
+
+    tokens = refresh_user_session(db, refresh_token=refresh, request=request)
+    body = tokens_to_response(tokens)
+    response = JSONResponse(content=public_token_json(body))
+    attach_session_cookies(
+        response,
+        request,
+        access_token=body.access_token,
+        refresh_token=body.refresh_token or None,
+    )
+    return response
+
+
+@router.post("/sessions/revoke-all", response_model=MessageResponse)
+def revoke_all_sessions(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    if not server_sessions_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    from app.core.security import decode_access_token
+    from app.services.user_session_service import revoke_all_user_sessions
+
+    except_sid = None
+    token = (request.cookies.get("seo_token") or "").strip()
+    if not token:
+        auth = (request.headers.get("authorization") or "").strip()
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+    if token:
+        try:
+            except_sid = str(decode_access_token(token).get("sid") or "").strip() or None
+        except ValueError:
+            except_sid = None
+    count = revoke_all_user_sessions(
+        db,
+        user_id=int(current_user.id),
+        except_session_id=except_sid,
+        reason="revoke_all",
+    )
+    db.commit()
+    return MessageResponse(message=f"Đã thu hồi {count} phiên đăng nhập khác.")
+
+
+@router.get("/session", response_model=TokenResponse)
+def auth_session(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str | None = Depends(get_token_optional),
+) -> JSONResponse | TokenResponse:
+    """Trả access_token từ cookie HttpOnly (hoặc Bearer) để SPA hydrate sessionStorage.
+
+    Luồng Google OAuth chỉ Set-Cookie HttpOnly — JS không đọc được document.cookie.
+    Password login vẫn trả token trong JSON; endpoint này đồng bộ OAuth với cùng mô hình.
+    Khi SERVER_SESSIONS_ENABLED: access hết hạn thì tự refresh từ cookie seo_refresh (không cần đổi UI).
+    """
+    if token:
+        try:
+            user_from_token(db, token)
+            return TokenResponse(access_token=token, token_type="bearer")
+        except HTTPException:
+            if not server_sessions_enabled():
+                raise
+
+    refresh = (request.cookies.get(SEO_REFRESH_COOKIE) or "").strip()
+    if server_sessions_enabled() and refresh:
+        from app.services.user_session_service import refresh_user_session, tokens_to_response
+
+        tokens = refresh_user_session(db, refresh_token=refresh, request=request)
+        body = tokens_to_response(tokens)
+        response = JSONResponse(content=public_token_json(body))
+        attach_session_cookies(
+            response,
+            request,
+            access_token=body.access_token,
+            refresh_token=body.refresh_token or None,
+        )
+        return response
+
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Đăng nhập để tiếp tục.")
+    user_from_token(db, token)
+    return TokenResponse(access_token=token, token_type="bearer")
 
 
 @router.get("/google/configured")
@@ -100,12 +228,15 @@ def login_flags(email: str = Query(..., min_length=3), db: Session = Depends(get
 @router.post("/login", response_model=TokenResponse)
 def login(request: Request, payload: UserLogin, db: Session = Depends(get_db)) -> JSONResponse:
     token = login_user(payload.email, payload.password, db, payload.otp, request=request)
-    from app.services.auth import user_from_token
-
     user = user_from_token(db, token.access_token)
     log_audit_event(action="login", user_id=user.id, resource_type="user", resource_id=str(user.id), request=request)
-    response = JSONResponse(content={"access_token": token.access_token, "token_type": token.token_type})
-    attach_seo_token_cookie(response, request, token.access_token)
+    response = JSONResponse(content=public_token_json(token))
+    attach_session_cookies(
+        response,
+        request,
+        access_token=token.access_token,
+        refresh_token=token.refresh_token,
+    )
     return response
 
 
@@ -118,18 +249,35 @@ def otp_send(payload: OtpSendRequest, db: Session = Depends(get_db)) -> MessageR
 @router.post("/otp/verify", response_model=TokenResponse)
 def otp_verify(request: Request, payload: OtpVerifyRequest, db: Session = Depends(get_db)) -> JSONResponse:
     token = verify_login_otp(payload.email, payload.otp, db)
-    from app.services.auth import user_from_token
-
     user = user_from_token(db, token.access_token)
     log_audit_event(action="login", user_id=user.id, resource_type="user", resource_id=str(user.id), request=request)
-    response = JSONResponse(content={"access_token": token.access_token, "token_type": token.token_type})
-    attach_seo_token_cookie(response, request, token.access_token)
+    response = JSONResponse(content=public_token_json(token))
+    attach_session_cookies(
+        response,
+        request,
+        access_token=token.access_token,
+        refresh_token=token.refresh_token,
+    )
     return response
 
 
 @router.get("/me", response_model=UserResponse)
 def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> UserResponse:
+    from app.services.business_api_cache import cache_get, cache_set, tenant_cache_key
+    from app.services.business_api_rollout import business_api_cache_enabled
     from app.services.rbac import is_admin, is_admin_role_name
+    from app.services.tenant_org import resolve_organization_id
+
+    org_id = resolve_organization_id(int(current_user.id))
+    if business_api_cache_enabled():
+        key = tenant_cache_key(
+            user_id=int(current_user.id),
+            organization_id=org_id,
+            scope="auth_me",
+        )
+        cached = cache_get(key)
+        if isinstance(cached, dict) and cached.get("id") == current_user.id:
+            return UserResponse.model_validate(cached)
 
     # Bootstrap legacy configured admins that still have a non-admin role.
     # Never downgrade an existing admin / super_admin.
@@ -137,13 +285,16 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
         ensure_admin_user_fields(current_user)
         db.commit()
         db.refresh(current_user)
-    credit_balance = get_available_balance(db, current_user.id, sync=True)
-    return UserResponse.model_validate(current_user).model_copy(
+    credit_balance = get_available_balance(db, current_user.id, sync=False)
+    out = UserResponse.model_validate(current_user).model_copy(
         update={
             "show_admin_nav": is_admin(current_user),
             "credit_balance": int(credit_balance),
         }
     )
+    if business_api_cache_enabled():
+        cache_set(key, out.model_dump(), ttl=int(os.getenv("BUSINESS_API_AUTH_ME_TTL", "30")))
+    return out
 
 
 @router.get("/credits/config", response_model=CreditsConfigResponse)

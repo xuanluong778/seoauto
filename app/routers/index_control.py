@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.user import User
 from app.services.auth import get_current_user
-from app.services.saas_gate import enforce_saas_access
+from app.services.saas_gate import build_job_id, saas_action_gate
 from app.services.trial_access import require_active_trial
 from app.services.index_control_check import URL_TYPE_LABELS, check_index_urls, normalize_url_type
 from app.services.index_control_history_store import (
@@ -306,16 +306,33 @@ def index_control_submit_indexing(
     db: Session = Depends(get_db),
 ) -> dict:
     # Trial-blocked feature: never call SinByte/Index provider without SaaS gate
-    enforce_saas_access(db, user, feature_code="index_control_submit", quantity=max(1, len(body.urls or [])))
-    role = getattr(user, "role", None)
-    return submit_indexing_urls(
+    units = max(1, len(body.urls or []))
+    job_id = build_job_id("index_control_submit", user.id, units)
+    from app.services.credits import cost_index_submit, credits_enforced
+
+    credit_cost = cost_index_submit(units, provider="google", db=db) if credits_enforced() else 0
+    with saas_action_gate(
         db,
-        user_id=user.id,
-        role=role,
-        urls=body.urls,
-        url_meta=body.url_meta,
-        project_name=body.project_name,
-    )
+        user,
+        feature_code="index_control_submit",
+        credit_cost=credit_cost,
+        quota_units=units,
+        job_id=job_id,
+        idempotency_key=job_id,
+        charge_mode="reserve",
+        auto_commit_on_success=True,
+    ) as sgate:
+        role = getattr(user, "role", None)
+        out = submit_indexing_urls(
+            db,
+            user_id=user.id,
+            role=role,
+            urls=body.urls,
+            url_meta=body.url_meta,
+            project_name=body.project_name,
+        )
+        sgate.record_usage(metadata={"url_count": units, "credits": credit_cost})
+        return out
 
 
 @router.get("/submit-indexing/projects")
@@ -758,7 +775,28 @@ def index_control_indexnow_submit(
 
     api_result: dict | None = None
     if valid_urls:
-        api_result = submit_indexnow(domain=domain, key=key, urls=valid_urls)
+        from app.services.credits import cost_index_submit, credits_enforced
+        from app.services.saas_gate import build_job_id, saas_action_gate
+
+        units = max(1, len(valid_urls))
+        job_id = build_job_id("indexnow_submit", user.id, units)
+        credit_cost = cost_index_submit(units, provider="indexnow", db=db) if credits_enforced() else 0
+        with saas_action_gate(
+            db,
+            user,
+            feature_code="index_control_submit",
+            credit_cost=credit_cost,
+            quota_units=units,
+            job_id=job_id,
+            idempotency_key=job_id,
+            charge_mode="reserve",
+            auto_commit_on_success=True,
+        ) as sgate:
+            api_result = submit_indexnow(domain=domain, key=key, urls=valid_urls)
+            if not api_result.get("ok"):
+                sgate.release(reason="indexnow_failed")
+            else:
+                sgate.record_usage(metadata={"url_count": units, "provider": "indexnow"})
         send_status = "sent" if api_result.get("ok") else "failed"
         batch_note = api_result.get("message")
         http_status = api_result.get("http_status")

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app.models.user import User
 from app.services.auth import get_current_user
 from app.services.job_store import cleanup_expired, create_job, ensure_job_schema, get_job, mark_stale_jobs_failed, mark_stale_queued_failed
+from app.services.job_store import get_job_for_user
 from app.services.user_scope import assert_job_access
 
 
@@ -31,9 +32,11 @@ class WpBulkUpdateRequest(BaseModel):
 
 
 class WpUpdatePostRequest(BaseModel):
-    wp_url: str = Field(..., max_length=2000)
-    username: str = Field(..., max_length=200)
-    app_password: str = Field(..., max_length=300)
+    site_id: str | None = None
+    wp_site_id: str | None = None
+    wp_url: str | None = Field(default="", max_length=2000)
+    username: str | None = Field(default="", max_length=200)
+    app_password: str | None = Field(default="", max_length=300)
     post_type: str = Field(default="posts", max_length=32)
     post_id: int = Field(..., ge=1)
     content_html: str = Field(..., min_length=1)
@@ -48,26 +51,38 @@ def wp_update_post(
     """
     Update a single WordPress post content (by ID) from the editor.
     """
+    from app.services.wordpress_connection import resolve_wordpress_connection
     from app.services.wp_bulk_update import build_wp_session, normalize_wp_base_url, wp_auth_check, wp_update_post_content
 
-    wp_base = normalize_wp_base_url(payload.wp_url)
-    username = (payload.username or "").strip()
-    app_password = (payload.app_password or "").strip()
+    cred = resolve_wordpress_connection(
+        user_id=int(current_user.id),
+        site_id=str(payload.site_id or payload.wp_site_id or "").strip() or None,
+        site_url=str(payload.wp_url or "").strip() or None,
+    )
+    wp_base = normalize_wp_base_url(cred["url"])
+    username = cred["username"]
+    app_password = cred["app_password"]
     post_type = (payload.post_type or "posts").strip() or "posts"
     post_id = int(payload.post_id)
     content_html = str(payload.content_html or "")
 
     session = None
-    for strip_spaces in (False, True):
+    last_err = ""
+    for strip_spaces in (True, False):
         s = build_wp_session(username, app_password, strip_spaces=strip_spaces)
         try:
-            wp_auth_check(session=s, wp_base=wp_base)
+            wp_base = wp_auth_check(session=s, wp_base=wp_base)
             session = s
             break
-        except Exception:
+        except Exception as exc:
+            last_err = str(exc)
             continue
     if session is None:
-        raise HTTPException(status_code=401, detail="Xác thực WordPress thất bại. Kiểm tra username/app password.")
+        hint = last_err[:180] if last_err else "HTTP 401"
+        raise HTTPException(
+            status_code=401,
+            detail=f"Xác thực WordPress thất bại. {hint}. Kiểm tra Application Password tại Cài đặt → Xuất bản.",
+        )
 
     if payload.dry_run:
         return JSONResponse(
@@ -140,10 +155,9 @@ def wp_bulk_update_job(
     cleanup_expired(ttl_seconds=int(os.getenv("JOB_TTL_SECONDS", "1800")))
     mark_stale_jobs_failed(stale_seconds=int(os.getenv("JOB_WATCHDOG_SECONDS", "300")))
     mark_stale_queued_failed(stale_seconds=int(os.getenv("JOB_QUEUE_STALE_SECONDS", "90")))
-    st = get_job(job_id)
+    st = get_job_for_user(job_id, user_id=current_user.id)
     if not st:
-        raise HTTPException(status_code=404, detail="Job not found")
-    assert_job_access(st.payload, current_user.id)
+        raise HTTPException(status_code=404, detail="Không tìm thấy job.")
     out: dict[str, Any] = {
         "job_id": st.job_id,
         "job_type": st.job_type,

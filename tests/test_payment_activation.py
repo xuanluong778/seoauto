@@ -94,7 +94,7 @@ def test_activate_product_idempotent(db):
     r2 = activate_product(db, user_id=user.id, product_code="PRO_M", order_id=order.id)
     db.commit()
 
-    assert r1["bonus_credits_granted"] == 2500
+    assert r1["bonus_credits_granted"] == 1500
     assert r2.get("idempotent") is True
     ledgers = (
         db.query(CreditLedgerEntry)
@@ -162,10 +162,10 @@ def test_activate_failure_marks_order(db, monkeypatch):
 
 
 SEMI_ANNUAL_CASES = [
-    ("STARTER_6M", "starter", 1_995_000, 3_500),
-    ("PRO_6M", "pro", 3_995_000, 17_500),
-    ("AGENCY_6M", "agency", 8_450_000, 49_000),
-    ("BUSINESS_6M", "business", 17_450_000, 126_000),
+    ("STARTER_6M", "starter", 2_495_000, 3_500),
+    ("PRO_6M", "pro", 3_995_000, 10_500),
+    ("AGENCY_6M", "agency", 8_450_000, 24_500),
+    ("BUSINESS_6M", "business", 17_450_000, 52_500),
 ]
 
 
@@ -248,10 +248,10 @@ def test_monthly_and_semi_annual_unaffected_by_yearly(db):
 
 
 YEARLY_CASES = [
-    ("STARTER_Y", "starter", 3_990_000, 7_000),
-    ("PRO_Y", "pro", 7_990_000, 35_000),
-    ("AGENCY_Y", "agency", 16_900_000, 98_000),
-    ("BUSINESS_Y", "business", 34_900_000, 252_000),
+    ("STARTER_Y", "starter", 4_990_000, 7_000),
+    ("PRO_Y", "pro", 7_990_000, 21_000),
+    ("AGENCY_Y", "agency", 16_900_000, 49_000),
+    ("BUSINESS_Y", "business", 34_900_000, 105_000),
 ]
 
 

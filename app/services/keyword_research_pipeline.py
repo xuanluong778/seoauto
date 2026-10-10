@@ -18,7 +18,6 @@ from app.services.cluster_planning_output import enrich_tfidf_cluster_for_planni
 from app.services.keyword_cluster_tfidf import cluster_keywords_tfidf
 from app.services.keyword_clustering_engine import build_keyword_clusters
 from app.services.keyword_intent_rules import classify_intent_detail
-from app.services.keyword_kd import compute_kd, estimate_allintitle
 from app.services.keyword_research_metrics import (
     NA,
     build_data_warnings,
@@ -34,6 +33,7 @@ from app.services.keyword_normalizer import dedupe_keyword_dicts
 
 _LOG = logging.getLogger(__name__)
 from app.services.keyword_research_engine import run_keyword_research
+from app.services.keyword_ads_expand import expand_keyword_ideas
 from app.services.keyword_dataforseo_expand import expand_keywords_from_dataforseo
 from app.services.keyword_research_cost import (
     KeywordResearchCostExceeded,
@@ -45,7 +45,11 @@ from app.services.keyword_serp_expansion import expand_keywords_from_serp
 from app.services.keyword_difficulty import compute_keyword_difficulty
 from app.services.keyword_intelligence import guess_brand_terms
 from app.services.search_volume import _COMMERCIAL
-from app.services.search_volume import enrich_keyword_volumes_cached, monthly_search_volume_shape
+from app.services.search_volume import (
+    _fill_missing_volume_fields,
+    enrich_keyword_volumes_cached,
+    monthly_search_volume_shape,
+)
 from app.services.serp_competitor_analysis import analyze_serp_competitors
 from app.services.serp_fetcher import fetch_serp_for_keyword, fetch_serp_top10_rows, normalize_serp_domain
 from app.services.serp_layout_intent import infer_serp_layout_intent
@@ -288,7 +292,7 @@ def build_keyword_research_api_response(
     min_related = max(5, min(200, min_related))
     enable_serp = bool(deep_analysis) or serp_enabled_on_initial_run()
     expand_provider = (
-        os.getenv("KEYWORD_RESEARCH_EXPAND_PROVIDER", "dataforseo").strip().lower()
+        os.getenv("KEYWORD_RESEARCH_EXPAND_PROVIDER", "google_ads").strip().lower()
     )
     serp_on = os.getenv("KEYWORD_RESEARCH_SERP_EXPAND", "0").lower() in ("1", "true", "yes")
     cluster_threshold_base = float(os.getenv("KEYWORD_CLUSTER_DISTANCE_THRESHOLD", "0.5"))
@@ -310,35 +314,45 @@ def build_keyword_research_api_response(
     k4k_count = 0
     fallback_count = 0
     expansion_filtered_count = 0
-    expansion_provider_used = expand_provider
+    expansion_provider_used = "google_ads"
+    idea_stats: dict[str, Any] = billing_stats if billing_stats is not None else {}
 
-    if expand_provider == "dataforseo":
-        dfs_rows = expand_keywords_from_dataforseo(
+    if expand_provider in ("google_ads", "ads", "dataforseo", ""):
+        idea_rows = expand_keyword_ideas(
             seeds,
             country=loc_country,
             language=loc_language,
             total_cap=min(int(os.getenv("KEYWORD_RESEARCH_DATAFORSEO_K4K_TOTAL", "120")), max_rows),
             allow_api=allow_dataforseo_live,
-            stats=billing_stats,
+            stats=idea_stats,
         )
-        k4k_count = len(dfs_rows)
+        k4k_count = len(idea_rows)
+        expansion_provider_used = str(idea_stats.get("idea_provider") or "google_ads")
         if billing_stats is not None:
             expansion_filtered_count += int(billing_stats.get("k4k_filtered_count") or 0)
-        for row in dfs_rows:
+        for row in idea_rows:
             kw = str(row.get("keyword") or "").strip()
             if not kw:
                 continue
-            extra.append({"keyword": kw, "source": "dataforseo"})
+            src = str(row.get("source") or row.get("provider") or "google_ads")
+            extra.append({"keyword": kw, "source": src})
             dataforseo_vol_by_kw[kw.lower()] = {
                 "keyword": kw,
                 "search_volume": int(row.get("search_volume") or 0),
-                "volume_source": "dataforseo",
-                "confidence": 0.92,
+                "volume_source": str(row.get("volume_source") or src),
+                "provider": str(row.get("provider") or src),
+                "confidence": float(row.get("confidence") or 0.92),
                 "cpc_avg": float(row.get("cpc_avg") or 0.0),
                 "cpc_min": float(row.get("cpc_min") or 0.0),
                 "cpc_max": float(row.get("cpc_max") or 0.0),
-                "competition_index": row.get("competition_index"),
+                "cpc_source": row.get("cpc_source") or row.get("provider") or src,
+                "competition_index": row.get("competition_index")
+                if row.get("competition_index") is not None
+                else row.get("competition"),
+                "competition": row.get("competition"),
+                "competition_source": row.get("competition_source") or row.get("provider") or src,
                 "monthly_searches": row.get("monthly_searches"),
+                "monthly_source": row.get("monthly_source") or row.get("provider") or src,
             }
     elif expand_provider != "dataforseo":
         engine_rows = run_keyword_research(
@@ -386,8 +400,8 @@ def build_keyword_research_api_response(
 
     merged_probe = dedupe_keyword_dicts(list(raw) + extra, key_field="keyword")
     need_fallback = len(merged_probe) < max(len(seeds) + min_related, min_related + 1)
-    if expand_provider == "dataforseo" and (k4k_count == 0 or need_fallback):
-        expansion_provider_used = "dataforseo+fallback"
+    if expand_provider in ("google_ads", "ads", "dataforseo", "") and k4k_count == 0:
+        expansion_provider_used = f"{expansion_provider_used}+fallback"
         fallback_rows = run_keyword_research(
             seed_keywords=seeds,
             url=url,
@@ -445,29 +459,25 @@ def build_keyword_research_api_response(
 
     all_kw_phrases = [str(r.get("keyword") or "").strip() for r in merged if str(r.get("keyword") or "").strip()]
     vol_by_kw: dict[str, dict[str, Any]] = dict(dataforseo_vol_by_kw)
-    if expand_provider == "dataforseo" and dataforseo_vol_by_kw:
-        missing_for_vol = [k for k in all_kw_phrases if k.lower() not in dataforseo_vol_by_kw]
-        if missing_for_vol:
-            vol_rows = enrich_keyword_volumes_cached(
-                missing_for_vol,
-                country=loc_country,
-                language=loc_language,
-                allow_api=allow_dataforseo_live,
-                stats=billing_stats,
-            )
-            for v in vol_rows or []:
-                kw = str(v.get("keyword") or "").strip().lower()
-                if kw:
-                    vol_by_kw[kw] = v
-    else:
+    from app.services.keyword_research_metrics import volume_metrics_gap
+
+    missing_for_vol = [
+        k for k in all_kw_phrases if volume_metrics_gap(vol_by_kw.get(k.lower()))
+    ]
+    if missing_for_vol:
         vol_rows = enrich_keyword_volumes_cached(
-            all_kw_phrases,
+            missing_for_vol,
             country=loc_country,
             language=loc_language,
             allow_api=allow_dataforseo_live,
             stats=billing_stats,
         )
-        vol_by_kw = {str(v.get("keyword") or "").strip().lower(): v for v in (vol_rows or []) if v.get("keyword")}
+        for v in vol_rows or []:
+            kw = str(v.get("keyword") or "").strip().lower()
+            if not kw:
+                continue
+            prev = vol_by_kw.get(kw)
+            vol_by_kw[kw] = _fill_missing_volume_fields(prev, v) if prev else v
 
     # Authoritative monthly volume from Google Ads search_volume/live (fixes stale K4K cache).
     refresh_volume_on_run = bool(deep_analysis) or os.getenv("KEYWORD_RESEARCH_REFRESH_VOLUME", "0").lower() in (
@@ -514,35 +524,32 @@ def build_keyword_research_api_response(
         intent_pkg = classify_intent_detail(kw)
         intent = str(intent_pkg.get("intent") or "unknown")
 
-        comp, comp_ds = competition_label_from_index(vol_pkg.get("competition_index"))
+        vol_provider = str(vol_pkg.get("provider") or vol_pkg.get("volume_source") or "").lower()
+        comp_in = vol_pkg.get("competition")
+        if comp_in in (None, ""):
+            comp_in = vol_pkg.get("competition_index")
+        comp_provider = str(
+            vol_pkg.get("competition_source") or (vol_provider if vol_provider in ("google_ads", "dataforseo") else "")
+        ) or None
+        comp, comp_ds = competition_label_from_index(comp_in, provider=comp_provider)
         if comp_ds == NA:
             comp = "Unknown"
 
         wc = len(kw.split())
+        cpc_src = str(vol_pkg.get("cpc_source") or vsrc or vol_provider or "")
         cpc_avg, cpc_lo, cpc_hi, cpc_ds = cpc_package(
             cpc_avg=vol_pkg.get("cpc_avg"),
             cpc_min=vol_pkg.get("cpc_min"),
             cpc_max=vol_pkg.get("cpc_max"),
-            volume_source=vsrc if vol_pkg else NA,
+            volume_source=cpc_src if vol_pkg else NA,
             from_cache=from_cache,
         )
 
         parsed_monthly = parse_monthly_search_values(monthly_searches)
-        trend = compute_trend(parsed_monthly)
+        trend_src = str(vol_pkg.get("monthly_source") or vol_pkg.get("provider") or vsrc or "")
+        trend = compute_trend(parsed_monthly, data_source=trend_src or None)
 
-        vol_for_kd = monthly.get("display_volume")
-        vol_for_kd_i = int(vol_for_kd) if vol_for_kd is not None else None
-        ai_est = estimate_allintitle(kw) if deep_analysis else None
-        kd_pkg = (
-            compute_kd(
-                allintitle=ai_est,
-                volume=vol_for_kd_i,
-                cpc=cpc_avg,
-                competition_label=comp,
-            )
-            if deep_analysis
-            else {"kd": None, "kd_label": "N/A", "allintitle": None}
-        )
+        kd_pkg = {"kd": None, "kd_label": "N/A", "allintitle": None}
 
         raw_src = row.get("source")
         if isinstance(raw_src, str):
@@ -559,8 +566,9 @@ def build_keyword_research_api_response(
             "competition": comp_ds,
             "trend": str(trend.get("data_source") or NA),
             "intent": str(intent_pkg.get("source") or NA),
-            "kd": "computed" if kd_pkg.get("kd") is not None else NA,
-            "allintitle": "fallback" if ai_est is not None else NA,
+            "kd": NA,
+            "allintitle": NA,
+            "provider": str(vol_pkg.get("provider") or vol_ds or NA),
         }
         warnings = build_data_warnings(
             volume_ds=vol_ds,
@@ -833,13 +841,29 @@ def build_keyword_research_api_response(
         "yes",
     )
     if serp_intent_on and os.getenv("SERP_FETCH_ENABLED", "0").lower() in ("1", "true", "yes") and clusters_payload:
-        uniq_primary = list(
-            dict.fromkeys(
-                str(c.get("primary_keyword") or "").strip()
-                for c in clusters_payload
-                if str(c.get("primary_keyword") or "").strip()
+        conf_min = float(os.getenv("KEYWORD_CLUSTER_SERP_CONFIDENCE_MIN", "0.55") or 0.55)
+        max_primary = int(os.getenv("KEYWORD_CLUSTER_SERP_MAX_PRIMARY", "15") or 15)
+        max_primary = max(1, min(40, max_primary))
+        low_conf = []
+        for c in clusters_payload:
+            pk = str(c.get("primary_keyword") or "").strip()
+            if not pk:
+                continue
+            size = int(c.get("cluster_size") or len(c.get("variations") or []) or 0)
+            coh = c.get("cohesion_score")
+            try:
+                coh_f = float(coh) if coh is not None else None
+            except (TypeError, ValueError):
+                coh_f = None
+            intent = str(c.get("intent") or "").lower()
+            low = (
+                size <= 1
+                or intent in ("mixed", "unknown", "")
+                or (coh_f is not None and coh_f < conf_min)
             )
-        )
+            if low:
+                low_conf.append(pk)
+        uniq_primary = list(dict.fromkeys(low_conf))[:max_primary]
         if uniq_primary:
             workers_serp_intent = int(os.getenv("KEYWORD_RESEARCH_SERP_INTENT_WORKERS", "6"))
             workers_serp_intent = max(1, min(12, workers_serp_intent))

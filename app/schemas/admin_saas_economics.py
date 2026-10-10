@@ -95,6 +95,8 @@ class EconomicsDashboardResponse(BaseModel):
     by_user: dict[str, list[EconomicsUserBurnRow]]
     revenue: dict[str, EconomicsRevenueBucket]
     profit_vnd: dict[str, int]
+    gross_margin_pct: dict[str, Any] = Field(default_factory=dict)
+    by_org: dict[str, Any] = Field(default_factory=dict)
     at_risk_users: list[EconomicsAtRiskUser]
     alerts: list[EconomicsAlert]
     dataforseo_usage: dict[str, Any] | None = None

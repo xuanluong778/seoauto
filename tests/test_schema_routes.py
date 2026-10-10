@@ -2,18 +2,63 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from main import app
+from app.db import get_db
+from app.routers.schema import router as schema_router
+from app.services.auth import get_current_user
 from app.services.schema_api import build_schema_generator_response
+from app.services.trial_access import require_active_trial
 from app.services.url_safety import safe_http_get, validate_public_http_url
 
-client = TestClient(app, base_url="https://seoauto.vn")
+_app = FastAPI()
+_app.include_router(schema_router)
+client = TestClient(_app)
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@contextmanager
+def _auth_and_gate():
+    user = MagicMock()
+    user.id = 1
+    user.role = "user"
+
+    def _db():
+        yield MagicMock()
+
+    @contextmanager
+    def _gate(*_a, **_k):
+        class Ctx:
+            def commit(self):
+                return None
+
+            def release(self, **_kw):
+                return None
+
+            def record_usage(self, **_kw):
+                return None
+
+        yield Ctx()
+
+    _app.dependency_overrides[require_active_trial] = lambda: user
+    _app.dependency_overrides[get_current_user] = lambda: user
+    _app.dependency_overrides[get_db] = _db
+    try:
+        with patch("app.routers.schema.saas_action_gate", _gate), patch(
+            "app.routers.schema.credits_enforced", return_value=False
+        ), patch("app.routers.schema.check_user_rate_limit"):
+            yield
+    finally:
+        _app.dependency_overrides.pop(require_active_trial, None)
+        _app.dependency_overrides.pop(get_current_user, None)
+        _app.dependency_overrides.pop(get_db, None)
 
 
 # --- Routes -----------------------------------------------------------------
@@ -33,16 +78,17 @@ def test_schema_page_renders() -> None:
 
 
 def test_schema_validate_api() -> None:
-    r = client.post(
-        "/api/schema/validate",
-        json={
-            "json_ld": {
-                "@context": "https://schema.org",
-                "@type": "Organization",
-                "name": "Demo Co",
-            }
-        },
-    )
+    with _auth_and_gate():
+        r = client.post(
+            "/api/schema/validate",
+            json={
+                "json_ld": {
+                    "@context": "https://schema.org",
+                    "@type": "Organization",
+                    "name": "Demo Co",
+                }
+            },
+        )
     assert r.status_code == 200
     data = r.json()
     assert "validation" in data
@@ -50,10 +96,11 @@ def test_schema_validate_api() -> None:
 
 
 def test_schema_preview_api() -> None:
-    r = client.get(
-        "/api/schema-preview",
-        params={"url": "https://example.com/page", "name": "Demo", "description": "Desc"},
-    )
+    with _auth_and_gate():
+        r = client.get(
+            "/api/schema-preview",
+            params={"url": "https://example.com/page", "name": "Demo", "description": "Desc"},
+        )
     assert r.status_code == 200
     data = r.json()
     assert data.get("@context") == "https://schema.org" or "@graph" in data
@@ -62,7 +109,8 @@ def test_schema_preview_api() -> None:
 
 
 def test_schema_generator_requires_input() -> None:
-    r = client.post("/schema-generator", json={})
+    with _auth_and_gate():
+        r = client.post("/schema-generator", json={})
     assert r.status_code == 422
     data = r.json()
     assert data.get("schemas") == []
@@ -70,14 +118,15 @@ def test_schema_generator_requires_input() -> None:
 
 
 def test_schema_generator_from_html() -> None:
-    r = client.post(
-        "/schema-generator",
-        json={
-            "html": "<html><title>Buy Widget</title><body><h1>Widget</h1>price 9.99 add to cart</body></html>",
-            "url": "https://shop.example/p/1",
-            "fetch_serp": False,
-        },
-    )
+    with _auth_and_gate():
+        r = client.post(
+            "/schema-generator",
+            json={
+                "html": "<html><title>Buy Widget</title><body><h1>Widget</h1>price 9.99 add to cart</body></html>",
+                "url": "https://shop.example/p/1",
+                "fetch_serp": False,
+            },
+        )
     assert r.status_code == 200
     data = r.json()
     types = {n.get("@type") for n in data.get("schemas") or []}
@@ -89,7 +138,8 @@ def test_schema_generator_from_html() -> None:
 
 
 def test_schema_generator_rejects_non_json() -> None:
-    r = client.post("/schema-generator", content=b"not-json", headers={"Content-Type": "application/json"})
+    with _auth_and_gate():
+        r = client.post("/schema-generator", content=b"not-json", headers={"Content-Type": "application/json"})
     assert r.status_code == 400
 
 
@@ -306,10 +356,11 @@ def test_safe_http_get_max_html_size(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_schema_generator_ssrf_via_api(monkeypatch: pytest.MonkeyPatch) -> None:
-    r = client.post(
-        "/schema-generator",
-        json={"url": "http://169.254.169.254/latest/meta-data/", "fetch_serp": False},
-    )
+    with _auth_and_gate():
+        r = client.post(
+            "/schema-generator",
+            json={"url": "http://169.254.169.254/latest/meta-data/", "fetch_serp": False},
+        )
     assert r.status_code == 422
     data = r.json()
     assert data.get("schemas") == []

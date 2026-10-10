@@ -12,6 +12,50 @@ from typing import BinaryIO, Iterator
 from urllib.parse import urlparse
 
 
+def _log_r2_usage(*, op: str, key: str, bytes_len: int = 0) -> None:
+    """Best-effort infra cost log for R2 (system path; user_id may be absent)."""
+    try:
+        import logging
+
+        logging.getLogger(__name__).info(
+            "infra_cost_usage feature=%s org=%s qty=%s cost=%s provider=r2 request_id=%s bytes=%s key=%s",
+            op,
+            0,
+            1,
+            max(1, (int(bytes_len) + 1023) // 1024) if bytes_len else 50,
+            f"r2:{op}:{key[-48:]}",
+            bytes_len,
+            str(key)[-120:],
+        )
+        # Persist when a request-scoped DB/user is available via env hook (optional).
+        from app.db import SessionLocal
+        from app.services.cost_usage_logger import record_infra_cost_usage
+
+        uid = int(os.getenv("R2_COST_LOG_USER_ID") or "0")
+        if uid <= 0:
+            return
+        db = SessionLocal()
+        try:
+            record_infra_cost_usage(
+                db,
+                user_id=uid,
+                organization_id=uid,
+                feature_key=op,
+                quantity=1,
+                provider="r2",
+                request_id=f"r2:{op}:{key[-64:]}",
+                credits_used=0,
+                bytes_len=bytes_len,
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+
 class StorageAdapter(ABC):
     """Minimal object-storage interface for private plugin packages."""
 
@@ -153,32 +197,44 @@ class S3StorageAdapter(StorageAdapter):
     def put_bytes(self, key: str, data: bytes, *, content_type: str = "application/zip") -> str:
         full = self._full_key(key)
         self._client.put_object(Bucket=self.bucket, Key=full, Body=data, ContentType=content_type)
+        _log_r2_usage(op="r2_put", key=full, bytes_len=len(data))
         return key
 
     def put_file(self, key: str, path: str | Path, *, content_type: str = "application/zip") -> str:
         full = self._full_key(key)
+        size = 0
+        try:
+            size = Path(path).stat().st_size
+        except Exception:
+            size = 0
         self._client.upload_file(
             str(path),
             self.bucket,
             full,
             ExtraArgs={"ContentType": content_type},
         )
+        _log_r2_usage(op="r2_put", key=full, bytes_len=size)
         return key
 
     def get_bytes(self, key: str) -> bytes:
         full = self._full_key(key)
         obj = self._client.get_object(Bucket=self.bucket, Key=full)
-        return obj["Body"].read()
+        data = obj["Body"].read()
+        _log_r2_usage(op="r2_get", key=full, bytes_len=len(data))
+        return data
 
     def open_stream(self, key: str) -> Iterator[bytes]:
         full = self._full_key(key)
         obj = self._client.get_object(Bucket=self.bucket, Key=full)
         body = obj["Body"]
+        total = 0
         while True:
             chunk = body.read(1024 * 256)
             if not chunk:
                 break
+            total += len(chunk)
             yield chunk
+        _log_r2_usage(op="r2_get", key=full, bytes_len=total)
 
     def exists(self, key: str) -> bool:
         from botocore.exceptions import ClientError

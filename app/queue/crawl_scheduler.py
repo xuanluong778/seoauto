@@ -71,12 +71,22 @@ def schedule_crawl_batch(
     max_pages: int = 1,
     priority_key: Callable[[str], tuple] | None = None,
     batch_size: int | None = None,
+    user_id: int | None = None,
+    organization_id: int | None = None,
+    allow_unowned: bool = False,
 ) -> list[dict]:
     """
     Sort by priority (optional), drop duplicates already seen for project, enqueue in chunks.
 
+    Auth/runtime: pass ``user_id`` (+ optional ``organization_id``).
+    Legacy/internal-only: ``allow_unowned=True``.
+
     ``priority_key`` returns a sortable tuple; higher priority first (reverse sort).
     """
+    from app.queue.crawl_queue import _require_owner_or_allow_unowned
+
+    _require_owner_or_allow_unowned(user_id=user_id, allow_unowned=allow_unowned)
+
     bs = batch_size or int(os.getenv("CRAWL_SCHEDULER_BATCH", "500"))
     uniq: list[str] = list(dict.fromkeys(u.strip() for u in urls if (u or "").strip()))
     fresh = filter_new_urls(project_id, uniq)
@@ -88,11 +98,29 @@ def schedule_crawl_batch(
         chunk.append(u)
         if len(chunk) >= bs:
             for item in chunk:
-                enqueued.append(enqueue_crawl(item, project_id, max_pages=max_pages))
+                enqueued.append(
+                    enqueue_crawl(
+                        item,
+                        project_id,
+                        max_pages=max_pages,
+                        user_id=user_id,
+                        organization_id=organization_id,
+                        allow_unowned=allow_unowned,
+                    )
+                )
             mark_urls_seen(project_id, chunk)
             chunk = []
     for item in chunk:
-        enqueued.append(enqueue_crawl(item, project_id, max_pages=max_pages))
+        enqueued.append(
+            enqueue_crawl(
+                item,
+                project_id,
+                max_pages=max_pages,
+                user_id=user_id,
+                organization_id=organization_id,
+                allow_unowned=allow_unowned,
+            )
+        )
     if chunk:
         mark_urls_seen(project_id, chunk)
     return enqueued

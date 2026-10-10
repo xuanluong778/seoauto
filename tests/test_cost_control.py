@@ -17,8 +17,33 @@ from app.services.cost_control import (
 from app.services.cost_control.executor import CostControlBypassError
 from app.services.cost_control.retry import retry_external_call
 
+_SOFTWARE_ACCESS_PATCH = "app.services.cost_control.gate.user_has_software_access"
+_GATE_SIDE_PATCHES = (
+    ("app.services.saas_gate.user_has_software_access", {"return_value": True}),
+    ("app.services.saas_gate.enforce_saas_access", {"return_value": "pro"}),
+    ("app.services.cost_control.gate.resolve_cau_ai_plan_slug", {"return_value": "pro"}),
+    ("app.services.saas_economics_guard.assert_expensive_api_allowed", {}),
+    ("app.services.cost_control.caps.assert_user_credit_caps", {}),
+    ("app.services.cost_control.caps.assert_provider_daily_caps", {}),
+    ("app.services.cost_control.gate.check_user_rate_limit", {}),
+    ("app.services.cost_control.gate.check_user_concurrency", {}),
+    ("app.services.cost_control.gate.release_user_concurrency", {}),
+)
+
 
 class CostControlGateTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._sw = patch(_SOFTWARE_ACCESS_PATCH, return_value=True)
+        self._sw.start()
+        self._side = [patch(target, **kwargs) for target, kwargs in _GATE_SIDE_PATCHES]
+        for p in self._side:
+            p.start()
+
+    def tearDown(self) -> None:
+        for p in reversed(self._side):
+            p.stop()
+        self._sw.stop()
+
     def test_insufficient_credit_blocks_before_external_api(self) -> None:
         db = MagicMock()
         user = MagicMock()
@@ -150,6 +175,21 @@ class CostControlSettingsTests(unittest.TestCase):
 
 
 class ContentAiCskhGateTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._sw = patch("app.services.saas_gate.user_has_software_access", return_value=True)
+        self._sw.start()
+        self._gate_sw = patch(_SOFTWARE_ACCESS_PATCH, return_value=True)
+        self._gate_sw.start()
+        self._side = [patch(target, **kwargs) for target, kwargs in _GATE_SIDE_PATCHES]
+        for p in self._side:
+            p.start()
+
+    def tearDown(self) -> None:
+        for p in reversed(self._side):
+            p.stop()
+        self._gate_sw.stop()
+        self._sw.stop()
+
     def test_content_ai_llm_gate_blocks_insufficient_credit(self) -> None:
         from app.services.cost_control.module_gates import content_ai_llm_gate
 

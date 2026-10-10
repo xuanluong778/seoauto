@@ -143,7 +143,11 @@ def build_keyword_cluster_api_response(
                 "device": serp_device or "",
             },
             "cluster_strictness": cluster_strictness or os.getenv("KEYWORD_CLUSTER_STRICTNESS", "normal"),
-            "clustering_method": "serp_shared_url_count" if fetch_serp else "semantic_fallback_same_intent_topic",
+            "clustering_method": (
+                "semantic_token_then_serp_low_confidence"
+                if fetch_serp
+                else "semantic_fallback_same_intent_topic"
+            ),
             "min_shared_urls_for_merge": int(os.getenv("KEYWORD_CLUSTER_SERP_MIN_SHARED_URLS", "3")),
         },
     }

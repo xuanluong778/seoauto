@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
+import pytest
 import requests
 
 from app.services.index_check_providers.google_site_search_provider import GoogleSiteSearchProvider
@@ -10,6 +11,12 @@ from app.services.index_check_providers.url_match import (
     urls_equivalent,
     urls_exact_index_match,
 )
+
+
+@pytest.fixture(autouse=True)
+def _disable_external_serp_providers(monkeypatch):
+    monkeypatch.setenv("DATAFORSEO_ENABLED", "0")
+    monkeypatch.setenv("SERP_FETCH_ENABLED", "0")
 
 
 def _response(

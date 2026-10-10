@@ -148,10 +148,10 @@ def google_oauth_callback(
         from app.services.google_login import (
             email_from_login_tokens,
             exchange_login_code,
-            issue_login_token,
             login_or_register_google_user,
         )
-        from app.services.oauth_cookie import attach_seo_token_cookie
+        from app.services.auth import issue_login_tokens
+        from app.services.oauth_cookie import attach_session_cookies
 
         try:
             token_data = exchange_login_code(request, redirect_uri)
@@ -167,12 +167,17 @@ def google_oauth_callback(
                 from app.services.affiliate_service import try_attach_referral_from_request
 
                 try_attach_referral_from_request(request, user, db)
-            token = issue_login_token(user)
+            tokens = issue_login_tokens(db, user, request=request)
         except Exception:
             _LOG.exception("Google login user setup failed")
             return _login_error_redirect("user")
         response = RedirectResponse(url="/tool?google_login=1", status_code=302)
-        attach_seo_token_cookie(response, request, token)
+        attach_session_cookies(
+            response,
+            request,
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+        )
         return response
 
     try:

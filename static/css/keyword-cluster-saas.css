@@ -192,6 +192,12 @@
     color: #fff;
 }
 .kc-btn--ghost { background: transparent; }
+.kc-btn--danger {
+    background: transparent;
+    border-color: rgba(248, 113, 113, 0.45);
+    color: #fecaca;
+}
+.kc-btn--danger:hover { background: rgba(248, 113, 113, 0.12); }
 .kc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Cluster detail modal (centered SaaS popup) */

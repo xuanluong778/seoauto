@@ -1,0 +1,249 @@
+{
+  "wave": 9,
+  "snapshot_at": "2026-09-03T01:39:53.207353+00:00",
+  "fixes": [
+    "RequestIdMiddleware — X-Request-Id + structured JSON access log",
+    "structured_log — secret/token/password redaction (tenant-safe)",
+    "ops_metrics — redis queue depth, pg connections, LLM/auth counters, domain failures",
+    "ops_alerting — SLO thresholds, dedup TTL, recovery detection",
+    "llm_ops_metrics hook in cost_control executor (OPENAI/ANTHROPIC)",
+    "scripts/ops_health_alert.py — cron-friendly /metrics poller"
+  ],
+  "gates": {
+    "STRUCTURED_LOGGING": "PASS",
+    "SECRET_REDACTION": "PASS",
+    "ALERT_5XX": "PASS",
+    "ALERT_QUEUE_BACKLOG": "PASS",
+    "ALERT_WORKER_DOWN": "PASS",
+    "ALERT_DB_REDIS": "PASS",
+    "ALERT_DEDUP": "PASS",
+    "RECOVERY_DETECTION": "PASS",
+    "API_OBSERVABILITY": "PASS",
+    "DB_MONITORING": "PASS",
+    "REDIS_MONITORING": "PASS",
+    "QUEUE_MONITORING": "PASS",
+    "WORKER_HEALTH": "PASS",
+    "LLM_MONITORING": "PASS",
+    "SLO_DASHBOARD": "PASS",
+    "KNOWN_FAILURES_NOT_INCREASED": "PASS"
+  },
+  "health_live": {
+    "health": 200,
+    "ready": 200,
+    "request_id_header": null,
+    "gate": "PASS"
+  },
+  "metrics_live": {
+    "gate": "PASS",
+    "status": 200,
+    "payload": {
+      "ts": 1788399590,
+      "http": {
+        "sample_count": 0,
+        "total_requests": 0,
+        "p50_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "error_5xx": 0,
+        "error_429": 0,
+        "status_counts": {},
+        "top_paths": {},
+        "uptime_sec": 36
+      },
+      "host": {
+        "cpu_pct": 2.4,
+        "ram_used_mb": 9727.2,
+        "ram_total_mb": 32143.6,
+        "ram_used_pct": 30.3
+      },
+      "process": {
+        "process_rss_mb": 277.2
+      },
+      "db_pool": {
+        "pool_size": 3,
+        "checked_in": 2,
+        "checked_out": 0,
+        "overflow": -1
+      },
+      "db_connection_budget": {
+        "role": "web",
+        "pgbouncer": false,
+        "pool_size": 3,
+        "max_overflow": 3,
+        "max_per_process": 6
+      },
+      "db_connections": {
+        "pg": true,
+        "connections_total": 19,
+        "connections_active": 1
+      },
+      "db_probe": {
+        "ok": true,
+        "latency_ms": 1
+      },
+      "redis": {
+        "configured": true,
+        "ping_ms": 1.92,
+        "memory_mb": 5.7,
+        "keys": 7472,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "max_depth": 0
+      },
+      "redis_probe": {
+        "ok": true,
+        "latency_ms": 0
+      },
+      "queue": {
+        "queued_count": 0,
+        "running_count": 0,
+        "queued_by_type": {},
+        "job_wait_p95_ms": null,
+        "oldest_queued_job_ids": []
+      },
+      "celery": {
+        "workers_online": 5,
+        "active_tasks": 0,
+        "reserved_tasks": 0,
+        "ping_ok": true
+      },
+      "celery_beat": {
+        "beat_lock_ok": true,
+        "automation_lock_ttl": 159,
+        "marketing_lock_ttl": 158
+      },
+      "fairness": {
+        "redis": true,
+        "technical_slot_keys": 0,
+        "bulk_slot_keys": 0
+      },
+      "llm": {
+        "calls": 0,
+        "timeouts": 0,
+        "rate_limited_429": 0,
+        "server_errors_5xx": 0,
+        "tokens_approx": 0,
+        "last_error_at": null
+      },
+      "auth": {
+        "401_count": 0,
+        "403_count": 0,
+        "window_start": 1788399553
+      },
+      "domain_failures": {
+        "content_ai_failed_1h": 0,
+        "jobs_failed_1h": 0
+      },
+      "env": {
+        "web_workers": "8",
+        "celery_concurrency": "1",
+        "db_pool_size": "10"
+      },
+      "slo": {
+        "api_p95_ms": 1500.0,
+        "api_5xx_rate_pct": 1.0,
+        "queue_depth_max": 500,
+        "job_wait_p95_ms": 120000.0,
+        "db_pool_util_pct": 90.0,
+        "redis_memory_mb_max": 512.0,
+        "celery_workers_min": 1,
+        "auth_401_spike": 200
+      },
+      "alerts": [],
+      "alert_recovery": {
+        "api_p95": false,
+        "queue_backlog": false,
+        "queue_wait": false,
+        "worker_down": false,
+        "db_unhealthy": false,
+        "redis_unhealthy": false,
+        "auth_401_spike": false
+      }
+    }
+  },
+  "alert_simulation": {
+    "first_alert_count": 8,
+    "duplicate_suppressed": true,
+    "alert_types": [
+      "api_5xx_rate",
+      "api_p95",
+      "queue_backlog",
+      "queue_wait",
+      "worker_down",
+      "db_unhealthy",
+      "redis_unhealthy",
+      "auth_401_spike"
+    ],
+    "recovery_states": {
+      "api_5xx_rate": false,
+      "api_p95": false,
+      "queue_backlog": false,
+      "queue_wait": false,
+      "worker_down": false,
+      "db_unhealthy": false,
+      "redis_unhealthy": false,
+      "auth_401_spike": false
+    },
+    "recovery_detected": true,
+    "gates": {
+      "ALERT_5XX": "PASS",
+      "ALERT_QUEUE_BACKLOG": "PASS",
+      "ALERT_WORKER_DOWN": "PASS",
+      "ALERT_DB_REDIS": "PASS",
+      "ALERT_DEDUP": "PASS",
+      "RECOVERY_DETECTION": "PASS"
+    },
+    "gate": "PASS"
+  },
+  "pytest": {
+    "wave9": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": ".......                                                                  [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n7 passed, 1 warning in 1.77s\n",
+      "stderr_tail": ""
+    }
+  },
+  "timeline": [
+    {
+      "component": "API metrics",
+      "before": "/metrics had http latency only",
+      "issue": "Missing SLO, alerts, auth/LLM counters",
+      "fix": "Extended collect_ops_metrics + RequestIdMiddleware + ops_alerting",
+      "alert_test": "simulate_alert_test fired 8 alerts",
+      "after": "PASS"
+    },
+    {
+      "component": "Structured logging",
+      "before": "Plain access logs, secrets could leak",
+      "issue": "No request_id correlation; token/password in logs",
+      "fix": "structured_log.py + RequestIdMiddleware JSON lines with redaction",
+      "alert_test": "pytest test_secret_redaction + test_structured_log_no_secrets",
+      "after": "PASS"
+    },
+    {
+      "component": "Alert dedup / recovery",
+      "before": "No alert pipeline",
+      "issue": "Risk of alert spam on sustained incidents",
+      "fix": "ops_alerting dedup TTL + recovery_state_snapshot",
+      "alert_test": "dedup=True recovery=True",
+      "after": "PASS"
+    },
+    {
+      "component": "DB / Redis / Queue",
+      "before": "Probes only on /ready",
+      "issue": "No pool/queue depth in /metrics dashboard",
+      "fix": "redis_queue_stats, pg_connection_stats, queue_backlog in /metrics",
+      "alert_test": "ALERT_DB_REDIS + ALERT_QUEUE_BACKLOG simulation",
+      "after": "DB=PASS REDIS=PASS"
+    }
+  ],
+  "failed_gates": [],
+  "WAVE_9_OBSERVABILITY": "PASS"
+}

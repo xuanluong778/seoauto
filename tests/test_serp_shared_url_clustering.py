@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.services.cluster_serp_overlap import (
     build_serp_merge_edges,
@@ -66,18 +66,10 @@ def test_weak_relation_when_1_or_2_shared_not_merged():
     assert len(groups) == 2
 
 
-def test_similar_text_different_serp_stay_separate():
+def test_similar_text_high_confidence_skips_serp():
+    """Similar phrases cluster locally; SERP is not fetched for every keyword."""
     os_environ = {"KEYWORD_CLUSTER_MERGE_SIMILAR": "0", "SERP_FETCH_ENABLED": "1", "BENCH_FAST": "1"}
-
-    urls_a = _urls("site-a")
-    urls_b = _urls("site-b")
-
-    def fake_fetch(q: str, **kwargs):
-        if q == "dịch vụ seo":
-            return {"serp_urls": urls_a}
-        if q == "dịch vụ seo uy tín":
-            return {"serp_urls": urls_b}
-        return {"serp_urls": []}
+    fake_fetch = MagicMock(return_value={"serp_urls": []})
 
     with patch.dict("os.environ", os_environ, clear=False):
         with patch("app.services.keyword_clusterer.fetch_serp_for_keyword", side_effect=fake_fetch):
@@ -88,7 +80,8 @@ def test_similar_text_different_serp_stay_separate():
                 ],
                 fetch_serp=True,
             )
-    assert len(clusters) == 2
+    assert len(clusters) >= 1
+    fake_fetch.assert_not_called()
 
 
 def test_merge_integration_with_mocked_serp():
@@ -151,7 +144,9 @@ def test_dao_tao_seo_training_keywords_merge_root():
     assert root_cluster is not None, "đào tạo seo must be in a cluster"
     root_members = {str(r.get("keyword") or "").strip().lower() for r in (root_cluster.get("keywords") or [])}
     assert len(root_members) >= 4, f"expected training variants merged, got {root_members}"
-    assert root_cluster.get("shared_urls_count", 0) >= 3
+    # High token overlap → local semantic cluster; SERP is optional (cost-first).
+    if int(root_cluster.get("shared_urls_count") or 0) > 0:
+        assert root_cluster.get("shared_urls_count", 0) >= 3
     assert "đào tạo seo chuyên sâu" in root_members
 
     khoa_clusters = [

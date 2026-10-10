@@ -17,10 +17,14 @@ class DistributedCrawlJob(Base):
     __table_args__ = (
         Index("ix_dc_jobs_project_status", "project_id", "status"),
         Index("ix_dc_jobs_created", "created_at"),
+        Index("ix_dc_jobs_user_id", "user_id"),
+        Index("ix_dc_jobs_organization_id", "organization_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), index=True, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     celery_task_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     job_type: Mapped[str] = mapped_column(String(32), nullable=False, default="single_url")
     target_url: Mapped[str] = mapped_column(Text, nullable=False)

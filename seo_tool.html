@@ -6116,8 +6116,12 @@
                     setModalAuthMsg("Đăng nhập thất bại: không có mã truy cập. Thử lại.", "error");
                     return;
                 }
-                sessionStorage.setItem("seo_token", token);
-                document.cookie = "seo_token=" + encodeURIComponent(token) + "; path=/; SameSite=Lax; max-age=86400";
+                if (typeof window.DigiSeoSetAuthToken === "function") {
+                    window.DigiSeoSetAuthToken(token);
+                } else {
+                    sessionStorage.setItem("seo_token", token);
+                    try { localStorage.setItem("seo_token", token); } catch (_) {}
+                }
                 setModalAuthMsg("");
                 applyAuthState();
             } catch (e) {

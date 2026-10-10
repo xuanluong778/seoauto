@@ -45,7 +45,11 @@ def _resolve_category_id(base: str, headers: dict[str, str], category: str) -> i
     if cat.isdigit():
         return int(cat)
     try:
-        r = requests.get(
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        if validate_public_http_url(base):
+            return None
+        r = safe_requests_get(
             f"{base}/wp-json/wp/v2/categories",
             params={"search": cat, "per_page": 5},
             headers=headers,
@@ -68,8 +72,13 @@ def _resolve_tag_ids(base: str, headers: dict[str, str], tags: list[str]) -> lis
         if not name:
             continue
         try:
-            r = requests.get(
-                f"{base}/wp-json/wp/v2/tags",
+            from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+            tag_url = f"{base}/wp-json/wp/v2/tags"
+            if validate_public_http_url(tag_url):
+                continue
+            r = safe_requests_get(
+                tag_url,
                 params={"search": name, "per_page": 3},
                 headers=headers,
                 timeout=15,
@@ -82,10 +91,11 @@ def _resolve_tag_ids(base: str, headers: dict[str, str], tags: list[str]) -> lis
                         ids.append(tid)
                         continue
             cr = requests.post(
-                f"{base}/wp-json/wp/v2/tags",
+                tag_url,
                 json={"name": name},
                 headers=headers,
                 timeout=15,
+                allow_redirects=False,
             )
             if cr.status_code < 400:
                 obj = cr.json()
@@ -113,6 +123,10 @@ def publish_post_to_wp(
     base = normalize_wp_base_url(site_url)
     if not base:
         raise HTTPException(status_code=400, detail="URL site không hợp lệ.")
+    from app.services.url_safety import validate_public_http_url
+
+    if validate_public_http_url(base):
+        raise HTTPException(status_code=400, detail="URL site không an toàn (SSRF).")
     headers = _auth_headers(username, app_password)
     wp_status = str(status or "draft").lower()
     if wp_status not in {"draft", "publish", "pending", "private"}:
@@ -134,7 +148,13 @@ def publish_post_to_wp(
         payload["tags"] = tag_ids
 
     try:
-        r = requests.post(f"{base}/wp-json/wp/v2/posts", json=payload, headers=headers, timeout=45)
+        r = requests.post(
+            f"{base}/wp-json/wp/v2/posts",
+            json=payload,
+            headers=headers,
+            timeout=45,
+            allow_redirects=False,
+        )
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f"WordPress không phản hồi: {exc}") from exc
     if r.status_code >= 400:

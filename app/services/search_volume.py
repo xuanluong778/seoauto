@@ -13,7 +13,10 @@ from typing import Any
 from app.services.keyword_research_cost import check_and_record_live_call, volume_batch_size, volume_cache_ttl_seconds
 
 import json
+import logging
 from datetime import datetime, timezone
+
+_LOG = logging.getLogger(__name__)
 
 _COMMERCIAL = re.compile(
     r"\b(buy|price|cheap|deal|discount|order|coupon|shipping|subscription|"
@@ -23,12 +26,8 @@ _COMMERCIAL = re.compile(
 
 
 def _manual_volume_override(keyword: str) -> int | None:
-    k = (keyword or "").strip().lower()
-    overrides = {
-        "đào tạo seo": 14800,
-        "dao tao seo": 14800,
-    }
-    return overrides.get(k)
+    # Never paint a hardcoded volume as real Ads/DFS data (e.g. 14800 for "đào tạo seo").
+    return None
 
 
 def _heuristic_volume(keyword: str) -> tuple[int, float]:
@@ -149,14 +148,95 @@ def _redis_set(digest: str, payload: dict[str, Any]) -> None:
         r.setex(
             f"volume:v1:{digest}",
             volume_cache_ttl_seconds(),
-            json.dumps(payload, ensure_ascii=False)[:30000],
+            json.dumps(payload, ensure_ascii=False),
         )
     except Exception:
         return None
 
 
+_VOLUME_EXTRA_KEYS = (
+    "monthly_searches",
+    "competition",
+    "competition_index",
+    "provider",
+    "cpc_source",
+    "monthly_source",
+    "competition_source",
+)
+_VOLUME_CACHE_EXTRA_READY = False
+
+
+def _ensure_volume_cache_extra_json() -> None:
+    """Additive extra_json column so Postgres does not drop monthly/competition."""
+    global _VOLUME_CACHE_EXTRA_READY
+    if _VOLUME_CACHE_EXTRA_READY:
+        return
+    try:
+        from sqlalchemy import inspect, text
+
+        from app.db import engine
+
+        insp = inspect(engine)
+        if "keyword_volume_cache" not in set(insp.get_table_names() or []):
+            _VOLUME_CACHE_EXTRA_READY = True
+            return
+        cols = {c["name"] for c in insp.get_columns("keyword_volume_cache")}
+        if "extra_json" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE keyword_volume_cache ADD COLUMN extra_json TEXT"))
+        _VOLUME_CACHE_EXTRA_READY = True
+    except Exception:
+        return
+
+
+def _volume_extra_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    extra: dict[str, Any] = {}
+    for key in _VOLUME_EXTRA_KEYS:
+        if payload.get(key) is not None:
+            extra[key] = payload.get(key)
+    return extra
+
+
+def _apply_volume_extra(row: dict[str, Any], extra: Any) -> dict[str, Any]:
+    if not isinstance(extra, dict):
+        return row
+    for key in _VOLUME_EXTRA_KEYS:
+        if extra.get(key) is not None:
+            row[key] = extra.get(key)
+    return row
+
+
+def _parse_extra_json(raw: Any) -> dict[str, Any]:
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _row_from_db_cache(row: Any, *, loc_country: str, loc_language: str) -> dict[str, Any]:
+    out = {
+        "keyword": str(getattr(row, "keyword", "") or ""),
+        "search_volume": int(getattr(row, "search_volume", 0) or 0),
+        "volume_source": str(getattr(row, "volume_source", None) or "api_cache"),
+        "confidence": float(getattr(row, "confidence", None) or 0.75),
+        "cpc_avg": float(getattr(row, "cpc_avg", None) or 0.0),
+        "cpc_min": float(getattr(row, "cpc_min", None) or 0.0),
+        "cpc_max": float(getattr(row, "cpc_max", None) or 0.0),
+        "country": str(getattr(row, "country", None) or loc_country),
+        "language": str(getattr(row, "language", None) or loc_language),
+        "provider": str(getattr(row, "volume_source", None) or "api_cache"),
+    }
+    return _apply_volume_extra(out, _parse_extra_json(getattr(row, "extra_json", None)))
+
+
 def _db_get(digest: str) -> dict[str, Any] | None:
     try:
+        _ensure_volume_cache_extra_json()
         from app.db import SessionLocal
         from app.models.keyword_volume_cache import KeywordVolumeCache
 
@@ -165,17 +245,7 @@ def _db_get(digest: str) -> dict[str, Any] | None:
             row = db.query(KeywordVolumeCache).filter(KeywordVolumeCache.digest == digest).first()
             if not row:
                 return None
-            return {
-                "keyword": row.keyword,
-                "search_volume": int(row.search_volume or 0),
-                "cpc_avg": float(row.cpc_avg or 0),
-                "cpc_min": float(row.cpc_min or 0),
-                "cpc_max": float(row.cpc_max or 0),
-                "volume_source": row.volume_source,
-                "confidence": float(row.confidence or 0.75),
-                "country": row.country,
-                "language": row.language,
-            }
+            return _row_from_db_cache(row, loc_country=str(row.country or "vn"), loc_language=str(row.language or "vi"))
         finally:
             db.close()
     except Exception:
@@ -184,9 +254,11 @@ def _db_get(digest: str) -> dict[str, Any] | None:
 
 def _db_set(digest: str, payload: dict[str, Any]) -> None:
     try:
+        _ensure_volume_cache_extra_json()
         from app.db import SessionLocal
         from app.models.keyword_volume_cache import KeywordVolumeCache
 
+        extra_s = json.dumps(_volume_extra_from_payload(payload), ensure_ascii=False)
         db = SessionLocal()
         try:
             existing = db.query(KeywordVolumeCache).filter(KeywordVolumeCache.digest == digest).first()
@@ -200,6 +272,7 @@ def _db_set(digest: str, payload: dict[str, Any]) -> None:
                 existing.cpc_max = str(payload.get("cpc_max") or "0")[:32]
                 existing.volume_source = str(payload.get("volume_source") or "api_cache")[:32]
                 existing.confidence = str(payload.get("confidence") or "0.75")[:16]
+                existing.extra_json = extra_s
             else:
                 db.add(
                     KeywordVolumeCache(
@@ -213,6 +286,7 @@ def _db_set(digest: str, payload: dict[str, Any]) -> None:
                         cpc_max=str(payload.get("cpc_max") or "0")[:32],
                         volume_source=str(payload.get("volume_source") or "api_cache")[:32],
                         confidence=str(payload.get("confidence") or "0.75")[:16],
+                        extra_json=extra_s,
                     )
                 )
             db.commit()
@@ -234,11 +308,14 @@ def _cache_set_volume_row(row: dict[str, Any], *, country: str | None = None, la
         "cpc_min": float(row.get("cpc_min") or 0.0) if row.get("cpc_min") is not None else 0.0,
         "cpc_max": float(row.get("cpc_max") or 0.0) if row.get("cpc_max") is not None else 0.0,
         "volume_source": str(row.get("volume_source") or "api"),
+        "provider": str(row.get("provider") or row.get("volume_source") or "api"),
         "confidence": float(row.get("confidence") or 0.75),
         "country": (country or os.getenv("SERP_DEFAULT_COUNTRY", "vn")).strip().lower(),
         "language": (language or os.getenv("SERP_DEFAULT_LANGUAGE", "vi")).strip().lower(),
         "cached_at": datetime.now(timezone.utc).isoformat(),
     }
+    payload.update(_volume_extra_from_payload(row))
+    payload["provider"] = str(row.get("provider") or row.get("volume_source") or "api")
     _redis_set(dig, payload)
     _db_set(dig, payload)
 
@@ -310,6 +387,187 @@ def peek_volume_cache_status(
     }
 
 
+def _ingest_volume_rows(rows: list[dict[str, Any]] | None, dest: dict[str, dict[str, Any]]) -> None:
+    for r in rows or []:
+        kw = str(r.get("keyword") or "").strip()
+        if not kw:
+            continue
+        dest[kw.lower()] = r
+
+
+def _fill_missing_volume_fields(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    """Copy only missing CPC / monthly / competition from extra; keep Ads volume/provider."""
+    from app.services.keyword_research_metrics import competition_label_from_index, parse_monthly_search_values
+
+    out = dict(base)
+    extra_src = str(extra.get("provider") or extra.get("volume_source") or "dataforseo")
+
+    def _pos(row: dict[str, Any]) -> bool:
+        for key in ("cpc_avg", "cpc_min", "cpc_max"):
+            try:
+                if row.get(key) is not None and float(row.get(key)) > 0:
+                    return True
+            except (TypeError, ValueError):
+                continue
+        return False
+
+    def _has_comp(row: dict[str, Any]) -> bool:
+        label, _ds = competition_label_from_index(
+            row.get("competition") if row.get("competition") not in (None, "") else row.get("competition_index"),
+            provider=str(row.get("provider") or row.get("volume_source") or "") or None,
+        )
+        return label != "Unknown"
+
+    if not _pos(out) and _pos(extra):
+        out["cpc_avg"] = extra.get("cpc_avg")
+        out["cpc_min"] = extra.get("cpc_min")
+        out["cpc_max"] = extra.get("cpc_max")
+        out["cpc_source"] = extra_src
+    if parse_monthly_search_values(out.get("monthly_searches")) is None and extra.get("monthly_searches"):
+        out["monthly_searches"] = extra.get("monthly_searches")
+        out["monthly_source"] = extra_src
+    if not _has_comp(out) and _has_comp(extra):
+        if extra.get("competition") is not None:
+            out["competition"] = extra.get("competition")
+        if extra.get("competition_index") is not None:
+            out["competition_index"] = extra.get("competition_index")
+        out["competition_source"] = extra_src
+    return out
+
+
+def _provider_error_code(exc: BaseException) -> str:
+    for attr in ("code", "error_code", "status_code", "reason"):
+        val = getattr(exc, attr, None)
+        if val not in (None, ""):
+            return f"{type(exc).__name__}:{val}"
+    return type(exc).__name__
+
+
+def _dfs_fill_missing_volume_fields(
+    dfs_keys: list[str],
+    fetched: dict[str, dict[str, Any]],
+    *,
+    country: str | None,
+    language: str | None,
+    stats: dict[str, Any] | None = None,
+) -> None:
+    """DataForSEO field-level fill for Ads misses / CPC gaps. Does not replace Ads volume."""
+    if not dfs_keys:
+        return
+    from app.services.volume_providers.dataforseo import fetch_dataforseo_search_volume_batch
+
+    batch_size = volume_batch_size()
+    for i in range(0, len(dfs_keys), batch_size):
+        chunk = dfs_keys[i : i + batch_size]
+        try:
+            check_and_record_live_call(stats, label="search_volume_batch")
+            rows = fetch_dataforseo_search_volume_batch(
+                chunk,
+                country=country,
+                language=language,
+            )
+            if stats is not None:
+                stats["api_tasks"] = stats.get("api_tasks", 0) + 1
+                stats["keywords_api"] = stats.get("keywords_api", 0) + len(chunk)
+            dfs_map: dict[str, dict[str, Any]] = {}
+            _ingest_volume_rows(rows, dfs_map)
+            for kw, extra in dfs_map.items():
+                prev = fetched.get(kw)
+                fetched[kw] = _fill_missing_volume_fields(prev, extra) if prev else extra
+        except Exception as exc:
+            _LOG.warning(
+                "dataforseo_gap_fill_error provider=dataforseo error=%s keywords=%s",
+                _provider_error_code(exc),
+                len(chunk),
+                exc_info=True,
+            )
+
+
+def _fetch_live_volumes_ads_then_dfs(
+    misses: list[str],
+    *,
+    country: str | None,
+    language: str | None,
+    stats: dict[str, Any] | None = None,
+    allow_dfs: bool = True,
+    ads_keys: list[str] | None = None,
+    dfs_only_keys: list[str] | None = None,
+    base_rows: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Google Ads first; DataForSEO only for keywords Ads missed or field gaps."""
+    from app.services.keyword_research_metrics import volume_metrics_gap
+
+    fetched: dict[str, dict[str, Any]] = dict(base_rows or {})
+    ads_remaining = list(ads_keys if ads_keys is not None else misses)
+    field_only = [k for k in (dfs_only_keys or []) if k]
+    if not ads_remaining and not field_only:
+        return fetched
+
+    try:
+        from app.services.volume_providers.google_ads import (
+            fetch_google_ads_historical_metrics,
+            google_ads_configured,
+            singleflight,
+        )
+    except Exception as exc:
+        _LOG.warning(
+            "google_ads_volume_import_error provider=google_ads error=%s",
+            _provider_error_code(exc),
+            exc_info=True,
+        )
+        google_ads_configured = lambda: False  # type: ignore[assignment]
+        fetch_google_ads_historical_metrics = None  # type: ignore[assignment]
+        singleflight = None  # type: ignore[assignment]
+
+    batch_size = volume_batch_size()
+    if ads_remaining and google_ads_configured() and fetch_google_ads_historical_metrics is not None:
+        for i in range(0, len(ads_remaining), batch_size):
+            chunk = ads_remaining[i : i + batch_size]
+            flight_key = "ads_vol:" + hashlib.sha256(
+                "|".join([country or "", language or ""] + [c.lower() for c in chunk]).encode()
+            ).hexdigest()
+
+            def _ads_chunk(c=chunk) -> list[dict[str, Any]]:
+                check_and_record_live_call(stats, label="google_ads_volume")
+                rows = fetch_google_ads_historical_metrics(c, country=country, language=language)
+                if stats is not None:
+                    stats["api_tasks"] = stats.get("api_tasks", 0) + 1
+                    stats["keywords_api"] = stats.get("keywords_api", 0) + len(c)
+                return rows or []
+
+            try:
+                rows = singleflight(flight_key, _ads_chunk) if singleflight else _ads_chunk()
+                _ingest_volume_rows(rows, fetched)
+            except Exception as exc:
+                _LOG.warning(
+                    "google_ads_volume_error provider=google_ads error=%s keywords=%s",
+                    _provider_error_code(exc),
+                    len(chunk),
+                    exc_info=True,
+                )
+                continue
+
+    remaining = [k for k in ads_remaining if k.lower() not in fetched]
+    incomplete = [
+        k
+        for k in ads_remaining
+        if k.lower() in fetched and volume_metrics_gap(fetched[k.lower()])
+    ]
+    dfs_keys = remaining + [k for k in incomplete if k not in remaining]
+    for k in field_only:
+        if k not in dfs_keys:
+            dfs_keys.append(k)
+    if dfs_keys and allow_dfs:
+        _dfs_fill_missing_volume_fields(
+            dfs_keys,
+            fetched,
+            country=country,
+            language=language,
+            stats=stats,
+        )
+    return fetched
+
+
 def enrich_keyword_volumes_cached(
     keywords: list[str],
     *,
@@ -353,6 +611,7 @@ def enrich_keyword_volumes_cached(
 
         db = SessionLocal()
         try:
+            _ensure_volume_cache_extra_json()
             chunk = int(os.getenv("VOLUME_DB_LOOKUP_CHUNK", "800"))
             chunk = max(50, min(3000, chunk))
             for i in range(0, len(digests), chunk):
@@ -361,47 +620,55 @@ def enrich_keyword_volumes_cached(
                     continue
                 rows = db.query(KeywordVolumeCache).filter(KeywordVolumeCache.digest.in_(dsub)).all()
                 for r in rows or []:
-                    db_hits[str(r.digest)] = {
-                        "keyword": str(r.keyword or ""),
-                        "search_volume": int(r.search_volume or 0),
-                        "volume_source": str(r.volume_source or "api_cache"),
-                        "confidence": float(r.confidence or 0.75),
-                        "cpc_avg": float(r.cpc_avg or 0.0),
-                        "cpc_min": float(r.cpc_min or 0.0),
-                        "cpc_max": float(r.cpc_max or 0.0),
-                        "country": str(r.country or loc_country),
-                        "language": str(r.language or loc_language),
-                    }
+                    db_hits[str(r.digest)] = _row_from_db_cache(
+                        r, loc_country=loc_country, loc_language=loc_language
+                    )
         finally:
             db.close()
     except Exception:
         db_hits = {}
 
+    from app.services.keyword_research_metrics import volume_cpc_only_gap, volume_metrics_gap
+
+    hits: dict[str, dict[str, Any]] = {}
+    misses: list[str] = []
+    dfs_field_only: list[str] = []
     for kw, dig in zip(cleaned, digests):
         hit = _redis_get(dig) or db_hits.get(dig)
         if hit and isinstance(hit, dict) and hit.get("keyword"):
             vs = str(hit.get("volume_source") or "").lower()
-            if (
-                vs in ("estimated", "bench")
-                and os.getenv("VOLUME_API_ENABLED", "0").lower() in ("1", "true", "yes")
-            ):
-                misses.append(kw)
-                continue
+            api_on = os.getenv("VOLUME_API_ENABLED", "0").lower() in ("1", "true", "yes")
             row = {
                 "keyword": kw,
                 "search_volume": int(hit.get("search_volume") or 0),
                 "volume_source": str(hit.get("volume_source") or "api_cache"),
+                "provider": str(hit.get("provider") or hit.get("volume_source") or "api_cache"),
                 "confidence": float(hit.get("confidence") or 0.75),
                 "cpc_avg": float(hit.get("cpc_avg") or 0.0),
                 "cpc_min": float(hit.get("cpc_min") or 0.0),
                 "cpc_max": float(hit.get("cpc_max") or 0.0),
             }
-            mv = _manual_volume_override(kw)
-            if mv is not None and int(row.get("search_volume") or 0) != int(mv):
-                row["search_volume"] = int(mv)
-                row["volume_source"] = "manual_override"
-                row["confidence"] = max(float(row.get("confidence") or 0.0), 0.9)
-                _cache_set_volume_row(row, country=loc_country, language=loc_language)
+            if hit.get("monthly_searches") is not None:
+                row["monthly_searches"] = hit.get("monthly_searches")
+            if hit.get("competition_index") is not None:
+                row["competition_index"] = hit.get("competition_index")
+            if hit.get("competition") is not None:
+                row["competition"] = hit.get("competition")
+            for _src_key in ("cpc_source", "monthly_source", "competition_source"):
+                if hit.get(_src_key):
+                    row[_src_key] = hit.get(_src_key)
+            stale_src = vs in ("estimated", "bench", "manual_override", "heuristic")
+            if api_on and stale_src:
+                misses.append(kw)
+                continue
+            if api_on and volume_cpc_only_gap(row):
+                hits[kw.lower()] = row
+                dfs_field_only.append(kw)
+                continue
+            if api_on and volume_metrics_gap(row):
+                misses.append(kw)
+                hits[kw.lower()] = row
+                continue
             hits[kw.lower()] = row
         else:
             misses.append(kw)
@@ -411,39 +678,38 @@ def enrich_keyword_volumes_cached(
         stats["keywords_total"] = len(cleaned)
         stats["keywords_api"] = stats.get("keywords_api", 0)
 
-    # Fetch real volumes in batches (DataForSEO first) if enabled
     fetched: dict[str, dict[str, Any]] = {}
-    if misses and allow_api and os.getenv("VOLUME_API_ENABLED", "0").lower() in ("1", "true", "yes"):
-        # DataForSEO batch provider (optional)
-        try:
-            from app.services.volume_providers.dataforseo import fetch_dataforseo_search_volume_batch
-
-            batch_size = volume_batch_size()
-            for i in range(0, len(misses), batch_size):
-                chunk = misses[i : i + batch_size]
-                check_and_record_live_call(stats, label="search_volume_batch")
-                rows = fetch_dataforseo_search_volume_batch(
-                    chunk,
-                    country=loc_country,
-                    language=loc_language,
-                )
-                if stats is not None:
-                    stats["api_tasks"] = stats.get("api_tasks", 0) + 1
-                    stats["keywords_api"] = stats.get("keywords_api", 0) + len(chunk)
-                for r in rows or []:
-                    kw = str(r.get("keyword") or "").strip()
-                    if not kw:
-                        continue
-                    fetched[kw.lower()] = r
-        except Exception:
-            fetched = {}
+    if (misses or dfs_field_only) and os.getenv("VOLUME_API_ENABLED", "0").lower() in ("1", "true", "yes"):
+        base_rows = {k.lower(): hits[k.lower()] for k in dfs_field_only if k.lower() in hits}
+        fetched = _fetch_live_volumes_ads_then_dfs(
+            misses,
+            country=loc_country,
+            language=loc_language,
+            stats=stats,
+            allow_dfs=bool(allow_api),
+            ads_keys=misses,
+            dfs_only_keys=dfs_field_only,
+            base_rows=base_rows,
+        )
 
     # Fill results (real -> cache -> heuristic)
     out: list[dict[str, Any]] = []
     for kw in cleaned:
         low = kw.lower()
         if low in fetched:
-            row = fetched[low]
+            live = fetched[low]
+            prev = hits.get(low)
+            if prev:
+                prev_src = str(prev.get("volume_source") or prev.get("provider") or "").lower()
+                live_src = str(live.get("volume_source") or live.get("provider") or "").lower()
+                if prev_src in ("google_ads", "dataforseo", "api", "api_cache") and live_src == "dataforseo":
+                    row = _fill_missing_volume_fields(prev, live)
+                elif live_src in ("google_ads", "dataforseo", "api"):
+                    row = _fill_missing_volume_fields(live, prev)
+                else:
+                    row = _fill_missing_volume_fields(prev, live)
+            else:
+                row = live
             _cache_set_volume_row(row, country=loc_country, language=loc_language)
             out.append(row)
         elif low in hits:
@@ -456,6 +722,7 @@ def enrich_keyword_volumes_cached(
                     "keyword": kw,
                     "search_volume": v,
                     "volume_source": src,
+                    "provider": "heuristic" if src == "estimated" else src,
                     "confidence": c,
                     "cpc_avg": 0.0,
                     "cpc_min": 0.0,

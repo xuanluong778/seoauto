@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.chatbot_cskh_entitlement import NO_DATA_REPLY
+from app.services.chatbot_cskh_entitlement import NO_DATA_REPLY, build_no_data_reply
 from app.services.chatbot_cskh_lead_detect import detect_lead_intent
 from app.services.chatbot_cskh_ai_service import (
     _score_haystack,
@@ -11,9 +11,15 @@ from app.services.chatbot_cskh_ai_service import (
 )
 
 
-def test_no_data_reply_does_not_ask_for_phone():
+def test_no_data_reply_does_not_ask_for_phone_by_default():
     assert "số điện thoại" not in NO_DATA_REPLY.lower()
     assert "sđt" not in NO_DATA_REPLY.lower()
+
+
+def test_no_data_reply_with_phone_includes_contact():
+    reply = build_no_data_reply("0976.086.500")
+    assert "0976.086.500" in reply
+    assert "liên hệ" in reply.lower()
 
 
 def test_service_question_does_not_trigger_lead():

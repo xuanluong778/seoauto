@@ -1,0 +1,412 @@
+{
+  "wave": 11,
+  "snapshot_at": "2026-09-03T02:28:29.053755+00:00",
+  "SAAS_READY": "PASS",
+  "gates": {
+    "PERFORMANCE": "PASS",
+    "CONTENT_AI_SCALE": "PASS",
+    "CELERY": "PASS",
+    "DATABASE": "PASS",
+    "REDIS": "PASS",
+    "MULTI_TENANT": "PASS",
+    "SECURITY": "PASS",
+    "WORDPRESS": "PASS",
+    "DATA_INTEGRITY": "PASS",
+    "BACKUP_RECOVERY": "PASS",
+    "OBSERVABILITY": "PASS",
+    "ALERTING": "PASS",
+    "SLO_MONITORING": "PASS",
+    "UI_REGRESSION": "PASS",
+    "API_COMPATIBILITY": "PASS",
+    "CONTENT_OUTPUT_REGRESSION": "PASS"
+  },
+  "evidence": {
+    "PERFORMANCE": "WAVE7 soak 2h: 646132 req, 89.7 rps, 0% 5xx + live /metrics http",
+    "CONTENT_AI_SCALE": "WAVE2 LOAD_100 0% error + live postprocess preserve",
+    "CELERY": "live workers_online=6 beat=True queue={'queued_count': 0, 'running_count': 0, 'queued_by_type': {}, 'job_wait_p95_ms': None, 'oldest_queued_job_ids': []}",
+    "DATABASE": "live db_probe={'ok': True, 'latency_ms': 1} connections={'pg': True, 'connections_total': 26, 'connections_active': 1} WAVE3 pool budget",
+    "REDIS": "live redis_probe={'ok': True, 'latency_ms': 0} {'ping_ms': 1.67, 'memory_mb': 5.7, 'max_depth': 0, 'queue_depth': {'content_ai': 0, 'wordpress': 0, 'crawl': 0, 'email': 0, 'embedding': 0, 'default': 0, 'celery': 0}}",
+    "MULTI_TENANT": "WAVE8 FULL PASS — IDOR 20/20 blocked, tenant cache isolation",
+    "SECURITY": "WAVE8 FULL PASS — JWT 20m, revoke, SSRF, upload, webhook",
+    "WORDPRESS": "WAVE4 FULL PASS — remote idempotency + beat singleton",
+    "DATA_INTEGRITY": "WAVE5 duplicate/embedding + live golden HTML preserved",
+    "BACKUP_RECOVERY": "pg_dump 3030247 bytes → restore digiseo_wave11_restore users=748 tables=117 dropped=True",
+    "OBSERVABILITY": "WAVE9 /metrics SLO+alerts + live health/ready 200",
+    "ALERTING": "WAVE9 simulate 8 alerts, dedup, recovery; cron /etc/cron.d/seoauto-wave9-ops-alert",
+    "SLO_MONITORING": "live slo={'api_p95_ms': 1500.0, 'api_5xx_rate_pct': 1.0, 'queue_depth_max': 500, 'job_wait_p95_ms': 120000.0, 'db_pool_util_pct': 90.0, 'redis_memory_mb_max': 512.0, 'celery_workers_min': 1, 'auth_401_spike': 200} open_alerts=[]",
+    "UI_REGRESSION": "WAVE10 14 screenshots + live SHA256 match WAVE0 [{'path': '/content-ai', 'status': 200, 'sha_match_wave0': True}, {'path': '/tool', 'status': 200, 'sha_match_wave0': True}, {'path': '/pricing', 'status': 200, 'sha_match_wave0': True}, {'path': '/settings', 'status': 200, 'sha_match_wave0': True}, {'path': '/account-billing', 'status': 200, 'sha_match_wave0': True}]",
+    "API_COMPATIBILITY": "live 401/200 me+projects {'gate': 'PASS', 'no_token': 401, 'auth_me': 200, 'projects': 200}",
+    "CONTENT_OUTPUT_REGRESSION": "WAVE10 golden + live postprocess preserved=True"
+  },
+  "BEFORE_ARCHITECTURE": "Uvicorn sync LLM + solo Celery + oversized SQLAlchemy pools + JSON job store; no tenant cache; long-lived JWT; XFF spoofable; limited /metrics",
+  "AFTER_ARCHITECTURE": "Uvicorn(8) → PG :5435 (role pools, PgBouncer optional) → Redis → Celery prefork queues (content_ai/wordpress/crawl/email/embedding/default) + Beat; async LLM flag off (CONTENT_AI_ASYNC_GENERATION=0, code ready); business API cache; server sessions; WAVE9 SLO/alerts",
+  "FILES_CHANGED": [
+    "scripts/wave11_final_go_nogo.py (new)",
+    "scripts/backup/pg_dump_daily.sh (new)",
+    "/etc/cron.d/seoauto-backup (new)",
+    "docs/baseline/wave11/* (evidence)",
+    "pm2 start seoauto-worker-embedding (ecosystem already defined; was offline)"
+  ],
+  "CONFIG_CHANGED": {
+    "CELERY_MULTI_QUEUE": "1",
+    "CONTENT_AI_ASYNC_GENERATION": "0",
+    "EMBEDDING_CELERY_WORKER": "1",
+    "BUSINESS_API_CACHE": "1",
+    "SERVER_SESSIONS_ENABLED": "1",
+    "JWT_BLOCK_LEGACY_USER": "1",
+    "TRUSTED_PROXY_XFF": "1",
+    "OBSERVABILITY_WAVE9": "1",
+    "DB_USE_PGBOUNCER": "0"
+  },
+  "DB_MIGRATIONS": [
+    "WAVE3 indexes (generations/projects/credits)",
+    "WAVE8 user_sessions table (scripts/apply_user_sessions_migration.py)",
+    "WAVE4 wordpress_request_idempotency"
+  ],
+  "ROLLBACK_PLAN": [
+    "CELERY_MULTI_QUEUE=0 → solo worker",
+    "CONTENT_AI_ASYNC_GENERATION=0 (already off)",
+    "EMBEDDING_CELERY_WORKER=0 → in-process ST",
+    "BUSINESS_API_CACHE=0",
+    "SERVER_SESSIONS_ENABLED=0 / JWT_BLOCK_LEGACY_USER=0",
+    "DB_USE_PGBOUNCER=0 (already off, direct :5435)",
+    "OBSERVABILITY_WAVE9=0",
+    "pm2 reload ecosystem.config.cjs --update-env"
+  ],
+  "LOAD_TEST_RESULTS": {
+    "wave2_load_100": "0% error, 0 duplicate jobs/credits",
+    "wave6_business_10": "121 rps, 0% error, warm p95 auth/me 18.8ms",
+    "wave7_soak_2h": "646132 req, 89.7 rps, 0% 5xx, RAM +54.6MB, queue 0",
+    "wave5_dup_100": "p95 2579ms"
+  },
+  "REGRESSION_RESULTS": {
+    "ui": {
+      "gate": "PASS",
+      "pages": [
+        {
+          "path": "/content-ai",
+          "status": 200,
+          "sha_match_wave0": true
+        },
+        {
+          "path": "/tool",
+          "status": 200,
+          "sha_match_wave0": true
+        },
+        {
+          "path": "/pricing",
+          "status": 200,
+          "sha_match_wave0": true
+        },
+        {
+          "path": "/settings",
+          "status": 200,
+          "sha_match_wave0": true
+        },
+        {
+          "path": "/account-billing",
+          "status": 200,
+          "sha_match_wave0": true
+        }
+      ]
+    },
+    "api": {
+      "gate": "PASS",
+      "no_token": 401,
+      "auth_me": 200,
+      "projects": 200
+    },
+    "content": {
+      "gate": "PASS",
+      "postprocess_status": 200,
+      "preserved": true
+    }
+  },
+  "KNOWN_FAILURES": {
+    "count_nonempty_lines": 59,
+    "file": "docs/baseline/wave0/KNOWN_FAILURES_WAVE0.txt",
+    "not_increased": true
+  },
+  "P0_P1_OPEN_ISSUES": {
+    "P0": [],
+    "P1": []
+  },
+  "runtime": {
+    "health": {
+      "status": 200,
+      "body": {
+        "status": "ok"
+      }
+    },
+    "ready": {
+      "status": 200,
+      "body": {
+        "status": "ready",
+        "lite": true,
+        "checks": {
+          "database": {
+            "ok": true
+          },
+          "redis": {
+            "ok": true
+          }
+        }
+      }
+    },
+    "metrics_status": 200,
+    "metrics_summary": {
+      "http": {
+        "sample_count": 516,
+        "total_requests": 516,
+        "p50_ms": 7.156179501180304,
+        "p95_ms": 153.68379499932416,
+        "p99_ms": 10225.841209700138,
+        "error_5xx": 0,
+        "error_429": 0,
+        "status_counts": {
+          "401": 13,
+          "200": 479,
+          "422": 4,
+          "302": 20
+        },
+        "top_paths": {
+          "GET /auth/me": 35,
+          "GET /api/trial/status": 32,
+          "GET /api/saas/me": 31,
+          "GET /content-ai": 11,
+          "GET /api/settings/publishing-sites": 11,
+          "GET /tool": 8,
+          "GET /pricing": 8,
+          "GET /content-ai/projects": 8,
+          "GET /static/js/digiseo-credit-confirm.js": 7,
+          "GET /static/css/digiseo-theme.css": 7,
+          "GET /static/css/digiseo-nav-auth.css": 7,
+          "GET /static/js/digiseo-auth-modal.js": 7,
+          "GET /content-ai/images/studio-presets": 7,
+          "GET /": 6,
+          "GET /static/css/digiseo-keyword-tools.css": 6,
+          "GET /api/saas/plans": 6,
+          "GET /static/js/digiseo-i18n.js": 6,
+          "GET /static/css/content-ai-page.css": 6,
+          "GET /static/js/content_ai/content-ai-bulk-ui.js": 6,
+          "GET /content-ai/llm-providers": 6
+        },
+        "uptime_sec": 2945
+      },
+      "celery": {
+        "workers_online": 6,
+        "active_tasks": 0,
+        "reserved_tasks": 0,
+        "ping_ok": true
+      },
+      "celery_beat": {
+        "beat_lock_ok": true,
+        "automation_lock_ttl": -2,
+        "marketing_lock_ttl": -2
+      },
+      "db_probe": {
+        "ok": true,
+        "latency_ms": 1
+      },
+      "redis_probe": {
+        "ok": true,
+        "latency_ms": 0
+      },
+      "redis": {
+        "ping_ms": 1.67,
+        "memory_mb": 5.7,
+        "max_depth": 0,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        }
+      },
+      "queue": {
+        "queued_count": 0,
+        "running_count": 0,
+        "queued_by_type": {},
+        "job_wait_p95_ms": null,
+        "oldest_queued_job_ids": []
+      },
+      "slo": {
+        "api_p95_ms": 1500.0,
+        "api_5xx_rate_pct": 1.0,
+        "queue_depth_max": 500,
+        "job_wait_p95_ms": 120000.0,
+        "db_pool_util_pct": 90.0,
+        "redis_memory_mb_max": 512.0,
+        "celery_workers_min": 1,
+        "auth_401_spike": 200
+      },
+      "alerts": [],
+      "db_connections": {
+        "pg": true,
+        "connections_total": 26,
+        "connections_active": 1
+      },
+      "host": {
+        "cpu_pct": 7.3,
+        "ram_used_mb": 7885.0,
+        "ram_total_mb": 32143.6,
+        "ram_used_pct": 24.5
+      }
+    },
+    "pm2": [
+      {
+        "name": "seoauto-web",
+        "status": "online",
+        "restarts": 1
+      },
+      {
+        "name": "seoauto-worker-content-ai",
+        "status": "online",
+        "restarts": 0
+      },
+      {
+        "name": "seoauto-worker-wordpress",
+        "status": "online",
+        "restarts": 0
+      },
+      {
+        "name": "seoauto-worker-crawl",
+        "status": "online",
+        "restarts": 0
+      },
+      {
+        "name": "seoauto-worker-email",
+        "status": "online",
+        "restarts": 0
+      },
+      {
+        "name": "seoauto-worker-default",
+        "status": "online",
+        "restarts": 0
+      },
+      {
+        "name": "seoauto-email-beat",
+        "status": "online",
+        "restarts": 0
+      },
+      {
+        "name": "seoauto-worker-embedding",
+        "status": "online",
+        "restarts": 0
+      }
+    ],
+    "embedding_worker_online": true,
+    "beat_online": true,
+    "web_online": true,
+    "expected_online": [
+      "seoauto-email-beat",
+      "seoauto-web",
+      "seoauto-worker-content-ai",
+      "seoauto-worker-crawl",
+      "seoauto-worker-default",
+      "seoauto-worker-email",
+      "seoauto-worker-wordpress"
+    ],
+    "missing_expected": [],
+    "healthy": true
+  },
+  "backup_restore": {
+    "gate": "PASS",
+    "dump_path": "/var/www/seoauto_vn_usr/data/backups/wave11_go_nogo/digiseo_wave11.dump",
+    "dump_bytes": 3030247,
+    "dump_sha256": "09f1c76b4790b51f72df184486f2354895b35a2174333736765015a7b9f5ae7f",
+    "restore_db": "digiseo_wave11_restore",
+    "pg_restore_code": 0,
+    "users_restored": 748,
+    "public_tables": 117,
+    "dropped": true,
+    "docker_cp_ok": true,
+    "production_db_untouched": true,
+    "pg_url_redacted": "postgresql://digiseo:***@127.0.0.1:5435/digiseo",
+    "verify_stdout": "748\n117\n",
+    "restore_stderr_tail": ""
+  },
+  "prior_waves": {
+    "PERFORMANCE": {
+      "prior_wave": "wave7",
+      "prior_result": "FULL PASS",
+      "evidence_file": "docs/baseline/wave7/wave7_report.json"
+    },
+    "CONTENT_AI_SCALE": {
+      "prior_wave": "wave2",
+      "prior_result": "FULL PASS",
+      "evidence_file": "docs/baseline/wave2/wave2_production_ready_report.json"
+    },
+    "CELERY": {
+      "prior_wave": "wave1",
+      "prior_result": "PASS",
+      "evidence_file": "docs/baseline/wave1/wave1_report.json"
+    },
+    "DATABASE": {
+      "prior_wave": "wave3",
+      "prior_result": "PASS",
+      "evidence_file": "docs/baseline/wave3/wave3_report.json"
+    },
+    "REDIS": {
+      "prior_wave": "wave7",
+      "prior_result": "FULL PASS",
+      "evidence_file": "docs/baseline/wave7/wave7_report.json"
+    },
+    "MULTI_TENANT": {
+      "prior_wave": "wave8",
+      "prior_result": "FULL PASS",
+      "evidence_file": "docs/baseline/wave8/wave8_report.json"
+    },
+    "SECURITY": {
+      "prior_wave": "wave8",
+      "prior_result": "FULL PASS",
+      "evidence_file": "docs/baseline/wave8/wave8_report.json"
+    },
+    "WORDPRESS": {
+      "prior_wave": "wave4",
+      "prior_result": "FULL PASS",
+      "evidence_file": "docs/baseline/wave4/wave4_report.json"
+    },
+    "DATA_INTEGRITY": {
+      "prior_wave": "wave5",
+      "prior_result": "FULL PASS",
+      "evidence_file": "docs/baseline/wave5/wave5_report.json"
+    },
+    "OBSERVABILITY": {
+      "prior_wave": "wave9",
+      "prior_result": "PASS",
+      "evidence_file": "docs/baseline/wave9/wave9_report.json"
+    },
+    "ALERTING": {
+      "prior_wave": "wave9",
+      "prior_result": "PASS",
+      "evidence_file": "docs/baseline/wave9/wave9_report.json"
+    },
+    "SLO_MONITORING": {
+      "prior_wave": "wave9",
+      "prior_result": "PASS",
+      "evidence_file": "docs/baseline/wave9/wave9_report.json"
+    },
+    "UI_REGRESSION": {
+      "prior_wave": "wave10",
+      "prior_result": "PASS",
+      "evidence_file": "docs/baseline/wave10/wave10_report.json"
+    },
+    "API_COMPATIBILITY": {
+      "prior_wave": "wave10",
+      "prior_result": "PASS",
+      "evidence_file": "docs/baseline/wave10/wave10_report.json"
+    },
+    "CONTENT_OUTPUT_REGRESSION": {
+      "prior_wave": "wave10",
+      "prior_result": "PASS",
+      "evidence_file": "docs/baseline/wave10/wave10_report.json"
+    }
+  },
+  "embedding_start": null,
+  "REGRESSION_FOUND": [],
+  "REGRESSION_FIXED": []
+}

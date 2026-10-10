@@ -27,6 +27,18 @@ def _to_int(v: object) -> int:
         return 0
 
 
+def _is_broken_image_src(src: str) -> bool:
+    s = (src or "").strip()
+    if not s:
+        return True
+    low = s.lower()
+    if low.startswith("javascript:"):
+        return True
+    if s in ("#", "/", "//"):
+        return True
+    return False
+
+
 def _is_decorative_image(img) -> bool:
     role = str(img.get("role") or "").strip().lower()
     aria_hidden = str(img.get("aria-hidden") or "").strip().lower()
@@ -103,12 +115,36 @@ def parse_structured_html(html: str, base_url: str = "") -> dict[str, Any]:
 
     images_total = len(images)
     images_missing_alt = 0
+    images_broken_src = 0
+    images_broken_samples: list[str] = []
     for img in soup.find_all("img"):
         if _is_decorative_image(img):
             continue
         alt = img.get("alt")
         if alt is None or not normalize_text(str(alt)):
             images_missing_alt += 1
+        src = normalize_text(img.get("src") or img.get("data-src") or "")
+        if _is_broken_image_src(src):
+            images_broken_src += 1
+            if len(images_broken_samples) < 8:
+                images_broken_samples.append(src or "(empty)")
+
+    viewport = ""
+    vp = soup.find("meta", attrs={"name": "viewport"})
+    if vp and vp.get("content") is not None:
+        viewport = normalize_text(vp.get("content"))
+
+    hreflangs: list[dict[str, str]] = []
+    for link in soup.find_all("link"):
+        if not _rel_has(link.get("rel"), "alternate"):
+            continue
+        lang = str(link.get("hreflang") or "").strip()
+        if not lang:
+            continue
+        href = str(link.get("href") or "").strip()
+        if base_url and href and not href.startswith(("http://", "https://", "//")):
+            href = urljoin(base_url if base_url.endswith("/") else base_url + "/", href)
+        hreflangs.append({"hreflang": lang, "href": href})
 
     return {
         "url": base_url,
@@ -125,6 +161,10 @@ def parse_structured_html(html: str, base_url: str = "") -> dict[str, Any]:
         "visible_text": text_content[:4000],
         "images_total": images_total,
         "images_missing_alt": images_missing_alt,
+        "images_broken_src": images_broken_src,
+        "images_broken_samples": images_broken_samples,
+        "viewport": viewport,
+        "hreflang": hreflangs,
     }
 
 

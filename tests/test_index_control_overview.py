@@ -16,7 +16,7 @@ from app.services.index_control_history_store import save_check_history
 from app.services.indexnow_log_store import save_indexnow_logs
 from main import app
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://127.0.0.1")
 
 
 @pytest.fixture()

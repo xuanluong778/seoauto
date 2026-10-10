@@ -654,6 +654,7 @@
                 "<div class=\"kc-card-actions\">" +
                 "<button type=\"button\" class=\"kc-btn kc-btn--ghost kc-act-detail\" data-id=\"" + esc(id) + "\">Xem chi tiết</button>" +
                 "<button type=\"button\" class=\"kc-btn kc-btn--primary kc-act-write\" data-id=\"" + esc(id) + "\">Viết 1 bài</button>" +
+                "<button type=\"button\" class=\"kc-btn kc-btn--danger kc-act-delete\" data-id=\"" + esc(id) + "\">Xóa</button>" +
                 "<button type=\"button\" class=\"kc-btn kc-btn--ghost kc-act-bulk\" data-id=\"" + esc(id) + "\">Thêm hàng loạt</button>" +
                 "<button type=\"button\" class=\"kc-btn kc-btn--ghost kc-act-rank\" data-id=\"" + esc(id) + "\">Theo dõi Rank</button>" +
                 "</div>";
@@ -679,6 +680,9 @@
         document.querySelectorAll(".kc-act-write").forEach(function (btn) {
             btn.onclick = function () { writeSingle(btn.getAttribute("data-id")); };
         });
+        document.querySelectorAll(".kc-act-delete").forEach(function (btn) {
+            btn.onclick = function () { removeCluster(btn.getAttribute("data-id")); };
+        });
         document.querySelectorAll(".kc-act-bulk").forEach(function (btn) {
             btn.onclick = function () {
                 state.selected.add(btn.getAttribute("data-id"));
@@ -688,6 +692,45 @@
         document.querySelectorAll(".kc-act-rank").forEach(function (btn) {
             btn.onclick = function () { trackRank(btn.getAttribute("data-id")); };
         });
+    }
+
+    function refreshClusterViews() {
+        if (state.payload) state.payload.clusters = state.clusters;
+        var summary = {
+            cluster_count: state.clusters.length,
+            total_keywords: state.clusters.reduce(function (a, c) {
+                return a + (c.total_keyword || (c.keywords || []).length || 0);
+            }, 0),
+            total_volume: state.clusters.reduce(function (a, c) { return a + (clusterTotalVol(c) || 0); }, 0),
+            articles_suggested: state.contentPlans.length || state.clusters.length,
+        };
+        var panel = document.getElementById("panel");
+        if (panel) panel.hidden = state.clusters.length === 0;
+        renderSummary(summary);
+        var chartData = state.clusters.slice().sort(function (a, b) {
+            return (clusterTotalVol(b) || 0) - (clusterTotalVol(a) || 0);
+        }).slice(0, 12).map(function (c) {
+            return { label: c.main_keyword || c.topic, vol: clusterTotalVol(c) || 0 };
+        });
+        drawChart(chartData);
+        renderGrid();
+        renderContentMapTable();
+        updateBulkToolbar();
+    }
+
+    function removeCluster(clusterId) {
+        if (!clusterId) return;
+        var c = getClusterById(clusterId);
+        var label = (c && (c.topic || c.main_keyword)) || "cụm này";
+        if (!window.confirm("Xóa cụm «" + label + "» khỏi kết quả gom nhóm?")) return;
+        state.clusters = state.clusters.filter(function (x) { return String(x.cluster_id) !== String(clusterId); });
+        state.contentPlans = state.contentPlans.filter(function (x) { return String(x.cluster_id) !== String(clusterId); });
+        state.selected.delete(clusterId);
+        state.mapSelected.delete(clusterId);
+        if (state.planEdits) delete state.planEdits[clusterId];
+        if (state.drawerClusterId && String(state.drawerClusterId) === String(clusterId)) closeDrawer();
+        refreshClusterViews();
+        showToast("Đã xóa cụm «" + label + "».", "success");
     }
 
     function updateBulkToolbar() {

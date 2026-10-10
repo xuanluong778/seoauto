@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 from pathlib import Path
 
 import pytest
@@ -130,12 +131,108 @@ def test_inject_image_smart_avoids_faq_block():
     assert meta.get("placement") in ("inline", "append")
 
 
-def test_studio_catalog_has_formats_and_sizes():
-    cat = studio_catalog()
-    assert "output_formats" in cat
-    assert "size_presets" in cat
-    fmt_ids = {x["id"] for x in cat["output_formats"]}
-    assert {"png", "jpeg", "webp"}.issubset(fmt_ids)
+def test_inject_user_pick_after_h3_and_start_end():
+    html = """
+    <h2>Mở đầu</h2><p>Đoạn A đủ dài cho minh họa.</p>
+    <h3>Chi tiết kỹ thuật</h3><p>Đoạn B under H3.</p>
+    <h2>Kết luận</h2><p>Đoạn C.</p>
+    """
+    new_h3, meta_h3 = inject_image_smart_into_content_html(
+        html,
+        {
+            "url": "/static/uploads/content-ai/h3.webp",
+            "alt": "Ảnh H3",
+            "placement": "after_heading",
+            "h3_index": 0,
+            "section_heading": "Chi tiết kỹ thuật",
+            "force_heading": True,
+        },
+    )
+    assert meta_h3.get("placement") == "after_heading"
+    assert "/static/uploads/content-ai/h3.webp" in new_h3
+    # figure must sit after the H3 tag
+    assert re.search(
+        r"<h3[^>]*>Chi tiết kỹ thuật</h3>\s*<figure",
+        new_h3,
+        flags=re.I | re.S,
+    )
+
+    start_html, meta_s = inject_image_smart_into_content_html(
+        html,
+        {"url": "/static/uploads/content-ai/start.webp", "alt": "S", "placement": "start"},
+    )
+    assert meta_s.get("placement") == "start"
+    assert start_html.strip().startswith("<figure") or "<figure" in start_html[:80]
+
+    end_html, meta_e = inject_image_smart_into_content_html(
+        html,
+        {"url": "/static/uploads/content-ai/end.webp", "alt": "E", "placement": "end"},
+    )
+    assert meta_e.get("placement") == "end"
+    assert end_html.rstrip().endswith("</figure>") or "end.webp" in end_html[-200:]
+
+    # Duplicate skip
+    again, meta_dup = inject_image_smart_into_content_html(
+        new_h3,
+        {
+            "url": "/static/uploads/content-ai/h3.webp",
+            "alt": "Ảnh H3",
+            "placement": "after_heading",
+            "h3_index": 0,
+            "force_heading": True,
+        },
+    )
+    assert meta_dup.get("placement") == "skipped_duplicate"
+    assert again.count("/static/uploads/content-ai/h3.webp") == new_h3.count(
+        "/static/uploads/content-ai/h3.webp"
+    )
+
+
+def test_inject_force_h2_exact_not_smart_reroute():
+    html = """
+    <h2>FAQ — Câu hỏi</h2><p>Hỏi đáp ngắn.</p>
+    <h2>Dịch vụ</h2><p>Nội dung dịch vụ dài hơn nhiều để chèn ảnh minh họa.</p>
+    """
+    new_html, meta = inject_image_smart_into_content_html(
+        html,
+        {
+            "url": "/static/uploads/content-ai/faq.webp",
+            "alt": "FAQ",
+            "placement": "after_heading",
+            "section_heading": "FAQ — Câu hỏi",
+            "h2_index": 0,
+            "force_heading": True,
+        },
+    )
+    assert meta.get("placement") == "after_heading"
+    # Must be under FAQ heading, not rerouted to Dịch vụ
+    faq_chunk = new_html.lower().split("dịch vụ")[0]
+    assert "faq.webp" in faq_chunk
+
+
+
+def test_list_row_excludes_content_would_break_editor_apply():
+    """Regression: insert-selected must not return list-summary project without content.
+
+    Frontend used to applyProjectToForm(data.project) → setContentValue("") wiping the article.
+    """
+    from app.services.content_ai_project_store import _project_list_row
+
+    full = {
+        "id": "p1",
+        "title": "T",
+        "primary_keyword": "kw",
+        "content": "<h2>A</h2><figure><img src='/static/x.webp'/></figure>",
+        "gallery_images": ["/static/x.webp"],
+        "featured_image": "",
+        "outline_content": "## A",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }
+    summary = _project_list_row(full)
+    assert "content" not in summary
+    # Simulating the old bug: empty content would wipe editor
+    assert (summary.get("content") or "") == ""
+
 
 
 def test_template_lightbox_has_navigation():

@@ -13,6 +13,7 @@ from app.services.user_api_access import (
     SYSTEM_API_NOT_CONFIGURED_MSG,
     assert_user_may_manage_api_keys,
     build_system_ai_snapshot,
+    can_see_api_keys_settings_tab,
     may_manage_custom_api_keys,
     resolve_ai_llm_gate,
 )
@@ -48,6 +49,14 @@ def test_admin_can_manage_api_keys(_admin):
     db = MagicMock()
     user = _user(role="admin")
     assert may_manage_custom_api_keys(db, user) is True
+
+
+def test_api_keys_settings_tab_only_for_admin_role():
+    assert can_see_api_keys_settings_tab(None) is False
+    assert can_see_api_keys_settings_tab(_user(role="user")) is False
+    assert can_see_api_keys_settings_tab(_user(role="editor")) is False
+    assert can_see_api_keys_settings_tab(_user(role="admin")) is True
+    assert can_see_api_keys_settings_tab(_user(role="super_admin")) is True
 
 
 @patch("app.services.user_api_access.is_admin", return_value=False)

@@ -78,11 +78,17 @@ def _fetch_one(
         out["elapsed_ms"] = int((time.perf_counter() - t0) * 1000)
         return out
     try:
-        r = requests.get(
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            out["error"] = "blocked_or_invalid_url"
+            out["elapsed_ms"] = int((time.perf_counter() - t0) * 1000)
+            return out
+        r = safe_requests_get(
             url,
             timeout=timeout,
             headers=dict(LINK_CHECK_HEADERS),
-            allow_redirects=True,
         )
         out["status_code"] = int(r.status_code or 0)
         if out["status_code"] != 200:

@@ -18,6 +18,20 @@ def invalidate_bot_kb_cache(bot_id: int) -> None:
         _bot_versions[bid] = int(_bot_versions.get(bid, 0)) + 1
 
 
+def invalidate_all_kb_caches() -> None:
+    """Drop every in-memory Chatbot search hit so Settings import/reindex is visible immediately."""
+    with _lock:
+        _search_cache.clear()
+        for bid in list(_bot_versions):
+            _bot_versions[bid] = int(_bot_versions.get(bid, 0)) + 1
+
+
+def invalidate_user_kb_cache(user_id: int) -> None:
+    """Search keys embed user_id; bot_id is not known here, so clear the whole cache."""
+    _ = int(user_id)
+    invalidate_all_kb_caches()
+
+
 def get_bot_kb_version(bot_id: int) -> int:
     with _lock:
         return int(_bot_versions.get(int(bot_id), 0))

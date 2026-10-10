@@ -145,9 +145,10 @@ function main() {
     const v2 = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/technical_dashboard_v2_sample.json"), "utf8"));
     const legacy = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/technical_dashboard_legacy_sample.json"), "utf8"));
 
-    run("sidebar has 12 nav groups", () => {
-        assert(TS.NAV_ORDER.length === 12, "nav count " + TS.NAV_ORDER.length);
+    run("sidebar has 7 beginner nav groups", () => {
+        assert(TS.NAV_ORDER.length === 7, "nav count " + TS.NAV_ORDER.length);
         assert(TS.NAV_ORDER.includes("gsc") && TS.NAV_ORDER.includes("history"), "missing tabs");
+        assert(TS.NAV_ORDER.includes("index_crawl") && TS.NAV_ORDER.includes("perf_security"), "folded tabs");
     });
 
     run("renderGscTab does not throw without GSC", () => {

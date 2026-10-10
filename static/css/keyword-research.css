@@ -233,6 +233,10 @@
     color: #fff !important;
 }
 
+.page-keyword-research #btnSuggestRun {
+    color: #000000 !important;
+}
+
 /* ── Progress bar ── */
 .page-keyword-research #clusterProgressBar {
     transition: width 0.2s ease;

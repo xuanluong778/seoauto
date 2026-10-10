@@ -148,6 +148,60 @@ def settings_ai_provider_patch(
     return JSONResponse(_ai_build_snapshot(user_id=current_user.id))
 
 
+class ChatbotEmailNotifyPatch(BaseModel):
+    enabled: bool | None = None
+    notify_email: str | None = None
+    delay_seconds: int | None = None
+    organization_id: int | None = None
+
+
+@router.get("/chatbot-email-notify")
+def settings_chatbot_email_notify_get(
+    organization_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    from app.services.chatbot_cskh_email_settings import resolve_notify_prefs
+    from app.services.tenant_org import OrganizationForbiddenError, resolve_organization_id
+
+    try:
+        oid = resolve_organization_id(int(current_user.id), organization_id, db=db)
+    except OrganizationForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    prefs = resolve_notify_prefs(
+        db, user_id=int(current_user.id), organization_id=oid, owner=current_user
+    )
+    return JSONResponse({"settings": prefs})
+
+
+@router.patch("/chatbot-email-notify")
+def settings_chatbot_email_notify_patch(
+    payload: ChatbotEmailNotifyPatch,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    from app.services.chatbot_cskh_email_settings import NotifySettingsError, save_notify_settings
+    from app.services.tenant_org import OrganizationForbiddenError, resolve_organization_id
+
+    try:
+        oid = resolve_organization_id(int(current_user.id), payload.organization_id, db=db)
+    except OrganizationForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    try:
+        prefs = save_notify_settings(
+            db,
+            user_id=int(current_user.id),
+            organization_id=oid,
+            enabled=payload.enabled,
+            notify_email=payload.notify_email,
+            delay_seconds=payload.delay_seconds,
+            owner=current_user,
+        )
+    except NotifySettingsError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return JSONResponse({"settings": prefs})
+
+
 class SystemSettingsPatch(BaseModel):
     theme: str | None = None
     language: str | None = None
@@ -268,7 +322,7 @@ def settings_api_keys_get(
     db: Session = Depends(get_db),
 ) -> JSONResponse:
     assert_user_may_manage_api_keys(db, current_user)
-    item = _settings_get_key(key_id, user_id=current_user.id, reveal_key=True)
+    item = _settings_get_key(key_id, user_id=current_user.id, reveal_key=False)
     if not item:
         return JSONResponse({"detail": "not found"}, status_code=404)
     return JSONResponse({"item": item})
@@ -343,7 +397,7 @@ def settings_api_keys_test(
     db: Session = Depends(get_db),
 ) -> JSONResponse:
     assert_user_may_manage_api_keys(db, current_user)
-    item = _settings_get_key(key_id, user_id=current_user.id, reveal_key=True)
+    item = _settings_get_key(key_id, user_id=current_user.id, reveal_key=False)
     if not item:
         return JSONResponse({"detail": "not found"}, status_code=404)
     plain = str(item.get("api_key") or "").strip()
@@ -387,11 +441,15 @@ class PublishingSitePatch(BaseModel):
 
 
 def _pub_summary(*, user_id: int) -> dict:
+    from app.services.wordpress_connection import list_wordpress_connections
+
     counts = _pub_counts(user_id=user_id)
+    wp = list_wordpress_connections(user_id=user_id)
     return {
         "platforms": sorted(list(_PUB_PLATFORMS)),
         "counts": counts,
         "items": {platform: _pub_list(user_id=user_id, platform=platform) for platform in _PUB_PLATFORMS},
+        "default_site_id": wp.get("default_site_id") or "",
     }
 
 
@@ -664,6 +722,30 @@ class WordPressCategoriesBody(BaseModel):
     url: str | None = None
     username: str | None = None
     app_password: str | None = None
+    refresh: bool = False
+
+
+class PublishingSiteCategoriesBody(BaseModel):
+    refresh: bool = False
+    selected_id: str | None = None
+
+
+class PublishingCategoriesPreviewBody(BaseModel):
+    site_id: str | None = ""
+    platform: str = ""
+    url: str | None = ""
+    username: str | None = ""
+    app_password: str | None = ""
+    refresh: bool = True
+    selected_id: str | None = ""
+    client_id: str | None = ""
+    client_secret: str | None = ""
+    api_version: str | None = ""
+    store_url: str | None = ""
+    site_url: str | None = ""
+    access_token: str | None = ""
+    refresh_token: str | None = ""
+    private_token: str | None = ""
 
 
 def _resolve_wp_category_credentials(
@@ -674,31 +756,25 @@ def _resolve_wp_category_credentials(
     username: str | None = None,
     app_password: str | None = None,
 ) -> tuple[str, str, str]:
+    from app.services.wordpress_connection import resolve_wordpress_connection
+
     sid = str(wp_site_id or "").strip()
-    if sid:
-        site = _pub_get(sid, user_id=user_id, reveal_password=True)
-        if not site:
-            raise HTTPException(status_code=404, detail="Không tìm thấy website đã lưu.")
-        if str(site.get("platform") or "").lower() != "wordpress":
-            raise HTTPException(status_code=400, detail="Website không phải WordPress.")
-        site_url = str(site.get("url") or "").strip()
-        site_user = str(site.get("username") or "").strip()
-        site_pwd = str(site.get("app_password") or "").strip()
+    site_url = str(url or "").strip()
+    if sid or site_url:
+        cred = resolve_wordpress_connection(user_id=user_id, site_id=sid or None, site_url=site_url or None)
+        return cred["url"], cred["username"], cred["app_password"]
+    try:
+        cred = resolve_wordpress_connection(user_id=user_id)
+        return cred["url"], cred["username"], cred["app_password"]
+    except HTTPException:
+        site_user = str(username or "").strip()
+        site_pwd = str(app_password or "").strip()
         if not site_url or not site_user or not site_pwd:
             raise HTTPException(
                 status_code=400,
-                detail="Website thiếu URL / username / Application password.",
+                detail="Chọn website đã kết nối tại Cài đặt, hoặc kết nối WordPress trước.",
             )
         return site_url, site_user, site_pwd
-    site_url = str(url or "").strip()
-    site_user = str(username or "").strip()
-    site_pwd = str(app_password or "").strip()
-    if not site_url or not site_user or not site_pwd:
-        raise HTTPException(
-            status_code=400,
-            detail="Cần wp_site_id hoặc đủ url + username + app_password.",
-        )
-    return site_url, site_user, site_pwd
 
 
 class HaravanConnectionBody(BaseModel):
@@ -786,12 +862,17 @@ def _wp_posts_count(url: str, username: str, app_password: str) -> tuple[int | N
     for normalize_pwd in (True, False):
         headers = _wp_auth_headers(username, app_password_raw, normalize_password=normalize_pwd)
         try:
-            r = requests.get(
+            from app.services.url_safety import safe_requests_get, validate_public_http_url
+            if validate_public_http_url(base):
+                return None, "URL website không được trỏ nội bộ."
+            r = safe_requests_get(
                 f"{base}/wp-json/wp/v2/posts",
                 headers=headers,
                 params={"per_page": 1, "status": "any"},
                 timeout=20,
             )
+        except ValueError:
+            return None, "URL website không hợp lệ (SSRF guard)."
         except requests.RequestException as exc:
             return None, f"Không gọi được WordPress REST API: {exc}"
         if r.status_code < 400:
@@ -834,7 +915,7 @@ def settings_publishing_wordpress_categories(
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Danh mục WP — route dự phòng cho Content AI (khi /content-ai/... chưa có trên server cũ)."""
-    from app.services.wp_categories import fetch_wordpress_categories
+    from app.services.wp_categories import load_wordpress_categories
 
     url, username, app_password = _resolve_wp_category_credentials(
         user_id=int(current_user.id),
@@ -843,12 +924,132 @@ def settings_publishing_wordpress_categories(
         username=payload.username,
         app_password=payload.app_password,
     )
-    result = fetch_wordpress_categories(
+    result = load_wordpress_categories(
+        user_id=int(current_user.id),
+        site_id=str(payload.wp_site_id or "").strip(),
         url=url,
         username=username,
         app_password=app_password,
+        refresh=bool(payload.refresh),
     )
     return JSONResponse(content=result)
+
+
+def _pack_preview_site(payload: PublishingCategoriesPreviewBody, stored: dict[str, Any] | None) -> dict[str, Any]:
+    from app.services.shopify_connect import pack_shopify_secrets, unpack_shopify_secrets
+    from app.services.webcake_connect import pack_webcake_secrets, unpack_webcake_secrets
+    from app.services.publishing_categories import normalize_platform
+
+    stored = dict(stored or {})
+    pf = normalize_platform(payload.platform or stored.get("platform"))
+    url = str(payload.url or payload.store_url or payload.site_url or stored.get("url") or "").strip()
+    username = str(payload.username or payload.client_id or stored.get("username") or "").strip()
+    password = str(
+        payload.app_password
+        or payload.private_token
+        or stored.get("app_password")
+        or ""
+    ).strip()
+    if pf == "shopify":
+        secret = str(payload.client_secret or "").strip()
+        api_ver = str(payload.api_version or "").strip()
+        if secret:
+            stored_blob = unpack_shopify_secrets(str(stored.get("app_password") or ""))
+            password = pack_shopify_secrets(
+                client_secret=secret,
+                api_version=api_ver or str(stored_blob.get("api_version") or "2025-01"),
+                access_token=str(stored_blob.get("access_token") or ""),
+                expires_at=str(stored_blob.get("expires_at") or ""),
+            )
+        username = str(payload.client_id or username or stored.get("username") or "").strip()
+    elif pf == "webcake":
+        access = str(payload.access_token or "").strip()
+        refresh_tok = str(payload.refresh_token or "").strip()
+        if access or refresh_tok:
+            stored_blob = unpack_webcake_secrets(str(stored.get("app_password") or ""))
+            password = pack_webcake_secrets(
+                access_token=access or str(stored_blob.get("access_token") or ""),
+                refresh_token=refresh_tok or str(stored_blob.get("refresh_token") or ""),
+                expires_at=str(stored_blob.get("expires_at") or ""),
+            )
+    return {
+        "id": str(stored.get("id") or payload.site_id or "").strip(),
+        "platform": pf,
+        "url": url,
+        "username": username,
+        "app_password": password,
+        "name": str(stored.get("name") or ""),
+    }
+
+
+@router.post("/publishing-sites/categories/preview")
+def settings_publishing_categories_preview(
+    payload: PublishingCategoriesPreviewBody,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    from app.services.publishing_categories import load_site_categories
+
+    stored = None
+    sid = str(payload.site_id or "").strip()
+    if sid:
+        stored = _pub_get(sid, user_id=current_user.id, reveal_password=True)
+        if not stored:
+            return JSONResponse({"ok": True, "items": [], "unsupported": False, "message": ""})
+    site = _pack_preview_site(payload, stored)
+    result = load_site_categories(
+        user_id=int(current_user.id),
+        site=site,
+        refresh=bool(payload.refresh),
+        selected_id=str(payload.selected_id or ""),
+    )
+    return JSONResponse(result)
+
+
+@router.get("/publishing-sites/{site_id}/categories")
+def settings_publishing_site_categories_get(
+    site_id: str,
+    refresh: bool = False,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    from app.services.publishing_categories import load_site_categories
+
+    site = _pub_get(site_id, user_id=current_user.id, reveal_password=True)
+    if not site:
+        return JSONResponse({"detail": "not found"}, status_code=404)
+    result = load_site_categories(
+        user_id=int(current_user.id),
+        site=site,
+        refresh=bool(refresh),
+    )
+    return JSONResponse(result)
+
+
+@router.post("/publishing-sites/{site_id}/categories")
+def settings_publishing_site_categories_post(
+    site_id: str,
+    payload: PublishingSiteCategoriesBody,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    from app.services.publishing_categories import load_site_categories, save_selected_category
+
+    site = _pub_get(site_id, user_id=current_user.id, reveal_password=True)
+    if not site:
+        return JSONResponse({"detail": "not found"}, status_code=404)
+    selected = str(payload.selected_id or "")
+    if selected and not payload.refresh:
+        result = save_selected_category(
+            user_id=int(current_user.id),
+            site=site,
+            selected_id=selected,
+        )
+        return JSONResponse(result)
+    result = load_site_categories(
+        user_id=int(current_user.id),
+        site=site,
+        refresh=bool(payload.refresh),
+        selected_id=selected,
+    )
+    return JSONResponse(result)
 
 
 @router.post("/publishing-sites/wordpress/sync-posts")

@@ -7,16 +7,22 @@ from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
 
 from app.services import dataforseo_client
+from app.services.cost_control.runtime import SingleFlightGuard
 from app.services.rank_tracking_store import (
+    acquire_keyword_check_lock,
     append_result,
     get_project,
     latest_result_for_keyword,
     list_keywords,
     list_projects,
     previous_result_for_keyword,
+    release_keyword_check_lock,
+    clear_keyword_check_lock,
 )
+from app.services.tenant_org import personal_organization_id
 
 
 def normalize_domain(domain: str) -> str:
@@ -76,54 +82,88 @@ def _compute_rank_change(current: int | None, previous: int | None) -> int | Non
     return int(previous) - int(current)
 
 
-def check_keyword_now(user_id: int, keyword_id: str, *, depth: int = 100) -> dict[str, Any]:
-    from app.services.rank_tracking_store import _find_keyword
+def check_keyword_now(
+    db: Session,
+    user_id: int,
+    keyword_id: str,
+    *,
+    organization_id: int | None = None,
+    depth: int = 100,
+) -> dict[str, Any]:
+    org_id = personal_organization_id(int(user_id)) if organization_id is None else int(organization_id)
+    flight_key = f"rank_tracking:check:{user_id}:{keyword_id}"
 
-    kw_row = _find_keyword(keyword_id, user_id)
-    if not kw_row:
-        raise HTTPException(status_code=404, detail="Không tìm thấy keyword.")
-    project = get_project(str(kw_row.get("project_id")), user_id)
-    keyword = str(kw_row.get("keyword") or "")
-    domain = str(project.get("domain") or "")
+    with SingleFlightGuard(flight_key):
+        kw_row = acquire_keyword_check_lock(
+            db, keyword_id, user_id, organization_id=org_id
+        )
+        try:
+            project = get_project(
+                db, str(kw_row.project_id), user_id, organization_id=org_id
+            )
+            keyword = str(kw_row.keyword or "")
+            domain = str(project.get("domain") or "")
 
-    serp = dataforseo_client.google_serp_live_advanced(
-        keyword,
-        location_name=str(project.get("location_name") or "Vietnam"),
-        language_name=str(project.get("language_name") or "Vietnamese"),
-        device=str(project.get("device") or "desktop"),
-        depth=depth,
-    )
-    match = find_domain_rank(serp.get("items") or [], domain)
-    prev = latest_result_for_keyword(keyword_id, user_id)
-    prev_rank = prev.get("rank_absolute") if prev else None
-    current_rank = match.get("rank_absolute") if match else None
-    rank_change = _compute_rank_change(current_rank, prev_rank)
+            serp = dataforseo_client.google_serp_live_advanced(
+                keyword,
+                location_name=str(project.get("location_name") or "Vietnam"),
+                language_name=str(project.get("language_name") or "Vietnamese"),
+                device=str(project.get("device") or "desktop"),
+                depth=depth,
+            )
+            match = find_domain_rank(serp.get("items") or [], domain)
+            prev = latest_result_for_keyword(
+                db, keyword_id, user_id, organization_id=org_id
+            )
+            prev_rank = prev.get("rank_absolute") if prev else None
+            current_rank = match.get("rank_absolute") if match else None
+            rank_change = _compute_rank_change(current_rank, prev_rank)
 
-    result = append_result(
-        user_id=user_id,
-        project_id=str(project["id"]),
-        keyword_id=keyword_id,
-        keyword=keyword,
-        domain=domain,
-        rank_absolute=current_rank,
-        rank_group=(match or {}).get("rank_group"),
-        url=(match or {}).get("url"),
-        title=(match or {}).get("title"),
-        rank_change=rank_change,
-        mock=bool(serp.get("mock")),
-        serp_depth=depth,
-    )
-    return {
-        "result": result,
-        "previous_rank": prev_rank,
-        "mock": bool(serp.get("mock")),
-        "fallback_mock": bool(serp.get("fallback_mock")),
-    }
+            result = append_result(
+                db,
+                user_id=user_id,
+                organization_id=org_id,
+                project_id=str(project["id"]),
+                keyword_id=keyword_id,
+                keyword=keyword,
+                domain=domain,
+                rank_absolute=current_rank,
+                rank_group=(match or {}).get("rank_group"),
+                url=(match or {}).get("url"),
+                title=(match or {}).get("title"),
+                rank_change=rank_change,
+                mock=bool(serp.get("mock")),
+                serp_depth=depth,
+            )
+            release_keyword_check_lock(db, kw_row)
+            db.commit()
+            return {
+                "result": result,
+                "previous_rank": prev_rank,
+                "mock": bool(serp.get("mock")),
+                "fallback_mock": bool(serp.get("fallback_mock")),
+            }
+        except Exception:
+            db.rollback()
+            try:
+                clear_keyword_check_lock(db, keyword_id, user_id, organization_id=org_id)
+                db.commit()
+            except Exception:
+                db.rollback()
+            raise
 
 
-def check_project_now(user_id: int, project_id: str, *, depth: int = 100) -> dict[str, Any]:
-    get_project(project_id, user_id)
-    keywords = list_keywords(user_id, project_id=project_id)
+def check_project_now(
+    db: Session,
+    user_id: int,
+    project_id: str,
+    *,
+    organization_id: int | None = None,
+    depth: int = 100,
+) -> dict[str, Any]:
+    org_id = personal_organization_id(int(user_id)) if organization_id is None else int(organization_id)
+    get_project(db, project_id, user_id, organization_id=org_id)
+    keywords = list_keywords(db, user_id, project_id=project_id, organization_id=org_id)
     if not keywords:
         raise HTTPException(status_code=400, detail="Project chưa có keyword nào.")
     checked: list[dict[str, Any]] = []
@@ -131,7 +171,13 @@ def check_project_now(user_id: int, project_id: str, *, depth: int = 100) -> dic
     mock_used = False
     for kw in keywords:
         try:
-            out = check_keyword_now(user_id, str(kw["id"]), depth=depth)
+            out = check_keyword_now(
+                db,
+                user_id,
+                str(kw["id"]),
+                organization_id=org_id,
+                depth=depth,
+            )
             if out.get("mock"):
                 mock_used = True
             checked.append({"keyword_id": kw["id"], "keyword": kw["keyword"], "result": out["result"]})
@@ -148,15 +194,26 @@ def check_project_now(user_id: int, project_id: str, *, depth: int = 100) -> dic
     }
 
 
-def build_summary(user_id: int, project_id: str | None = None) -> dict[str, Any]:
-    projects = list_projects(user_id)
+def build_summary(
+    db: Session,
+    user_id: int,
+    project_id: str | None = None,
+    *,
+    organization_id: int | None = None,
+) -> dict[str, Any]:
+    org_id = personal_organization_id(int(user_id)) if organization_id is None else int(organization_id)
+    projects = list_projects(db, user_id, organization_id=org_id)
     if project_id:
         projects = [p for p in projects if str(p.get("id")) == str(project_id)]
-    keyword_rows = list_keywords(user_id, project_id=project_id) if project_id else list_keywords(user_id)
+    keyword_rows = (
+        list_keywords(db, user_id, project_id=project_id, organization_id=org_id)
+        if project_id
+        else list_keywords(db, user_id, organization_id=org_id)
+    )
     latest_by_kw: dict[str, dict[str, Any]] = {}
     for kw in keyword_rows:
         kid = str(kw.get("id"))
-        latest = latest_result_for_keyword(kid, user_id)
+        latest = latest_result_for_keyword(db, kid, user_id, organization_id=org_id)
         if latest:
             latest_by_kw[kid] = latest
 
@@ -185,13 +242,20 @@ def build_summary(user_id: int, project_id: str | None = None) -> dict[str, Any]
     }
 
 
-def keyword_dashboard_rows(user_id: int, project_id: str) -> list[dict[str, Any]]:
-    get_project(project_id, user_id)
+def keyword_dashboard_rows(
+    db: Session,
+    user_id: int,
+    project_id: str,
+    *,
+    organization_id: int | None = None,
+) -> list[dict[str, Any]]:
+    org_id = personal_organization_id(int(user_id)) if organization_id is None else int(organization_id)
+    get_project(db, project_id, user_id, organization_id=org_id)
     rows: list[dict[str, Any]] = []
-    for kw in list_keywords(user_id, project_id=project_id):
+    for kw in list_keywords(db, user_id, project_id=project_id, organization_id=org_id):
         kid = str(kw["id"])
-        latest = latest_result_for_keyword(kid, user_id)
-        previous = previous_result_for_keyword(kid, user_id)
+        latest = latest_result_for_keyword(db, kid, user_id, organization_id=org_id)
+        previous = previous_result_for_keyword(db, kid, user_id, organization_id=org_id)
         rows.append(
             {
                 "id": kid,

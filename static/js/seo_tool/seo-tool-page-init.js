@@ -7,6 +7,71 @@ function setMsg(text, cls) {
 /** Timeout fetch trình duyệt — audit có Playwright + kiểm tra link nội bộ có thể > 3 phút. */
 const TECH_ANALYZE_CLIENT_TIMEOUT_MS = 15 * 60 * 1000;
 let _techProgressTimer = null;
+let _techScanIdempotencyKey = null;
+let _techScanIdempotencyUrl = null;
+
+function technicalScanIdempotencyKey(url) {
+    const u = String(url || "").trim().toLowerCase();
+    if (_techScanIdempotencyUrl !== u || !_techScanIdempotencyKey) {
+        _techScanIdempotencyUrl = u;
+        const rand =
+            typeof crypto !== "undefined" && crypto.randomUUID
+                ? crypto.randomUUID()
+                : String(Date.now()) + Math.random().toString(36).slice(2);
+        _techScanIdempotencyKey = "ts_" + String(rand).replace(/-/g, "").slice(0, 24);
+    }
+    return _techScanIdempotencyKey;
+}
+
+function resetTechnicalScanIdempotency() {
+    _techScanIdempotencyKey = null;
+    _techScanIdempotencyUrl = null;
+}
+
+function applyTechnicalJobProgress(job) {
+    const pct = job && job.progress != null ? Number(job.progress) : 0;
+    const message = (job && job.message) || "Đang quét technical…";
+    if (window.TechDashboardV2 && typeof window.TechDashboardV2.setScanJobProgress === "function") {
+        window.TechDashboardV2.setScanJobProgress(pct, message);
+        return;
+    }
+    const bar = document.getElementById("technicalScanProgressBar");
+    const label = document.getElementById("technicalScanProgressLabel");
+    if (bar) bar.style.width = Math.max(2, Math.min(96, pct)) + "%";
+    if (label) label.textContent = message;
+}
+
+async function pollTechnicalScanJob(jobId, token, signal) {
+    const url = "/analyze/technical/jobs/" + encodeURIComponent(jobId);
+    while (!signal.aborted) {
+        const r = await fetch(url, {
+            headers: { Authorization: "Bearer " + token },
+            signal: signal,
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(httpErrorFromResponse(r, d));
+        applyTechnicalJobProgress(d);
+        const st = String(d.state || "").toUpperCase();
+        if (st === "SUCCESS" && d.result) return d.result;
+        if (st === "ERROR") throw new Error(d.error || "Quét technical thất bại.");
+        await new Promise(function (resolve) {
+            const t = setTimeout(resolve, 3000);
+            if (signal) {
+                signal.addEventListener(
+                    "abort",
+                    function () {
+                        clearTimeout(t);
+                        resolve();
+                    },
+                    { once: true }
+                );
+            }
+        });
+    }
+    const abortErr = new Error("Aborted");
+    abortErr.name = "AbortError";
+    throw abortErr;
+}
 
 function showTechnicalScanProgress() {
     window.__seoScanStartedAt = Date.now();
@@ -225,8 +290,8 @@ function setActiveAuditInSidebar(auditId) {
 async function openAuditRun(auditId) {
     if (!token || !auditId) return;
     hideTechnicalCompleteBanner();
-    issuesCard.hidden = true;
-    issuesTbody.textContent = "";
+    if (issuesCard) issuesCard.hidden = true;
+    if (issuesTbody) issuesTbody.textContent = "";
     const thRow = document.getElementById("technicalHealthRow");
     if (thRow) thRow.hidden = true;
     const crawlExtrasCard = document.getElementById("crawlExtrasCard");
@@ -481,7 +546,13 @@ function applyAuthState() {
     setAuthMsg(loggedIn ? "" : "");
     dispatchAuthChange();
     if (loggedIn) {
-        loadSidebarProjects();
+        loadSidebarProjects().then(function () {
+            try {
+                var savedId = localStorage.getItem(auditStorageKey(lastMe && lastMe.id));
+                if (!savedId) savedId = localStorage.getItem(AUDIT_LS_KEY_LEGACY);
+                if (savedId && !currentAuditId) openAuditRun(savedId);
+            } catch (_e) {}
+        });
     } else {
         sidebarPlaceholderLoggedOut();
         hideTechnicalCompleteBanner();
@@ -506,8 +577,8 @@ function severityClass(sev) {
 
 btn.addEventListener("click", async () => {
     const url = document.getElementById("url").value.trim();
-    issuesCard.hidden = true;
-    issuesTbody.textContent = "";
+    if (issuesCard) issuesCard.hidden = true;
+    if (issuesTbody) issuesTbody.textContent = "";
     const thRow = document.getElementById("technicalHealthRow");
     if (thRow) thRow.hidden = true;
 
@@ -519,6 +590,19 @@ btn.addEventListener("click", async () => {
     if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
         const ok = await window.DigiSeoConfirmCredit(window.DigiSeoCreditActions.technicalAudit);
         if (!ok) return;
+    }
+
+    // Keep session alive: access JWT expires ~20m; refresh via HttpOnly cookie before scan.
+    if (typeof window.DigiSeoEnsureFreshAuthToken === "function") {
+        try {
+            const fresh = await window.DigiSeoEnsureFreshAuthToken(false);
+            if (fresh) token = fresh;
+        } catch (_e) {}
+    }
+    if (!token) {
+        setMsg("Phiên đăng nhập hết hạn. Bấm Đăng nhập ở góc trên rồi quét lại.", "error");
+        if (typeof window.DigiSeoOpenLoginModal === "function") window.DigiSeoOpenLoginModal();
+        return;
     }
 
     hideTechnicalCompleteBanner();
@@ -551,7 +635,7 @@ btn.addEventListener("click", async () => {
     updateTechSidebarBadges([]);
 
     setMsg(
-        "Đang kiểm tra technical… (crawl + quét song song liên kết nội bộ — thường 1–6 phút tùy site; trình duyệt chờ tối đa ~15 phút.)",
+        "Đang kiểm tra technical… Crawl chạy nền (không bị Gateway 504). Thường 1–6 phút tùy site; tối đa ~15 phút.",
         "",
     );
     showTechnicalScanProgress();
@@ -559,34 +643,64 @@ btn.addEventListener("click", async () => {
     const ac = new AbortController();
     const abortTimer = setTimeout(() => ac.abort(), TECH_ANALYZE_CLIENT_TIMEOUT_MS);
     let scanOk = false;
+    const idemKey = technicalScanIdempotencyKey(url);
     try {
-        const r = await fetch("/analyze/technical", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: "Bearer " + token,
-            },
-            body: JSON.stringify({
-                url,
-                max_pages:
-                    window.TechDashboardV2 && typeof window.TechDashboardV2.getMaxPages === "function"
-                        ? window.TechDashboardV2.getMaxPages()
-                        : 25,
-                ...getGscAuditRequestExtras(),
-            }),
-            signal: ac.signal,
+        const startHeaders = {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+            "X-Idempotency-Key": idemKey,
+        };
+        const body = JSON.stringify({
+            url,
+            idempotency_key: idemKey,
+            max_pages:
+                window.TechDashboardV2 && typeof window.TechDashboardV2.getMaxPages === "function"
+                    ? window.TechDashboardV2.getMaxPages()
+                    : 25,
+            ...getGscAuditRequestExtras(),
         });
-        clearTimeout(abortTimer);
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(httpErrorFromResponse(r, d));
+        const fetchFn = typeof window.DigiSeoAuthFetch === "function" ? window.DigiSeoAuthFetch : fetch;
+        const r = await fetchFn("/analyze/technical/jobs", {
+            method: "POST",
+            headers: startHeaders,
+            body,
+            signal: ac.signal,
+            credentials: "same-origin",
+        });
+        if (typeof window.DigiSeoGetAuthToken === "function") {
+            token = window.DigiSeoGetAuthToken() || token;
+        }
+        let start = await r.json().catch(() => ({}));
+        let useSyncFallback = r.status === 404;
+        if (!r.ok && !useSyncFallback) throw new Error(httpErrorFromResponse(r, start));
 
-        applyTechnicalScanPayload(d);
+        let payload = useSyncFallback ? null : start.result;
+        if (!useSyncFallback && !payload) {
+            const jobId = start.job_id;
+            if (!jobId) throw new Error("Không nhận được job_id để theo dõi quét.");
+            applyTechnicalJobProgress(start);
+            payload = await pollTechnicalScanJob(jobId, token, ac.signal);
+        }
+        if (useSyncFallback || !payload) {
+            const syncRes = await fetch("/analyze/technical", {
+                method: "POST",
+                headers: startHeaders,
+                body,
+                signal: ac.signal,
+            });
+            payload = await syncRes.json().catch(() => ({}));
+            if (!syncRes.ok) throw new Error(httpErrorFromResponse(syncRes, payload));
+        }
+        applyTechnicalScanPayload(payload);
+        if (payload && payload.audit_id) setActiveAuditInSidebar(payload.audit_id);
+        clearTimeout(abortTimer);
         setMsg(
             "Đã quét xong. Chọn nhóm lỗi ở sidebar trái để xem chi tiết từng chuyên mục.",
             "ok",
         );
         loadSidebarProjects();
         scanOk = true;
+        resetTechnicalScanIdempotency();
     } catch (e) {
         clearTimeout(abortTimer);
         const errMsg =
@@ -644,8 +758,9 @@ async function doLogin() {
         if (typeof window.DigiSeoSetAuthToken === "function") {
             window.DigiSeoSetAuthToken(token);
         } else {
+            // Storage only — seo_token cookie is HttpOnly (server-set); never write it from JS.
             sessionStorage.setItem("seo_token", token);
-            document.cookie = "seo_token=" + encodeURIComponent(token) + "; path=/; SameSite=Lax; max-age=2592000";
+            try { localStorage.setItem("seo_token", token); } catch (_) {}
         }
         setModalAuthMsg("");
         applyAuthState();
@@ -712,7 +827,8 @@ if (btnLogout) btnLogout.addEventListener("click", () => {
     if (typeof window.DigiSeoLogout === "function") window.DigiSeoLogout();
     else {
         sessionStorage.removeItem("seo_token");
-        document.cookie = "seo_token=; path=/; max-age=0; SameSite=Lax";
+        try { localStorage.removeItem("seo_token"); } catch (_) {}
+        try { fetch("/auth/logout", { method: "POST", credentials: "same-origin" }).catch(function () {}); } catch (_) {}
     }
     applyAuthState();
 });
@@ -833,22 +949,44 @@ if (btnGscReloadSites) {
     btnGscReloadSites.addEventListener("click", () => loadGscSites());
 }
 
-(function syncGoogleLoginReturn() {
+(async function syncGoogleLoginReturn() {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("google_login") !== "1") return;
-    const m = document.cookie.match(/(?:^|;\s*)seo_token=([^;]*)/);
-    if (m) {
-        token = decodeURIComponent(m[1].replace(/\+/g, " ")).trim();
-        if (token) sessionStorage.setItem("seo_token", token);
+    if (q.get("google_login") !== "1") {
+        if (!token && typeof window.DigiSeoHydrateSessionFromCookie === "function") {
+            try {
+                const hydrated = await window.DigiSeoHydrateSessionFromCookie(false);
+                if (hydrated) {
+                    token = hydrated;
+                    applyAuthState();
+                }
+            } catch (_e) {}
+        }
+        return;
+    }
+    // seo_token cookie is HttpOnly — read via /auth/session, not document.cookie
+    if (typeof window.DigiSeoHydrateSessionFromCookie === "function") {
+        try {
+            token = (await window.DigiSeoHydrateSessionFromCookie(true)) || token;
+        } catch (_e) {}
     } else if (typeof window.DigiSeoSyncTokenFromCookie === "function") {
         token = window.DigiSeoSyncTokenFromCookie() || token;
+    }
+    if (typeof window.DigiSeoSetAuthToken === "function" && token) {
+        window.DigiSeoSetAuthToken(token);
+    } else if (token) {
+        try {
+            sessionStorage.setItem("seo_token", token);
+            localStorage.setItem("seo_token", token);
+        } catch (_e) {}
     }
     if (typeof window.DigiSeoAfterLoginSuccess === "function") {
         window.DigiSeoAfterLoginSuccess();
     } else {
         history.replaceState({}, "", window.location.pathname);
     }
+    applyAuthState();
     if (token) setMsg("Đăng nhập Google thành công.", "ok");
+    else setMsg("Đăng nhập Google chưa hoàn tất session. Thử lại hoặc dùng email/mật khẩu.", "error");
 })();
 
 applyAuthState();

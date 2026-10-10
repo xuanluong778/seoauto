@@ -372,7 +372,6 @@
             setMsg(
                 msg,
                 "Đã tạo schema" +
-                    (data.credit_charged ? " (−" + data.credit_charged + " credit)" : "") +
                     (data.result_id ? " · đã lưu #" + data.result_id : ""),
                 true
             );

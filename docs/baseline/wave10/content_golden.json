@@ -1,0 +1,130 @@
+{
+  "local_fixtures": [
+    {
+      "name": "dup_blockquote_same_links",
+      "input_len": 195,
+      "output_len": 285,
+      "related_boxes": 1,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "dup_blockquote_diff_links",
+      "input_len": 178,
+      "output_len": 347,
+      "related_boxes": 1,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "h2_section_plus_blockquote",
+      "input_len": 161,
+      "output_len": 0,
+      "related_boxes": 0,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "triple_related_boxes",
+      "input_len": 267,
+      "output_len": 424,
+      "related_boxes": 1,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "single_related_ok",
+      "input_len": 95,
+      "output_len": 95,
+      "related_boxes": 1,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "no_related_box",
+      "input_len": 47,
+      "output_len": 47,
+      "related_boxes": 0,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "phone_repeat_body_and_cta",
+      "input_len": 110,
+      "output_len": 99,
+      "related_boxes": 0,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "phone_two_numbers",
+      "input_len": 96,
+      "output_len": 85,
+      "related_boxes": 0,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "phone_tel_links",
+      "input_len": 97,
+      "output_len": 68,
+      "related_boxes": 0,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "mixed_content_preserve",
+      "input_len": 285,
+      "output_len": 366,
+      "related_boxes": 1,
+      "truncated": false,
+      "ok": true
+    },
+    {
+      "name": "related_title_dedupe",
+      "input_len": 203,
+      "output_len": 282,
+      "related_boxes": 1,
+      "truncated": false,
+      "ok": true
+    }
+  ],
+  "live": [
+    {
+      "name": "mixed_content_preserve",
+      "status": 200,
+      "schema_ok": true,
+      "preserved": true,
+      "input_len": 285,
+      "output_len": 285,
+      "ok": true
+    },
+    {
+      "name": "no_related_box",
+      "status": 200,
+      "schema_ok": true,
+      "preserved": true,
+      "input_len": 62,
+      "output_len": 62,
+      "ok": true
+    },
+    {
+      "name": "draft_roundtrip",
+      "status": 200,
+      "ok": true,
+      "keys": [
+        "content",
+        "featured_image",
+        "gallery_images",
+        "meta_description",
+        "project_id",
+        "scheduled_at",
+        "slug",
+        "tags",
+        "title"
+      ]
+    }
+  ],
+  "local_ok": true,
+  "live_ok": true
+}

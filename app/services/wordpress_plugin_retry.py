@@ -50,6 +50,7 @@ class ErrorClassification:
     error_code: str
     message: str
     http_status: int | None = None
+    body: dict[str, Any] | None = None
 
 
 def _extract_error_code(body: dict[str, Any] | None, http_status: int) -> str:
@@ -133,7 +134,7 @@ def classify_http_response(
         return ErrorClassification(False, True, "wordfence_blocked", msg, http_status)
 
     if lower in BLOCKED_CODES or lower.startswith("seoauto_plugin_locked"):
-        return ErrorClassification(False, True, lower, message, http_status)
+        return ErrorClassification(False, True, lower, message, http_status, body)
 
     if http_status in (401, 403):
         if any(x in lower for x in ("expired", "revoked", "canceled", "cancelled", "suspended", "locked", "entitlement")):

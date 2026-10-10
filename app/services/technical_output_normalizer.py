@@ -90,7 +90,9 @@ _CRITICAL_TYPES: frozenset[str] = frozenset(
         "sitemap_contains_noindex",
         "sitemap_contains_robots_blocked",
         "broken_internal_http_error",
-        "crawl_page_non_200",
+        "crawl_http_4xx",
+        "crawl_http_5xx",
+        "crawl_timeout",
         "http_status_non_200",
         "https_not_used",
         "cloaking_risk_advanced",
@@ -128,23 +130,38 @@ _HIGH_TYPES: frozenset[str] = frozenset(
         "internal_link_server_error",
         "internal_link_connection_error",
         "redirect_chain",
+        "redirect_loop",
         "indexability_signal_conflict",
         "page_unlikely_indexed",
+        "crawled_url_robots_blocked",
         "robots_noindex",
         "soft_404_heuristic",
+        "crawl_http_3xx",
+        "crawl_connection_error",
+        "mixed_content",
+        "jsonld_parse_error",
+        "cwv_lcp_poor",
+        "cwv_inp_poor",
+        "cwv_cls_poor",
     }
 )
 
 _MEDIUM_TYPES: frozenset[str] = frozenset(
     {
         "duplicate_title",
+        "duplicate_h1",
+        "duplicate_meta_description",
         "missing_meta_description",
         "missing_h1",
         "multiple_h1",
         "missing_canonical",
         "title_too_long",
+        "title_too_short",
+        "meta_description_too_long",
         "thin_content",
         "images_missing_alt",
+        "images_broken_src",
+        "missing_viewport",
         "js_seo_risk_high",
         "js_seo_risk_medium",
         "js_shell_missing_critical",
@@ -155,6 +172,11 @@ _MEDIUM_TYPES: frozenset[str] = frozenset(
         "canonical_trailing_slash_mismatch",
         "robots_missing_sitemap_line",
         "robots_sitemap_unreachable",
+        "http_internal_links",
+        "missing_hsts",
+        "schema_missing_type",
+        "schema_missing_required_field",
+        "viewport_no_scale",
     }
 )
 
@@ -166,6 +188,7 @@ _LOW_TYPES: frozenset[str] = frozenset(
         "crawl_data_low_trust",
         "robots_wordpress_standard_blocks",
         "robots_disallow_broad_querystring",
+        "missing_charset",
     }
 )
 
@@ -295,19 +318,19 @@ def _map_checklist_group_to_category(group: str, issue_type: str) -> str:
         return "images"
     if g == "Video" or t.startswith("video_"):
         return "video"
-    if g == "Mobile":
-        return "mobile"
-    if g == "International":
-        return "international"
-    if g == "Speed" or "pagespeed" in t or "cwv" in t:
+    if g == "Speed" or "pagespeed" in t or t.startswith("cwv_"):
         return "site_speed"
-    if g == "Security" or t == "https_not_used":
+    if g == "Security" or t in ("https_not_used", "mixed_content", "http_internal_links", "missing_hsts"):
         return "https"
+    if g == "Schema" or t.startswith("schema_") or t.startswith("jsonld_"):
+        return "schema"
+    if g == "Mobile" or t in ("missing_viewport", "viewport_no_scale", "missing_charset"):
+        return "mobile"
+    if g == "International" or t.startswith("hreflang_"):
+        return "international"
     if t in ("crawl_page_non_200", "http_status_error", "http_status_non_200"):
         return "response_code"
-    if g == "Onpage" or t.startswith("schema_"):
-        if t.startswith("schema_"):
-            return "schema"
+    if g == "Onpage":
         return "onpage"
     if re.match(r"^js_seo_|^js_shell_", t):
         return "website"
@@ -643,7 +666,7 @@ def calculate_priority_score(issue: dict[str, Any]) -> float:
     """
     issue = _safe_dict(issue)
     try:
-        from app.services.gsc_priority import compute_issue_priority_score
+        from app.services.gsc_priority import compute_priority_components
 
         legacy = {
             "type": issue.get("_issue_type") or issue.get("id", ""),
@@ -655,17 +678,10 @@ def calculate_priority_score(issue: dict[str, Any]) -> float:
         sev_map = {"critical": "high", "high": "high", "medium": "medium", "low": "low", "passed": "low"}
         legacy["severity"] = sev_map.get(str(legacy["severity"]), "medium")
         if str(issue.get("severity")) == "critical":
-            base = compute_issue_priority_score(
-                legacy,
-                page_metrics={
-                    "impressions": int(issue.get("gsc_impressions") or 0),
-                    "clicks": int(issue.get("gsc_clicks") or 0),
-                    "position": float(issue.get("gsc_position") or 0),
-                },
-                has_gsc=issue.get("gsc_impressions") is not None,
-            )
-            return round(min(100.0, base + 12.0), 1)
-        return compute_issue_priority_score(
+            legacy["severity"] = "critical"
+        affected = _safe_list(issue.get("affected_urls")) or _safe_list(issue.get("sample_urls"))
+        affected_count = len(affected) or (1 if legacy.get("url") else 1)
+        components = compute_priority_components(
             legacy,
             page_metrics={
                 "impressions": int(issue.get("gsc_impressions") or 0),
@@ -673,7 +689,10 @@ def calculate_priority_score(issue: dict[str, Any]) -> float:
                 "position": float(issue.get("gsc_position") or 0),
             },
             has_gsc=issue.get("gsc_impressions") is not None,
+            affected_url_count=affected_count,
+            confidence=issue.get("confidence"),
         )
+        return float(components["priority_score"])
     except Exception:
         pass
 
@@ -1051,8 +1070,10 @@ _INTERNAL_LINK_TYPES: frozenset[str] = frozenset(
         "broken_internal_link",
         "broken_internal_http_error",
         "orphan_page",
+        "crawl_depth_deep",
         "redirect_chain",
         "redirect_loop",
+        "internal_link_redirect",
         "internal_link_broken",
     }
 )
@@ -1079,6 +1100,14 @@ _DOMAIN_LEVEL_TYPES: frozenset[str] = frozenset(
         "robots_disallow_all",
         "robots_missing_sitemap_line",
         "robots_noindex",
+        "robots_dns_error",
+        "robots_ssl_error",
+        "robots_timeout",
+        "robots_forbidden",
+        "robots_server_error",
+        "robots_sitemap_wrong_host",
+        "robots_sitemap_invalid_url",
+        "link_check_truncated",
         "sitemap_unreachable",
         "sitemap_not_found",
         "sitemap_empty",
@@ -1171,7 +1200,9 @@ def _normalize_v2_source(issue: dict[str, Any]) -> str:
         return "raw_html"
     if itype in ("x_robots_tag_noindex",):
         return "http_header"
-    if cat == "site_speed" or "pagespeed" in itype or "cwv" in itype:
+    if cat == "site_speed" or itype.startswith("cwv_") or "pagespeed" in itype:
+        if str(issue.get("source") or "").lower() == "crux":
+            return "crux"
         return "pagespeed"
     if "crux" in itype or issue.get("crux"):
         return "crux"
@@ -1194,8 +1225,30 @@ def _normalize_v2_source(issue: dict[str, Any]) -> str:
 
 def _map_category_to_nav_group(issue: dict[str, Any]) -> str:
     itype = _issue_type_from_normalized(issue)
-    if itype.startswith("internal_link_"):
+    if itype.startswith("internal_link_") and itype != "internal_link_redirect":
         return "crawlability"
+    if itype in (
+        "crawl_http_3xx",
+        "crawl_http_4xx",
+        "crawl_http_5xx",
+        "crawl_timeout",
+        "crawl_connection_error",
+        "crawled_url_robots_blocked",
+        "crawl_page_non_200",
+    ) or (itype.startswith("crawl_") and itype != "crawl_depth_deep"):
+        return "crawlability"
+    if itype == "missing_viewport":
+        return "ux_mobile"
+    if itype in ("missing_charset", "viewport_no_scale"):
+        return "ux_mobile"
+    if itype.startswith("cwv_"):
+        return "performance"
+    if itype in ("mixed_content", "http_internal_links", "missing_hsts", "https_not_used"):
+        return "security_http"
+    if itype.startswith("jsonld_") or itype.startswith("schema_"):
+        return "structured_data"
+    if itype.startswith("hreflang_"):
+        return "onpage"
     if itype in _INTERNAL_LINK_TYPES or re.search(r"internal.*link|broken.*link|orphan", itype, re.I):
         return "internal_links"
     if itype in (
@@ -1208,6 +1261,11 @@ def _map_category_to_nav_group(issue: dict[str, Any]) -> str:
         "canonical_points_to_non_indexable",
         "canonical_scheme_mismatch",
         "canonical_trailing_slash_mismatch",
+        "canonical_missing_high_value",
+        "canonical_self_mismatch",
+        "canonical_cross_host",
+        "missing_canonical",
+        "soft_404_heuristic",
         "page_unlikely_indexed",
         "google_may_ignore_canonical",
     ) or itype.startswith("sitemap_contains"):
@@ -1306,11 +1364,13 @@ def _build_issue_evidence(
 
 
 def _v2_issue_is_publishable(row: dict[str, Any]) -> bool:
-    """Phải có evidence hợp lệ hoặc affected_urls rõ ràng."""
+    """Phải có evidence kỹ thuật (không chỉ mô tả) và URL hoặc domain scope."""
     evidence = _safe_list(row.get("evidence"))
     affected = [u for u in _safe_list(row.get("affected_urls")) if u and str(u).strip()]
+    weak = {"description", "remediation_hint"}
     has_evidence = any(
         isinstance(e, dict)
+        and str(e.get("kind") or "") not in weak
         and (
             e.get("text")
             or e.get("url")
@@ -1320,7 +1380,8 @@ def _v2_issue_is_publishable(row: dict[str, Any]) -> bool:
         )
         for e in evidence
     )
-    return bool(has_evidence or affected)
+    has_domain = any(isinstance(e, dict) and e.get("domain") for e in evidence)
+    return bool(has_evidence and (affected or has_domain))
 
 
 def _normalize_issue_to_v2(
@@ -1379,6 +1440,8 @@ def _normalize_issue_to_v2(
         tmp["severity"] = sev_v2 if sev_v2 != "opportunity" else "low"
         priority_f = calculate_priority_score(tmp)
 
+    from app.services.gsc_priority import priority_tier_from_score
+
     nav_group = _sanitize_issue_nav_group(issue)
 
     row: dict[str, Any] = {
@@ -1388,6 +1451,7 @@ def _normalize_issue_to_v2(
         "nav_group": nav_group,
         "severity": sev_v2,
         "priority_score": round(priority_f, 1),
+        "priority_tier": issue.get("priority_tier") or priority_tier_from_score(priority_f),
         "confidence": confidence_f,
         "source": _normalize_v2_source(issue),
         "affected_urls": affected,

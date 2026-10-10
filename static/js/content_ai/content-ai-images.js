@@ -1,11 +1,47 @@
     /* AI Visual Content Studio */
-    const studioGallery = byId("studioGallery");
+    const getStudioGalleryEl = () => byId("studioGallery");
+    let studioGallery = getStudioGalleryEl();
     const studioIncludeText = byId("studioIncludeText");
     const studioTextHintWrap = byId("studioTextHintWrap");
     let studioPreviews = [];
     let studioSelectedIndex = 0;
     let studioCatalogCache = null;
     let _pendingMediaPanelRestore = null;
+
+    const setGoogleImageHint = (text) => {
+        const msg = String(text || "").trim();
+        const el = byId("hint-google-images");
+        if (!el) return;
+        el.textContent = msg;
+        if (msg) el.removeAttribute("hidden");
+        else el.setAttribute("hidden", "");
+    };
+
+    const clearConflictingMediaHints = ({ keepStudio = false } = {}) => {
+        // Stale web-import errors used to remain under AI success ("Không tải được ảnh: fetch_error").
+        setGoogleImageHint("");
+        if (!keepStudio) {
+            const vs = byId("hint-visual-studio");
+            if (vs) {
+                vs.textContent = "";
+                vs.setAttribute("hidden", "");
+            }
+        }
+    };
+
+    const updateMediaResultsLabel = (n, kind) => {
+        const label = byId("mediaResultsLabel");
+        if (!label) return;
+        const count = Math.max(0, parseInt(n || 0, 10) || 0);
+        if (count <= 0) {
+            label.setAttribute("hidden", "");
+            label.textContent = "Kết quả ảnh";
+            return;
+        }
+        const kindLabel = kind === "web" ? "ảnh web" : "ảnh preview AI";
+        label.textContent = `Kết quả: ${count} ${kindLabel} — chọn ảnh rồi bấm Chèn / Featured.`;
+        label.removeAttribute("hidden");
+    };
 
     const _mediaPanelVal = (id) => {
         const el = byId(id);
@@ -103,7 +139,13 @@
         if (card && !card.classList.contains("active")) card.click();
 
         if (s.hintImage) setHint("image", s.hintImage);
-        if (s.hintGoogleImages) setHint("google-images", s.hintGoogleImages);
+        // Don't resurrect stale web-import errors under AI previews.
+        if (s.hintGoogleImages) {
+            const g = String(s.hintGoogleImages || "").trim();
+            const staleImportErr =
+                studioPreviews.length > 0 && /Không tải được ảnh|fetch_error/i.test(g);
+            setHint("google-images", staleImportErr ? "" : g);
+        }
         if (s.hintVisualStudio) setStudioHint(s.hintVisualStudio);
         if (s.mediaInsertSummary && typeof showMediaInsertSummary === "function") {
             showMediaInsertSummary(s.mediaInsertSummary);
@@ -249,7 +291,11 @@
     const setStudioHint = (text) => {
         const msg = String(text || "").trim();
         const h = byId("hint-visual-studio");
-        if (h) h.textContent = msg;
+        if (h) {
+            h.textContent = msg;
+            // Keep dual channel off-screen; user-facing copy is #hint-image
+            h.setAttribute("hidden", "");
+        }
         if (msg) setHint("image", msg);
     };
 
@@ -289,9 +335,47 @@
         return { ...base, ...overrides };
     };
 
+    const getMediaModalScroller = () => {
+        // Media modal scrolls on #caStepModalBody (not nested .ca-modal-body-scroll).
+        const body = byId("caStepModalBody");
+        if (body && body.querySelector(".ca-media-workspace")) return body;
+        const panel = byId("contentAiMediaPanel");
+        return (panel && panel.querySelector(".ca-modal-body-scroll")) || null;
+    };
+
+    const scrollStudioGalleryIntoView = () => {
+        try {
+            const scroller = getMediaModalScroller();
+            const label = byId("mediaResultsLabel");
+            const gal = getStudioGalleryEl() || byId("googleImageResults");
+            const target = (label && !label.hasAttribute("hidden") && label) || gal;
+            if (!target) return;
+            if (scroller && scroller.contains(target)) {
+                const tRect = target.getBoundingClientRect();
+                const sRect = scroller.getBoundingClientRect();
+                const nextTop = scroller.scrollTop + (tRect.top - sRect.top) - 10;
+                scroller.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+            } else {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        } catch (_) {}
+    };
+
+    const resolveMediaImageUrl = (raw) => {
+        let u = String(raw || "").trim();
+        if (!u) return "";
+        // Relative private user-files: cookie/HttpOnly handles same-origin; cache-bust for re-generate.
+        if (u.startsWith("/api/user-files/") || u.startsWith("/static/")) {
+            u += (u.includes("?") ? "&" : "?") + "v=" + Date.now();
+        }
+        return u;
+    };
+
     const renderStudioGallery = () => {
+        studioGallery = getStudioGalleryEl();
         if (!studioGallery) return;
         studioGallery.innerHTML = "";
+        updateMediaResultsLabel(studioPreviews.length, "ai");
         if (!studioPreviews.length) return;
         studioPreviews.forEach((p, idx) => {
             const card = document.createElement("article");
@@ -302,11 +386,18 @@
             thumbBtn.className = "ca-media-thumb-wrap";
             thumbBtn.setAttribute("aria-label", "Xem ảnh lớn");
             const img = document.createElement("img");
-            img.src = p.url;
+            const src = resolveMediaImageUrl(p.url);
+            img.src = src;
             img.alt = p.alt || "Preview AI";
-            img.loading = "lazy";
+            img.loading = "eager";
+            img.decoding = "async";
             img.className = "ca-media-thumb-img studio-thumb-click";
             img.draggable = false;
+            img.onerror = () => {
+                img.alt = "Không hiển thị được preview";
+                img.style.opacity = "0.35";
+                setStudioHint("Không hiển thị được preview (URL private hoặc lỗi mạng). Thử tạo lại.");
+            };
             thumbBtn.addEventListener("click", (ev) => {
                 ev.preventDefault();
                 ev.stopPropagation();
@@ -339,15 +430,20 @@
                 b.textContent = label;
                 b.addEventListener("click", (ev) => {
                     ev.preventDefault();
+                    ev.stopPropagation();
                     studioSelectedIndex = idx;
-                    renderStudioGallery();
-                    handler(p, idx);
+                    // Do NOT re-render gallery before async handlers — wipes listener mid-click.
+                    try {
+                        handler(p, idx);
+                    } catch (err) {
+                        setStudioHint(String((err && err.message) || err));
+                    }
                 });
                 return b;
             };
-            btns.appendChild(mk("Chọn", () => {}));
-            btns.appendChild(mk("Chèn", () => studioInsertSelected(p, "inline")));
-            btns.appendChild(mk("Featured", () => studioInsertSelected(p, "featured")));
+            btns.appendChild(mk("Chọn", () => { void pickHeadingAndInsertStudio(p); }));
+            btns.appendChild(mk("Chèn", () => { void studioInsertSelected(p, "inline"); }));
+            btns.appendChild(mk("Featured", () => { void studioInsertSelected(p, "featured"); }));
             body.appendChild(meta);
             body.appendChild(altLine);
             body.appendChild(posLine);
@@ -361,71 +457,193 @@
             });
             studioGallery.appendChild(card);
         });
+        // After cards render, ensure gallery is within the scrollable area
+        requestAnimationFrame(() => scrollStudioGalleryIntoView());
     };
 
-    const studioInsertSelected = async (preview, mode) => {
-        const pk = byId("primaryKeyword").value.trim();
-        if (!pk) {
-            setStudioHint("Cần từ khóa chính.");
-            return;
+    const studioInsertSelected = async (preview, mode, placeOpts = null) => {
+        const pk = String(byId("primaryKeyword")?.value || "").trim();
+        if (!pk && mode !== "featured") {
+            if (!(placeOpts && placeOpts.placement)) {
+                setStudioHint("Cần từ khóa chính.");
+                return { ok: false, reason: "need_keyword" };
+            }
         }
         const payload = buildStudioGeneratePayload();
-        const insertH2 = preview.section_heading || payload.section_heading || "";
-        const insertIdx = preview.h2_index != null ? preview.h2_index : payload.h2_index;
+        // Always prefer live editor HTML (not a stale draft snapshot).
+        const liveHtml = String(
+            (typeof getContentValue === "function" ? getContentValue() : "") ||
+                payload.content_html ||
+                "",
+        );
+        let insertH2 = preview.section_heading || payload.section_heading || "";
+        let insertIdx = preview.h2_index != null ? preview.h2_index : payload.h2_index;
+        let insertH3 = null;
+        let placement = "";
+        if (placeOpts && typeof placeOpts === "object") {
+            if (placeOpts.section_heading != null) insertH2 = String(placeOpts.section_heading || "");
+            if (placeOpts.h2_index !== undefined) insertIdx = placeOpts.h2_index;
+            if (placeOpts.h3_index !== undefined) insertH3 = placeOpts.h3_index;
+            if (placeOpts.placement) placement = String(placeOpts.placement);
+        }
+        const cleanUrl = String(preview.url || "").trim().split("?")[0];
+        if (!cleanUrl) {
+            setStudioHint("Thiếu URL ảnh.");
+            return { ok: false, reason: "no_url" };
+        }
         setStudioHint(mode === "featured" ? "Đang đặt featured…" : "Đang chèn vào bài…");
         try {
+            const body = {
+                url: cleanUrl,
+                mode,
+                project_id: activeProjectId || null,
+                content_html: liveHtml,
+                title: payload.title || String(byId("title")?.value || "").trim(),
+                primary_keyword: pk || String(byId("primaryKeyword")?.value || "").trim(),
+                section_heading: insertH2 || "",
+                alt: preview.alt || "",
+            };
+            if (insertIdx !== null && insertIdx !== undefined && insertIdx !== "") {
+                body.h2_index = insertIdx;
+            }
+            if (insertH3 !== null && insertH3 !== undefined && insertH3 !== "") {
+                body.h3_index = insertH3;
+            }
+            if (placement) body.placement = placement;
+
             const res = await fetch("/content-ai/images/insert-selected?ts=" + Date.now(), {
                 method: "POST",
                 headers: authJsonHeaders(),
-                body: JSON.stringify({
-                    url: preview.url,
-                    mode,
-                    project_id: activeProjectId || null,
-                    content_html: payload.content_html,
-                    title: payload.title,
-                    primary_keyword: pk,
-                    section_heading: insertH2,
-                    h2_index: insertIdx,
-                    alt: preview.alt || "",
-                }),
+                body: JSON.stringify(body),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 const d = data.detail;
                 throw new Error(typeof d === "string" ? d : "Chèn ảnh thất bại");
             }
-            if (data.content) {
-                if (typeof _mediaContentBeforeInsert !== "undefined" && !_mediaContentBeforeInsert) {
-                    _mediaContentBeforeInsert = getContentValue();
-                }
-                setContentValue(data.content);
+            if (data.skipped_duplicate) {
+                setStudioHint(data.message || "Ảnh đã có trong bài — không chèn trùng.");
+                setHint("image", data.message || "Không chèn trùng.");
+                return { ok: false, reason: "duplicate", data };
             }
-            if (data.featured_image) {
-                if (!uploadedImages.includes(data.featured_image)) uploadedImages.unshift(data.featured_image);
-                renderUploadList();
-            }
-            if (data.gallery_images && Array.isArray(data.gallery_images)) {
-                data.gallery_images.forEach((u) => {
-                    const s = String(u || "").trim();
-                    if (s && !uploadedImages.includes(s)) uploadedImages.push(s);
+
+            // Prefer API content; fall back to client-side figure inject under the chosen heading.
+            let nextHtml = String(data.content || "");
+            const finalUrlBase = String(data.url || cleanUrl)
+                .trim()
+                .split("?")[0]
+                .split("#")[0];
+            const urlIn = (html) => {
+                const h = String(html || "");
+                if (!h) return false;
+                if (finalUrlBase && h.includes(finalUrlBase)) return true;
+                if (cleanUrl && h.includes(cleanUrl)) return true;
+                // TinyMCE may expand relative → absolute host URL
+                try {
+                    if (finalUrlBase && h.includes(encodeURI(finalUrlBase))) return true;
+                    if (finalUrlBase && window.location && h.includes(window.location.origin + finalUrlBase)) {
+                        return true;
+                    }
+                } catch (_) {}
+                return false;
+            };
+            if (mode === "inline" && !urlIn(nextHtml)) {
+                nextHtml = clientInjectImageUnderHeading(liveHtml, {
+                    url: finalUrlBase || cleanUrl,
+                    alt: data.alt || preview.alt || "",
+                    placement: placement || "after_heading",
+                    section_heading: insertH2,
+                    h2_index: insertIdx,
+                    h3_index: insertH3,
                 });
+            }
+            if (mode === "inline" && !urlIn(nextHtml)) {
+                throw new Error("Chèn ảnh thất bại — không tìm thấy ảnh trong nội dung sau khi chèn.");
+            }
+
+            if (typeof _mediaContentBeforeInsert !== "undefined" && !_mediaContentBeforeInsert) {
+                _mediaContentBeforeInsert = liveHtml;
+            }
+
+            // Write into editor (textarea + contentRender + TinyMCE). Avoid wiping via applyProjectToForm.
+            if (nextHtml) {
+                setContentValue(nextHtml);
+            }
+
+            // Force second path: if editor still missing image after TinyMCE quirks, inject client HTML again.
+            const confirmEditorHasImage = () => {
+                const after0 = String(
+                    (typeof getContentValue === "function" ? getContentValue() : "") || "",
+                );
+                if (mode !== "inline") return true;
+                if (urlIn(after0)) return true;
+                setContentValue(nextHtml);
+                const after1 = String(getContentValue() || "");
+                if (urlIn(after1)) return true;
+                // Last resort: append figure via insertImageIntoEditor (end of content)
+                if (typeof insertImageIntoEditor === "function" && finalUrlBase) {
+                    insertImageIntoEditor(finalUrlBase);
+                }
+                const after2 = String(getContentValue() || "");
+                if (urlIn(after2)) return true;
+                // Hard-append into raw HTML
+                const forced =
+                    after2 +
+                    `<figure class="editor-image content-ai-inline-image"><img src="${String(finalUrlBase).replace(/"/g, "&quot;")}" alt="${String(data.alt || preview.alt || "Ảnh minh họa").replace(/"/g, "&quot;")}" loading="lazy" style="max-width:100%;height:auto;" /></figure>`;
+                setContentValue(forced);
+                return urlIn(String(getContentValue() || ""));
+            };
+            if (mode === "inline" && !confirmEditorHasImage()) {
+                throw new Error("Ảnh chưa hiện trong editor sau khi đồng bộ. Thử lại.");
+            }
+
+            // Rebuild "Đã chèn" from editor + this insert only (no dead external URLs).
+            const finalUrl = finalUrlBase || cleanUrl;
+            if (typeof window.__caRebuildUploadedImagesList === "function") {
+                window.__caRebuildUploadedImagesList({
+                    url: mode === "inline" ? finalUrl : "",
+                    featured: mode === "featured" ? (data.featured_image || finalUrl) : (data.featured_image || ""),
+                    extra: Array.isArray(data.gallery_images) ? data.gallery_images : [],
+                });
+            } else {
+                if (mode === "featured" && (data.featured_image || finalUrl)) {
+                    const f = String(data.featured_image || finalUrl).split("?")[0];
+                    if (f && !uploadedImages.includes(f)) uploadedImages.unshift(f);
+                } else if (finalUrl && !uploadedImages.includes(finalUrl)) {
+                    uploadedImages.push(finalUrl);
+                }
                 renderUploadList();
             }
-            if (data.project && activeProjectId) applyProjectToForm(data.project);
-            else if (mode === "inline" && preview.url) {
-                try { insertImageIntoEditor(preview.url); } catch (_) {}
-            }
+
             try { refreshPreview(); } catch (_) {}
+            try {
+                if (window.__caRefreshContentDemo) {
+                    window.__caRefreshContentDemo("caMediaDemoPreview", "media");
+                }
+            } catch (_) {}
             saveFormState();
-            setStudioHint(data.ok ? (mode === "featured" ? "Đã đặt ảnh đại diện." : "Đã chèn ảnh vào bài.") : "Xong.");
-            setHint("image", mode === "featured" ? "Featured từ AI Studio." : "Đã chèn ảnh từ AI Studio.");
+
+            const placeMeta = data.placement || {};
+            const placeLabel =
+                placeMeta.placement === "start"
+                    ? "đầu bài"
+                    : placeMeta.placement === "end"
+                      ? "cuối bài"
+                      : insertH2 ||
+                        (placeMeta.h3_index != null ? `H3 #${placeMeta.h3_index + 1}` : "sau heading");
+            setStudioHint(data.message || (mode === "featured" ? "Đã đặt ảnh đại diện." : "Đã chèn ảnh vào bài."));
+            setHint(
+                "image",
+                mode === "featured" ? "Featured từ AI Studio." : `Đã chèn ảnh — ${placeLabel}. Kiểm tra editor / tab Xem demo.`,
+            );
             if (typeof showMediaInsertSummary === "function") {
                 showMediaInsertSummary(
                     mode === "featured"
                         ? "1 ảnh featured — ALT từ ngữ cảnh H2."
-                        : `1 ảnh inline — vị trí: ${insertH2 || "sau H2"}.`,
+                        : `1 ảnh inline — vị trí: ${placeLabel}.`,
                 );
             }
+            // Only switch tab after verified insert
             if (typeof window.__caSwitchMediaInsertedTab === "function") {
                 window.__caSwitchMediaInsertedTab();
             } else if (window.__caSwitchModalTab) {
@@ -433,19 +651,327 @@
             }
             const undoBtn = byId("btnMediaUndo");
             if (undoBtn) undoBtn.hidden = false;
+            return { ok: true, data };
         } catch (e) {
             setStudioHint(String(e.message || e));
+            setHint("image", String(e.message || e));
+            return { ok: false, reason: "error", error: e };
         }
+    };
+
+    const clientInjectImageUnderHeading = (html, opts) => {
+        const src = String(opts.url || "").trim();
+        if (!src) return String(html || "");
+        const alt = String(opts.alt || "Ảnh minh họa").replace(/"/g, "&quot;");
+        const fig =
+            `<figure class="editor-image content-ai-inline-image">` +
+            `<img src="${src.replace(/"/g, "&quot;")}" alt="${alt}" loading="lazy" ` +
+            `style="max-width:100%;height:auto;" /></figure>`;
+        const placement = String(opts.placement || "after_heading");
+        let raw = String(html || "");
+        if (raw.includes(src)) return raw;
+        if (placement === "start") return fig + raw;
+        if (placement === "end") return raw + fig;
+        try {
+            const doc = new DOMParser().parseFromString(
+                raw || "<div></div>",
+                "text/html",
+            );
+            const body = doc.body;
+            const heads = Array.from(body.querySelectorAll("h2, h3"));
+            let target = null;
+            if (opts.h3_index != null && Number.isFinite(Number(opts.h3_index))) {
+                const h3s = Array.from(body.querySelectorAll("h3"));
+                target = h3s[Number(opts.h3_index)] || null;
+            } else if (opts.h2_index != null && Number.isFinite(Number(opts.h2_index))) {
+                const h2s = Array.from(body.querySelectorAll("h2"));
+                target = h2s[Number(opts.h2_index)] || null;
+            }
+            if (!target && opts.section_heading) {
+                const want = String(opts.section_heading).replace(/\s+/g, " ").trim().toLowerCase();
+                target =
+                    heads.find(
+                        (el) =>
+                            String(el.textContent || "")
+                                .replace(/\s+/g, " ")
+                                .trim()
+                                .toLowerCase() === want,
+                    ) || null;
+            }
+            if (!target) {
+                return raw + fig;
+            }
+            const holder = doc.createElement("div");
+            holder.innerHTML = fig;
+            const node = holder.firstChild;
+            if (target.nextSibling) target.parentNode.insertBefore(node, target.nextSibling);
+            else target.parentNode.appendChild(node);
+            return body.innerHTML;
+        } catch (_) {
+            return raw + fig;
+        }
+    };
+
+    const listContentHeadingsForInsert = () => {
+        const html = String(
+            (typeof getContentValue === "function" ? getContentValue() : "") ||
+                byId("content")?.value ||
+                "",
+        );
+        if (!html.trim()) return [];
+        try {
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const out = [];
+            let h2i = -1;
+            let h3i = -1;
+            doc.body.querySelectorAll("h2, h3").forEach((el) => {
+                const level = String(el.tagName || "").toLowerCase();
+                const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
+                if (!text) return;
+                if (level === "h2") {
+                    h2i += 1;
+                    out.push({ level: "h2", text, h2_index: h2i, h3_index: null });
+                } else if (level === "h3") {
+                    h3i += 1;
+                    out.push({
+                        level: "h3",
+                        text,
+                        h2_index: Math.max(0, h2i),
+                        h3_index: h3i,
+                    });
+                }
+            });
+            return out;
+        } catch (_) {
+            return [];
+        }
+    };
+
+    let _headingPickerResolve = null;
+    const closeMediaHeadingPicker = (result) => {
+        const modal = byId("mediaHeadingPickerModal");
+        const backdrop = byId("mediaHeadingPickerBackdrop");
+        if (modal) {
+            modal.classList.remove("open");
+            modal.setAttribute("aria-hidden", "true");
+        }
+        if (backdrop) {
+            backdrop.classList.remove("open");
+            backdrop.setAttribute("aria-hidden", "true");
+        }
+        const r = _headingPickerResolve;
+        _headingPickerResolve = null;
+        // Preserve falsy-but-valid results only when object is passed; null = cancelled
+        if (r) r(result == null ? null : result);
+    };
+
+    const openMediaHeadingPicker = () =>
+        new Promise((resolve) => {
+            const modal = byId("mediaHeadingPickerModal");
+            const backdrop = byId("mediaHeadingPickerBackdrop");
+            const list = byId("mediaHeadingPickerList");
+            const empty = byId("mediaHeadingPickerEmpty");
+            if (!modal || !list) {
+                resolve(null);
+                return;
+            }
+            if (_headingPickerResolve) closeMediaHeadingPicker(null);
+            _headingPickerResolve = resolve;
+            list.innerHTML = "";
+            const headings = listContentHeadingsForInsert();
+            const mkBtn = (label, tag, onClick, extraClass) => {
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "ca-media-heading-pick-btn" + (extraClass ? " " + extraClass : "");
+                b.setAttribute("role", "option");
+                b.style.pointerEvents = "auto";
+                if (tag) {
+                    const t = document.createElement("span");
+                    t.className = "tag";
+                    t.textContent = tag;
+                    t.style.pointerEvents = "none";
+                    b.appendChild(t);
+                }
+                b.appendChild(document.createTextNode(label));
+                const fire = (ev) => {
+                    if (ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                    }
+                    onClick();
+                };
+                // pointerup beats overlay/backdrop race better than click alone
+                b.addEventListener("pointerup", fire);
+                b.addEventListener("click", fire);
+                return b;
+            };
+            if (!headings.length) {
+                if (empty) empty.hidden = false;
+                list.appendChild(
+                    mkBtn("Đầu bài", "↑", () => closeMediaHeadingPicker({ placement: "start" }), "is-anchor"),
+                );
+                list.appendChild(
+                    mkBtn("Cuối bài", "↓", () => closeMediaHeadingPicker({ placement: "end" }), "is-anchor"),
+                );
+            } else {
+                if (empty) empty.hidden = true;
+                headings.forEach((h) => {
+                    const tag = h.level === "h3" ? "H3" : "H2";
+                    const indent = h.level === "h3" ? " — " : "";
+                    list.appendChild(
+                        mkBtn(indent + h.text, tag, () =>
+                            closeMediaHeadingPicker({
+                                placement: "after_heading",
+                                section_heading: h.text,
+                                h2_index: h.h2_index,
+                                h3_index: h.h3_index,
+                                level: h.level,
+                            }),
+                        ),
+                    );
+                });
+            }
+            // Ensure floating above media step modal (body-level fixed)
+            try {
+                if (modal.parentElement !== document.body) document.body.appendChild(modal);
+                if (backdrop && backdrop.parentElement !== document.body) {
+                    document.body.appendChild(backdrop);
+                }
+                // Backdrop must paint under modal in DOM + CSS z-index
+                if (backdrop && modal.compareDocumentPosition(backdrop) & Node.DOCUMENT_POSITION_FOLLOWING) {
+                    document.body.insertBefore(backdrop, modal);
+                }
+            } catch (_) { /* ignore */ }
+            if (backdrop) {
+                backdrop.classList.add("open");
+                backdrop.setAttribute("aria-hidden", "false");
+                backdrop.style.zIndex = "100700";
+            }
+            modal.classList.add("open");
+            modal.setAttribute("aria-hidden", "false");
+            modal.style.zIndex = "100710";
+            modal.style.pointerEvents = "none";
+            const card = modal.querySelector(".modal-card");
+            if (card) card.style.pointerEvents = "auto";
+        });
+
+    const pickHeadingAndInsertStudio = async (preview) => {
+        const place = await openMediaHeadingPicker();
+        if (!place) {
+            setStudioHint("Đã hủy chọn vị trí chèn.");
+            return;
+        }
+        const opts = {
+            placement: place.placement || "after_heading",
+            section_heading: place.section_heading || "",
+            h2_index: place.level === "h3" ? null : place.h2_index,
+            h3_index: place.level === "h3" ? place.h3_index : null,
+        };
+        if (place.level === "h3") {
+            opts.h2_index = null;
+            opts.h3_index = place.h3_index;
+        } else if (place.placement === "after_heading") {
+            opts.h2_index = place.h2_index;
+            opts.h3_index = null;
+        }
+        const result = await studioInsertSelected(preview, "inline", opts);
+        if (result && result.ok) {
+            // Highlight selected after success
+            renderStudioGallery();
+        }
+        return result;
+    };
+
+    // Expose for google-image "Chọn" path (editor.js)
+    window.__caOpenMediaHeadingPicker = openMediaHeadingPicker;
+    window.__caStudioInsertWithPlacement = (preview, placeOpts) =>
+        studioInsertSelected(preview, "inline", placeOpts || null);
+    window.__caPickHeadingAndInsertImage = async (img) => {
+        const place = await openMediaHeadingPicker();
+        if (!place) return null;
+        const preview = typeof img === "string" ? { url: img, alt: "" } : { ...img };
+        const opts = {
+            placement: place.placement || "after_heading",
+            section_heading: place.section_heading || "",
+            h2_index: place.level === "h3" ? null : place.h2_index,
+            h3_index: place.level === "h3" ? place.h3_index : null,
+        };
+        const result = await studioInsertSelected(preview, "inline", opts);
+        return result && result.ok ? place : null;
+    };
+
+    // Bind heading picker close once
+    (() => {
+        const closeBtn = byId("mediaHeadingPickerClose");
+        const cancelBtn = byId("mediaHeadingPickerCancel");
+        const backdrop = byId("mediaHeadingPickerBackdrop");
+        const onClose = (e) => {
+            if (e) e.preventDefault();
+            closeMediaHeadingPicker(null);
+        };
+        if (closeBtn && !closeBtn.dataset.bound) {
+            closeBtn.dataset.bound = "1";
+            closeBtn.addEventListener("click", onClose);
+        }
+        if (cancelBtn && !cancelBtn.dataset.bound) {
+            cancelBtn.dataset.bound = "1";
+            cancelBtn.addEventListener("click", onClose);
+        }
+        if (backdrop && !backdrop.dataset.bound) {
+            backdrop.dataset.bound = "1";
+            backdrop.addEventListener("click", onClose);
+        }
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && byId("mediaHeadingPickerModal")?.classList.contains("open")) {
+                closeMediaHeadingPicker(null);
+            }
+        });
+    })();
+
+    const getStudioModelCreditCost = (count) => {
+        const modelId = (byId("studioImageModel") && byId("studioImageModel").value) || "";
+        const models = (studioCatalogCache && studioCatalogCache.image_models) || [];
+        const m = models.find((x) => x && x.id === modelId) || models[0] || {};
+        const cpi = Number(m.credits_per_image != null ? m.credits_per_image : 52) || 52;
+        const n = Math.max(1, Math.min(4, parseInt(count || 1, 10) || 1));
+        return {
+            modelId: m.id || modelId,
+            label: m.label_vi || modelId || "Ảnh AI",
+            creditsPerImage: cpi,
+            total: cpi * n,
+            count: n,
+        };
+    };
+
+    const confirmStudioImageCredits = async (count) => {
+        const info = getStudioModelCreditCost(count);
+        if (!(window.DigiSeoConfirmCredit && window.DigiSeoCreditActions)) return true;
+        const base = window.DigiSeoCreditActions.aiImage || {
+            module: "content_ai",
+            action: "ai_image",
+            quotaKey: "ai_articles",
+        };
+        return window.DigiSeoConfirmCredit({
+            module: base.module,
+            action: base.action,
+            quotaKey: base.quotaKey,
+            quantity: 1,
+            creditCost: info.total,
+            label: `Ảnh AI · ${info.label} × ${info.count}`,
+        });
     };
 
     const studioRegenerateOne = async (idx) => {
         setStudioHint("Đang tạo lại…");
         const btn = byId("btnStudioGenerate");
+        const findBtn = byId("btnMediaFindOrCreate");
         if (btn) btn.disabled = true;
+        if (findBtn) findBtn.disabled = true;
         try {
-            if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
-                const ok = await window.DigiSeoConfirmCredit(window.DigiSeoCreditActions.aiImage);
-                if (!ok) return;
+            const ok = await confirmStudioImageCredits(1);
+            if (!ok) {
+                setStudioHint("Đã hủy xác nhận credit.");
+                return;
             }
             const prev = studioPreviews[idx] || {};
             const payload = buildStudioGeneratePayload({
@@ -480,6 +1006,7 @@
             setStudioHint(String(e.message || e));
         } finally {
             if (btn) btn.disabled = false;
+            if (findBtn) findBtn.disabled = false;
         }
     };
 
@@ -489,18 +1016,37 @@
             setStudioHint("Cần từ khóa chính trước khi tạo ảnh AI.");
             return;
         }
+        if (studioCatalogCache && studioCatalogCache.openrouter_key_configured === false) {
+            setStudioHint(
+                "Chưa cấu hình OPENROUTER_API_KEY trên server — không thể tạo ảnh AI. Liên hệ admin.",
+            );
+            setHint("image", "Thiếu OPENROUTER_API_KEY trên server.");
+            return;
+        }
         const btn = byId("btnStudioGenerate");
         const findBtn = byId("btnMediaFindOrCreate");
         if (btn) btn.disabled = true;
         if (findBtn) findBtn.disabled = true;
-        setStudioHint("Đang tạo ảnh AI (OpenRouter)…");
+        const count = Math.max(
+            1,
+            Math.min(4, parseInt(byId("studioImageCount")?.value || "3", 10) || 3),
+        );
+        const info = getStudioModelCreditCost(count);
+        clearConflictingMediaHints();
+        setStudioHint(`Đang tạo ${count} ảnh AI (${info.label})…`);
         studioPreviews = [];
+        // Hide leftover web results so AI previews are not mixed/confused with old lists.
+        const webBox = byId("googleImageResults");
+        if (webBox) webBox.innerHTML = "";
+        window.__caGoogleImageResultsCache = [];
         renderStudioGallery();
         try {
-            if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
-                const ok = await window.DigiSeoConfirmCredit(window.DigiSeoCreditActions.aiImage);
-                if (!ok) return;
+            const ok = await confirmStudioImageCredits(count);
+            if (!ok) {
+                setStudioHint("Đã hủy xác nhận credit.");
+                return;
             }
+            setStudioHint(`Đang gọi OpenRouter · ${info.label}…`);
             const payload = buildStudioGeneratePayload();
             const res = await fetch("/content-ai/images/generate-professional?ts=" + Date.now(), {
                 method: "POST",
@@ -520,7 +1066,17 @@
             studioPreviews = Array.isArray(data.previews) ? data.previews : [];
             studioSelectedIndex = 0;
             renderStudioGallery();
+            if (!studioPreviews.length) {
+                throw new Error("OpenRouter không trả về ảnh preview.");
+            }
+            clearConflictingMediaHints({ keepStudio: true });
             setStudioHint(data.message || `Đã tạo ${studioPreviews.length} ảnh preview.`);
+            // Force scroll after paint — gallery sits below the H2 form and used to be clipped.
+            requestAnimationFrame(() => {
+                scrollStudioGalleryIntoView();
+                setTimeout(() => scrollStudioGalleryIntoView(), 120);
+                setTimeout(() => scrollStudioGalleryIntoView(), 400);
+            });
             saveFormState();
         } catch (e) {
             const err = String(e.message || e);

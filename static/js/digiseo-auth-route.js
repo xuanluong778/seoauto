@@ -228,12 +228,41 @@
         return false;
     }
 
+    function finishOAuthReturn(token) {
+        if (token && typeof window.DigiSeoSetAuthToken === "function") {
+            window.DigiSeoSetAuthToken(token);
+        }
+        stripAuthCallbackParams();
+        afterLoginSuccess();
+        try {
+            window.dispatchEvent(new CustomEvent("digiseo-auth-change", { detail: { loggedIn: !!token } }));
+        } catch (_) {}
+        if (typeof window.refreshDigiSeoNavAuth === "function") {
+            try {
+                window.refreshDigiSeoNavAuth(true);
+            } catch (_) {}
+        }
+        if (typeof window.refreshDigiSeoUserDock === "function") {
+            try {
+                window.refreshDigiSeoUserDock();
+            } catch (_) {}
+        }
+    }
+
     function handleOAuthReturn() {
         var q = new URLSearchParams(window.location.search);
         if (q.get("google_login") !== "1") return false;
-        syncTokenFromCookie();
-        stripAuthCallbackParams();
-        afterLoginSuccess();
+        var hydrate =
+            typeof window.DigiSeoHydrateSessionFromCookie === "function"
+                ? window.DigiSeoHydrateSessionFromCookie(true)
+                : Promise.resolve(syncTokenFromCookie());
+        hydrate
+            .then(function (tok) {
+                finishOAuthReturn(tok || syncTokenFromCookie() || "");
+            })
+            .catch(function () {
+                finishOAuthReturn(syncTokenFromCookie() || "");
+            });
         return true;
     }
 
@@ -241,6 +270,22 @@
         syncTokenFromCookie();
         if (handleOAuthReturn()) return;
         stripAuthCallbackParams();
+        // Cookie-only sessions (HttpOnly seo_token, empty localStorage)
+        if (!syncTokenFromCookie() && typeof window.DigiSeoHydrateSessionFromCookie === "function") {
+            window.DigiSeoHydrateSessionFromCookie(false).then(function (tok) {
+                if (!tok) return;
+                try {
+                    window.dispatchEvent(
+                        new CustomEvent("digiseo-auth-change", { detail: { loggedIn: true } }),
+                    );
+                } catch (_) {}
+                if (typeof window.refreshDigiSeoNavAuth === "function") {
+                    try {
+                        window.refreshDigiSeoNavAuth(true);
+                    } catch (_) {}
+                }
+            });
+        }
     }
 
     window.DigiSeoSafeRedirect = safeRedirect;

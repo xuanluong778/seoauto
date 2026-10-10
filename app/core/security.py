@@ -1,15 +1,61 @@
 from datetime import datetime, timedelta, timezone
+import logging
 import os
+import re
 
 import bcrypt
 from jose import JWTError, jwt
 
+_LOG = logging.getLogger(__name__)
 
-SECRET_KEY = (os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or "change-this-in-production").strip()
+_DEFAULT_DEV_SECRET = "change-this-in-production"
+_WEAK_SECRET_MARKERS = frozenset(
+    {
+        "change-this-in-production",
+        "changeme",
+        "secret",
+        "jwt-secret",
+        "your-secret-key",
+        "dev-secret",
+    }
+)
+
+
+def _resolve_secret_key() -> str:
+    return (os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or _DEFAULT_DEV_SECRET).strip()
+
+
+SECRET_KEY = _resolve_secret_key()
 ALGORITHM = "HS256"
 
 
+def validate_jwt_secret_at_startup(*, production: bool) -> None:
+    """Reject weak/default JWT secrets in production; never log secret values."""
+    secret = _resolve_secret_key()
+    if not secret:
+        raise RuntimeError("JWT_SECRET is required in production.")
+    lowered = secret.lower()
+    if len(secret) < 32:
+        msg = "JWT_SECRET is too short for production (minimum 32 characters)."
+        if production:
+            raise RuntimeError(msg)
+        _LOG.warning("%s Set JWT_SECRET in env.local before deploy.", msg)
+        return
+    if lowered in _WEAK_SECRET_MARKERS or lowered.startswith("change-this"):
+        msg = "JWT_SECRET uses a known weak/default value."
+        if production:
+            raise RuntimeError(msg)
+        _LOG.warning("%s Set a strong random JWT_SECRET before deploy.", msg)
+        return
+    if production and not re.search(r"[A-Za-z]", secret):
+        raise RuntimeError("JWT_SECRET must include letters and be cryptographically random.")
+
+
 def access_token_expire_hours() -> int:
+    from app.services.session_auth_rollout import server_sessions_enabled
+
+    if server_sessions_enabled():
+        return max(1, (access_token_expire_minutes() + 59) // 60)
     raw = (os.getenv("JWT_EXPIRE_HOURS") or os.getenv("ACCESS_TOKEN_EXPIRE_HOURS") or "720").strip()
     try:
         return max(1, min(8760, int(raw)))
@@ -17,7 +63,19 @@ def access_token_expire_hours() -> int:
         return 720
 
 
+def access_token_expire_minutes() -> int:
+    from app.services.session_auth_rollout import jwt_access_expire_minutes, server_sessions_enabled
+
+    if server_sessions_enabled():
+        return jwt_access_expire_minutes()
+    return access_token_expire_hours() * 60
+
+
 def access_token_max_age_seconds() -> int:
+    from app.services.session_auth_rollout import server_sessions_enabled
+
+    if server_sessions_enabled():
+        return access_token_expire_minutes() * 60
     return access_token_expire_hours() * 3600
 
 
@@ -36,18 +94,84 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 def create_access_token(user_id: int, expires_hours: int | None = None) -> str:
+    """Legacy long-lived user JWT — blocked when SERVER_SESSIONS + JWT_BLOCK_LEGACY_USER."""
     if expires_hours is None:
         expires_hours = access_token_expire_hours()
-    expire = datetime.now(timezone.utc) + timedelta(hours=expires_hours)
-    payload = {"user_id": user_id, "exp": expire}
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(hours=expires_hours)
+    payload = {
+        "user_id": user_id,
+        "exp": expire,
+        "iat": now,
+        "typ": "legacy_user",
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_service_access_token(user_id: int, *, expires_hours: int | None = None) -> str:
+    """Internal load-test / cron user impersonation — typ=service, no session row."""
+    if expires_hours is None:
+        raw = (os.getenv("JWT_SERVICE_TOKEN_HOURS") or "24").strip()
+        try:
+            expires_hours = max(1, min(168, int(raw)))
+        except ValueError:
+            expires_hours = 24
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(hours=int(expires_hours))
+    payload = {
+        "user_id": int(user_id),
+        "typ": "service",
+        "exp": expire,
+        "iat": now,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def is_service_token_payload(payload: dict) -> bool:
+    return str(payload.get("typ") or "").strip().lower() == "service"
+
+
+def is_session_token_payload(payload: dict) -> bool:
+    sid = str(payload.get("sid") or "").strip()
+    jti = str(payload.get("jti") or "").strip()
+    return bool(sid and jti)
+
+
+def create_session_access_token(
+    *,
+    user_id: int,
+    session_id: str,
+    jti: str,
+    expires_minutes: int | None = None,
+) -> str:
+    if expires_minutes is None:
+        expires_minutes = access_token_expire_minutes()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=int(expires_minutes))
+    payload = {
+        "user_id": int(user_id),
+        "sid": str(session_id),
+        "jti": str(jti),
+        "exp": expire,
+    }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict:
-    try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError as exc:
-        raise ValueError("Invalid token") from exc
+    secrets: list[str] = []
+    primary = (SECRET_KEY or "").strip()
+    if primary:
+        secrets.append(primary)
+    prev = (os.getenv("JWT_SECRET_PREVIOUS") or "").strip()
+    if prev and prev not in secrets:
+        secrets.append(prev)
+    last_exc: Exception | None = None
+    for secret in secrets:
+        try:
+            return jwt.decode(token, secret, algorithms=[ALGORITHM])
+        except JWTError as exc:
+            last_exc = exc
+            continue
+    raise ValueError("Invalid token") from last_exc
 
 
 def create_google_oauth_state(user_id: int) -> str:

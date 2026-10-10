@@ -11,6 +11,11 @@ logger = logging.getLogger("content_ai.publish_worker")
 
 _started = False
 _lock = threading.Lock()
+_stop = threading.Event()
+
+
+def request_content_ai_publish_worker_stop() -> None:
+    _stop.set()
 
 
 def _poll_seconds() -> float:
@@ -43,10 +48,9 @@ def _stale_seconds() -> int:
 
 
 def _worker_auto_enabled() -> bool:
-    flag = os.getenv("CONTENT_AI_PUBLISH_WORKER_AUTO")
-    if flag is None:
-        flag = os.getenv("CONTENT_AI_PUBLISH_SCHEDULER_AUTO", "1")
-    return str(flag or "1").strip().lower() not in {"0", "false", "no", "off"}
+    from app.services.wp_publish_scheduler_rollout import uvicorn_publish_worker_enabled
+
+    return uvicorn_publish_worker_enabled()
 
 
 def content_ai_publish_worker_loop() -> None:
@@ -84,7 +88,7 @@ def content_ai_publish_worker_loop() -> None:
     except Exception:
         logger.exception("publish worker startup catch-up failed")
 
-    while True:
+    while not _stop.is_set():
         db = SessionLocal()
         try:
             summary = run_publish_worker_tick(db, limit=batch, stale_seconds=stale)
@@ -112,7 +116,7 @@ def content_ai_publish_worker_loop() -> None:
             logger.exception("publish worker tick failed")
         finally:
             db.close()
-        time.sleep(poll)
+        _stop.wait(poll)
 
 
 def start_content_ai_publish_worker_background() -> None:
@@ -126,6 +130,7 @@ def start_content_ai_publish_worker_background() -> None:
         if _started:
             return
         _started = True
+        _stop.clear()
     if not logging.getLogger().handlers:
         logging.basicConfig(level=logging.INFO)
     logger.info("content_ai publish worker auto-start enabled")

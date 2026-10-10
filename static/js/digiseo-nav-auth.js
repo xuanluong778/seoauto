@@ -277,7 +277,13 @@
     };
 
     function init() {
-        syncBar();
+        const hydrate =
+            typeof window.DigiSeoHydrateSessionFromCookie === "function"
+                ? window.DigiSeoHydrateSessionFromCookie(false)
+                : Promise.resolve(getToken());
+        hydrate
+            .then(() => syncBar(true))
+            .catch(() => syncBar());
     }
 
     if (document.readyState === "loading") {

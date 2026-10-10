@@ -34,6 +34,11 @@ def _content_seo_checklist_snippet(*, max_chars: int = 4500) -> str:
     return content_seo_checklist_snippet(max_chars=max_chars)
 
 
+# Content body output caps — Vietnamese HTML is token-heavy; 8192 often stops mid-sentence.
+_ANTHROPIC_CONTENT_MAX_TOKENS_CAP = 16384
+_OPENAI_CONTENT_MAX_TOKENS_CAP = 16384
+
+
 def _anthropic_max_tokens_for_field(*, field: str, word_target: int | None) -> int:
     f = (field or "").strip().lower()
     if f in {"secondary_keywords", "tags"}:
@@ -49,7 +54,7 @@ def _anthropic_max_tokens_for_field(*, field: str, word_target: int | None) -> i
     w = int(word_target or 1000)
     w = max(400, min(w, 20000))
     est = int(w * 1.55) + 1800
-    return max(4096, min(8192, est))
+    return max(4096, min(_ANTHROPIC_CONTENT_MAX_TOKENS_CAP, est))
 
 
 def _openai_max_tokens_for_field(*, field: str, word_target: int | None) -> int | None:
@@ -66,7 +71,7 @@ def _openai_max_tokens_for_field(*, field: str, word_target: int | None) -> int 
         return 300
     w = int(word_target or 1000)
     w = max(400, min(w, 20000))
-    return min(16384, max(4096, int(w * 1.85) + 800))
+    return min(_OPENAI_CONTENT_MAX_TOKENS_CAP, max(4096, int(w * 1.85) + 800))
 
 
 WORD_COUNT_TOLERANCE_MIN = 0.90
@@ -346,6 +351,44 @@ def _decode_html_entities_text(text: str) -> str:
     return twice
 
 
+def _normalize_output_language(raw: str | None) -> str:
+    lang = str(raw or "vi").strip().lower().replace("_", "-")
+    if lang in {"en", "english", "en-us", "en-gb", "en-au"}:
+        return "en"
+    return "vi"
+
+
+def _content_ai_system_prompt_base(*, output_language: str = "vi", kb_active: bool = False) -> str:
+    lang = _normalize_output_language(output_language)
+    if lang == "en":
+        system = (
+            "You are an SEO content assistant writing in English: accurate, helpful (Helpful Content), E-E-A-T."
+            " Use SOURCE only; do not invent prices or statistics."
+        )
+        if kb_active:
+            system += (
+                " Prefer KNOWLEDGE_BASE in SOURCE for pricing, phone/hotline, company info, process, FAQ;"
+                " do not write «Needs additional data» when KB/SOURCE already has that information."
+            )
+        else:
+            system += " Missing data in SOURCE → «Needs additional data»."
+        system += " No keyword stuffing; no [CONFIRMATION NEEDED] placeholders."
+        return system
+    system = (
+        "Bạn là trợ lý viết nội dung SEO tiếng Việt: chính xác, hữu ích (Helpful Content), E-E-A-T."
+        " Chỉ dùng SOURCE; không bịa số liệu/giá."
+    )
+    if kb_active:
+        system += (
+            " Ưu tiên KNOWLEDGE_BASE trong SOURCE cho bảng giá, SĐT/hotline, thông tin công ty, quy trình, FAQ;"
+            " không ghi «Cần bổ sung dữ liệu» khi KB/SOURCE đã có thông tin đó."
+        )
+    else:
+        system += " Thiếu dữ liệu trong SOURCE → «Cần bổ sung dữ liệu»."
+    system += " Không nhồi từ khóa; không placeholder [CẦN XÁC NHẬN]."
+    return system
+
+
 def _count_words_vi(text: str) -> int:
     """
     Rough Vietnamese-friendly word count.
@@ -381,10 +424,44 @@ def _take_first_words(text: str, limit: int) -> str:
     return " ".join(words[:limit]).strip()
 
 
+_SENTENCE_END_RE = re.compile(r'[.!?…]["\')\]]*')
+
+
+def _ends_with_sentence_terminal(text: str) -> bool:
+    t = str(text or "").rstrip()
+    if not t:
+        return True
+    return bool(re.search(r"[.!?…][\"')\]]*$", t))
+
+
+def _take_first_words_at_sentence(text: str, limit: int) -> str | None:
+    """
+    Rút gọn theo giới hạn từ nhưng chỉ cắt tại kết thúc câu hoàn chỉnh.
+    Trả None nếu không thể rút mà vẫn giữ câu trọn (caller nên bỏ cả đoạn hoặc giữ nguyên).
+    """
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if limit <= 0 or not s:
+        return ""
+    words = re.findall(r"\S+", s)
+    if len(words) <= limit:
+        return s
+    truncated = " ".join(words[:limit]).strip()
+    last_end = -1
+    for m in _SENTENCE_END_RE.finditer(truncated):
+        last_end = m.end()
+    if last_end >= max(12, int(len(truncated) * 0.35)):
+        out = truncated[:last_end].strip()
+        if out and _ends_with_sentence_terminal(out):
+            return out
+    # Không có biên câu an toàn — không cắt giữa câu.
+    return None
+
+
 def _trim_html_to_max_words(html: str, max_words: int) -> str:
     """
     Deterministic hard cap for HTML word count.
     Không xóa H1/H2/H3 — chỉ rút gọn đoạn văn cuối để giữ đủ outline.
+    Không bao giờ cắt giữa câu / giữa từ (ưu tiên hơi vượt ngân sách từ).
     """
     raw = str(html or "").strip()
     if not raw or max_words <= 0:
@@ -394,12 +471,12 @@ def _trim_html_to_max_words(html: str, max_words: int) -> str:
     try:
         soup = BeautifulSoup(raw, "html.parser")
     except Exception:
-        return _take_first_words(raw, max_words)
+        kept = _take_first_words_at_sentence(raw, max_words)
+        return kept if kept is not None else raw
 
-    heading_tags = {"h1", "h2", "h3", "h4", "h5", "h6"}
     para_tags = {"p", "li", "blockquote", "td", "th", "figcaption"}
 
-    # Phase 1: shorten paragraphs from the end until under max_words (never remove headings).
+    # Phase 1: drop short trailing fluff paragraphs (whole blocks only).
     blocks = [t for t in soup.find_all(True) if str(t.name or "").lower() in para_tags]
     for tag in reversed(blocks):
         if _count_words_html(str(soup)) <= max_words:
@@ -408,17 +485,21 @@ def _trim_html_to_max_words(html: str, max_words: int) -> str:
         w = _count_words_vi(txt)
         if w <= 0:
             continue
-        # Drop short trailing fluff first
         if w <= 28:
             tag.decompose()
             continue
         keep = max(12, w // 2)
-        trimmed = _take_first_words(txt, keep)
-        tag.clear()
-        if trimmed:
+        trimmed = _take_first_words_at_sentence(txt, keep)
+        if trimmed is None:
+            # Không cắt giữa câu — bỏ cả đoạn thừa nếu còn đoạn khác phía trước.
+            if len([t for t in soup.find_all(True) if str(t.name or "").lower() in para_tags]) > 2:
+                tag.decompose()
+            continue
+        if trimmed != txt:
+            tag.clear()
             tag.append(trimmed)
 
-    # Phase 2: if still over, progressively shorten remaining paragraphs (keep last sentence stem).
+    # Phase 2: shorten remaining paragraphs only at sentence boundaries.
     if _count_words_html(str(soup)) > max_words:
         for tag in reversed([t for t in soup.find_all(True) if str(t.name or "").lower() in para_tags]):
             if _count_words_html(str(soup)) <= max_words:
@@ -431,12 +512,14 @@ def _trim_html_to_max_words(html: str, max_words: int) -> str:
             keep = max(8, min(w - 1, remain_global))
             if keep >= w:
                 continue
-            trimmed = _take_first_words(txt, keep)
+            trimmed = _take_first_words_at_sentence(txt, keep)
+            if trimmed is None:
+                continue
             tag.clear()
-            if trimmed:
-                tag.append(trimmed if trimmed.endswith((".", "!", "?", "…")) else trimmed + "…")
+            tag.append(trimmed)
 
     # Never remove heading tags even if still slightly over — outline fidelity > exact count.
+    # Prefer slightly over word budget over mid-sentence cuts.
     body = soup.body
     out = "".join(str(x) for x in (body.contents if body else soup.contents)).strip()
     return out or raw
@@ -663,12 +746,16 @@ def _enforce_content_word_count_with_llm(
         before = out
         out = _trim_html_to_max_words(out, max_ok)
         out = _ensure_outline_coverage_after_trim(out, outline=outline_text, before_html=before)
-    # Prefer full outline over exact word cap when both conflict.
+    # Prefer full outline + complete sentences over exact word cap when both conflict.
     if outline_text:
         from app.services.content_ai_outline_engine import outline_h2_coverage
+        from app.services.content_ai_section_writer import _html_has_incomplete_tail
 
         cov = outline_h2_coverage(outline_text, out)
-        if cov.get("ratio", 0) < 0.99 and cov.get("missing_sections"):
+        if (
+            (cov.get("ratio", 0) < 0.99 and cov.get("missing_sections"))
+            or _html_has_incomplete_tail(out)
+        ):
             try:
                 out = _continue_content_for_missing_outline(
                     html=out,
@@ -720,8 +807,8 @@ def enforce_content_ai_word_count(
     oai_mt = _openai_max_tokens_for_field(field="content", word_target=wc)
     ant_mt = _anthropic_max_tokens_for_field(field="content", word_target=wc)
     if outline_text:
-        oai_mt = _boost_max_tokens_for_outline(int(oai_mt or 4096), outline_text, cap=16384)
-        ant_mt = _boost_max_tokens_for_outline(int(ant_mt or 4096), outline_text, cap=8192)
+        oai_mt = _boost_max_tokens_for_outline(int(oai_mt or 4096), outline_text, cap=_OPENAI_CONTENT_MAX_TOKENS_CAP)
+        ant_mt = _boost_max_tokens_for_outline(int(ant_mt or 4096), outline_text, cap=_ANTHROPIC_CONTENT_MAX_TOKENS_CAP)
     system = (
         "Bạn là trợ lý viết nội dung SEO tiếng Việt: chính xác, hữu ích (Helpful Content), E-E-A-T."
         " Chỉ dùng nội dung bài hiện tại; không bịa số liệu/giá."
@@ -820,6 +907,9 @@ def enforce_content_ai_word_count(
     from app.services.content_blockquote_postprocess import postprocess_content_blockquotes
 
     out = postprocess_content_blockquotes(out)
+    from app.services.content_ai_output_postprocess import postprocess_content_ai_output
+
+    out = postprocess_content_ai_output(out)
     return out, assess_content_word_count(out, wc)
 
 
@@ -848,8 +938,8 @@ def _continue_content_for_missing_outline(
             cfg=cfg,
             system=system,
             user=user,
-            max_tokens_oai=_boost_max_tokens_for_outline(int(oai_mt or 4096), ol, cap=16384),
-            max_tokens_ant=_boost_max_tokens_for_outline(int(ant_mt or 4096), ol, cap=8192),
+            max_tokens_oai=_boost_max_tokens_for_outline(int(oai_mt or 4096), ol, cap=_OPENAI_CONTENT_MAX_TOKENS_CAP),
+            max_tokens_ant=_boost_max_tokens_for_outline(int(ant_mt or 4096), ol, cap=_ANTHROPIC_CONTENT_MAX_TOKENS_CAP),
             timeout_sec=min(180, max(api_timeout, 90)),
         )
 
@@ -876,54 +966,77 @@ def finalize_content_ai_stream_html(
     user_id: int | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """
-  Sau khi stream xong: làm sạch HTML, bổ sung H2 thiếu từ outline, rồi ±10% số từ.
+  Sau khi stream xong: làm sạch HTML, bổ sung H2 thiếu / câu bị cắt, rồi ±10% số từ.
     """
     out = str(html or "").strip()
     outline = str(outline_content or "").strip()
     cfg = None
+    from app.services.content_ai_section_writer import (
+        _html_has_incomplete_tail,
+        ensure_full_outline_html,
+    )
+
+    needs_outline_repair = False
     if outline:
         from app.services.content_ai_outline_engine import outline_h2_coverage
 
         cov = outline_h2_coverage(outline, out)
-        if cov.get("ratio", 0) < 1.0 or cov.get("missing_sections"):
-            cfg = load_llm_config_admin() if use_system_llm else load_llm_config(user_id)
-            if cfg:
-                wc = resolve_wc_for_content(target_word_count)
-                if outline:
-                    wc = _effective_word_count_for_outline(base_wc=wc, outline=outline)
-                system = (
-                    "Bạn là trợ lý viết nội dung SEO tiếng Việt. "
-                    "Chỉ viết bổ sung section outline còn thiếu; HTML thuần; không bịa dữ liệu."
-                )
-                oai_mt = _boost_max_tokens_for_outline(
-                    int(_openai_max_tokens_for_field(field="content", word_target=wc) or 4096),
-                    outline,
-                    cap=16384,
-                )
-                ant_mt = _boost_max_tokens_for_outline(
-                    int(_anthropic_max_tokens_for_field(field="content", word_target=wc) or 4096),
-                    outline,
-                    cap=8192,
+        needs_outline_repair = bool(
+            cov.get("ratio", 0) < 1.0 or cov.get("missing_sections") or _html_has_incomplete_tail(out)
+        )
+    elif _html_has_incomplete_tail(out):
+        needs_outline_repair = True
+
+    if needs_outline_repair:
+        cfg = load_llm_config_admin() if use_system_llm else load_llm_config(user_id)
+        if cfg:
+            wc = resolve_wc_for_content(target_word_count)
+            if outline:
+                wc = _effective_word_count_for_outline(base_wc=wc, outline=outline)
+            system = (
+                "Bạn là trợ lý viết nội dung SEO tiếng Việt. "
+                "Chỉ viết bổ sung section outline còn thiếu hoặc hoàn thiện câu bị cắt; HTML thuần; không bịa dữ liệu."
+            )
+            oai_mt = _boost_max_tokens_for_outline(
+                int(_openai_max_tokens_for_field(field="content", word_target=wc) or 4096),
+                outline,
+                cap=_OPENAI_CONTENT_MAX_TOKENS_CAP,
+            )
+            ant_mt = _boost_max_tokens_for_outline(
+                int(_anthropic_max_tokens_for_field(field="content", word_target=wc) or 4096),
+                outline,
+                cap=_ANTHROPIC_CONTENT_MAX_TOKENS_CAP,
+            )
+
+            def _llm(*, system: str, user: str) -> str:
+                return _llm_chat_for_cfg(
+                    cfg=cfg,
+                    system=system,
+                    user=user,
+                    max_tokens_oai=oai_mt,
+                    max_tokens_ant=ant_mt,
+                    timeout_sec=120,
                 )
 
-                def _llm(*, system: str, user: str) -> str:
-                    return _llm_chat_for_cfg(
-                        cfg=cfg,
-                        system=system,
-                        user=user,
-                        max_tokens_oai=oai_mt,
-                        max_tokens_ant=ant_mt,
-                        timeout_sec=120,
-                    )
-
-                from app.services.content_ai_section_writer import ensure_full_outline_html
-
+            if outline:
                 out = ensure_full_outline_html(
                     html=out,
                     outline=outline,
                     total_wc=wc,
                     primary_keyword=primary_keyword,
                     source_blob=f"OUTLINE:\n{outline}\nPRIMARY_KEYWORD: {primary_keyword}",
+                    system=system,
+                    llm_call=_llm,
+                )
+            elif _html_has_incomplete_tail(out):
+                from app.services.content_ai_section_writer import _repair_incomplete_tail_section
+
+                out = _repair_incomplete_tail_section(
+                    html=out,
+                    outline="",
+                    total_wc=wc,
+                    primary_keyword=primary_keyword,
+                    source_blob=f"PRIMARY_KEYWORD: {primary_keyword}",
                     system=system,
                     llm_call=_llm,
                 )
@@ -973,36 +1086,33 @@ def _fetch_source_text(url: str) -> tuple[str, str]:
     Fetch a URL and return (final_url, extracted_text).
     Best-effort: strips scripts/styles, keeps visible text.
     """
+    from app.services.url_safety import safe_http_get, validate_public_http_url
+
     raw_url = str(url or "").strip()
     if not raw_url:
         return "", ""
     if not raw_url.lower().startswith(("http://", "https://")):
         raw_url = "https://" + raw_url.lstrip("/")
+    if validate_public_http_url(raw_url):
+        return raw_url, ""
     try:
-        resp = requests.get(
-            raw_url,
-            timeout=10,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36"
-                )
-            },
-        )
+        text, err = safe_http_get(raw_url, timeout_s=10)
+        if err or not text:
+            return raw_url, ""
     except Exception:
         return raw_url, ""
-    final_url = str(resp.url or raw_url)
-    html = resp.text or ""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(text, "html.parser")
     for tag in soup.find_all(["script", "style", "noscript", "iframe"]):
         tag.decompose()
-    text = soup.get_text("\n", strip=True)
-    text = re.sub(r"\n{2,}", "\n", text).strip()
-    return final_url, text
+    body = soup.get_text("\n", strip=True)
+    body = re.sub(r"\n{2,}", "\n", body).strip()
+    return raw_url, body
 
 
 def _fetch_related_posts_for_internal_links(target_website: str, keyword: str, *, limit: int = 8) -> list[dict[str, str]]:
     """Best-effort crawl related posts from WP REST for internal-link prompting."""
+    from app.services.url_safety import safe_requests_get, validate_public_http_url
+
     raw = str(target_website or "").strip()
     if not raw:
         return []
@@ -1014,6 +1124,8 @@ def _fetch_related_posts_for_internal_links(target_website: str, keyword: str, *
             return []
         base = f"{p.scheme}://{p.netloc}".rstrip("/")
     except Exception:
+        return []
+    if validate_public_http_url(base):
         return []
 
     api = f"{base}/wp-json/wp/v2/posts"
@@ -1027,7 +1139,7 @@ def _fetch_related_posts_for_internal_links(target_website: str, keyword: str, *
     if kw:
         params["search"] = kw
     try:
-        r = requests.get(api, params=params, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        r = safe_requests_get(api, params=params, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         if r.status_code >= 400:
             return []
         data = r.json() if r.content else []
@@ -1287,13 +1399,13 @@ def _build_instructions(
     return base + extra if extra else base
 
 
-def _openai_chat_completion(
+def _openai_chat_completion_result(
     *,
     cfg: LlmConfig,
     messages: list[dict[str, Any]],
     max_tokens: int | None = None,
     timeout_sec: int = 45,
-) -> str:
+) -> tuple[str, str]:
     url = openai_compatible_chat_url(cfg.api_base_url)
     headers = _openai_request_headers(cfg)
     payload: dict[str, Any] = {
@@ -1322,29 +1434,44 @@ def _openai_chat_completion(
         raise RuntimeError(f"OpenAI HTTP {r.status_code}: {(r.text or '')[:400]}")
     data = r.json() if r.content else {}
     try:
-        msg = ((data.get("choices") or [{}])[0] or {}).get("message") or {}
+        choice0 = (data.get("choices") or [{}])[0] or {}
+        finish_reason = str(choice0.get("finish_reason") or "").strip().lower()
+        msg = choice0.get("message") or {}
         content = msg.get("content")
         if isinstance(content, str):
-            return content.strip()
+            return content.strip(), finish_reason
         if isinstance(content, list):
             parts: list[str] = []
             for item in content:
                 if isinstance(item, dict) and item.get("type") == "text":
                     parts.append(str(item.get("text") or ""))
-            return _clean_ws("\n".join(parts)).strip()
-        return str(content or "").strip()
+            return _clean_ws("\n".join(parts)).strip(), finish_reason
+        return str(content or "").strip(), finish_reason
     except Exception as exc:
         raise RuntimeError("OpenAI response parse failed") from exc
 
 
-def _gemini_chat_completion(
+def _openai_chat_completion(
+    *,
+    cfg: LlmConfig,
+    messages: list[dict[str, Any]],
+    max_tokens: int | None = None,
+    timeout_sec: int = 45,
+) -> str:
+    text, _reason = _openai_chat_completion_result(
+        cfg=cfg, messages=messages, max_tokens=max_tokens, timeout_sec=timeout_sec
+    )
+    return text
+
+
+def _gemini_chat_completion_result(
     *,
     cfg: LlmConfig,
     system: str,
     user: str,
     max_tokens: int | None = None,
     timeout_sec: int = 45,
-) -> str:
+) -> tuple[str, str]:
     model = str(cfg.model or "gemini-2.0-flash").strip()
     if model.startswith("models/"):
         model_path = model
@@ -1379,11 +1506,65 @@ def _gemini_chat_completion(
     data = r.json() if r.content else {}
     try:
         cands = data.get("candidates") or []
-        parts = (((cands[0] or {}).get("content") or {}).get("parts") or []) if cands else []
+        cand0 = (cands[0] or {}) if cands else {}
+        finish_reason = str(cand0.get("finishReason") or "").strip().lower()
+        parts = ((cand0.get("content") or {}).get("parts") or [])
         text = "".join(str(p.get("text") or "") for p in parts if isinstance(p, dict))
-        return str(text or "").strip()
+        return str(text or "").strip(), finish_reason
     except Exception as exc:
         raise RuntimeError("Gemini response parse failed") from exc
+
+
+def _gemini_chat_completion(
+    *,
+    cfg: LlmConfig,
+    system: str,
+    user: str,
+    max_tokens: int | None = None,
+    timeout_sec: int = 45,
+) -> str:
+    text, _reason = _gemini_chat_completion_result(
+        cfg=cfg, system=system, user=user, max_tokens=max_tokens, timeout_sec=timeout_sec
+    )
+    return text
+
+
+def _finish_reason_is_length(reason: str) -> bool:
+    r = str(reason or "").strip().lower().replace("-", "_")
+    return r in {
+        "length",
+        "max_tokens",
+        "max_token",
+        "maxoutputtokens",
+        "max_output_tokens",
+    }
+
+
+def _plain_or_html_looks_incomplete(text: str) -> bool:
+    """Heuristic: output likely cut mid-sentence (no terminal punctuation on last text)."""
+    raw = str(text or "").strip()
+    if not raw:
+        return False
+    try:
+        soup = BeautifulSoup(raw, "html.parser")
+        blocks = list(soup.find_all(["p", "li", "td", "th", "blockquote", "h1", "h2", "h3", "h4"]))
+        if blocks:
+            txt = blocks[-1].get_text(" ", strip=True)
+        else:
+            txt = soup.get_text(" ", strip=True)
+    except Exception:
+        txt = re.sub(r"<[^>]+>", " ", raw)
+        txt = re.sub(r"\s+", " ", txt).strip()
+    if not txt:
+        return False
+    if _ends_with_sentence_terminal(txt):
+        return False
+    # Trailing comma / open clause / mid-word cut
+    if re.search(r"[,:;]$", txt):
+        return True
+    if len(txt) >= 8:
+        return True
+    return False
 
 
 def _llm_chat_for_cfg(
@@ -1395,9 +1576,77 @@ def _llm_chat_for_cfg(
     max_tokens_ant: int,
     timeout_sec: int,
 ) -> str:
+    """
+    One LLM call with append-only continuation when provider stops for output length
+    while the text still looks mid-sentence. Does not rewrite prior content.
+    """
+    text, reason = _llm_chat_for_cfg_result(
+        cfg=cfg,
+        system=system,
+        user=user,
+        max_tokens_oai=max_tokens_oai,
+        max_tokens_ant=max_tokens_ant,
+        timeout_sec=timeout_sec,
+    )
+    # Only continue for content-sized budgets (avoid looping on tiny title/meta calls).
+    budget = int(max_tokens_oai or max_tokens_ant or 0)
+    if budget < 1200:
+        return text
+    for _ in range(3):
+        need_continue = _finish_reason_is_length(reason) or _plain_or_html_looks_incomplete(text)
+        if not need_continue or not text.strip():
+            break
+
+        tail = text[-1800:] if len(text) > 1800 else text
+        cont_user = (
+            "OUTPUT trước đó bị CẮT NGANG giữa câu do giới hạn độ dài.\n"
+            "Hãy TIẾP TỤC đúng từ chỗ dừng — chỉ phần còn thiếu, không lặp lại phần đã có.\n"
+            "Giữ cùng định dạng (HTML nếu đang là HTML). Hoàn tất mọi câu đang mở.\n"
+            "\n=== ĐOẠN CUỐI ĐÃ SINH (tham khảo, KHÔNG lặp lại) ===\n"
+            f"{tail}\n"
+            "\n=== PHẦN TIẾP THEO (chỉ phần mới) ==="
+        )
+        cont_system = (
+            str(system or "").strip()
+            + "\nBạn đang hoàn thiện output bị cắt giữa chừng. Chỉ viết phần tiếp nối, không viết lại từ đầu."
+        )
+        cont_text, reason = _llm_chat_for_cfg_result(
+            cfg=cfg,
+            system=cont_system,
+            user=cont_user,
+            max_tokens_oai=max_tokens_oai,
+            max_tokens_ant=max_tokens_ant,
+            timeout_sec=timeout_sec,
+        )
+        cont_text = str(cont_text or "").strip()
+        if not cont_text:
+            break
+        # Avoid duplicating if model echoed the tail.
+        if len(tail) >= 120 and cont_text.startswith(tail[-120:]):
+            cont_text = cont_text[len(tail[-120:]) :].lstrip()
+        if not cont_text:
+            break
+        text = (text.rstrip() + "\n" + cont_text).strip()
+        logging.getLogger(__name__).info(
+            "llm_length_continue appended chars=%s finish=%s",
+            len(cont_text),
+            reason,
+        )
+    return text
+
+
+def _llm_chat_for_cfg_result(
+    *,
+    cfg: LlmConfig,
+    system: str,
+    user: str,
+    max_tokens_oai: int | None,
+    max_tokens_ant: int,
+    timeout_sec: int,
+) -> tuple[str, str]:
     if cfg.provider == "gemini":
         mt = max_tokens_oai if max_tokens_oai is not None else max_tokens_ant
-        return _gemini_chat_completion(
+        return _gemini_chat_completion_result(
             cfg=cfg, system=system, user=user, max_tokens=mt, timeout_sec=timeout_sec
         )
     if cfg.provider == "openai":
@@ -1405,8 +1654,10 @@ def _llm_chat_for_cfg(
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
-        return _openai_chat_completion(cfg=cfg, messages=msg, max_tokens=max_tokens_oai, timeout_sec=timeout_sec)
-    return _anthropic_messages(
+        return _openai_chat_completion_result(
+            cfg=cfg, messages=msg, max_tokens=max_tokens_oai, timeout_sec=timeout_sec
+        )
+    return _anthropic_messages_result(
         cfg=cfg, system=system, user=user, max_tokens=max_tokens_ant, timeout_sec=timeout_sec
     )
 
@@ -1492,6 +1743,7 @@ def iter_content_ai_content_stream_deltas(
     target_word_count: int | None = None,
     user_id: int | None = None,
     use_system_llm: bool = False,
+    output_language: str | None = None,
 ) -> Iterator[str]:
     """
     Stream token/text deltas for field=content (primary LLM pass).
@@ -1611,19 +1863,11 @@ def iter_content_ai_content_stream_deltas(
         knowledge=knowledge,
     )
     kb_active = bool(knowledge and knowledge.get("found"))
-    system = (
-        "Bạn là trợ lý viết nội dung SEO tiếng Việt: chính xác, hữu ích (Helpful Content), E-E-A-T."
-        " Chỉ dùng SOURCE; không bịa số liệu/giá."
+    system = _content_ai_system_prompt_base(
+        output_language=output_language or "vi",
+        kb_active=kb_active,
     )
-    if kb_active:
-        system += (
-            " Ưu tiên KNOWLEDGE_BASE trong SOURCE cho bảng giá, SĐT/hotline, thông tin công ty;"
-            " không ghi «Cần bổ sung dữ liệu» khi KB/SOURCE đã có."
-        )
-    else:
-        system += " Thiếu dữ liệu trong SOURCE → «Cần bổ sung dữ liệu»."
     system += (
-        " Không nhồi từ khóa; không placeholder [CẦN XÁC NHẬN]."
         " Field content: chỉ HTML thuần (h1–h3, p, list, table, figure+alt, FAQ,"
         " gợi yếu link nội/ngoài, JSON-LD schema); KHÔNG thêm section Checklist SEO trong bài;"
         " không markdown, không lời dẫn ngoài thẻ."
@@ -1642,21 +1886,21 @@ def iter_content_ai_content_stream_deltas(
     yield from _iter_text_as_deltas(out, chunk_size=40)
 
 
-def _anthropic_messages(
+def _anthropic_messages_result(
     *,
     cfg: LlmConfig,
     system: str,
     user: str,
     max_tokens: int = 1600,
     timeout_sec: int = 45,
-) -> str:
+) -> tuple[str, str]:
     url = "https://api.anthropic.com/v1/messages"
     headers = {
         "x-api-key": cfg.api_key,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
-    mt = max(256, min(8192, int(max_tokens)))
+    mt = max(256, min(_ANTHROPIC_CONTENT_MAX_TOKENS_CAP, int(max_tokens)))
     payload: dict[str, Any] = {
         "model": cfg.model,
         "max_tokens": mt,
@@ -1688,9 +1932,25 @@ def _anthropic_messages(
         for b in blocks:
             if isinstance(b, dict) and b.get("type") == "text":
                 parts.append(str(b.get("text") or ""))
-        return _clean_ws("\n".join(parts)).strip()
+        text = _clean_ws("\n".join(parts)).strip()
+        stop_reason = str(data.get("stop_reason") or "").strip().lower()
+        return text, stop_reason
     except Exception as exc:
         raise RuntimeError("Anthropic response parse failed") from exc
+
+
+def _anthropic_messages(
+    *,
+    cfg: LlmConfig,
+    system: str,
+    user: str,
+    max_tokens: int = 1600,
+    timeout_sec: int = 45,
+) -> str:
+    text, _reason = _anthropic_messages_result(
+        cfg=cfg, system=system, user=user, max_tokens=max_tokens, timeout_sec=timeout_sec
+    )
+    return text
 
 
 def _try_parse_json_object(text: str) -> dict[str, Any] | None:
@@ -2198,7 +2458,9 @@ def generate_content_ai_suggestion(
     user_id: int | None = None,
     use_system_llm: bool = False,
     ai_provider: str = "auto",
+    content_brief: dict[str, Any] | None = None,
     meta_out: dict[str, Any] | None = None,
+    output_language: str | None = None,
 ) -> str:
     """
     Lớp LLM (sinh nội dung / gợi ý theo field), tách khỏi rule-based trong `content_draft_builder`.
@@ -2280,8 +2542,8 @@ def generate_content_ai_suggestion(
     oai_mt = _openai_max_tokens_for_field(field=f0, word_target=wc_for_content)
     ant_mt = _anthropic_max_tokens_for_field(field=f0, word_target=wc_for_content)
     if f0 == "content" and user_outline_present and outline:
-        oai_mt = _boost_max_tokens_for_outline(int(oai_mt or 4096), outline, cap=16384)
-        ant_mt = _boost_max_tokens_for_outline(int(ant_mt or 4096), outline, cap=8192)
+        oai_mt = _boost_max_tokens_for_outline(int(oai_mt or 4096), outline, cap=_OPENAI_CONTENT_MAX_TOKENS_CAP)
+        ant_mt = _boost_max_tokens_for_outline(int(ant_mt or 4096), outline, cap=_ANTHROPIC_CONTENT_MAX_TOKENS_CAP)
 
     src_url = ""
     src_text = ""
@@ -2400,18 +2662,10 @@ def generate_content_ai_suggestion(
 
     f_early = (field or "").strip().lower()
     kb_active = bool(knowledge and knowledge.get("found"))
-    system = (
-        "Bạn là trợ lý viết nội dung SEO tiếng Việt: chính xác, hữu ích (Helpful Content), E-E-A-T."
-        " Chỉ dùng SOURCE; không bịa số liệu/giá."
+    system = _content_ai_system_prompt_base(
+        output_language=output_language or "vi",
+        kb_active=kb_active,
     )
-    if kb_active:
-        system += (
-            " Ưu tiên KNOWLEDGE_BASE trong SOURCE cho bảng giá, SĐT/hotline, thông tin công ty, quy trình, FAQ;"
-            " không ghi «Cần bổ sung dữ liệu» khi KB/SOURCE đã có thông tin đó."
-        )
-    else:
-        system += " Thiếu dữ liệu trong SOURCE → «Cần bổ sung dữ liệu»."
-    system += " Không nhồi từ khóa; không placeholder [CẦN XÁC NHẬN]."
     if f_early == "content":
         system += (
             " Field content: chỉ HTML thuần (h1–h3, p, list, table, FAQ,"
@@ -2714,12 +2968,17 @@ def generate_content_ai_suggestion(
                             out = _ensure_outline_coverage_after_trim(
                                 out, outline=outline, before_html=before
                             )
-            # Sau word-count: cổng cuối bắt buộc đủ outline.
+            # Sau word-count: cổng cuối bắt buộc đủ outline + không cắt giữa câu.
             if user_outline_present and outline and cfg is not None:
                 from app.services.content_ai_outline_engine import outline_h2_coverage
+                from app.services.content_ai_section_writer import _html_has_incomplete_tail
 
                 cov2 = outline_h2_coverage(outline, out)
-                if cov2.get("ratio", 0) < 1.0 or cov2.get("missing_sections"):
+                if (
+                    cov2.get("ratio", 0) < 1.0
+                    or cov2.get("missing_sections")
+                    or _html_has_incomplete_tail(out)
+                ):
                     mark_step(STEP_REPAIR, outline_coverage=f"{cov2['covered']}/{cov2['total']}")
                     out = _continue_content_for_missing_outline(
                         html=out,
@@ -2740,6 +2999,9 @@ def generate_content_ai_suggestion(
             from app.services.content_ai_content_images import sanitize_invalid_content_images
 
             out = postprocess_content_blockquotes(out)
+            from app.services.content_ai_output_postprocess import postprocess_content_ai_output
+
+            out = postprocess_content_ai_output(out)
             out, _ = sanitize_invalid_content_images(out)
     elif f == "outline_content":
         out = _strip_bracket_placeholders(out)
@@ -3049,4 +3311,83 @@ def _strip_tags_text(html: str) -> str:
         return re.sub(r"\s+", " ", BeautifulSoup(str(html or ""), "html.parser").get_text(" ", strip=True))
     except Exception:
         return re.sub(r"<[^>]+>", " ", html or "")
+
+# restored from a14cef2: generate_contextual_internal_link_paragraph
+def generate_contextual_internal_link_paragraph(
+    *,
+    anchor_text: str,
+    target_url: str,
+    target_title: str = "",
+    section_heading: str = "",
+    article_primary_keyword: str = "",
+    article_secondary_keywords: str = "",
+    template_variant: int = 0,
+) -> str:
+    """
+    Sinh một đoạn <p> (1–2 câu) có internal link — dùng khi không bọc được anchor inline.
+    Trả về HTML fragment (thường một thẻ <p>).
+    """
+    cfg = load_llm_config()
+    if not cfg:
+        raise RuntimeError("LLM not configured (missing API key).")
+    anchor = _clean_ws(anchor_text)
+    url = str(target_url or "").strip()
+    title = _clean_ws(target_title) or anchor
+    if not anchor or not url:
+        raise ValueError("Thiếu anchor_text hoặc URL.")
+    h2 = _clean_ws(section_heading)[:120]
+    pk = _clean_ws(article_primary_keyword)
+    system = (
+        "Bạn là biên tập SEO tiếng Việt. Viết ĐÚNG MỘT đoạn <p> (1–2 câu) có internal link nhúng tự nhiên.\n"
+        "Ràng buộc:\n"
+        "- Trả về DUY NHẤT <p>...</p> — không markdown, không giải thích.\n"
+        "- Đúng một <a href=\"URL\">ANCHOR</a> với URL và anchor_text đã cho.\n"
+        "- Link là phần của câu đang giải thích vấn đề kỹ thuật/dịch vụ — KHÔNG câu dẫn tách rời.\n"
+        "- CẤM: «Bạn có thể tham khảo thêm», «Xem thêm», «Tìm hiểu thêm», «để biết thêm chi tiết», "
+        "«Nếu bạn cần thêm thông tin… tham khảo».\n"
+        "- CẤM mở đầu «Trong phần … bạn có thể đọc thêm».\n"
+        "- Không dùng anchor «tại đây», «xem thêm», «click here».\n"
+    )
+    style_hints = [
+        "Mở đầu bằng lợi ích cụ thể cho độc giả.",
+        "Mở đầu bằng so sánh / bổ sung nội dung section hiện tại.",
+        "Mở đầu bằng hành động tiếp theo (triển khai, đặt lịch, tìm hiểu sâu).",
+        "Mở đầu bằng địa phương / phạm vi dịch vụ nếu phù hợp anchor.",
+    ]
+    hint = style_hints[int(template_variant) % len(style_hints)]
+    user = (
+        f"Từ khóa bài: {pk}\n"
+        f"Từ khóa phụ: {_clean_ws(article_secondary_keywords)}\n"
+        f"Mục H2 gần đó: {h2 or '(không rõ)'}\n"
+        f"Tiêu đề bài đích: {title}\n"
+        f"anchor_text (bắt buộc dùng nguyên văn trong thẻ <a>): {anchor}\n"
+        f"URL: {url}\n"
+        f"Phong cách câu (bắt buộc): {hint}\n\n"
+        "Viết một <p> duy nhất — khác hoàn toàn template «bạn có thể đọc thêm … để hiểu rõ hơn»."
+    ).strip()
+    if cfg.provider == "openai":
+        out = _openai_chat_completion(
+            cfg=cfg,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            max_tokens=400,
+            timeout_sec=45,
+        )
+    else:
+        out = _anthropic_messages(cfg=cfg, system=system, user=user, max_tokens=400, timeout_sec=45)
+    cleaned = str(out or "").strip()
+    cleaned = re.sub(r"^```(?:html)?\s*", "", cleaned, flags=re.I).strip()
+    cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+    if not cleaned.lower().startswith("<p"):
+        cleaned = f"<p>{cleaned}</p>"
+    if "<a " not in cleaned.lower():
+        topic = title or anchor
+        cleaned = (
+            f"<p>Khi gặp tình huống liên quan {py_html.escape(topic)}, "
+            f"dịch vụ <a href=\"{py_html.escape(url, quote=True)}\">"
+            f"{py_html.escape(anchor)}</a> hỗ trợ kiểm tra và xử lý theo quy trình phù hợp.</p>"
+        )
+    from app.services.wp_internal_link_postprocess import remove_template_link_sentences
+
+    cleaned, _ = remove_template_link_sentences(cleaned)
+    return _sanitize_mixed_style_phrases(cleaned)
 

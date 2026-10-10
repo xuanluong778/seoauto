@@ -40,19 +40,28 @@ def volume_cache_ttl_seconds() -> int:
     return max(86400, int(os.getenv("VOLUME_CACHE_TTL_SECONDS", "5184000")))
 
 
+def _is_google_ads_label(label: str) -> bool:
+    return str(label or "").startswith("google_ads")
+
+
 def estimated_cost_usd(stats: dict[str, Any]) -> float:
+    """DataForSEO vendor estimate only — Google Ads calls are not priced as DFS tasks."""
     per_task = float(os.getenv("KEYWORD_RESEARCH_ESTIMATED_COST_PER_TASK", "0.01"))
-    live = int(stats.get("live_calls") or 0)
-    return round(live * per_task, 4)
+    dfs = int(stats.get("dataforseo_calls") or 0)
+    return round(dfs * per_task, 4)
 
 
 def attach_cost_meta(stats: dict[str, Any] | None) -> dict[str, Any]:
     s = stats or {}
+    labels = [str(x) for x in (s.get("live_call_labels") or []) if str(x)]
     return {
         "live_calls": int(s.get("live_calls") or 0),
         "api_tasks": int(s.get("api_tasks") or 0),
         "cache_hits": int(s.get("cache_hits") or 0),
         "keywords_api": int(s.get("keywords_api") or 0),
+        "google_ads_calls": int(s.get("google_ads_calls") or 0),
+        "dataforseo_calls": int(s.get("dataforseo_calls") or 0),
+        "live_call_labels": labels,
         "estimated_cost_usd": estimated_cost_usd(s),
         "max_live_calls": max_live_calls_per_run(),
     }
@@ -66,10 +75,15 @@ def check_and_record_live_call(stats: dict[str, Any] | None, *, label: str) -> N
             "Đã dừng vì vượt ngưỡng chi phí DataForSEO.",
             stats,
         )
+    stats.setdefault("live_call_labels", []).append(label)
+    if _is_google_ads_label(label):
+        stats["google_ads_calls"] = int(stats.get("google_ads_calls") or 0) + 1
+        stats["estimated_cost_usd"] = estimated_cost_usd(stats)
+        return
     live = int(stats.get("live_calls") or 0) + 1
     stats["live_calls"] = live
+    stats["dataforseo_calls"] = int(stats.get("dataforseo_calls") or 0) + 1
     stats["estimated_cost_usd"] = estimated_cost_usd(stats)
-    stats.setdefault("live_call_labels", []).append(label)
     if live > max_live_calls_per_run():
         stats["cost_aborted"] = True
         raise KeywordResearchCostExceeded(

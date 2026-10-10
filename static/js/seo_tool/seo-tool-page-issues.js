@@ -32,30 +32,27 @@ const fixedIssueIds = new Set();
 const TECH_TAB_LABELS = (window.TechSidebarV2 && window.TechSidebarV2.TAB_LABELS) || {
     overview: "Tổng quan",
     priority: "Việc cần sửa",
-    indexability: "Index Google",
-    crawlability: "Crawlability",
-    onpage: "On-page SEO",
-    internal_links: "Liên kết nội bộ",
-    performance: "Performance",
-    structured_data: "Schema",
-    security_http: "HTTPS & Security",
-    ux_mobile: "Mobile UX",
-    security_ux: "HTTPS & Security",
-    gsc: "Google Search Console",
+    index_crawl: "Index & Crawl",
+    onpage: "On-page",
+    perf_security: "Performance & Security",
+    indexability: "Index & Crawl",
+    crawlability: "Index & Crawl",
+    internal_links: "Index & Crawl",
+    performance: "Performance & Security",
+    structured_data: "On-page",
+    security_http: "Performance & Security",
+    ux_mobile: "On-page",
+    security_ux: "Performance & Security",
+    gsc: "GSC",
     passed: "Passed Checks",
-    history: "Lịch sử Audit",
+    history: "Lịch sử",
 };
 
 const TECH_CATEGORY_TABS = (window.TechSidebarV2 && window.TechSidebarV2.CATEGORY_TABS) || new Set([
     "priority",
-    "indexability",
-    "crawlability",
+    "index_crawl",
     "onpage",
-    "internal_links",
-    "performance",
-    "structured_data",
-    "security_http",
-    "ux_mobile",
+    "perf_security",
     "gsc",
 ]);
 
@@ -658,6 +655,10 @@ function renderNormalizedIssues(issues) {
                 : "Không phát hiện lỗi trong nhóm này.";
     }
     if (!tabFiltered.length) return;
+    if (window.TechDashboardV2 && typeof window.TechDashboardV2.buildSimpleIssueTable === "function") {
+        root.appendChild(window.TechDashboardV2.buildSimpleIssueTable(tabFiltered));
+        return;
+    }
     tabFiltered.forEach((issue) => {
         root.appendChild(buildNormalizedIssueCard(issue));
     });

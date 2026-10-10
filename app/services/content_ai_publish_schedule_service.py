@@ -197,17 +197,10 @@ def _resolve_wp_credentials(
 ) -> tuple[str, str, str, str | None]:
     sid = str(wp_site_id or "").strip()
     if sid:
-        site = get_site(sid, user_id=user_id, reveal_password=True)
-        if not site:
-            raise HTTPException(status_code=404, detail="Không tìm thấy site WordPress đã lưu.")
-        if str(site.get("platform") or "") != "wordpress":
-            raise HTTPException(status_code=400, detail="Site không phải WordPress.")
-        url = str(site.get("url") or "").strip()
-        user = str(site.get("username") or "").strip()
-        pwd = str(site.get("app_password") or "").strip()
-        if not url or not user or not pwd:
-            raise HTTPException(status_code=400, detail="Site WordPress thiếu thông tin đăng nhập.")
-        return url, user, pwd, sid
+        from app.services.wordpress_connection import resolve_wordpress_connection
+
+        cred = resolve_wordpress_connection(user_id=user_id, site_id=sid, site_url=wp_url)
+        return cred["url"], cred["username"], cred["app_password"], cred["site_id"]
     url = str(wp_url or "").strip()
     user = str(username or "").strip()
     pwd = str(app_password or "").strip()
@@ -386,6 +379,11 @@ def create_schedule(
 
 def _schedule_due_publish(schedule_id: int, when_utc: datetime) -> None:
     """Daemon timer: publish this schedule when its due time arrives."""
+    from app.services.wp_publish_scheduler_rollout import use_celery_wp_scheduler
+
+    if use_celery_wp_scheduler():
+        return
+
     import logging
     import threading
     import time

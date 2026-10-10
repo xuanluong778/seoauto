@@ -1,0 +1,261 @@
+{
+  "wave": 1,
+  "scale_level": 1,
+  "snapshot_at": "2026-09-02T02:17:24.148495+00:00",
+  "gates": {
+    "BACKUP_READY": "PASS",
+    "CELERY_QUEUE": "PASS",
+    "CELERY_PREFORK": "PASS",
+    "UI_REGRESSION": "PASS",
+    "JOB_CLAIM_CONCURRENCY": "PASS",
+    "NO_DUPLICATE_JOB": "PASS",
+    "CONTENT_AI_BULK_REGRESSION": "PASS",
+    "WP_PUBLISH_REGRESSION": "PASS",
+    "CREDIT_IDEMPOTENCY": "PASS",
+    "QUEUE_RECOVERY": "PASS",
+    "KNOWN_FAILURES_NOT_INCREASED": "PASS"
+  },
+  "metrics": {
+    "before": {
+      "ts": "2026-09-02T02:17:24.926026+00:00",
+      "psutil_error": "No module named 'psutil'",
+      "redis_db_keys": 2680,
+      "queue_depth": {
+        "content_ai": 0,
+        "wordpress": 0,
+        "crawl": 0,
+        "email": 0,
+        "default": 0,
+        "celery": 0
+      },
+      "db_connections": 19,
+      "celery_workers": [
+        {
+          "name": "seoauto-worker-content-ai",
+          "status": "online",
+          "cpu": 0,
+          "memory": 126717952,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "content_ai"
+          ],
+          "concurrency": "1"
+        },
+        {
+          "name": "seoauto-worker-wordpress",
+          "status": "online",
+          "cpu": 0.3,
+          "memory": 126644224,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "wordpress"
+          ],
+          "concurrency": "1"
+        },
+        {
+          "name": "seoauto-worker-crawl",
+          "status": "online",
+          "cpu": 0,
+          "memory": 126586880,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "crawl"
+          ],
+          "concurrency": "1"
+        },
+        {
+          "name": "seoauto-worker-email",
+          "status": "online",
+          "cpu": 0.3,
+          "memory": 126681088,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "email"
+          ],
+          "concurrency": "1"
+        },
+        {
+          "name": "seoauto-worker-default",
+          "status": "online",
+          "cpu": 0.3,
+          "memory": 126877696,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "default"
+          ],
+          "concurrency": "1"
+        }
+      ]
+    },
+    "after": {
+      "ts": "2026-09-02T02:18:40.027155+00:00",
+      "psutil_error": "No module named 'psutil'",
+      "redis_db_keys": 2685,
+      "queue_depth": {
+        "content_ai": 0,
+        "wordpress": 0,
+        "crawl": 0,
+        "email": 0,
+        "default": 0,
+        "celery": 0
+      },
+      "db_connections": 19,
+      "celery_workers": [
+        {
+          "name": "seoauto-worker-content-ai",
+          "status": "online",
+          "cpu": 0,
+          "memory": 126849024,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "content_ai"
+          ],
+          "concurrency": "1"
+        },
+        {
+          "name": "seoauto-worker-wordpress",
+          "status": "online",
+          "cpu": 0,
+          "memory": 126644224,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "wordpress"
+          ],
+          "concurrency": "1"
+        },
+        {
+          "name": "seoauto-worker-crawl",
+          "status": "online",
+          "cpu": 0,
+          "memory": 126586880,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "crawl"
+          ],
+          "concurrency": "1"
+        },
+        {
+          "name": "seoauto-worker-email",
+          "status": "online",
+          "cpu": 0,
+          "memory": 126681088,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "email"
+          ],
+          "concurrency": "1"
+        },
+        {
+          "name": "seoauto-worker-default",
+          "status": "online",
+          "cpu": 0,
+          "memory": 126877696,
+          "prefork": true,
+          "solo": false,
+          "queues": [
+            "default"
+          ],
+          "concurrency": "1"
+        }
+      ]
+    }
+  },
+  "backup": {
+    "script_exists": true,
+    "recent_backups": 16,
+    "gate": "PASS"
+  },
+  "celery_multi_queue": true,
+  "task_routes_count": 14,
+  "ui_baseline": {
+    "pages": [
+      {
+        "path": "/content-ai",
+        "status": 200
+      },
+      {
+        "path": "/tool",
+        "status": 200
+      },
+      {
+        "path": "/chatbot-cskh",
+        "status": 200
+      },
+      {
+        "path": "/settings",
+        "status": 200
+      },
+      {
+        "path": "/pricing",
+        "status": 200
+      }
+    ],
+    "gate": "PASS"
+  },
+  "tests_wave1_core": {
+    "target": "tests/test_wave1_celery_queues.py tests/test_wave1_job_claim_concurrency_pg.py tests/test_job_store_fingerprint.py::test_claim_job_by_id_and_skips_running tests/test_bulk_celery_no_inline_dup.py",
+    "returncode": 0,
+    "passed": 0,
+    "failed": 0,
+    "gate": "PASS",
+    "junit": "docs/baseline/wave1/junit_wave1_core.xml"
+  },
+  "tests_content_ai": {
+    "target": "tests/test_content_ai_e2e_audit_fixes.py tests/test_content_ai_duplicate_detection.py tests/test_content_ai_credit.py tests/test_content_ai_bulk_progress.py tests/test_content_ai_output_postprocess.py tests/test_content_ai_publish_schedule.py tests/test_bulk_celery_no_inline_dup.py",
+    "returncode": 0,
+    "passed": 0,
+    "failed": 0,
+    "gate": "PASS",
+    "junit": "docs/baseline/wave1/junit_content_ai_regression.xml"
+  },
+  "tests_wp": {
+    "target": "tests/test_wp_publish_draft.py tests/test_content_ai_publish_schedule.py",
+    "returncode": 0,
+    "passed": 0,
+    "failed": 0,
+    "gate": "PASS",
+    "junit": "docs/baseline/wave1/junit_wp_regression.xml"
+  },
+  "tests_credit": {
+    "target": "tests/test_content_ai_credit.py tests/test_p0_security_billing_fixes.py::test_bulk_charge_uses_actual_word_count",
+    "returncode": 0,
+    "passed": 0,
+    "failed": 0,
+    "gate": "PASS",
+    "junit": "docs/baseline/wave1/junit_credit_regression.xml"
+  },
+  "tests_queue_recovery": {
+    "target": "tests/test_bulk_celery_no_inline_dup.py tests/test_job_store_fingerprint.py::test_claim_job_by_id_and_skips_running",
+    "returncode": 0,
+    "passed": 0,
+    "failed": 0,
+    "gate": "PASS",
+    "junit": "docs/baseline/wave1/junit_queue_recovery.xml"
+  },
+  "tests_subset": {
+    "target": "tests/test_bulk_celery_no_inline_dup.py tests/test_content_ai_brief.py tests/test_content_ai_bulk_import.py tests/test_content_ai_bulk_parse.py tests/test_content_ai_bulk_progress.py tests/test_content_ai_bulk_setup.py tests/test_content_ai_content_gap.py tests/test_content_ai_credit.py tests/test_content_ai_duplicate_detection.py tests/test_content_ai_e2e_audit_fixes.py tests/test_content_ai_image_guard.py tests/test_content_ai_image_optimizer.py tests/test_content_ai_image_rules.py tests/test_content_ai_image_sanitize.py tests/test_content_ai_image_studio_upgrade.py tests/test_content_ai_output_postprocess.py tests/test_content_ai_projects_org_isolation.py tests/test_content_ai_publish_checklist_access.py tests/test_content_ai_publish_gate.py tests/test_content_ai_publish_schedule.py tests/test_content_ai_score.py tests/test_content_ai_seo_autofix.py tests/test_content_ai_web_image_insert.py tests/test_content_ai_word_count_flow.py tests/test_content_ai_write_performance.py tests/test_wave1_celery_queues.py tests/test_wave1_job_claim_concurrency_pg.py tests/test_wp_connect_auth.py tests/test_wp_internal_link_apply.py tests/test_wp_internal_link_context.py tests/test_wp_internal_link_postprocess.py tests/test_wp_internal_link_scoring.py tests/test_wp_publish_draft.py tests/test_wp_site_connector_sync.py tests/test_job_store_fingerprint.py",
+    "returncode": 1,
+    "passed": 0,
+    "failed": 0,
+    "gate": "FAIL",
+    "junit": "docs/baseline/wave1/junit_wave1_subset.xml"
+  },
+  "known_failures": {
+    "baseline_count": 56,
+    "current_count": 7,
+    "new_failures": [],
+    "new_failure_count": 0,
+    "gate": "PASS"
+  },
+  "wave1_overall": "PASS",
+  "failed_critical_gates": []
+}

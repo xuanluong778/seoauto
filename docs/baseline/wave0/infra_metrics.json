@@ -1,0 +1,63 @@
+{
+  "snapshot_at": "2026-09-01T16:34:42.950021+00:00",
+  "loadavg": "2.28 1.58 1.13 2/1499 2740579",
+  "meminfo_kb": {
+    "MemTotal": "32915052 kB",
+    "MemFree": "4338352 kB",
+    "MemAvailable": "21448640 kB",
+    "Buffers": "816312 kB",
+    "Cached": "15294748 kB"
+  },
+  "cpu_cores": 8,
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "ok"
+    }
+  },
+  "ready": {
+    "status": 200,
+    "body": {
+      "status": "ready",
+      "lite": true,
+      "checks": {
+        "database": {
+          "ok": true
+        },
+        "redis": {
+          "ok": true
+        }
+      }
+    }
+  },
+  "db_active_connections": 57,
+  "db_size_bytes": 25246743,
+  "redis_used_memory_human": "4.12M",
+  "redis_connected_clients": 45,
+  "redis_db_keys": 3965,
+  "redis_list_celery": 0,
+  "redis_list_celery@seoauto-worker": 0,
+  "pm2": [
+    {
+      "name": "seoauto-worker",
+      "status": "online",
+      "cpu": 0,
+      "memory": 243228672,
+      "restarts": 14
+    },
+    {
+      "name": "seoauto-email-beat",
+      "status": "online",
+      "cpu": 0,
+      "memory": 131395584,
+      "restarts": 1
+    },
+    {
+      "name": "seoauto-web",
+      "status": "online",
+      "cpu": 0,
+      "memory": 29032448,
+      "restarts": 2
+    }
+  ]
+}

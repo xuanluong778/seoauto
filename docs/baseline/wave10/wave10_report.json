@@ -1,0 +1,293 @@
+{
+  "wave": 10,
+  "snapshot_at": "2026-09-03T02:01:29.751620+00:00",
+  "base_url": "http://127.0.0.1:8899",
+  "gates": {
+    "UI_REGRESSION": "PASS",
+    "API_COMPATIBILITY": "PASS",
+    "CONTENT_OUTPUT_REGRESSION": "PASS",
+    "KNOWN_FAILURES_NOT_INCREASED": "PASS"
+  },
+  "WAVE_10_UI_REGRESSION": "PASS",
+  "FILES_CHANGED": [
+    "scripts/wave10_ui_regression.py",
+    "docs/baseline/wave10/README.md",
+    "docs/baseline/wave10/ISSUES.md",
+    "docs/baseline/wave10/wave10_report.json",
+    "docs/baseline/wave10/e2e_results.json",
+    "docs/baseline/wave10/api_compat.json",
+    "docs/baseline/wave10/content_golden.json",
+    "docs/baseline/wave10/ui_pages_after.json",
+    "docs/baseline/wave10/screenshots/*.png"
+  ],
+  "REGRESSION_FOUND": [],
+  "REGRESSION_FIXED": [],
+  "SCREENSHOT_EVIDENCE": [
+    {
+      "name": "desktop_tool_logged_out",
+      "file": "docs/baseline/wave10/screenshots/desktop_tool_logged_out.png"
+    },
+    {
+      "name": "desktop_auth_modal_open",
+      "file": "docs/baseline/wave10/screenshots/desktop_auth_modal_open.png"
+    },
+    {
+      "name": "mobile_content_ai",
+      "file": "docs/baseline/wave10/screenshots/mobile_content_ai.png"
+    },
+    {
+      "name": "mobile_nav_open",
+      "file": "docs/baseline/wave10/screenshots/mobile_nav_open.png"
+    },
+    {
+      "name": "tablet_content_ai",
+      "file": "docs/baseline/wave10/screenshots/tablet_content_ai.png"
+    },
+    {
+      "name": "desktop_content_ai",
+      "file": "docs/baseline/wave10/screenshots/desktop_content_ai.png"
+    },
+    {
+      "name": "desktop_bulk_tab",
+      "file": "docs/baseline/wave10/screenshots/desktop_bulk_tab.png"
+    },
+    {
+      "name": "desktop_editor_typed",
+      "file": "docs/baseline/wave10/screenshots/desktop_editor_typed.png"
+    },
+    {
+      "name": "desktop_media_studio",
+      "file": "docs/baseline/wave10/screenshots/desktop_media_studio.png"
+    },
+    {
+      "name": "desktop_after_draft",
+      "file": "docs/baseline/wave10/screenshots/desktop_after_draft.png"
+    },
+    {
+      "name": "desktop_delete_modal",
+      "file": "docs/baseline/wave10/screenshots/desktop_delete_modal.png"
+    },
+    {
+      "name": "desktop_settings",
+      "file": "docs/baseline/wave10/screenshots/desktop_settings.png"
+    },
+    {
+      "name": "desktop_pricing",
+      "file": "docs/baseline/wave10/screenshots/desktop_pricing.png"
+    },
+    {
+      "name": "desktop_account_billing",
+      "file": "docs/baseline/wave10/screenshots/desktop_account_billing.png"
+    }
+  ],
+  "E2E_RESULTS": {
+    "gate": "PASS",
+    "interactions": [
+      {
+        "action": "open_auth_modal",
+        "ok": true
+      },
+      {
+        "action": "close_auth_modal",
+        "ok": true
+      },
+      {
+        "action": "mobile_nav_toggle",
+        "ok": true
+      },
+      {
+        "action": "tab_bulk",
+        "ok": true
+      },
+      {
+        "action": "bulk_table_present",
+        "ok": true
+      },
+      {
+        "action": "tab_single",
+        "ok": true
+      },
+      {
+        "action": "editor_input",
+        "ok": true,
+        "text": "WAVE10 editor input keep format"
+      },
+      {
+        "action": "tinymce_controls",
+        "ok": true
+      },
+      {
+        "action": "open_media_studio",
+        "ok": true,
+        "overlay": true
+      },
+      {
+        "action": "form_submit_draft",
+        "ok": true
+      },
+      {
+        "action": "modal_open_close",
+        "ok": true
+      },
+      {
+        "action": "nav_settings",
+        "ok": true,
+        "url": "http://127.0.0.1:8899/settings"
+      },
+      {
+        "action": "goto_pricing",
+        "ok": true,
+        "url": "http://127.0.0.1:8899/pricing"
+      }
+    ],
+    "errors": [],
+    "layout_viewports": [
+      "mobile",
+      "tablet",
+      "desktop"
+    ]
+  },
+  "API_COMPATIBILITY_RESULTS": {
+    "gate": "PASS",
+    "checks": [
+      {
+        "check": "auth_401",
+        "no_token": 401,
+        "bad_token": 401,
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/auth/me",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "dict",
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/projects?limit=5",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "dict",
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/usage",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "dict",
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/llm-providers",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "dict",
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/bulk-jobs/ping",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "dict",
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/api/settings/publishing-sites",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "dict",
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/api/audit/mine?limit=8",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "dict",
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/api/report",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "dict",
+        "ok": true
+      },
+      {
+        "method": "GET",
+        "path": "/pricing",
+        "status": 200,
+        "expect": 200,
+        "missing_fields": [],
+        "pagination_ok": true,
+        "body_type": "NoneType",
+        "ok": true
+      },
+      {
+        "check": "draft_validation_error",
+        "status": 422,
+        "ok": true
+      },
+      {
+        "check": "frontend_auth_me_render_fields",
+        "ok": true,
+        "keys": [
+          "api_access_enabled",
+          "created_at",
+          "credit_balance",
+          "email",
+          "id",
+          "role",
+          "show_admin_nav",
+          "status",
+          "use_admin_api_pool"
+        ]
+      }
+    ]
+  },
+  "CONTENT_OUTPUT_RESULTS": {
+    "pytest": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "..............................                                           [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n30 passed, 1 deselected, 1 warning in 3.58s\n",
+      "stderr_tail": ""
+    },
+    "golden_live": {
+      "gate": "PASS",
+      "local_ok": true,
+      "live_ok": true
+    }
+  },
+  "ui_marker_compare": {
+    "gate": "PASS",
+    "ok_count": 16
+  },
+  "known_failures": {
+    "current": 59,
+    "baseline": 59
+  },
+  "failed_gates": []
+}

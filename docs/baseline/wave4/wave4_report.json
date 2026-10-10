@@ -1,0 +1,72 @@
+{
+  "wave": 4,
+  "snapshot_at": "2026-09-02T03:56:55.798239+00:00",
+  "gates": {
+    "WP_SINGLE_SCHEDULER": "PASS",
+    "CELERY_BEAT_SINGLETON": "PASS",
+    "REMOTE_WP_IDEMPOTENCY": "PASS",
+    "WP_RESPONSE_LOST_AFTER_SUCCESS": "PASS",
+    "WP_RETRY_AFTER_REMOTE_SUCCESS": "PASS",
+    "BEAT_RESTART_NO_DUPLICATE": "PASS",
+    "WP_PUBLISH": "PASS",
+    "WP_SCHEDULE": "PASS",
+    "WP_DUPLICATE": "PASS",
+    "WP_IDEMPOTENCY": "PASS",
+    "WP_RETRY_RECOVERY": "PASS",
+    "WP_CREDIT_IDEMPOTENCY": "PASS",
+    "WP_TENANT_ISOLATION": "PASS",
+    "UI_API_REGRESSION": "PASS",
+    "KNOWN_FAILURES_NOT_INCREASED": "PASS"
+  },
+  "fixes": [
+    "WP_PUBLISH_CELERY_SCHEDULER=1 — single Beat scheduler",
+    "request_id + idempotency_key sent to WordPress plugin",
+    "wordpress_request_idempotency maps request_id → post_id",
+    "recover_publish_after_remote_error on timeout / seoauto_article_exists",
+    "probe GET /wp-json/seoauto/v1/posts/by-request-id/{request_id}"
+  ],
+  "single_scheduler": {
+    "gate": "PASS",
+    "WP_PUBLISH_CELERY_SCHEDULER": "1",
+    "uvicorn_worker_enabled": false,
+    "beat_schedule_tick": true
+  },
+  "celery_beat_singleton": {
+    "gate": "PASS",
+    "beat_processes": 1,
+    "beat_online": 1
+  },
+  "default_queue_backlog": {
+    "gate": "PASS",
+    "default_queue_depth": 0
+  },
+  "beat_tick_latency": {
+    "gate": "PASS",
+    "elapsed_ms": 1943.2,
+    "result": {
+      "ok": true,
+      "count": 0,
+      "reclaimed": 0,
+      "processed": []
+    }
+  },
+  "remote_idempotency_tests": {
+    "gate": "PASS",
+    "returncode": 0
+  },
+  "wave4_tests": {
+    "gate": "PASS",
+    "returncode": 0
+  },
+  "wp_regression": {
+    "gate": "PASS",
+    "returncode": 0
+  },
+  "pytest_subset": {
+    "returncode": 0,
+    "tail": "............................                                             [100%]\n28 passed in 10.45s\n"
+  },
+  "known_failures_baseline": 59,
+  "failed_gates": [],
+  "WAVE_4_WORDPRESS_PUBLISH": "FULL PASS"
+}

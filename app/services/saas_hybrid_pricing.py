@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-HYBRID_PRICING_REVISION = 3
+HYBRID_PRICING_REVISION = 5
 YEARLY_MONTHS_EQUIVALENT = 10  # giá năm = 10× tháng (giữ nguyên hiển thị)
 YEARLY_BASE_DURATION_MONTHS = 12
 YEARLY_BONUS_DURATION_MONTHS = 2
@@ -26,7 +26,7 @@ PAID_PLAN_SLUGS: tuple[str, ...] = ("starter", "pro", "agency", "business")
 
 # Giá 6 tháng: trả 5 tháng, dùng 6 tháng (đồng bộ catalog SePay)
 SEMI_ANNUAL_PRICES_VND: dict[str, int] = {
-    "starter": 1_995_000,
+    "starter": 2_495_000,
     "pro": 3_995_000,
     "agency": 8_450_000,
     "business": 17_450_000,
@@ -35,26 +35,26 @@ SEMI_ANNUAL_PRICES_VND: dict[str, int] = {
 HYBRID_PLAN_DEFAULTS: dict[str, dict[str, Any]] = {
     "starter": {
         "name": "Basic",
-        "month_price": 399_000,
+        "month_price": 499_000,
         "credits_per_month": 500,
         "is_popular": False,
     },
     "pro": {
         "name": "Pro",
         "month_price": 799_000,
-        "credits_per_month": 2_500,
+        "credits_per_month": 1_500,
         "is_popular": True,
     },
     "agency": {
         "name": "Agency",
         "month_price": 1_690_000,
-        "credits_per_month": 7_000,
+        "credits_per_month": 3_500,
         "is_popular": False,
     },
     "business": {
         "name": "Business",
         "month_price": 3_490_000,
-        "credits_per_month": 18_000,
+        "credits_per_month": 7_500,
         "is_popular": False,
     },
 }
@@ -192,13 +192,13 @@ def apply_hybrid_prices_to_pricing_specs(specs: list[dict[str, Any]]) -> list[di
         for item in spec.get("features") or []:
             if isinstance(item, (list, tuple)) and len(item) >= 2:
                 label, val = item[0], item[1]
-                if str(label) == "Credit/tháng":
+                if str(label) in ("Credit/tháng", "Credit Premium/tháng"):
                     val = str(credits)
                 feats.append((str(label), str(val)))
             elif isinstance(item, dict):
                 label = str(item.get("label") or "")
                 val = str(item.get("value") or "")
-                if label == "Credit/tháng":
+                if label in ("Credit/tháng", "Credit Premium/tháng"):
                     val = str(credits)
                 feats.append((label, val))
         spec["features"] = feats
@@ -210,10 +210,10 @@ def apply_hybrid_prices_to_pricing_specs(specs: list[dict[str, Any]]) -> list[di
 
 
 HYBRID_CREDIT_ADDON_NOTES: list[str] = [
-    "Mô hình hybrid: gói tháng gồm quota tính năng + credit pool; vượt quota có thể mua credit pack.",
-    "Credit gói (monthly bonus) cộng dồn tối đa 2 chu kỳ — không xóa khi hết tháng.",
-    "Hết hạn gói: credit gói bị khóa; gia hạn qua SePay để mở khóa và nhận credit tháng mới.",
-    "Credit mua thêm (purchased) có hạn 12 tháng — không tính vào cap credit gói.",
+    "Credit Premium chỉ dùng cho tác vụ đắt: AI Image, Places/Lead, Deep Research / Premium AI.",
+    "Quota Keyword Research, Gom nhóm từ khóa và Bài AI chuẩn dùng theo hạn mức gói — không trừ Credit Premium.",
+    "Check Index, Technical SEO, SEO Score và Schema: FREE (không trừ credit).",
+    "Credit gói cộng dồn tối đa 2 chu kỳ; credit mua thêm (purchased) hạn 12 tháng.",
 ]
 
 FREE_TRIAL_HYBRID_NOTE = (

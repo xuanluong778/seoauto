@@ -276,6 +276,29 @@ def create_publish_job(
     db.commit()
     db.refresh(job)
 
+    from app.services.credits import cost_wordpress_publish, credits_enforced, reserve_credits
+
+    if credits_enforced():
+        jid = f"wp_publish:{int(job.id)}"
+        try:
+            reserve_credits(
+                db,
+                user_id=int(user.id),
+                amount=cost_wordpress_publish(db=db),
+                feature_code="wp_publish",
+                job_id=jid,
+                idempotency_key=jid,
+                organization_id=org_id,
+                reason="reserve:wp_publish",
+            )
+            db.commit()
+        except Exception as exc:
+            job.status = "blocked"
+            job.error_code = "insufficient_credits"
+            job.error_message = str(exc)[:500]
+            db.commit()
+            raise
+
     if enqueue:
         from app.workers.wordpress_publish_worker import enqueue_publish_job
 
@@ -295,6 +318,15 @@ def execute_publish_job(db: Session, job_id: int) -> dict[str, Any]:
 
     if job.status in ("success", "blocked", "failed"):
         return {"ok": job.status == "success", "status": job.status, "job": job_to_dict(job)}
+
+    if job.status == "running" and job.wp_post_id and int(job.wp_post_id) > 0:
+        return _finalize_job(
+            db,
+            job,
+            status="success",
+            wp_post_id=int(job.wp_post_id),
+            wp_post_url=job.wp_post_url,
+        )
 
     now = _utc_now()
     claimed = db.execute(
@@ -362,7 +394,27 @@ def execute_publish_job(db: Session, job_id: int) -> dict[str, Any]:
         payload = {}
 
     payload["request_id"] = job.request_id
+    payload["idempotency_key"] = job.request_id
     payload.setdefault("connection_id", int(connection.id))
+
+    from app.services.wordpress_publish_idempotency import (
+        get_cached_publish_result,
+        recover_publish_after_remote_error,
+        save_publish_result,
+    )
+
+    cached = get_cached_publish_result(
+        db, organization_id=int(job.organization_id), request_id=job.request_id
+    )
+    if cached and cached.get("post_id"):
+        return _finalize_job(
+            db,
+            job,
+            status="success",
+            result=cached,
+            wp_post_id=int(cached["post_id"]),
+            wp_post_url=cached.get("permalink") or cached.get("link"),
+        )
 
     site_id = str(connection.publishing_site_id or "")
     cmd = str(job.command_type or "post_create").lower()
@@ -390,9 +442,15 @@ def execute_publish_job(db: Session, job_id: int) -> dict[str, Any]:
             request_id=job.request_id,
         )
 
+    secret_for_recovery = secret
     secret = ""
 
     if err is not None:
+        recovered = recover_publish_after_remote_error(
+            db, job, connection, secret_for_recovery, err, raw_body=getattr(err, "body", None)
+        )
+        if recovered is not None:
+            return recovered
         return _handle_failure(db, job, err)
 
     if not isinstance(result, dict):
@@ -402,9 +460,12 @@ def execute_publish_job(db: Session, job_id: int) -> dict[str, Any]:
             type("E", (), {"retryable": False, "blocked": False, "error_code": "empty_result", "message": "Empty plugin response"})(),
         )
 
+    if result.get("idempotent_replay"):
+        save_publish_result(db, job, result)
+
     wp_post_id = int(result.get("post_id") or 0) or None
     wp_url = str(result.get("permalink") or result.get("link") or "").strip() or None
-    return _finalize_job(
+    finalized = _finalize_job(
         db,
         job,
         status="success",
@@ -412,6 +473,42 @@ def execute_publish_job(db: Session, job_id: int) -> dict[str, Any]:
         wp_post_id=wp_post_id,
         wp_post_url=wp_url,
     )
+    save_publish_result(db, job, result)
+    try:
+        from app.services.duplicate_wp_corpus_cache import invalidate_wp_corpus_for_site, patch_wp_corpus_post
+
+        uid = int(getattr(job, "user_id", 0) or 0)
+        site = str(getattr(connection, "site_url", "") or "")
+        title = str(result.get("title") or "")
+        if not title:
+            try:
+                import json as _json
+
+                payload = _json.loads(str(getattr(job, "payload_json", "") or "{}"))
+                if isinstance(payload, dict):
+                    title = str(payload.get("title") or "")
+            except Exception:
+                title = ""
+        if uid > 0 and site and wp_post_id:
+            from app.services.content_ai_duplicate_detection import ExistingArticleRef
+
+            invalidate_wp_corpus_for_site(user_id=uid, site=site)
+            patch_wp_corpus_post(
+                user_id=uid,
+                site=site,
+                post_id=int(wp_post_id),
+                ref=ExistingArticleRef(
+                    keyword=title,
+                    title=title,
+                    url=str(wp_url or ""),
+                    source="published",
+                    target_website=site,
+                    wp_post_id=int(wp_post_id),
+                ),
+            )
+    except Exception:
+        pass
+    return finalized
 
 
 def _handle_failure(db: Session, job: WordpressPublishJob, err: Any) -> dict[str, Any]:
@@ -485,6 +582,23 @@ def _finalize_job(
     if wp_post_url:
         job.wp_post_url = wp_post_url
     db.commit()
+
+    from app.services.credits import commit_reservation_by_job_id, release_reservation_by_job_id
+
+    credit_job = f"wp_publish:{int(job.id)}"
+    try:
+        if status == "success":
+            commit_reservation_by_job_id(db, user_id=int(job.user_id), job_id=credit_job)
+        elif status in ("failed", "blocked"):
+            release_reservation_by_job_id(
+                db,
+                user_id=int(job.user_id),
+                job_id=credit_job,
+                reason=f"wp_{status}",
+            )
+        db.commit()
+    except Exception:
+        _LOG.exception("wp publish credit finalize failed job_id=%s status=%s", job.id, status)
 
     if job.schedule_id and status == "success":
         _sync_schedule_success(db, int(job.schedule_id), wp_post_id=job.wp_post_id, wp_post_url=job.wp_post_url)
@@ -641,3 +755,49 @@ def get_job_for_user(db: Session, job_id: int, user: User) -> WordpressPublishJo
     if job is None or int(job.organization_id) != org_id or int(job.user_id) != int(user.id):
         return None
     return job
+
+
+def list_recoverable_publish_jobs(
+    db: Session,
+    *,
+    limit: int = 20,
+    min_age_seconds: float = 30.0,
+) -> list[WordpressPublishJob]:
+    """Queued/retrying jobs that may have lost their Celery message."""
+    cutoff = _utc_now() - timedelta(seconds=max(10.0, float(min_age_seconds)))
+    rows = db.execute(
+        select(WordpressPublishJob)
+        .where(
+            WordpressPublishJob.status.in_(("queued", "retrying")),
+            WordpressPublishJob.updated_at < cutoff,
+        )
+        .order_by(WordpressPublishJob.id.asc())
+        .limit(max(1, min(limit, 100)))
+    ).scalars().all()
+    out: list[WordpressPublishJob] = []
+    for job in rows:
+        if job.status == "retrying" and job.next_retry_at:
+            if _as_utc(job.next_retry_at) > _utc_now():
+                continue
+        out.append(job)
+    return out
+
+
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def recover_publish_job(db: Session, job_id: int) -> bool:
+    """Re-enqueue a queued/retrying job if still claimable."""
+    job = db.get(WordpressPublishJob, int(job_id))
+    if job is None or job.status not in ("queued", "retrying"):
+        return False
+    from app.workers.wordpress_publish_worker import enqueue_publish_job
+
+    task_id = enqueue_publish_job(job.id)
+    job.celery_task_id = task_id
+    job.updated_at = _utc_now()
+    db.commit()
+    return True

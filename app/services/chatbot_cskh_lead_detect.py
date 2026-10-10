@@ -5,8 +5,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
+# Vietnamese mobile: 0/84 + optional separators + 9 digits (3|5|7|8|9 prefix).
 _PHONE_RE = re.compile(
-    r"(?<!\d)(?:\+?84|0)(?:3|5|7|8|9)\d{8}(?!\d)",
+    r"(?<!\d)(?:\+?84|0)[\s.\-]*(?:3|5|7|8|9)[\s.\-]*(?:\d[\s.\-]*){8}(?!\d)",
+    re.IGNORECASE,
+)
+_EMAIL_RE = re.compile(
+    r"(?<![\w.+-])([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?![\w.-])",
     re.IGNORECASE,
 )
 _NAME_PATTERNS = (
@@ -17,6 +22,12 @@ _NEED_PATTERNS = (
     re.compile(r"(?:cần|muốn|đang\s+tìm|quan\s+tâm)\s+(.{8,200})", re.I),
     re.compile(r"(?:tư\s+vấn|hỏi)\s+(?:về\s+)?(.{8,200})", re.I),
 )
+_CONTACT_NOISE = frozenset({
+    "sdt", "sđt", "so", "dien", "thoai", "điện", "thoại", "phone", "tel", "mobile",
+    "email", "gmail", "mail", "e", "cua", "của", "toi", "tôi", "em", "minh", "mình",
+    "la", "là", "day", "đây", "nhe", "nhé", "xin", "cho", "gui", "gửi", "lien", "liên",
+    "he", "hệ", "lac", "lạc", "contact", "zalo", "viber", "hotline", "skype",
+})
 
 # Clear commercial / contact intents only — not general FAQ.
 _INTENT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -41,7 +52,7 @@ _INTENT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     )),
     ("contact_info", re.compile(
         r"\b(số\s*điện\s*thoại|sđt|sdt|hotline|zalo|địa\s*chỉ|địa\s*điểm|"
-        r"liên\s*hệ\s*(ở\s*đâu|như\s*thế\s*nào|qua)|phone|address)\b",
+        r"liên\s*hệ\s*(ở\s*đâu|như\s*thế\s*nào|qua)|phone|address|email|gmail|mail)\b",
         re.I,
     )),
     ("staff_help", re.compile(
@@ -58,14 +69,31 @@ def _normalize_phone(raw: str) -> str:
         digits = "0" + digits[2:]
     if len(digits) == 9 and digits[0] in "35789":
         digits = "0" + digits
-    return digits[:32] if len(digits) >= 9 else ""
+    return digits[:32] if len(digits) >= 10 else ""
+
+
+def _normalize_email(raw: str) -> str:
+    email = str(raw or "").strip().lower()
+    if not email or "@" not in email:
+        return ""
+    if len(email) > 255:
+        return ""
+    return email
 
 
 def extract_phone(text: str) -> str:
     for m in _PHONE_RE.finditer(str(text or "")):
         phone = _normalize_phone(m.group(0))
-        if len(phone) >= 10:
+        if phone:
             return phone
+    return ""
+
+
+def extract_email(text: str) -> str:
+    for m in _EMAIL_RE.finditer(str(text or "")):
+        email = _normalize_email(m.group(1))
+        if email:
+            return email
     return ""
 
 
@@ -88,20 +116,61 @@ def extract_need(text: str) -> str:
             need = str(m.group(1) or "").strip().rstrip(".,;")
             if len(need) >= 8:
                 return need[:2000]
-    if len(t) >= 15 and not extract_phone(t):
+    phone = extract_phone(t)
+    email = extract_email(t)
+    if len(t) >= 15 and not phone and not email:
         return t[:2000]
     return ""
 
 
+def has_contact_info(text: str) -> bool:
+    detected = detect_lead_from_text(text)
+    return bool(detected.get("phone") or detected.get("email"))
+
+
+def is_mostly_contact_message(text: str, detected: dict[str, Any] | None = None) -> bool:
+    """True when the message is primarily sharing phone/email contact details."""
+    info = detected or detect_lead_from_text(text)
+    phone = str(info.get("phone") or "")
+    email = str(info.get("email") or "")
+    if not phone and not email:
+        return False
+
+    remainder = str(text or "")
+    if phone:
+        remainder = re.sub(re.escape(phone), " ", remainder)
+        remainder = re.sub(r"0[\s.\-]*" + re.escape(phone[1:]), " ", remainder)
+    if email:
+        remainder = re.sub(re.escape(email), " ", remainder, flags=re.I)
+    remainder = re.sub(_PHONE_RE, " ", remainder)
+    remainder = re.sub(_EMAIL_RE, " ", remainder)
+    remainder = re.sub(r"[^\w\s]", " ", remainder.lower())
+    words = [w for w in remainder.split() if w and w not in _CONTACT_NOISE]
+    return len(" ".join(words)) <= 24
+
+
+def contact_ack_reply(detected: dict[str, Any]) -> str:
+    parts: list[str] = []
+    if detected.get("phone"):
+        parts.append(f"số điện thoại {detected['phone']}")
+    if detected.get("email"):
+        parts.append(f"email {detected['email']}")
+    joined = " và ".join(parts)
+    return f"Cảm ơn bạn! Chúng tôi đã ghi nhận {joined}. Nhân viên sẽ liên hệ bạn sớm nhất."
+
+
 def detect_lead_from_text(text: str) -> dict[str, Any]:
     phone = extract_phone(text)
+    email = extract_email(text)
     name = extract_name(text)
-    need = extract_need(text) if phone or name else ""
+    need = extract_need(text) if phone or email or name else ""
     return {
         "phone": phone,
+        "email": email,
         "name": name,
         "need": need,
-        "has_lead_signal": bool(phone or (name and need)),
+        "has_lead_signal": bool(phone or email or (name and need)),
+        "has_contact_info": bool(phone or email),
     }
 
 
@@ -122,10 +191,17 @@ def detect_lead_intent(text: str) -> dict[str, Any]:
     for name, pat in _INTENT_PATTERNS:
         if pat.search(t):
             intents.append(name)
+    contact = detect_lead_from_text(t)
+    if contact.get("phone") or contact.get("email"):
+        if "contact_provided" not in intents:
+            intents.append("contact_provided")
     primary = intents[0] if intents else "none"
+    should_offer = bool(intents)
+    reason = "matched:" + ",".join(intents) if intents else "no_clear_lead_intent"
     return {
         "intent": primary,
         "intents": intents,
-        "should_offer_lead": bool(intents),
-        "reason": "matched:" + ",".join(intents) if intents else "no_clear_lead_intent",
+        "should_offer_lead": should_offer,
+        "reason": reason,
+        "contact": contact,
     }

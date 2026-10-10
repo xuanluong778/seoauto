@@ -19,6 +19,7 @@ import os
 import random
 import time
 from collections import deque
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
 
@@ -148,11 +149,21 @@ def _log_crawl_page(
 
 
 def _goto_with_retries(page: Any, url: str, timeout_ms: int) -> tuple[Any | None, str | None]:
+    from app.services.url_safety import ensure_safe_playwright_url
+
+    try:
+        url = ensure_safe_playwright_url(url)
+    except ValueError as exc:
+        return None, f"url_blocked:{exc}"
     last_err: str | None = None
     for attempt in range(max(1, _MAX_GOTO_RETRIES)):
         if attempt > 0:
             time.sleep(float(2 ** (attempt - 1)))
         try:
+            try:
+                url = ensure_safe_playwright_url(url)
+            except ValueError as exc:
+                return None, f"url_blocked:{exc}"
             resp = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
             return resp, None
         except Exception as exc:
@@ -231,6 +242,8 @@ def crawl_site_detailed_rendered(
     profile_preference: str | None = None,
     timeout_scale: float = 1.0,
     interaction_delay_scale: float = 1.0,
+    deadline_monotonic: float | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
@@ -272,7 +285,13 @@ def crawl_site_detailed_rendered(
         browser = external_browser
 
     try:
+        truncated = False
         while queue and len(pages) < max_pages:
+            if deadline_monotonic is not None:
+                remain = float(deadline_monotonic) - time.monotonic()
+                if remain < 8.0:
+                    truncated = True
+                    break
             current = queue.popleft()
             if current in visited:
                 continue
@@ -290,10 +309,16 @@ def crawl_site_detailed_rendered(
                 raw_final_norm = current
 
             timeout_ms = int(adaptive.ms * _ts)
+            if deadline_monotonic is not None:
+                remain = float(deadline_monotonic) - time.monotonic()
+                cap_ms = int(max(8.0, remain - 3.0) * 1000)
+                timeout_ms = min(timeout_ms, cap_ms)
 
             best: dict[str, Any] | None = None
             last_block: tuple[str, str | None] | None = None
             profiles = _ordered_profiles(profile_preference)
+            if deadline_monotonic is not None and (float(deadline_monotonic) - time.monotonic()) < 35:
+                profiles = profiles[:1]
 
             for idx, (profile, js_on) in enumerate(profiles):
                 interaction_log: list[dict[str, Any]] = []
@@ -330,6 +355,13 @@ def crawl_site_detailed_rendered(
                             dbg.extend_network(network_log + [{"type": "js_errors", "items": js_errors}])
                         if idx < len(profiles) - 1:
                             continue
+                        ge = (goto_err or "").lower()
+                        if "timeout" in ge or "timed out" in ge or not ge:
+                            err_kind, crawl_st = "timeout", "timeout"
+                        elif "name_not_resolved" in ge or "err_name_not_resolved" in ge or "dns" in ge:
+                            err_kind, crawl_st = "dns_error", "error"
+                        else:
+                            err_kind, crawl_st = "connection_error", "error"
                         enriched_to = enrich_crawl_page_record(
                             rendered_html="",
                             raw_html=raw_html,
@@ -351,7 +383,8 @@ def crawl_site_detailed_rendered(
                             "raw_response_headers": raw_headers,
                             "redirect_history": [current],
                             "response_headers": {},
-                            "crawl_status": "timeout",
+                            "crawl_status": crawl_st,
+                            "error_kind": err_kind,
                             "block_reason": goto_err,
                             "render_status": "partial",
                             "render_confidence": 0.0,
@@ -597,6 +630,7 @@ def crawl_site_detailed_rendered(
                     "redirect_history": [current],
                     "response_headers": {},
                     "crawl_status": "blocked",
+                    "error_kind": "connection_error",
                     "block_reason": br,
                     "render_status": "partial",
                     "render_confidence": 0.2,
@@ -620,6 +654,11 @@ def crawl_site_detailed_rendered(
 
             if best:
                 pages.append(best)
+                if on_progress:
+                    try:
+                        on_progress(len(pages), max_pages)
+                    except Exception:
+                        pass
 
             if dbg and dbg_dir:
                 dbg.flush(dbg_dir)
@@ -635,4 +674,11 @@ def crawl_site_detailed_rendered(
             except Exception:
                 pass
 
-    return {"pages": pages, "total": len(pages), "edges": edges, "domain": base_domain}
+    return {
+        "pages": pages,
+        "total": len(pages),
+        "edges": edges,
+        "domain": base_domain,
+        "partial_data": truncated,
+        "truncated": truncated,
+    }

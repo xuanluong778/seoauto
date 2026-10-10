@@ -13,6 +13,9 @@ from app.services import publishing_sites_store as pub
 
 @pytest.fixture
 def isolated_site_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TENANT_CRED_SITES_PG", "0")
+    monkeypatch.setenv("TENANT_CRED_SITES_DUAL_READ", "1")
+    monkeypatch.setenv("TENANT_CRED_SITES_JSON_WRITE", "1")
     cau_file = tmp_path / "cau_sites.json"
     pub_file = tmp_path / "pub_sites.json"
     monkeypatch.setattr(cau, "SITES_FILE", cau_file)

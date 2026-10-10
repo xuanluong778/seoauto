@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import re
-from typing import Any
+import threading
+import time
+from typing import Any, Callable
 
 from app.services.content_ai_bulk_parse import normalize_bulk_job_items
 from app.services.content_ai_project_store import save_or_update_written_bulk_project
@@ -14,6 +17,80 @@ from app.services.job_store import fail_job, finish_job, get_job, update_job
 
 _LOG = logging.getLogger(__name__)
 _FALLBACK_STUB_PHRASE = "Nội dung chi tiết được triển khai theo dàn ý bài viết."
+
+
+class BulkJobCancelled(Exception):
+    """Raised inside an article write when the parent bulk job was cancelled."""
+
+
+_DONE_ITEM_STATUSES = {"success", "written", "ok"}
+_BULK_RUN_GUARD = threading.Lock()
+_BULK_RUNNING_IDS: set[str] = set()
+
+
+def try_begin_bulk_job(job_id: str) -> bool:
+    jid = str(job_id or "").strip()
+    if not jid:
+        return False
+    with _BULK_RUN_GUARD:
+        if jid in _BULK_RUNNING_IDS:
+            return False
+        _BULK_RUNNING_IDS.add(jid)
+        return True
+
+
+def end_bulk_job(job_id: str) -> None:
+    jid = str(job_id or "").strip()
+    if not jid:
+        return
+    with _BULK_RUN_GUARD:
+        _BULK_RUNNING_IDS.discard(jid)
+
+
+def is_bulk_job_running_here(job_id: str) -> bool:
+    jid = str(job_id or "").strip()
+    if not jid:
+        return False
+    with _BULK_RUN_GUARD:
+        return jid in _BULK_RUNNING_IDS
+
+
+def count_bulk_success_items(items: list[dict[str, Any]]) -> int:
+    return sum(
+        1
+        for x in (items or [])
+        if str((x or {}).get("status") or "").strip().lower() in _DONE_ITEM_STATUSES
+    )
+
+
+def restore_bulk_item_states(
+    bulk_rows: list[dict[str, Any]],
+    prev_result: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Keep already-written items so resume/restart does not reset progress to 0/N."""
+    prev_items: list[dict[str, Any]] = []
+    if isinstance(prev_result, dict):
+        raw = prev_result.get("items")
+        if isinstance(raw, list):
+            prev_items = [x for x in raw if isinstance(x, dict)]
+    by_kw: dict[str, dict[str, Any]] = {}
+    for it in prev_items:
+        kw = str(it.get("keyword") or "").strip().lower()
+        if kw:
+            by_kw[kw] = it
+    items: list[dict[str, Any]] = []
+    for row in bulk_rows or []:
+        kw = str(row.get("keyword") or "").strip()
+        old = by_kw.get(kw.lower())
+        st = str((old or {}).get("status") or "").strip().lower()
+        if old and st in _DONE_ITEM_STATUSES:
+            merged = dict(old)
+            merged["keyword"] = kw
+            merged["status"] = "success"
+            items.append(merged)
+        else:
+            items.append({"keyword": kw, "status": "pending"})
+    return items
 
 
 def _fallback_content_html(*, primary_keyword: str, title: str, outline_content: str) -> str:
@@ -41,6 +118,177 @@ def _fallback_content_html(*, primary_keyword: str, title: str, outline_content:
 
 def _is_stub_content_html(html: str) -> bool:
     return _FALLBACK_STUB_PHRASE in str(html or "")
+
+
+_TRANSIENT_DB_MARKERS = (
+    "server closed the connection",
+    "connection unexpectedly",
+    "connection already closed",
+    "connection reset",
+    "connection timed out",
+    "could not connect",
+    "ssl connection has been closed",
+    "terminating connection",
+    "broken pipe",
+    "connection lost",
+)
+_NON_RETRYABLE_LLM_MARKERS = (
+    "401",
+    "403",
+    "invalid api key",
+    "incorrect api key",
+    "authentication",
+    "unauthorized",
+    "quota exceeded",
+    "insufficient_quota",
+    "billing",
+    "rate limit",
+    "model not found",
+    "not configured",
+    "missing api key",
+)
+_TRANSIENT_LLM_MARKERS = (
+    "timeout",
+    "timed out",
+    "connection reset",
+    "connection error",
+    "temporarily unavailable",
+    "503",
+    "502",
+    "504",
+    "429",
+    "overloaded",
+    "server error",
+)
+
+
+def _error_text(exc: BaseException) -> str:
+    return str(exc or "").strip().lower()
+
+
+def _is_transient_db_error(exc: BaseException) -> bool:
+    msg = _error_text(exc)
+    return any(m in msg for m in _TRANSIENT_DB_MARKERS)
+
+
+def _is_non_retryable_llm_error(exc: BaseException) -> bool:
+    msg = _error_text(exc)
+    if any(m in msg for m in _NON_RETRYABLE_LLM_MARKERS):
+        return True
+    if "credit" in msg and ("insufficient" in msg or "hết" in msg or "quota" in msg):
+        return True
+    return False
+
+
+def _is_transient_llm_error(exc: BaseException) -> bool:
+    if _is_non_retryable_llm_error(exc):
+        return False
+    msg = _error_text(exc)
+    return any(m in msg for m in _TRANSIENT_LLM_MARKERS)
+
+
+def _humanize_bulk_error(exc: BaseException) -> str:
+    raw = str(exc or "").strip()
+    if not raw:
+        return "Lỗi không xác định"
+    low = raw.lower()
+    if "server closed the connection" in low or "connection unexpectedly" in low:
+        return "Mất kết nối DB khi lưu bài — thử Retry (không tính phí LLM lại nếu đã giữ credit)."
+    if "operationalerror" in low and any(m in low for m in _TRANSIENT_DB_MARKERS):
+        return "Lỗi kết nối cơ sở dữ liệu tạm thời — thử Retry."
+    if len(raw) > 800:
+        return raw[:800]
+    return raw
+
+
+def _run_with_transient_db_retry(
+    fn: Callable[[Any, Any], Any],
+    *,
+    user_id: int,
+    max_attempts: int = 3,
+) -> Any:
+    """Run DB work on a fresh session; retry transient disconnects (PgBouncer idle kill)."""
+    from app.db import SessionLocal
+    from app.models.user import User
+
+    last_exc: BaseException | None = None
+    attempts = max(1, int(max_attempts or 1))
+    for attempt in range(attempts):
+        db = SessionLocal()
+        try:
+            user = db.get(User, int(user_id))
+            if not user:
+                raise ValueError(f"User {user_id} không tồn tại.")
+            out = fn(db, user)
+            db.commit()
+            return out
+        except Exception as exc:
+            last_exc = exc
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            if attempt + 1 >= attempts or not _is_transient_db_error(exc):
+                raise
+            time.sleep(min(2.0 * (2**attempt), 8.0))
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("DB retry failed")
+
+
+def reset_bulk_job_items_for_retry(
+    job_id: str,
+    *,
+    keywords: list[str] | None = None,
+) -> list[str]:
+    """Mark failed bulk items pending again; returns keywords queued for retry."""
+    from app.services.job_store import get_job, update_job
+
+    st = get_job(job_id)
+    if not st or not isinstance(st.result, dict):
+        return []
+    items = st.result.get("items")
+    if not isinstance(items, list):
+        return []
+    kw_filter: set[str] | None = None
+    if keywords:
+        kw_filter = {str(k or "").strip().lower() for k in keywords if str(k or "").strip()}
+    retried: list[str] = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        if str(it.get("status") or "").lower() != "error":
+            continue
+        kw = str(it.get("keyword") or "").strip()
+        if not kw:
+            continue
+        if kw_filter is not None and kw.lower() not in kw_filter:
+            continue
+        it["status"] = "pending"
+        it.pop("error", None)
+        retried.append(kw)
+    if not retried:
+        return []
+    done = count_bulk_success_items(items)
+    total = int(st.result.get("total") or len(items))
+    update_job(
+        job_id,
+        state="QUEUED",
+        progress=max(1, int((done / max(total, 1)) * 100)),
+        message=f"Chuẩn bị thử lại {len(retried)} bài lỗi…",
+        result={
+            **st.result,
+            "items": copy.deepcopy(items),
+            "success": done,
+            "failed": sum(1 for x in items if str(x.get("status") or "").lower() == "error"),
+        },
+    )
+    return retried
 
 
 # Điểm tối thiểu để coi là đạt trong bulk (sau checklist + tối ưu tối đa 1 lần).
@@ -282,6 +530,41 @@ def _llm_gate_kwargs(
     )
 
 
+def _bulk_article_llm_gate(*, user_id: int, target_word_count: int = 1000):
+    """Enter cost gate for bulk LLM work, then release DB before long provider calls."""
+    from contextlib import contextmanager
+
+    from app.db import SessionLocal
+    from app.models.user import User
+
+    @contextmanager
+    def _cm():
+        gate_db = SessionLocal()
+        try:
+            gate_user = gate_db.get(User, int(user_id))
+            if not gate_user:
+                raise ValueError(f"User {user_id} không tồn tại.")
+            with _llm_gate_kwargs(
+                db=gate_db,
+                user=gate_user,
+                field="content",
+                skip_llm_credit_check=True,
+                action="bulk_write",
+            ):
+                try:
+                    gate_db.close()
+                except Exception:
+                    pass
+                yield
+        finally:
+            try:
+                gate_db.close()
+            except Exception:
+                pass
+
+    return _cm()
+
+
 def ensure_article_content_word_count(
     *,
     content_html: str,
@@ -467,40 +750,54 @@ def _suggest(
     bulk_skip_llm = bulk_fast and f in {"title", "meta_description", "slug", "tags"}
     use_llm = bool(llm_cfg) and f in _llm_fields(mode) and not bulk_skip_llm
     if use_llm:
-        try:
-            from app.services.llm_content_writer import generate_content_ai_suggestion
+        last_exc: BaseException | None = None
+        for attempt in range(3):
+            try:
+                from app.services.llm_content_writer import generate_content_ai_suggestion
 
-            gen_kwargs = dict(
-                field=f,
-                title=title,
-                content=content,
-                target_website=target_website,
-                slug=slug,
-                tags=tags,
-                meta_description=meta_description,
-                primary_keyword=primary_keyword,
-                secondary_keywords=secondary_keywords,
-                outline_content=outline_content,
-                target_word_count=target_word_count,
-                use_system_llm=use_system,
-            )
-            if db is not None and user is not None:
-                with _llm_gate_kwargs(
-                    db=db,
-                    user=user,
+                gen_kwargs = dict(
                     field=f,
-                    skip_llm_credit_check=skip_llm_credit_check,
-                ):
+                    title=title,
+                    content=content,
+                    target_website=target_website,
+                    slug=slug,
+                    tags=tags,
+                    meta_description=meta_description,
+                    primary_keyword=primary_keyword,
+                    secondary_keywords=secondary_keywords,
+                    outline_content=outline_content,
+                    target_word_count=target_word_count,
+                    use_system_llm=use_system,
+                )
+                if db is not None and user is not None:
+                    with _llm_gate_kwargs(
+                        db=db,
+                        user=user,
+                        field=f,
+                        skip_llm_credit_check=skip_llm_credit_check,
+                    ):
+                        out = generate_content_ai_suggestion(**gen_kwargs)
+                else:
                     out = generate_content_ai_suggestion(**gen_kwargs)
-            else:
-                out = generate_content_ai_suggestion(**gen_kwargs)
-            if str(out or "").strip():
-                return str(out).strip()
-        except Exception:
-            if f == "content" and use_system:
-                raise
-            if f != "content":
-                raise
+                if str(out or "").strip():
+                    return str(out).strip()
+            except Exception as exc:
+                last_exc = exc
+                if (
+                    attempt >= 2
+                    or _is_non_retryable_llm_error(exc)
+                    or not _is_transient_llm_error(exc)
+                ):
+                    if f == "content" and use_system:
+                        raise
+                    if f != "content":
+                        raise
+                    break
+                time.sleep(min(2.0 * (2**attempt), 8.0))
+        if f == "content" and use_system and last_exc is not None:
+            raise last_exc
+        if f != "content" and last_exc is not None:
+            raise last_exc
     if f == "content":
         if use_system:
             raise RuntimeError("LLM hệ thống không sinh được nội dung bài viết.")
@@ -581,6 +878,7 @@ def _write_one_article(
         db, user = _open_system_llm_db_user(user_id)
         owns_gate_db = True
     credit_hold = None
+    llm_skip_credit = bool(skip_llm_credit_check)
     if db is not None and user is not None and not skip_llm_credit_check:
         try:
             from app.services.content_ai_credit_service import quote_content_ai_write, reserve_content_ai_write
@@ -597,12 +895,33 @@ def _write_one_article(
             credit_hold = reserve_content_ai_write(
                 db, user, pre_q, field="content", feature_code="content_ai_article"
             )
-            if owns_gate_db:
+            # Commit reservation immediately so the users-row lock is not held
+            # across the long LLM write (otherwise INSERT project deadlocks).
+            if db is not None:
                 db.commit()
+            llm_skip_credit = True
         except Exception:
             credit_hold = None
             raise
-    try:
+    # PgBouncer transaction pool closes idle connections — release DB before long LLM.
+    if db is not None:
+        try:
+            db.close()
+        except Exception:
+            pass
+        db = None
+        user = None
+    use_system = True
+
+    def _ensure_job_active() -> None:
+        if not job_id:
+            return
+        st_now = get_job(job_id)
+        if st_now and str(st_now.state or "").upper() == "CANCELLED":
+            raise BulkJobCancelled()
+
+    with _bulk_article_llm_gate(user_id=int(user_id), target_word_count=int(target_word_count or 1000)):
+        _ensure_job_active()
         sec_str = ", ".join(str(x).strip() for x in (secondary_keywords or []) if str(x).strip())
         c_title = re.sub(r"\s+", " ", str(custom_title or "").strip())
         c_desc = re.sub(r"\s+", " ", str(custom_description or "").strip())
@@ -624,7 +943,7 @@ def _write_one_article(
                 db=db,
                 user=user,
                 use_system_llm=use_system,
-                skip_llm_credit_check=skip_llm_credit_check,
+                skip_llm_credit_check=llm_skip_credit,
             )
         plan_notes = _bulk_planning_notes(
             search_volume=search_volume, content_type=content_type, brand_name=brand_name
@@ -652,7 +971,7 @@ def _write_one_article(
             db=db,
             user=user,
             use_system_llm=use_system,
-            skip_llm_credit_check=skip_llm_credit_check,
+            skip_llm_credit_check=llm_skip_credit,
         )
 
         if use_system and int(target_word_count or 0) >= 200:
@@ -667,8 +986,10 @@ def _write_one_article(
                 use_system_llm=True,
                 db=db,
                 user=user,
-                skip_llm_credit_check=skip_llm_credit_check,
+                skip_llm_credit_check=llm_skip_credit,
             )
+
+        _ensure_job_active()
 
         if callable(on_progress):
             on_progress(78, "Đang hoàn thiện title & meta…")
@@ -689,7 +1010,7 @@ def _write_one_article(
                     bulk_fast=bulk_fast,
                     db=db,
                     user=user,
-                    skip_llm_credit_check=skip_llm_credit_check,
+                    skip_llm_credit_check=llm_skip_credit,
                 )
             ) or pk
         if c_desc:
@@ -709,7 +1030,7 @@ def _write_one_article(
                     bulk_fast=bulk_fast,
                     db=db,
                     user=user,
-                    skip_llm_credit_check=skip_llm_credit_check,
+                    skip_llm_credit_check=llm_skip_credit,
                 )
             )
         slug = _first_line(
@@ -722,7 +1043,7 @@ def _write_one_article(
                 bulk_fast=bulk_fast,
                 db=db,
                 user=user,
-                skip_llm_credit_check=skip_llm_credit_check,
+                skip_llm_credit_check=llm_skip_credit,
             )
         )
         tags_raw = _suggest(
@@ -735,7 +1056,7 @@ def _write_one_article(
             bulk_fast=bulk_fast,
             db=db,
             user=user,
-            skip_llm_credit_check=skip_llm_credit_check,
+            skip_llm_credit_check=llm_skip_credit,
         )
         tag_list = [x.strip() for x in re.split(r"[,;]", str(tags_raw or "")) if x.strip()]
 
@@ -773,7 +1094,7 @@ def _write_one_article(
                 db=db,
                 user=user,
                 use_system_llm=use_system,
-                skip_llm_credit_check=skip_llm_credit_check,
+                skip_llm_credit_check=llm_skip_credit,
                 lock_title=bool(c_title),
                 lock_meta=bool(c_desc),
             )
@@ -798,7 +1119,7 @@ def _write_one_article(
                     use_system_llm=True,
                     db=db,
                     user=user,
-                    skip_llm_credit_check=skip_llm_credit_check,
+                    skip_llm_credit_check=llm_skip_credit,
                 )
                 content = _strip_script_tags_bulk(content)
             seo_score = int(seo.get("seo_score") or 0)
@@ -829,10 +1150,13 @@ def _write_one_article(
                 pass
         else:
             content = _strip_script_tags_bulk(content)
+        _ensure_job_active()
 
-        if callable(on_progress):
-            on_progress(92, "Đang lưu dự án…")
+    if callable(on_progress):
+        on_progress(92, "Đang lưu dự án…")
+    _ensure_job_active()
 
+    try:
         actual_wc = word_count_from_html(str(content))
         draft = build_draft_payload(
             title=title,
@@ -882,48 +1206,55 @@ def _write_one_article(
             source["seo_issues"] = seo_issues
             source["seo_status"] = seo_status
             source["seo_issue_count"] = seo_issue_count
-        project_id = save_or_update_written_bulk_project(
-            user_id=user_id,
-            source_payload=source,
-            draft_payload=draft,
-        )
-        if db is not None and user is not None and str(content or "").strip() and not skip_llm_credit_check:
-            from app.services.content_ai_credit_service import charge_content_ai_from_html
 
-            used_llm_content = True
-            charge_content_ai_from_html(
-                db,
-                user,
-                str(content),
-                field="content",
-                use_system_llm=True,
-                request_id=req_id,
-                llm_used=used_llm_content,
-                used_fallback=False,
-                hold=credit_hold,
-            )
-            credit_hold = None  # committed
-            from app.services.content_ai_word_count_policy import (
-                build_word_count_response,
-                log_word_count_event,
-            )
+        hold_for_charge = credit_hold
 
-            wc_meta = build_word_count_response(
-                client_value=target_word_count,
-                user=user,
-                db=db,
-                html=str(content),
+        def _persist_article(save_db, save_user):
+            pid = save_or_update_written_bulk_project(
+                user_id=user_id,
+                source_payload=source,
+                draft_payload=draft,
+                db=save_db,
             )
-            log_word_count_event(
-                user_id=int(user.id),
-                endpoint="content_ai_bulk_runner",
-                requested=int(wc_meta["requested_word_count"]),
-                validated=int(wc_meta["validated_word_count"]),
-                actual=int(wc_meta["actual_word_count"]),
-                status=str(wc_meta["word_count_status"]),
-                request_id=req_id,
-            )
-            db.commit()
+            if str(content or "").strip() and hold_for_charge is not None:
+                from app.services.content_ai_credit_service import charge_content_ai_from_html
+                from app.services.content_ai_word_count_policy import (
+                    build_word_count_response,
+                    log_word_count_event,
+                )
+
+                hold_for_charge.db = save_db
+                hold_for_charge.user = save_user
+                charge_content_ai_from_html(
+                    save_db,
+                    save_user,
+                    str(content),
+                    field="content",
+                    use_system_llm=True,
+                    request_id=req_id,
+                    llm_used=True,
+                    used_fallback=False,
+                    hold=hold_for_charge,
+                )
+                wc_meta = build_word_count_response(
+                    client_value=target_word_count,
+                    user=save_user,
+                    db=save_db,
+                    html=str(content),
+                )
+                log_word_count_event(
+                    user_id=int(save_user.id),
+                    endpoint="content_ai_bulk_runner",
+                    requested=int(wc_meta["requested_word_count"]),
+                    validated=int(wc_meta["validated_word_count"]),
+                    actual=int(wc_meta["actual_word_count"]),
+                    status=str(wc_meta["word_count_status"]),
+                    request_id=req_id,
+                )
+            return pid
+
+        project_id = _run_with_transient_db_retry(_persist_article, user_id=int(user_id))
+        credit_hold = None  # committed with save
         timer.finish()
         out: dict[str, Any] = {
             "project_id": project_id,
@@ -938,17 +1269,23 @@ def _write_one_article(
             out["seo_issue_count"] = seo_issue_count
         return out
     finally:
-        if credit_hold is not None:
+        if credit_hold is not None and not credit_hold._done:
             try:
-                credit_hold.release(reason="bulk_write_failed_or_incomplete")
-                if db is not None:
-                    db.commit()
-            except Exception:
+                from app.db import SessionLocal
+                from app.models.user import User
+
+                rel_db = SessionLocal()
                 try:
-                    if db is not None:
-                        db.rollback()
-                except Exception:
-                    pass
+                    rel_user = rel_db.get(User, int(user_id))
+                    if rel_user:
+                        credit_hold.db = rel_db
+                        credit_hold.user = rel_user
+                        credit_hold.release(reason="bulk_write_failed_or_incomplete")
+                        rel_db.commit()
+                finally:
+                    rel_db.close()
+            except Exception:
+                pass
         if owns_gate_db and db is not None:
             db.close()
 
@@ -1002,41 +1339,44 @@ def write_content_ai_article(
 def run_content_ai_bulk_job(job_id: str, payload: dict[str, Any]) -> None:
     from app.core.user_context import bind_request_user_id, unbind_request_user_id
 
-    raw_items = payload.get("items")
-    raw_kw = payload.get("keywords") or []
-    kw_list: list[str] = []
-    if isinstance(raw_kw, str):
-        for line in raw_kw.replace("\r", "\n").split("\n"):
-            k = line.strip()
-            if k:
-                kw_list.append(k)
-    elif isinstance(raw_kw, list):
-        for item in raw_kw:
-            k = str(item or "").strip()
-            if k:
-                kw_list.append(k)
-
-    item_dicts: list[dict[str, Any]] | None = None
-    if isinstance(raw_items, list) and raw_items:
-        item_dicts = [x for x in raw_items if isinstance(x, dict)]
-
-    bulk_rows = normalize_bulk_job_items(keywords=kw_list, items=item_dicts)
-    keywords = [r["keyword"] for r in bulk_rows]
-
-    if not keywords:
-        fail_job(job_id, error="Danh sách từ khóa trống.")
+    if not try_begin_bulk_job(job_id):
         return
-
+    user_ctx_token = None
     try:
-        bulk_user_id = int(payload.get("user_id") or 0)
-    except (TypeError, ValueError):
-        bulk_user_id = 0
-    if bulk_user_id <= 0:
-        fail_job(job_id, error="Thiếu user_id trong job — hãy đăng nhập và chạy lại bulk.")
-        return
+        raw_items = payload.get("items")
+        raw_kw = payload.get("keywords") or []
+        kw_list: list[str] = []
+        if isinstance(raw_kw, str):
+            for line in raw_kw.replace("\r", "\n").split("\n"):
+                k = line.strip()
+                if k:
+                    kw_list.append(k)
+        elif isinstance(raw_kw, list):
+            for item in raw_kw:
+                k = str(item or "").strip()
+                if k:
+                    kw_list.append(k)
 
-    user_ctx_token = bind_request_user_id(bulk_user_id)
-    try:
+        item_dicts: list[dict[str, Any]] | None = None
+        if isinstance(raw_items, list) and raw_items:
+            item_dicts = [x for x in raw_items if isinstance(x, dict)]
+
+        bulk_rows = normalize_bulk_job_items(keywords=kw_list, items=item_dicts)
+        keywords = [r["keyword"] for r in bulk_rows]
+
+        if not keywords:
+            fail_job(job_id, error="Danh sách từ khóa trống.")
+            return
+
+        try:
+            bulk_user_id = int(payload.get("user_id") or 0)
+        except (TypeError, ValueError):
+            bulk_user_id = 0
+        if bulk_user_id <= 0:
+            fail_job(job_id, error="Thiếu user_id trong job — hãy đăng nhập và chạy lại bulk.")
+            return
+
+        user_ctx_token = bind_request_user_id(bulk_user_id)
         _run_content_ai_bulk_job_body(
             job_id=job_id,
             payload=payload,
@@ -1044,8 +1384,13 @@ def run_content_ai_bulk_job(job_id: str, payload: dict[str, Any]) -> None:
             keywords=keywords,
             bulk_user_id=bulk_user_id,
         )
+    except Exception as exc:
+        fail_job(job_id, error=str(exc)[:2000])
+        raise
     finally:
-        unbind_request_user_id(user_ctx_token)
+        if user_ctx_token is not None:
+            unbind_request_user_id(user_ctx_token)
+        end_bulk_job(job_id)
 
 
 def _run_content_ai_bulk_job_body(
@@ -1080,71 +1425,93 @@ def _run_content_ai_bulk_job_body(
         wp_cat = 0
     total = len(keywords)
     bulk_fast = _bulk_fast_meta_enabled()
-    items: list[dict[str, Any]] = [{"keyword": r["keyword"], "status": "pending"} for r in bulk_rows]
-    success_n = 0
+    prev_st = get_job(job_id)
+    prev_result = prev_st.result if prev_st and isinstance(prev_st.result, dict) else None
+    items: list[dict[str, Any]] = restore_bulk_item_states(bulk_rows, prev_result)
+    success_n = count_bulk_success_items(items)
 
     from app.db import SessionLocal
     from app.models.user import User
 
-    gate_db = SessionLocal()
-    bulk_user = gate_db.get(User, bulk_user_id)
+    setup_db = SessionLocal()
+    bulk_user = setup_db.get(User, bulk_user_id)
     if not bulk_user:
-        gate_db.close()
+        setup_db.close()
         fail_job(job_id, error="User không tồn tại.")
         return
 
-    target_word_count = validate_target_word_count(raw_target_wc, bulk_user, gate_db)
+    target_word_count = validate_target_word_count(raw_target_wc, bulk_user, setup_db)
+    setup_db.close()
+
+    def _result_payload(**extra: Any) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "total": total,
+            "success": count_bulk_success_items(items),
+            "failed": sum(1 for x in items if str(x.get("status") or "").lower() == "error"),
+            "target_website": target_website,
+            "items": copy.deepcopy(items),
+        }
+        payload.update(extra)
+        return payload
+
+    def _persist_progress(*, progress: int | None = None, message: str | None = None, extra: dict[str, Any] | None = None) -> None:
+        update_job(
+            job_id,
+            progress=progress,
+            message=message,
+            result=_result_payload(**(extra or {})),
+        )
 
     def _publish_progress(*, index: int, substep: int, message: str) -> None:
         pct = _bulk_article_progress_pct(index=index, total=total, substep=substep)
-        update_job(
-            job_id,
-            progress=pct,
-            message=message,
-            result={
-                "total": total,
-                "success": success_n,
-                "failed": sum(1 for x in items if x.get("status") == "error"),
-                "target_website": target_website,
-                "items": items,
-            },
+        _persist_progress(progress=pct, message=message)
+
+    done0 = count_bulk_success_items(items)
+    start_index = next(
+        (i for i, it in enumerate(items) if str(it.get("status") or "").lower() not in _DONE_ITEM_STATUSES),
+        total,
+    )
+    if start_index < total:
+        first_kw = str(items[start_index].get("keyword") or bulk_rows[start_index].get("keyword") or "")
+        items[start_index] = {**items[start_index], "status": "running", "keyword": first_kw}
+    _publish_progress(
+        index=start_index,
+        substep=2 if start_index < total else 0,
+        message=(
+            f"Đang viết bài {start_index + 1}/{total}: {items[start_index].get('keyword')}"
+            if start_index < total
+            else (f"Đã viết {done0}/{total} bài…" if done0 else f"Chuẩn bị viết {total} bài…")
+        ),
+    )
+
+    for i, row in enumerate(bulk_rows):
+        st_chk = get_job(job_id)
+        if st_chk and st_chk.state == "CANCELLED":
+            _persist_progress(message="Đã dừng — giữ kết quả đã viết", extra={"cancelled": True})
+            return
+        kw = row["keyword"]
+        if str(items[i].get("status") or "").lower() in _DONE_ITEM_STATUSES:
+            continue
+        items[i] = {**items[i], "status": "running", "keyword": kw}
+        _publish_progress(
+            index=i,
+            substep=2,
+            message=f"Đang viết bài {i + 1}/{total}: {kw}",
         )
 
-    _publish_progress(index=0, substep=0, message=f"Chuẩn bị viết {total} bài…")
-
-    try:
-        for i, row in enumerate(bulk_rows):
-            st_chk = get_job(job_id)
-            if st_chk and st_chk.state == "CANCELLED":
-                update_job(
-                    job_id,
-                    message="Đã dừng — giữ kết quả đã viết",
-                    result={
-                        "total": total,
-                        "success": success_n,
-                        "failed": sum(1 for x in items if x.get("status") == "error"),
-                        "cancelled": True,
-                        "target_website": target_website,
-                        "items": items,
-                    },
-                )
-                return
-            kw = row["keyword"]
-            items[i] = {**items[i], "status": "running", "keyword": kw}
+        def _article_progress(substep: int, step_msg: str) -> None:
             _publish_progress(
                 index=i,
-                substep=2,
-                message=f"Đang viết bài {i + 1}/{total}: {kw}",
+                substep=substep,
+                message=f"Đang viết bài {i + 1}/{total}: {kw} — {step_msg}",
             )
 
-            def _article_progress(substep: int, step_msg: str) -> None:
-                _publish_progress(
-                    index=i,
-                    substep=substep,
-                    message=f"Đang viết bài {i + 1}/{total}: {kw} — {step_msg}",
-                )
-
+        try:
+            wc_db = SessionLocal()
             try:
+                wc_user = wc_db.get(User, bulk_user_id)
+                if not wc_user:
+                    raise ValueError("User không tồn tại.")
                 raw_row_wc = row.get("target_word_count")
                 try:
                     row_wc = int(raw_row_wc or 0)
@@ -1154,105 +1521,91 @@ def _run_content_ai_bulk_job_body(
                     item_wc = _auto_target_word_count_for_row(
                         row=row,
                         fallback_word_count=target_word_count,
-                        bulk_user=bulk_user,
-                        gate_db=gate_db,
+                        bulk_user=wc_user,
+                        gate_db=wc_db,
                     )
                 else:
                     item_wc = validate_target_word_count(
                         row_wc if row_wc >= 200 else target_word_count,
-                        bulk_user,
-                        gate_db,
+                        wc_user,
+                        wc_db,
                     )
-                row_sec_raw = row.get("secondary_keywords")
-                row_secondary: list[str] = []
-                if isinstance(row_sec_raw, list):
-                    row_secondary = [str(x).strip() for x in row_sec_raw if str(x).strip()]
-                elif isinstance(row_sec_raw, str):
-                    row_secondary = [x.strip() for x in re.split(r"[,;\n\r]+", row_sec_raw) if x.strip()]
-                use_secondary = row_secondary if row_secondary else secondary
-                try:
-                    row_wp = int(row.get("wp_category_id") or 0)
-                except (TypeError, ValueError):
-                    row_wp = 0
-                if row_wp <= 0:
-                    row_wp = wp_cat
-                row_target_website = str(row.get("target_website") or "").strip() or target_website
-                project_id = _write_one_article(
-                    user_id=bulk_user_id,
-                    primary_keyword=kw,
-                    target_website=row_target_website,
-                    target_word_count=item_wc,
-                    secondary_keywords=use_secondary,
-                    custom_title=row.get("custom_title") or "",
-                    custom_description=row.get("custom_description") or "",
-                    custom_outline=row.get("custom_outline") or "",
-                    search_volume=int(row.get("search_volume") or 0),
-                    content_type=str(row.get("content_type") or ""),
-                    competitor_url=str(row.get("competitor_url") or ""),
-                    brand_name=brand_name,
-                    wp_category_id=row_wp,
-                    bulk_fast=bulk_fast,
-                    on_progress=_article_progress,
-                    db=gate_db,
-                    user=bulk_user,
-                    job_id=job_id,
-                    article_index=i,
-                    run_seo_checklist=True,
-                )
-                success_n += 1
-                written = project_id if isinstance(project_id, dict) else {"project_id": project_id}
-                items[i] = {
-                    "keyword": kw,
-                    "status": "success",
-                    "project_id": str(written.get("project_id") or ""),
-                    "custom_title": row.get("custom_title") or "",
-                    "custom_description": row.get("custom_description") or "",
-                    "custom_outline": row.get("custom_outline") or "",
-                    "word_count": written.get("word_count"),
-                    "seo_score": written.get("seo_score"),
-                    "seo_issues": written.get("seo_issues") or [],
-                    "seo_status": written.get("seo_status") or "",
-                    "seo_issue_count": written.get("seo_issue_count"),
-                    "title": written.get("title") or "",
-                    "meta_description": written.get("meta_description") or "",
-                }
-                done_pct = _bulk_article_progress_pct(index=i + 1, total=total, substep=0)
-                update_job(
-                    job_id,
-                    progress=done_pct,
-                    message=f"Đã xong bài {i + 1}/{total}: {kw}",
-                    result={
-                        "total": total,
-                        "success": success_n,
-                        "failed": sum(1 for x in items if x.get("status") == "error"),
-                        "target_website": target_website,
-                        "items": items,
-                    },
-                )
-            except Exception as exc:
-                items[i] = {"keyword": kw, "status": "error", "error": str(exc)[:800]}
-                update_job(
-                    job_id,
-                    progress=_bulk_article_progress_pct(index=i + 1, total=total, substep=0),
-                    message=f"Lỗi bài {i + 1}/{total}: {kw}",
-                    result={
-                        "total": total,
-                        "success": success_n,
-                        "failed": sum(1 for x in items if x.get("status") == "error"),
-                        "target_website": target_website,
-                        "items": items,
-                    },
-                )
+            finally:
+                wc_db.close()
+            row_sec_raw = row.get("secondary_keywords")
+            row_secondary: list[str] = []
+            if isinstance(row_sec_raw, list):
+                row_secondary = [str(x).strip() for x in row_sec_raw if str(x).strip()]
+            elif isinstance(row_sec_raw, str):
+                row_secondary = [x.strip() for x in re.split(r"[,;\n\r]+", row_sec_raw) if x.strip()]
+            use_secondary = row_secondary if row_secondary else secondary
+            try:
+                row_wp = int(row.get("wp_category_id") or 0)
+            except (TypeError, ValueError):
+                row_wp = 0
+            if row_wp <= 0:
+                row_wp = wp_cat
+            row_target_website = str(row.get("target_website") or "").strip() or target_website
+            written = _write_one_article(
+                user_id=bulk_user_id,
+                primary_keyword=kw,
+                target_website=row_target_website,
+                target_word_count=item_wc,
+                secondary_keywords=use_secondary,
+                custom_title=row.get("custom_title") or "",
+                custom_description=row.get("custom_description") or "",
+                custom_outline=row.get("custom_outline") or "",
+                search_volume=int(row.get("search_volume") or 0),
+                content_type=str(row.get("content_type") or ""),
+                competitor_url=str(row.get("competitor_url") or ""),
+                brand_name=brand_name,
+                wp_category_id=row_wp,
+                bulk_fast=bulk_fast,
+                on_progress=_article_progress,
+                db=None,
+                user=None,
+                job_id=job_id,
+                article_index=i,
+                run_seo_checklist=True,
+            )
+            items[i] = {
+                "keyword": kw,
+                "status": "success",
+                "project_id": str(written.get("project_id") or ""),
+                "custom_title": row.get("custom_title") or "",
+                "custom_description": row.get("custom_description") or "",
+                "custom_outline": row.get("custom_outline") or "",
+                "word_count": written.get("word_count"),
+                "seo_score": written.get("seo_score"),
+                "seo_issues": written.get("seo_issues") or [],
+                "seo_status": written.get("seo_status") or "",
+                "seo_issue_count": written.get("seo_issue_count"),
+                "title": written.get("title") or "",
+                "meta_description": written.get("meta_description") or "",
+            }
+            success_n = count_bulk_success_items(items)
+            done_pct = _bulk_article_progress_pct(index=i + 1, total=total, substep=0)
+            _persist_progress(
+                progress=done_pct,
+                message=f"Đã xong bài {i + 1}/{total}: {kw}",
+            )
+        except BulkJobCancelled:
+            items[i] = {**items[i], "keyword": kw, "status": "cancelled"}
+            _persist_progress(message="Đã dừng — giữ kết quả đã viết", extra={"cancelled": True})
+            return
+        except Exception as exc:
+            items[i] = {
+                "keyword": kw,
+                "status": "error",
+                "error": _humanize_bulk_error(exc),
+                "error_code": "db" if _is_transient_db_error(exc) else ("llm" if _is_transient_llm_error(exc) else "fatal"),
+            }
+            _persist_progress(
+                progress=_bulk_article_progress_pct(index=i + 1, total=total, substep=0),
+                message=f"Lỗi bài {i + 1}/{total}: {kw}",
+            )
 
-        finish_job(
-            job_id,
-            result={
-                "total": total,
-                "success": success_n,
-                "failed": total - success_n,
-                "target_website": target_website,
-                "items": items,
-            },
-        )
-    finally:
-        gate_db.close()
+    finish_job(
+        job_id,
+        result=_result_payload(),
+    )

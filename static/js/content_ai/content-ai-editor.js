@@ -167,8 +167,14 @@
             }
         } catch (_) {}
     };
+    const stripCorruptTargetWebsiteFromAppMedia = (html) =>
+        String(html || "")
+            // Customer site wrongly prefixed onto private app media
+            .replace(/https?:\/\/[^/"'\s>]+(\/api\/user-files\/[^"'\s?#]+)/gi, "$1")
+            .replace(/https?:\/\/[^/"'\s>]+(\/static\/uploads\/[^"'\s?#]+)/gi, "$1");
     const setContentValue = (html) => {
-        const v = stripImageAuthTokensFromHtml(decodeHtmlEntitiesDeep(String(html || "")));
+        const cleaned = stripCorruptTargetWebsiteFromAppMedia(String(html || ""));
+        const v = stripImageAuthTokensFromHtml(decodeHtmlEntitiesDeep(cleaned));
         const displayHtml = withImageAuthTokensForHtml(v);
         const ta = byId("content");
         if (ta) ta.value = v;
@@ -184,6 +190,11 @@
         }
         syncPreviewFallback();
         schedulePublishChecklist();
+        try {
+            if (typeof updateContentStatsFromHtml === "function") {
+                updateContentStatsFromHtml(v);
+            }
+        } catch (_) {}
     };
     const refreshEditorModeUi = () => {
         const cr = byId("contentRender");
@@ -582,35 +593,46 @@
         const row = byId("wordCountPresetRow");
         const input = byId("targetWordCount");
         if (!row || !input) return;
-        row.addEventListener("click", (e) => {
-            const btn = e.target && e.target.closest(".wc-preset-btn");
-            if (!btn) return;
-            const preset = String(btn.dataset.wc || "");
-            if (preset === "auto") {
-                row.querySelectorAll(".wc-preset-btn").forEach((b) => b.classList.remove("active"));
-                btn.classList.add("active");
+        const activatePresetBtn = (btn) => {
+            row.querySelectorAll(".wc-preset-btn").forEach((b) => {
+                b.classList.remove("active");
+                b.disabled = false;
+            });
+            btn.classList.add("active");
+        };
+        if (row.dataset.wcBound !== "1") {
+            row.dataset.wcBound = "1";
+            row.addEventListener("click", (e) => {
+                const btn = e.target && e.target.closest(".wc-preset-btn");
+                if (!btn || !row.contains(btn)) return;
+                e.preventDefault();
+                const preset = String(btn.dataset.wc || "");
+                activatePresetBtn(btn);
+                if (preset === "auto") {
+                    syncTargetWordCountInputUi();
+                    saveFormState();
+                    try { updateAutoInsertImagePreview(); } catch (_) {}
+                    return;
+                }
+                if (preset === "custom") {
+                    syncTargetWordCountInputUi();
+                    try { input.focus(); } catch (_) {}
+                    saveFormState();
+                    try { updateAutoInsertImagePreview(); } catch (_) {}
+                    return;
+                }
+                const n = parseInt(preset, 10);
+                if (Number.isFinite(n)) input.value = String(n);
                 syncTargetWordCountInputUi();
                 saveFormState();
                 try { updateAutoInsertImagePreview(); } catch (_) {}
-                return;
-            }
-            if (preset === "custom") {
-                input.disabled = false;
-                input.hidden = false;
-                input.focus();
+            });
+            input.addEventListener("input", () => {
+                if (isAutoWordCountMode()) return;
                 syncWordCountPresetActive();
-                return;
-            }
-            const n = parseInt(preset, 10);
-            if (Number.isFinite(n)) input.value = String(n);
-            syncWordCountPresetActive();
-            saveFormState();
-            try { updateAutoInsertImagePreview(); } catch (_) {}
-        });
-        input.addEventListener("input", () => {
-            syncWordCountPresetActive();
-            try { updateAutoInsertImagePreview(); } catch (_) {}
-        });
+                try { updateAutoInsertImagePreview(); } catch (_) {}
+            });
+        }
         syncWordCountPresetActive();
     };
     initWordCountPresets();
@@ -2559,8 +2581,18 @@
             });
         };
 
-        let res = await postSuggest(preferSync);
-        let data = await res.json().catch(() => ({}));
+        let res;
+        let data;
+        try {
+            res = await postSuggest(preferSync);
+            data = await res.json().catch(() => ({}));
+        } catch (e) {
+            if (e && e.name === "AbortError") {
+                if (_contentWriteSession && _contentWriteSession.userAborted) throw e;
+                throw new Error("Kết nối viết bài bị đóng.");
+            }
+            throw e;
+        }
         if (!res.ok) {
             if (window.ContentAiUsage && window.ContentAiUsage.handleQuotaResponse(res, data)) {
                 throw new Error("Đã hết quota — vui lòng nâng cấp gói.");
@@ -2603,7 +2635,12 @@
             let poll404 = false;
             const pollMs = 600;
             for (let i = 0; i < 600; i++) {
-                if (options.signal && options.signal.aborted) throw new Error("Đã hủy.");
+                if (options.signal && options.signal.aborted) {
+                    if (_contentWriteSession && _contentWriteSession.userAborted) {
+                        throw new DOMException("Aborted", "AbortError");
+                    }
+                    throw new Error("Kết nối viết bài bị đóng.");
+                }
                 await new Promise((r) => setTimeout(r, pollMs));
                 const pr = await fetch(pollUrl, { headers: authJsonHeaders(), signal: options.signal });
                 const st = await pr.json().catch(() => ({}));
@@ -2664,7 +2701,14 @@
     const caEditorWriteError = byId("caEditorWriteError");
     const btnStopContentWrite = byId("btnStopContentWrite");
     const caStickyCreateBtn = byId("caStickyCreateContent");
-    const _contentWriteSession = { controller: null, reader: null, progressTimer: null, active: false, contentVisible: false };
+    const _contentWriteSession = {
+        controller: null,
+        reader: null,
+        progressTimer: null,
+        active: false,
+        contentVisible: false,
+        userAborted: false,
+    };
     const _CREATE_CONTENT_LABEL = "Tạo content";
     const _CREATE_CONTENT_BUSY_LABEL = "Đang viết...";
 
@@ -2680,8 +2724,9 @@
         _setCreateContentButtonsBusy(false);
         _hideEditorWriteBar();
     };
-    const _stopContentWrite = () => {
+    const _stopContentWrite = (fromUser) => {
         const s = _contentWriteSession;
+        if (fromUser) s.userAborted = true;
         s.active = false;
         s.contentVisible = false;
         if (s.progressTimer) {
@@ -2700,11 +2745,20 @@
         _hideEditorWriteBar();
     };
     const _beginContentWriteSession = () => {
-        _stopContentWrite();
+        if (
+            _contentWriteSession.active
+            && _contentWriteSession.controller
+            && !_contentWriteSession.controller.signal.aborted
+            && !_contentWriteSession.userAborted
+        ) {
+            return _contentWriteSession.controller.signal;
+        }
+        _stopContentWrite(false);
         const controller = new AbortController();
         _contentWriteSession.controller = controller;
         _contentWriteSession.active = true;
         _contentWriteSession.contentVisible = false;
+        _contentWriteSession.userAborted = false;
         return controller.signal;
     };
     const _getContentWriteSignal = () => {
@@ -2712,14 +2766,30 @@
         return c ? c.signal : null;
     };
     const _assertContentWriteActive = (signal) => {
-        if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
-        if (!_contentWriteSession.active) throw new DOMException("Aborted", "AbortError");
+        if (_contentWriteSession.userAborted) throw new DOMException("Aborted", "AbortError");
+        if (signal && signal.aborted) {
+            if (_contentWriteSession.userAborted) throw new DOMException("Aborted", "AbortError");
+            throw new Error("Kết nối viết bài bị đóng.");
+        }
+        if (!_contentWriteSession.active) {
+            throw new Error("WRITE_SESSION_ENDED");
+        }
     };
     const _raceAbort = (signal, promise) => {
         if (!signal) return promise;
-        if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+        if (signal.aborted) {
+            return Promise.reject(
+                _contentWriteSession.userAborted
+                    ? new DOMException("Aborted", "AbortError")
+                    : new Error("Kết nối viết bài bị đóng.")
+            );
+        }
         return new Promise((resolve, reject) => {
-            const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
+            const onAbort = () => reject(
+                _contentWriteSession.userAborted
+                    ? new DOMException("Aborted", "AbortError")
+                    : new Error("Kết nối viết bài bị đóng.")
+            );
             signal.addEventListener("abort", onAbort, { once: true });
             promise.then(
                 (v) => { signal.removeEventListener("abort", onAbort); resolve(v); },
@@ -2744,7 +2814,11 @@
         if (signal) {
             signal.addEventListener("abort", () => {
                 window.clearTimeout(t);
-                reject(new DOMException("Aborted", "AbortError"));
+                reject(
+                    _contentWriteSession.userAborted
+                        ? new DOMException("Aborted", "AbortError")
+                        : new Error("Kết nối viết bài bị đóng.")
+                );
             }, { once: true });
         }
     });
@@ -2773,7 +2847,7 @@
         if (lab) lab.textContent = String(text || "Đang viết bài…");
         if (stage) stage.classList.add("is-writing");
     };
-    const _hideContentWriteOverlay = () => {
+    const _hideContentWriteOverlay = (markContentVisible) => {
         const ov = byId("caContentWriteOverlay");
         const stage = byId("caContentEditorStage");
         if (ov) {
@@ -2781,7 +2855,7 @@
             ov.setAttribute("aria-hidden", "true");
         }
         if (stage) stage.classList.remove("is-writing");
-        _contentWriteSession.contentVisible = true;
+        if (markContentVisible) _contentWriteSession.contentVisible = true;
     };
     const _showEditorWriteBar = (text) => {
         if (caEditorWriteBar) caEditorWriteBar.hidden = false;
@@ -2793,14 +2867,14 @@
             low.startsWith("hoàn thành") ||
             low.startsWith("đang hiển thị");
         if (revealContent) {
-            _hideContentWriteOverlay();
-        } else {
+            _hideContentWriteOverlay(true);
+        } else if (!_contentWriteSession.userAborted) {
             _showContentWriteOverlay(label);
         }
     };
     const _hideEditorWriteBar = () => {
         if (caEditorWriteBar) caEditorWriteBar.hidden = true;
-        _hideContentWriteOverlay();
+        _hideContentWriteOverlay(false);
     };
     const _clearEditorWriteError = () => {
         if (caEditorWriteError) {
@@ -2831,17 +2905,27 @@
             } catch (_) {}
         }
         syncPreviewFallback();
+        try {
+            if (typeof updateContentStatsFromHtml === "function") {
+                updateContentStatsFromHtml(v);
+            }
+        } catch (_) {}
     };
     const _sleepMs = (ms, signal) => new Promise((resolve, reject) => {
+        const fail = () => reject(
+            _contentWriteSession.userAborted
+                ? new DOMException("Aborted", "AbortError")
+                : new Error("Kết nối viết bài bị đóng.")
+        );
         if (signal && signal.aborted) {
-            reject(new DOMException("Aborted", "AbortError"));
+            fail();
             return;
         }
         const t = window.setTimeout(resolve, ms);
         if (signal) {
             signal.addEventListener("abort", () => {
                 window.clearTimeout(t);
-                reject(new DOMException("Aborted", "AbortError"));
+                fail();
             }, { once: true });
         }
     });
@@ -2936,7 +3020,7 @@
         for (let i = 0; i < s.length; i++) _contentTypingQueue.push(s[i]);
         _pumpContentTypingQueue(signal);
     };
-    const _parseDeltaSseBuffer = (buffer, handlers) => {
+    const _parseDeltaSseBuffer = async (buffer, handlers) => {
         let buf = buffer;
         if (buf.indexOf("\r") >= 0) buf = buf.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
         while (true) {
@@ -2963,8 +3047,8 @@
                 } else if (obj && obj.error) handlers.onError(String(obj.error));
                 else if (obj && obj.ping) {
                     if (handlers.onPing) handlers.onPing();
-                } else if (obj && obj.replace_html) {
-                    if (handlers.onReplaceHtml) handlers.onReplaceHtml(String(obj.replace_html));
+                }                 else if (obj && obj.replace_html) {
+                    if (handlers.onReplaceHtml) await handlers.onReplaceHtml(String(obj.replace_html));
                 } else if (
                     obj
                     && obj.word_count_target != null
@@ -2978,29 +3062,85 @@
         return buf;
     };
     const _readContentSuggestStream = async (ctx, signal, handlers, opts = {}) => {
-        // Prompt 2.4: SSE stream disabled on API — poll LLM worker job (same UX end-state).
-        _caStreamLog("poll suggest job (stream detached)");
-        const result = await fetchSuggestion("content", ctx, { signal, skipConfirm: true });
-        const html = String((result && result.value) || "");
-        if (handlers.onReplaceHtml) {
-            await handlers.onReplaceHtml(html);
-        } else if (handlers.onDelta && html) {
-            handlers.onDelta(html);
-        }
-        if (handlers.onWordCountMeta) {
-            handlers.onWordCountMeta({
-                ...(result || {}),
-                word_count_target: (result && (result.word_count_target ?? result.validated_word_count)) ?? null,
-                word_count_actual: (result && (result.word_count_actual ?? result.actual_word_count)) ?? null,
-                word_count_ok: result && result.word_count_ok,
-                word_count_status: result && result.word_count_status,
+        const billing = buildContentAiBillingFlags(ctx);
+        const reqId = "cas_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+        const runPollFallback = async () => {
+            _caStreamLog("poll suggest job fallback");
+            const result = await fetchSuggestion("content", ctx, { signal, skipConfirm: true });
+            const html = String((result && result.value) || "");
+            if (handlers.onReplaceHtml) {
+                await handlers.onReplaceHtml(html);
+            } else if (handlers.onDelta && html) {
+                handlers.onDelta(html);
+            }
+            if (handlers.onWordCountMeta) {
+                handlers.onWordCountMeta({
+                    ...(result || {}),
+                    word_count_target: (result && (result.word_count_target ?? result.validated_word_count)) ?? null,
+                    word_count_actual: (result && (result.word_count_actual ?? result.actual_word_count)) ?? null,
+                    word_count_ok: result && result.word_count_ok,
+                    word_count_status: result && result.word_count_status,
+                });
+            }
+            if (handlers.onDone) handlers.onDone();
+            if (window.ContentAiUsage && window.ContentAiUsage.refresh) {
+                void window.ContentAiUsage.refresh();
+            }
+            return Boolean(html);
+        };
+        let res;
+        try {
+            res = await fetch(`/content-ai/suggest-stream?ts=${Date.now()}&llm=1`, {
+                method: "POST",
+                headers: Object.assign({}, authJsonHeaders(), {
+                    "X-Request-Id": reqId,
+                    Accept: "text/event-stream",
+                }),
+                body: JSON.stringify({ field: "content", ...ctx, billing }),
+                signal,
             });
+        } catch (e) {
+            if (e && e.name === "AbortError") {
+                if (_contentWriteSession.userAborted) throw e;
+                throw new Error("Kết nối viết bài bị đóng.");
+            }
+            return runPollFallback();
+        }
+        const ctype = String((res && res.headers && res.headers.get("content-type")) || "");
+        if (!res.ok || !res.body || ctype.indexOf("text/event-stream") < 0) {
+            if (res && res.body) {
+                try { await res.body.cancel(); } catch (_) {}
+            }
+            if (res && res.status >= 400 && res.status !== 404 && res.status !== 405) {
+                const data = await res.json().catch(() => ({}));
+                const errMsg = _contentAiErrMessage(data, res);
+                if (handlers.onError) handlers.onError(errMsg);
+                throw new Error(errMsg);
+            }
+            return runPollFallback();
+        }
+        const reader = res.body.getReader();
+        _contentWriteSession.reader = reader;
+        const decoder = new TextDecoder();
+        let buffer = "";
+        try {
+            while (true) {
+                _assertContentWriteActive(signal);
+                const chunk = await reader.read();
+                if (chunk.done) break;
+                buffer += decoder.decode(chunk.value, { stream: true });
+                buffer = await _parseDeltaSseBuffer(buffer, handlers);
+            }
+            if (buffer) buffer = await _parseDeltaSseBuffer(buffer + "\n\n", handlers);
+        } finally {
+            _contentWriteSession.reader = null;
+            try { reader.releaseLock(); } catch (_) {}
         }
         if (handlers.onDone) handlers.onDone();
         if (window.ContentAiUsage && window.ContentAiUsage.refresh) {
             void window.ContentAiUsage.refresh();
         }
-        return Boolean(html);
+        return true;
     };
     const writeContentToEditor = async (ctx, options = {}) => {
         const signal = options.signal || _beginContentWriteSession();
@@ -3010,6 +3150,7 @@
         _clearEditorWriteError();
         _setCreateContentButtonsBusy(true);
         _showEditorWriteBar("Đang kiểm tra yêu cầu…");
+        _startWriteProgressPulse(signal);
         editorMode = "visual";
         refreshEditorModeUi();
         _contentEditorAcc = "";
@@ -3031,17 +3172,22 @@
             _showEditorWriteBar("Đang viết nội dung…");
             try {
                 sawDelta = await _readContentSuggestStream(ctx, signal, {
-                    onPing: () => { sawDelta = true; },
+                    onPing: () => {
+                        sawDelta = true;
+                        if (!_contentWriteSession.contentVisible && !_contentWriteSession.userAborted) {
+                            _showContentWriteOverlay(
+                                (caEditorWriteStatus && caEditorWriteStatus.textContent) || "Đang viết nội dung…"
+                            );
+                        }
+                    },
                     onDelta: (delta) => {
                         sawDelta = true;
-                        _hideContentWriteOverlay();
                         _enqueueStreamDelta(delta, signal);
                         if (caEditorWriteBar) caEditorWriteBar.hidden = false;
                         if (caEditorWriteStatus) caEditorWriteStatus.textContent = "Đang viết nội dung…";
                     },
                     onReplaceHtml: async (html) => {
                         sawDelta = true;
-                        _hideContentWriteOverlay();
                         _contentEditorAcc = "";
                         _contentTypingQueue.length = 0;
                         _setContentHtmlLive("");
@@ -3067,25 +3213,32 @@
                         streamErrorMsg = String(err || "Unknown error");
                         _caStreamLog("stream error", streamErrorMsg);
                     },
-                }, { firstChunkMs: 120000 });
+                });
             } catch (e) {
-                if (e && e.name === "AbortError") throw e;
-                if (!_contentWriteSession.active) throw new DOMException("Aborted", "AbortError");
-                streamErrorMsg = streamErrorMsg || String(e.message || e);
+                if (_contentWriteSession.userAborted || (e && e.name === "AbortError" && _contentWriteSession.userAborted)) {
+                    throw e;
+                }
+                if (e && e.name === "AbortError" && !_contentWriteSession.userAborted) {
+                    streamErrorMsg = streamErrorMsg || "Kết nối viết bài bị đóng.";
+                } else {
+                    streamErrorMsg = streamErrorMsg || String((e && e.message) || e);
+                }
                 _caStreamLog("stream exception", streamErrorMsg);
             }
 
             await _flushContentTypingQueue(signal);
             let finalValue = String(_contentEditorAcc || "");
 
+            if (_contentWriteSession.userAborted) {
+                throw new DOMException("Aborted", "AbortError");
+            }
+
             if (streamErrorMsg) {
                 throw new Error(streamErrorMsg);
             }
 
             if (!String(finalValue || "").trim()) {
-                const errMsg = (window.ContentAiErrors && window.ContentAiErrors.MESSAGE) ||
-                    "Hệ thống đang nâng cấp tính năng, mong bạn thông cảm chúng tôi sẽ quay trở lại sớm nhất !";
-                throw new Error(errMsg);
+                throw new Error("Không nhận được nội dung. Vui lòng thử lại.");
             }
 
             _assertContentWriteActive(signal);
@@ -3125,10 +3278,26 @@
                 void window.ContentAiUsage.refresh();
             }
             _showEditorWriteBar("Hoàn thành");
+            try {
+                const el = byId("contentRender");
+                const html = el
+                    ? String(el.innerHTML || el.textContent || "")
+                    : String(finalValue || "");
+                const ta = byId("content");
+                if (ta) {
+                    ta.value = html;
+                    try { ta.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+                }
+                if (typeof updateContentStatsFromHtml === "function") updateContentStatsFromHtml(html);
+                else refreshPreview();
+                if (el) {
+                    try { el.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+                }
+            } catch (_) {}
             _caStreamLog("write complete", { chars: finalValue.length, sawDelta, streamDone });
             return finalValue;
         } catch (e) {
-            if (e && e.name === "AbortError") {
+            if (_contentWriteSession.userAborted) {
                 await _flushContentTypingQueue(signal).catch(() => {});
                 _showEditorWriteError("Đã dừng viết.");
                 saveFormState();
@@ -3141,6 +3310,13 @@
                     setContentValue(preserved);
                     editorMode = "visual";
                     refreshEditorModeUi();
+                    try {
+                        if (typeof updateContentStatsFromHtml === "function") {
+                            updateContentStatsFromHtml(preserved);
+                        } else {
+                            refreshPreview();
+                        }
+                    } catch (_) {}
                     saveFormState();
                     _showEditorWriteBar("Hoàn thành (giữ nội dung đã viết)");
                 } catch (_) {}
@@ -3164,7 +3340,7 @@
         btnStopContentWrite.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            _stopContentWrite();
+            _stopContentWrite(true);
             _showEditorWriteError("Đã dừng viết.");
             saveFormState();
         });
@@ -3224,6 +3400,37 @@
         const ts = new Date().toLocaleTimeString("vi-VN");
         const old = publishLog.value ? `${publishLog.value}\n` : "";
         publishLog.value = `${old}[${ts}] ${line}`;
+    };
+    const setPublishNotice = (text, kind, link, linkLabel) => {
+        const el = byId("caPublishNotice");
+        if (!el) return;
+        const t = String(text || "").trim();
+        el.replaceChildren();
+        el.classList.remove("ca-publish-notice--ok", "ca-publish-notice--err", "ca-publish-notice--info");
+        if (!t) {
+            el.hidden = true;
+            return;
+        }
+        el.hidden = false;
+        if (kind === "ok" || kind === "err" || kind === "info") {
+            el.classList.add(`ca-publish-notice--${kind}`);
+        }
+        const span = document.createElement("strong");
+        span.textContent = t;
+        el.appendChild(span);
+        const href = String(link || "").trim();
+        if (href && /^https?:\/\//i.test(href)) {
+            el.appendChild(document.createTextNode(" "));
+            const a = document.createElement("a");
+            a.href = href;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.textContent = String(linkLabel || "Xem bài").trim() || "Xem bài";
+            el.appendChild(a);
+        }
+        try {
+            el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } catch (_) {}
     };
     const setPublishLogLines = (lines) => {
         if (!Array.isArray(lines) || !lines.length) return;
@@ -3435,7 +3642,10 @@
             if (outputFormat) outputFormat.value = (s.outputFormat === "json") ? "json" : "text";
             uploadedImages.length = 0;
             for (const u of (s.uploadedImages || [])) {
-                if (u) uploadedImages.push(u);
+                const sUrl = String(u || "").trim().split("?")[0];
+                if (sUrl && (sUrl.startsWith("/api/user-files/") || sUrl.startsWith("/static/"))) {
+                    uploadedImages.push(sUrl);
+                }
             }
             activeProjectId = s.activeProjectId || "";
             const wpcSaved = String(s.singleWpCategoryId || "").trim();
@@ -3444,6 +3654,7 @@
                 _draftWpCategoryIds = !Number.isNaN(n) && n > 0 ? [n] : null;
             }
             fillSingleWpCategorySelect(wpcSaved);
+            try { scheduleSingleWpCategoriesLoad(); } catch (_) {}
             renderUploadList();
             toggleAiAvailability();
             syncSlugFromPrimary(true);
@@ -3484,29 +3695,108 @@
         box.hidden = false;
         box.textContent = msg;
         box.classList.toggle("warn", !!warn);
-        const statsEl = byId("mediaInsertedStatsText");
-        if (statsEl) statsEl.textContent = msg;
+        // Do NOT mirror identical text into #mediaInsertedStatsText (double green/grey banners).
     };
     const switchMediaToInsertedTab = () => {
         const root = byId("contentAiMediaPanel");
         if (root && window.__caSwitchModalTab) window.__caSwitchModalTab(root, 2);
+        // Refresh demo payload so "Xem demo" reflects just-inserted figures.
+        try {
+            if (window.__caRefreshContentDemo) {
+                window.__caRefreshContentDemo("caMediaDemoPreview", "media");
+            }
+        } catch (_) {}
     };
     window.__caSwitchMediaInsertedTab = switchMediaToInsertedTab;
     let _mediaContentBeforeInsert = "";
+    const normalizeMediaUrlClient = (u) =>
+        String(u || "")
+            .trim()
+            .replace(/[?&]token=[^&"']*/gi, "")
+            .replace(/[?&]$/, "")
+            .split("#")[0]
+            .split("?")[0];
+    const isStoredMediaUrlClient = (u) => {
+        const s = normalizeMediaUrlClient(u);
+        return s.startsWith("/api/user-files/") || s.startsWith("/static/");
+    };
+    const mediaThumbSrc = (u) => {
+        const raw = String(u || "").trim();
+        if (!raw) return "";
+        if (!isStoredMediaUrlClient(raw)) return normalizeMediaUrlClient(raw);
+        try {
+            const wrapped = withImageAuthTokensForHtml(
+                `<img src="${normalizeMediaUrlClient(raw).replace(/"/g, "")}" alt="" />`,
+            );
+            const m = wrapped.match(/src=(["'])([^"']+)\1/i);
+            if (m && m[2]) return m[2];
+        } catch (_) {}
+        return normalizeMediaUrlClient(raw);
+    };
+    const extractStoredMediaUrlsFromHtml = (html) => {
+        const out = [];
+        const re = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi;
+        let m;
+        while ((m = re.exec(String(html || "")))) {
+            const s = normalizeMediaUrlClient(m[1]);
+            if (s && isStoredMediaUrlClient(s) && !out.includes(s)) out.push(s);
+        }
+        return out;
+    };
+    /** Rebuild Đã chèn list: only local/app-hosted URLs. Drops dead external links. */
+    const rebuildUploadedImagesList = (opts = {}) => {
+        const prefer = [];
+        const add = (u) => {
+            const s = normalizeMediaUrlClient(u);
+            if (!s || !isStoredMediaUrlClient(s) || prefer.includes(s)) return;
+            prefer.push(s);
+        };
+        if (opts.featured) add(opts.featured);
+        if (opts.url) add(opts.url);
+        (opts.extra || []).forEach(add);
+        extractStoredMediaUrlsFromHtml(
+            typeof getContentValue === "function" ? getContentValue() : "",
+        ).forEach(add);
+        // Keep previous stored entries (feature order) after content scan
+        (uploadedImages || []).forEach(add);
+        uploadedImages.length = 0;
+        prefer.forEach((u) => uploadedImages.push(u));
+        renderUploadList();
+        return uploadedImages.slice();
+    };
+    window.__caRebuildUploadedImagesList = rebuildUploadedImagesList;
     const renderUploadList = () => {
         if (!uploadList) return;
         uploadList.innerHTML = "";
+        // Drop broken remote leftovers from older drafts
+        const clean = [];
+        (uploadedImages || []).forEach((u) => {
+            const s = normalizeMediaUrlClient(u);
+            if (s && isStoredMediaUrlClient(s) && !clean.includes(s)) clean.push(s);
+        });
+        if (clean.length !== uploadedImages.length) {
+            uploadedImages.length = 0;
+            clean.forEach((u) => uploadedImages.push(u));
+        }
         if (!uploadedImages.length) {
-            uploadList.innerHTML = '<p class="ca-il-empty">Chưa có ảnh đã chọn.</p>';
+            uploadList.innerHTML = '<p class="ca-il-empty">Chưa có ảnh đã chọn (chỉ hiện ảnh đã lưu trên hệ thống).</p>';
             return;
         }
         uploadedImages.forEach((url, idx) => {
             const div = document.createElement("div");
             div.className = "ca-media-selected-item upload-item";
             const thumb = document.createElement("img");
-            thumb.src = url;
+            thumb.src = mediaThumbSrc(url);
             thumb.alt = idx === 0 ? "Featured" : "Inline";
             thumb.loading = "lazy";
+            thumb.onerror = () => {
+                thumb.style.display = "none";
+                const ph = document.createElement("div");
+                ph.className = "hint";
+                ph.style.cssText = "width:72px;height:54px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;border:1px dashed rgba(255,255,255,0.2);border-radius:6px;";
+                ph.textContent = "Lỗi";
+                if (thumb.parentNode) thumb.parentNode.insertBefore(ph, thumb);
+            };
             const meta = document.createElement("div");
             meta.className = "u-meta";
             meta.style.flex = "1";
@@ -3831,33 +4121,114 @@
             bImport.className = "mini-btn";
             bImport.textContent = "Chọn";
             bImport.addEventListener("click", async (ev) => {
+                ev.preventDefault();
                 ev.stopPropagation();
                 try {
                     if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
                         const ok = await window.DigiSeoConfirmCredit(window.DigiSeoCreditActions.googleImage);
-                        if (!ok) return;
+                        if (!ok) {
+                            setHint("google-images", "Đã hủy hoặc không đủ credit để import ảnh web.");
+                            return;
+                        }
                     }
-                    setHint("google-images", "Đang import ảnh...");
                     bImport.disabled = true;
-                    const res = await fetch(`/content-ai/google-images/import?ts=${Date.now()}`, {
-                        method: "POST",
-                        headers: authJsonHeaders(),
-                        body: JSON.stringify({ url: it.link }),
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error((data && data.detail) ? data.detail : "Import ảnh thất bại");
-                    if (data.url) {
-                        if (!_mediaContentBeforeInsert) _mediaContentBeforeInsert = getContentValue();
-                        uploadedImages.push(data.url);
-                        renderUploadList();
-                        insertImageIntoEditor(data.url);
-                        saveFormState();
-                        const undoBtn = byId("btnMediaUndo");
-                        if (undoBtn) undoBtn.hidden = false;
-                        showMediaInsertSummary("Đã chèn 1 ảnh web — ALT từ tiêu đề ảnh, vị trí sau H2.");
-                        switchMediaToInsertedTab();
+                    const fullUrl = String(it.link || "").trim();
+                    const thumbUrl = String(it.thumbnail || "").trim();
+                    if (!fullUrl && !thumbUrl) {
+                        throw new Error("Thiếu URL ảnh web.");
                     }
-                    setHint("google-images", "Đã import và chèn ảnh vào Content.");
+
+                    // 1) Chọn vị trí trước (thấy rõ popup). Chỉ import sau khi đã chọn heading.
+                    setHint("google-images", "Chọn vị trí chèn ảnh (H2/H3)…");
+                    let place = null;
+                    if (typeof window.__caOpenMediaHeadingPicker === "function") {
+                        place = await window.__caOpenMediaHeadingPicker();
+                    }
+                    if (!place) {
+                        setHint("google-images", "Đã hủy — chưa chọn vị trí chèn.");
+                        return;
+                    }
+
+                    // 2) Import về server (thử full link rồi fallback thumbnail)
+                    setHint("google-images", "Đang tải ảnh về server…");
+                    const tryImport = async (remoteUrl) => {
+                        const res = await fetch(`/content-ai/google-images/import?ts=${Date.now()}`, {
+                            method: "POST",
+                            headers: authJsonHeaders(),
+                            body: JSON.stringify({ url: remoteUrl }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                            const d = data.detail;
+                            throw new Error(typeof d === "string" ? d : "Import ảnh thất bại");
+                        }
+                        return String((data && data.url) || "").trim();
+                    };
+                    let localUrl = "";
+                    let importErr = "";
+                    const candidates = [];
+                    if (fullUrl) candidates.push(fullUrl);
+                    if (thumbUrl && thumbUrl !== fullUrl) candidates.push(thumbUrl);
+                    for (const cand of candidates) {
+                        try {
+                            localUrl = await tryImport(cand);
+                            if (localUrl) break;
+                        } catch (e1) {
+                            importErr = String((e1 && e1.message) || e1);
+                        }
+                    }
+                    if (!localUrl) {
+                        throw new Error(importErr || "Không tải được ảnh về server.");
+                    }
+
+                    if (!_mediaContentBeforeInsert) _mediaContentBeforeInsert = getContentValue();
+                    // 3) Chèn dưới heading đã chọn
+                    setHint("google-images", "Đang chèn ảnh vào bài…");
+                    const placeOpts = {
+                        placement: place.placement || "after_heading",
+                        section_heading: place.section_heading || "",
+                        h2_index: place.level === "h3" ? null : place.h2_index,
+                        h3_index: place.level === "h3" ? place.h3_index : null,
+                    };
+                    let insertedOk = false;
+                    if (typeof window.__caStudioInsertWithPlacement === "function") {
+                        const result = await window.__caStudioInsertWithPlacement(
+                            { url: localUrl, alt: it.title || "" },
+                            placeOpts,
+                        );
+                        insertedOk = !!(result && result.ok);
+                    } else {
+                        insertImageIntoEditor(localUrl);
+                        insertedOk = true;
+                        if (typeof window.__caRebuildUploadedImagesList === "function") {
+                            window.__caRebuildUploadedImagesList({ url: localUrl });
+                        } else if (!uploadedImages.includes(localUrl)) {
+                            uploadedImages.push(localUrl);
+                            renderUploadList();
+                        }
+                        if (typeof switchMediaToInsertedTab === "function") switchMediaToInsertedTab();
+                    }
+                    if (!insertedOk) {
+                        throw new Error("Ảnh đã import nhưng chưa chèn vào editor. Thử lại.");
+                    }
+                    // Ensure list only has durable local images (avoid broken external leftovers)
+                    if (typeof window.__caRebuildUploadedImagesList === "function") {
+                        window.__caRebuildUploadedImagesList({ url: localUrl });
+                    }
+                    setHint("google-images", "Đã import và chèn ảnh vào Content — mở tab Xem demo hoặc đóng modal để kiểm tra editor.");
+                    if (typeof showMediaInsertSummary === "function") {
+                        showMediaInsertSummary(
+                            `1 ảnh web — vị trí: ${place.section_heading || place.placement || "đã chọn"}.`,
+                        );
+                    }
+                    try {
+                        if (window.__caRefreshContentDemo) {
+                            window.__caRefreshContentDemo("caMediaDemoPreview", "media");
+                        }
+                    } catch (_) {}
+                    saveFormState();
+                    const undoBtn = byId("btnMediaUndo");
+                    if (undoBtn) undoBtn.hidden = false;
                 } catch (e) {
                     setHint("google-images", String(e.message || e));
                 } finally {
@@ -4331,6 +4702,7 @@
         fillSingleWpCategorySelect(
             _draftWpCategoryIds && _draftWpCategoryIds[0] ? String(_draftWpCategoryIds[0]) : ""
         );
+        try { scheduleSingleWpCategoriesLoad(); } catch (_) {}
         byId("primaryKeyword").value = p.primary_keyword || "";
         byId("secondaryKeywords").value = (p.secondary_keywords || []).join(", ");
         byId("outlineContent").value = p.outline_content || "";
@@ -4342,9 +4714,17 @@
         setContentValue(p.content || "");
         byId("scheduledAt").value = p.scheduled_at || "";
         uploadedImages.length = 0;
-        for (const u of (p.gallery_images || [])) uploadedImages.push(u);
-        if ((p.featured_image || "").trim() && !uploadedImages.includes(p.featured_image)) {
-            uploadedImages.unshift(p.featured_image);
+        for (const u of (p.gallery_images || [])) {
+            const sUrl = String(u || "").trim().split("?")[0];
+            if (sUrl && (sUrl.startsWith("/api/user-files/") || sUrl.startsWith("/static/"))) {
+                uploadedImages.push(sUrl);
+            }
+        }
+        if ((p.featured_image || "").trim()) {
+            const f = String(p.featured_image).trim().split("?")[0];
+            if (f && (f.startsWith("/api/user-files/") || f.startsWith("/static/")) && !uploadedImages.includes(f)) {
+                uploadedImages.unshift(f);
+            }
         }
         renderUploadList();
         if (getOutputFormat() === "json") {

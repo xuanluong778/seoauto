@@ -1,37 +1,33 @@
+"""Publishing sites store — PostgreSQL primary; optional dual-read JSON fallback."""
+
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from app.core.secrets_crypto import decrypt_secret, encrypt_secret
+from app.services.tenant_sites_flags import (
+    tenant_sites_dual_read,
+    tenant_sites_json_write,
+    tenant_sites_pg_enabled,
+)
 
 SITES_FILE = Path("data/publishing_sites.json")
 MAX_SITES = 200
-
 PLATFORMS = {"wordpress", "shopify", "haravan", "webcake"}
 ALLOWED_STATUS = {"draft", "publish"}
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _read_all() -> list[dict[str, Any]]:
-    from app.services.user_data_pg.config import pg_fallback_json_enabled, pg_read_enabled
-
-    if pg_read_enabled("publishing_sites"):
-        try:
-            from app.services.user_data_pg import publishing_sites as pg_store
-
-            rows = pg_store.list_all_entries()
-            if rows or not pg_fallback_json_enabled():
-                return rows
-        except Exception:
-            if not pg_fallback_json_enabled():
-                raise
+def _read_json_all() -> list[dict[str, Any]]:
     if not SITES_FILE.exists():
         return []
     try:
@@ -46,24 +42,17 @@ def _read_all() -> list[dict[str, Any]]:
 def _entry_for_disk(entry: dict[str, Any]) -> dict[str, Any]:
     out = dict(entry)
     plain = str(out.get("app_password") or "")
-    if plain:
+    if plain and not plain.startswith("enc:v1:"):
         out["app_password"] = encrypt_secret(plain)
     return out
 
 
-def _write_all(items: list[dict[str, Any]]) -> None:
+def _write_json_all(items: list[dict[str, Any]]) -> None:
+    if not tenant_sites_json_write():
+        return
     SITES_FILE.parent.mkdir(parents=True, exist_ok=True)
     disk = [_entry_for_disk(x) for x in items]
     SITES_FILE.write_text(json.dumps(disk, ensure_ascii=False, indent=2), encoding="utf-8")
-    try:
-        from app.services.user_data_pg.config import pg_dual_write_enabled
-
-        if pg_dual_write_enabled("publishing_sites"):
-            from app.services.user_data_pg import publishing_sites as pg_store
-
-            pg_store.replace_all_entries(items)
-    except Exception:
-        pass
 
 
 def _norm_url(url: str) -> str:
@@ -79,6 +68,11 @@ def _mask_password(value: str) -> str:
     s = str(value or "")
     if not s:
         return ""
+    if s.startswith("enc:v1:"):
+        plain = decrypt_secret(s)
+        if not plain:
+            return "••••••••"
+        s = plain
     if len(s) <= 4:
         return "•" * len(s)
     return "•" * max(8, len(s) - 4) + s[-4:]
@@ -114,8 +108,14 @@ def _normalize(entry: dict[str, Any]) -> dict[str, Any]:
             url = normalize_site_url(url) or url
         except Exception:
             pass
+    org = entry.get("organization_id")
+    try:
+        organization_id = int(org) if org is not None else 0
+    except (TypeError, ValueError):
+        organization_id = 0
     return {
         "id": str(entry.get("id") or uuid.uuid4()),
+        "organization_id": organization_id or user_id,
         "user_id": user_id,
         "platform": platform,
         "name": str(entry.get("name") or "").strip(),
@@ -145,7 +145,6 @@ def _public(entry: dict[str, Any], *, reveal_password: bool = False) -> dict[str
             out["shopify_api_version"] = "2025-01"
     if reveal_password:
         pwd = str(entry.get("app_password") or "")
-        # Defensive: if somehow ciphertext leaked through, decrypt again.
         if pwd.startswith("enc:v1:"):
             pwd = decrypt_secret(pwd)
         out["app_password"] = pwd
@@ -164,71 +163,118 @@ def _public(entry: dict[str, Any], *, reveal_password: bool = False) -> dict[str
     return out
 
 
-def list_sites(*, user_id: int, platform: str | None = None) -> list[dict[str, Any]]:
-    items = [_normalize(x) for x in _read_all() if _belongs_to_user(x, user_id)]
+def list_sites(
+    *,
+    user_id: int,
+    platform: str | None = None,
+    organization_id: int | None = None,
+) -> list[dict[str, Any]]:
+    if tenant_sites_pg_enabled():
+        try:
+            from app.services.publishing_sites_pg import list_sites_pg
+
+            rows = list_sites_pg(user_id=user_id, organization_id=organization_id, platform=platform)
+            if rows or not tenant_sites_dual_read():
+                return rows
+        except Exception:
+            logger.exception("publishing_sites pg list failed dual_read=%s", tenant_sites_dual_read())
+            if not tenant_sites_dual_read():
+                raise
+    items = [_normalize(x) for x in _read_json_all() if _belongs_to_user(x, user_id)]
     if platform:
         items = [x for x in items if x["platform"] == platform]
     items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return [_public(x) for x in items]
 
 
-def get_counts(*, user_id: int) -> dict[str, int]:
-    items = [_normalize(x) for x in _read_all() if _belongs_to_user(x, user_id)]
+def get_counts(*, user_id: int, organization_id: int | None = None) -> dict[str, int]:
+    items = list_sites(user_id=user_id, organization_id=organization_id)
     counts = {p: 0 for p in PLATFORMS}
     for x in items:
         counts[x["platform"]] = counts.get(x["platform"], 0) + 1
     return counts
 
 
-def get_site(site_id: str, *, user_id: int, reveal_password: bool = False) -> dict[str, Any] | None:
+def get_site(
+    site_id: str,
+    *,
+    user_id: int,
+    reveal_password: bool = False,
+    organization_id: int | None = None,
+) -> dict[str, Any] | None:
+    """Requires user_id + org scope — never by site id alone."""
     sid = str(site_id or "").strip()
-    if not sid:
+    if not sid or int(user_id or 0) <= 0:
         return None
-    for k in _read_all():
+    if tenant_sites_pg_enabled():
+        try:
+            from app.services.publishing_sites_pg import get_site_pg
+
+            row = get_site_pg(
+                sid,
+                user_id=user_id,
+                organization_id=organization_id,
+                reveal_password=reveal_password,
+            )
+            if row is not None or not tenant_sites_dual_read():
+                return row
+        except Exception:
+            logger.exception("publishing_sites pg get failed")
+            if not tenant_sites_dual_read():
+                raise
+    for k in _read_json_all():
         if str(k.get("id") or "") == sid and _belongs_to_user(k, user_id):
             return _public(_normalize(k), reveal_password=reveal_password)
     return None
 
 
-def create_site(payload: dict[str, Any], *, user_id: int) -> dict[str, Any]:
+def create_site(
+    payload: dict[str, Any],
+    *,
+    user_id: int,
+    organization_id: int | None = None,
+) -> dict[str, Any]:
+    if tenant_sites_pg_enabled():
+        from app.services.publishing_sites_pg import create_site_pg
+
+        item = create_site_pg(payload, user_id=user_id, organization_id=organization_id)
+        if tenant_sites_json_write():
+            items = _read_json_all()
+            items.insert(0, {**payload, "id": item["id"], "user_id": user_id})
+            del items[MAX_SITES:]
+            _write_json_all(items)
+        return item
+    # legacy json-only path (flag off)
     entry = _normalize({**payload, "id": str(uuid.uuid4()), "user_id": int(user_id)})
     if not entry["name"]:
         raise ValueError("name is required")
     if not entry["url"]:
         raise ValueError("url is required")
     if entry["platform"] == "wordpress":
-        if not entry["username"]:
-            raise ValueError("username is required")
-        if not entry["app_password"]:
-            raise ValueError("app_password is required")
-    elif entry["platform"] == "haravan":
-        if not entry["app_password"]:
-            raise ValueError("private token is required")
-    elif entry["platform"] == "shopify":
-        if not str(entry.get("username") or "").strip():
-            raise ValueError("client_id is required")
-        if not entry["app_password"]:
-            raise ValueError("client_secret is required")
-    elif entry["platform"] == "webcake":
-        from app.services.webcake_connect import unpack_webcake_secrets
-
-        data = unpack_webcake_secrets(str(entry.get("app_password") or ""))
-        if not str(data.get("access_token") or "").strip():
-            raise ValueError("access_token is required")
-        if not str(data.get("refresh_token") or "").strip():
-            raise ValueError("refresh_token is required")
-    items = _read_all()
+        if not entry["username"] or not entry["app_password"]:
+            raise ValueError("username and app_password required")
+    items = _read_json_all()
     items.insert(0, entry)
     del items[MAX_SITES:]
-    _write_all(items)
+    _write_json_all(items)
     return _public(entry)
 
 
-def update_site(site_id: str, patch: dict[str, Any], *, user_id: int) -> dict[str, Any] | None:
+def update_site(
+    site_id: str,
+    patch: dict[str, Any],
+    *,
+    user_id: int,
+    organization_id: int | None = None,
+) -> dict[str, Any] | None:
+    if tenant_sites_pg_enabled():
+        from app.services.publishing_sites_pg import update_site_pg
+
+        return update_site_pg(site_id, patch, user_id=user_id, organization_id=organization_id)
     sid = str(site_id or "").strip()
     if not sid:
         return None
-    items = _read_all()
+    items = _read_json_all()
     out: list[dict[str, Any]] = []
     found: dict[str, Any] | None = None
     for k in items:
@@ -241,19 +287,28 @@ def update_site(site_id: str, patch: dict[str, Any], *, user_id: int) -> dict[st
             out.append(k)
     if not found:
         return None
-    _write_all(out)
+    _write_json_all(out)
     return _public(found)
 
 
-def delete_site(site_id: str, *, user_id: int) -> bool:
+def delete_site(
+    site_id: str,
+    *,
+    user_id: int,
+    organization_id: int | None = None,
+) -> bool:
+    if tenant_sites_pg_enabled():
+        from app.services.publishing_sites_pg import delete_site_pg
+
+        return delete_site_pg(site_id, user_id=user_id, organization_id=organization_id)
     sid = str(site_id or "").strip()
     if not sid:
         return False
-    items = _read_all()
+    items = _read_json_all()
     new_items = [k for k in items if not (str(k.get("id") or "") == sid and _belongs_to_user(k, user_id))]
     if len(new_items) == len(items):
         return False
-    _write_all(new_items)
+    _write_json_all(new_items)
     return True
 
 
@@ -272,11 +327,8 @@ def mark_seo_helper_installed(
     site_urls: list[str] | None = None,
     domains: set[str] | None = None,
     message: str = "Đã phát hiện SEOAuto SEO Helper (kết nối plugin).",
+    organization_id: int | None = None,
 ) -> int:
-    """Set plugin_installed=True for WordPress publishing sites matching helper connections.
-
-    Matches by normalized domain (www stripped). Returns number of rows updated.
-    """
     want: set[str] = set()
     for d in domains or set():
         nd = _entry_domain(str(d))
@@ -289,7 +341,45 @@ def mark_seo_helper_installed(
     if not want:
         return 0
 
-    items = _read_all()
+    if tenant_sites_pg_enabled():
+        from app.db import SessionLocal
+        from app.models.publishing_site import PublishingSite
+        from app.services.tenant_org import resolve_organization_id
+
+        db = SessionLocal()
+        try:
+            org_id = resolve_organization_id(user_id, organization_id, db=db)
+            rows = (
+                db.query(PublishingSite)
+                .filter(
+                    PublishingSite.organization_id == org_id,
+                    PublishingSite.user_id == int(user_id),
+                    PublishingSite.deleted_at.is_(None),
+                    PublishingSite.platform == "wordpress",
+                )
+                .all()
+            )
+            changed = 0
+            stamp = _now()
+            for row in rows:
+                domain = _entry_domain(str(row.site_url or ""))
+                if not domain or domain not in want:
+                    continue
+                if row.plugin_installed and row.verified:
+                    continue
+                row.plugin_installed = True
+                row.verified = True
+                row.last_checked_at = stamp
+                row.last_message = message
+                changed += 1
+            if changed:
+                db.commit()
+            return changed
+        finally:
+            db.close()
+
+    # JSON fallback
+    items = _read_json_all()
     changed = 0
     out: list[dict[str, Any]] = []
     stamp = _now()
@@ -316,7 +406,6 @@ def mark_seo_helper_installed(
         entry["updated_at"] = stamp
         changed += 1
         out.append(entry)
-
     if changed:
-        _write_all(out)
+        _write_json_all(out)
     return changed

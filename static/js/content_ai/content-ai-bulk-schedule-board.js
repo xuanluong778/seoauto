@@ -1344,24 +1344,6 @@
         const bodies = [];
         if (sid) bodies.push({ wp_site_id: sid });
         // Fallback: resolve credentials client-side (older servers / edge cases).
-        if (sid) {
-            try {
-                const data = await api(
-                    "GET",
-                    "/api/settings/publishing-sites/" +
-                        encodeURIComponent(sid) +
-                        "?reveal_password=1&ts=" +
-                        Date.now()
-                );
-                const item = (data && (data.item || data)) || {};
-                const credUrl = String(item.url || item.website_url || url || "").trim();
-                const username = String(item.username || "").trim();
-                const app_password = String(item.app_password || "").trim();
-                if (credUrl && username && app_password) {
-                    bodies.push({ url: credUrl, username, app_password });
-                }
-            } catch (_) {}
-        }
         if (!bodies.length && url) {
             throw new Error("Chọn website đã lưu để tải danh mục.");
         }

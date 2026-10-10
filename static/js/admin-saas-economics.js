@@ -84,10 +84,14 @@
         const cost = d.estimated_cost_vnd || {};
         const profit = d.profit_vnd || {};
         const revM = (d.revenue && d.revenue.month) || {};
+        const gm = d.gross_margin_pct || {};
+        const gmM = gm.month == null ? "—" : ((Number(gm.month) * 100).toFixed(1) + "%");
+        const gmT = gm.today == null ? "—" : ((Number(gm.today) * 100).toFixed(1) + "%");
         el.innerHTML = [
             kpi("Credit đốt hôm nay", fmt(burn.today), "Tháng: " + fmt(burn.month)),
             kpi("Chi phí ước tính hôm nay", fmt(cost.today) + " ₫", "Tháng: " + fmt(cost.month) + " ₫"),
             kpi("Doanh thu tháng (gross)", fmt(revM.total_gross_vnd) + " ₫", "Pre-VAT: " + fmt(revM.total_base_vnd) + " ₫"),
+            kpi("Gross margin tháng", gmM, "Hôm nay: " + gmT + " · mục tiêu ≥70%"),
             kpi("Lợi nhuận ước tính tháng", fmt(profit.month) + " ₫", "Hôm nay: " + fmt(profit.today) + " ₫"),
         ].join("");
     }
@@ -135,6 +139,12 @@
         );
         fillTable("#admEcoUserTable", (d.by_user && d.by_user.month) || [], (r) =>
             `<tr><td>${esc(r.email)}</td><td>${fmt(r.credits)}</td></tr>`
+        );
+        fillTable("#admEcoActionTable", (d.by_action && d.by_action.month) || [], (r) =>
+            `<tr><td>${esc(r.module)}.${esc(r.action)}</td><td>${fmt(r.credits)}</td></tr>`
+        );
+        fillTable("#admEcoOrgTable", (d.by_org && d.by_org.month) || [], (r) =>
+            `<tr><td>org#${esc(r.organization_id)}</td><td>${fmt(r.credits)}</td></tr>`
         );
         fillTable("#admEcoRiskTable", d.at_risk_users || [], (r) =>
             `<tr><td>${esc(r.email)}</td><td>${fmt(r.credits_burned)}</td><td>${fmt(r.estimated_cost_vnd)} ₫</td><td>${fmt(r.revenue_base_vnd)} ₫</td><td>${esc(r.risk_score)}</td></tr>`

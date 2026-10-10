@@ -15,6 +15,11 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.user import User
 from app.services.auth import get_current_user
+from app.services.credits import cost_google_map_ai_generate, credits_enforced
+from app.services.plan_quota_registry import feature_key_for
+from app.services.saas_gate import build_job_id, saas_action_gate
+from app.services.tenant_org import personal_organization_id
+from app.services.trial_access import require_active_trial
 from app.services.google_map_gbp_service import (
     disconnect_user,
     get_status,
@@ -100,6 +105,35 @@ def _redirect_gbp_error(code: str) -> RedirectResponse:
     return RedirectResponse(url=f"/google-map-seo?gbp_error={code}", status_code=302)
 
 
+def _run_google_map_ai(db: Session, user: User, *, action: str, runner):
+    """Central SaaS gate for Google Map AI — reserve → commit / release."""
+    import uuid
+
+    credit_cost = cost_google_map_ai_generate(db=db) if credits_enforced() else 0
+    feature = feature_key_for("google_map_location")
+    org_id = personal_organization_id(int(user.id))
+    job_id = build_job_id("google_map_ai_generate", user.id, org_id, action, uuid.uuid4().hex[:10])
+    with saas_action_gate(
+        db,
+        user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=1,
+        job_id=job_id,
+        idempotency_key=job_id,
+        organization_id=org_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            out = runner()
+            sgate.commit()
+            sgate.record_usage(metadata={"action": action, "organization_id": org_id})
+            return out
+        except Exception:
+            sgate.release(reason=f"google_map_{action}_failed")
+            raise
+
+
 def _ok(data: Any) -> dict[str, Any]:
     return {"ok": True, "data": data}
 
@@ -109,6 +143,15 @@ def gbp_status(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
+    return _ok(get_status(db, user))
+
+
+@router.get("/oauth/status")
+def gbp_oauth_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Alias for clients expecting /oauth/status."""
     return _ok(get_status(db, user))
 
 
@@ -241,15 +284,20 @@ def gbp_profile_drafts(
 def gbp_profile_generate(
     body: GbpProfileGenerateBody,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_trial),
 ) -> dict[str, Any]:
     return _ok(
-        ai_generate(
+        _run_google_map_ai(
             db,
-            user.id,
-            location_key=body.location_key.strip(),
-            content_type=body.content_type.strip(),
-            input_data=body.input.model_dump(),
+            user,
+            action="profile_generate",
+            runner=lambda: ai_generate(
+                db,
+                user.id,
+                location_key=body.location_key.strip(),
+                content_type=body.content_type.strip(),
+                input_data=body.input.model_dump(),
+            ),
         )
     )
 
@@ -333,16 +381,21 @@ def gbp_review_drafts(
 def gbp_review_ai_reply(
     body: GbpReviewAiBody,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_trial),
 ) -> dict[str, Any]:
     return _ok(
-        ai_reply(
+        _run_google_map_ai(
             db,
-            user.id,
-            location_key=body.location_key.strip(),
-            review=body.review,
-            tone=body.tone.strip(),
-            business=body.business,
+            user,
+            action="review_ai_reply",
+            runner=lambda: ai_reply(
+                db,
+                user.id,
+                location_key=body.location_key.strip(),
+                review=body.review,
+                tone=body.tone.strip(),
+                business=body.business,
+            ),
         )
     )
 
@@ -461,15 +514,20 @@ def gbp_posts_calendar(
 def gbp_posts_generate(
     body: GbpPostGenerateBody,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_trial),
 ) -> dict[str, Any]:
     return _ok(
-        ai_generate_post(
+        _run_google_map_ai(
             db,
-            user.id,
-            location_key=body.location_key.strip(),
-            post_type=body.post_type.strip(),
-            input_data=body.input.model_dump(),
+            user,
+            action="posts_generate",
+            runner=lambda: ai_generate_post(
+                db,
+                user.id,
+                location_key=body.location_key.strip(),
+                post_type=body.post_type.strip(),
+                input_data=body.input.model_dump(),
+            ),
         )
     )
 
@@ -640,14 +698,19 @@ def gbp_media_ai_caption(
     media_id: int,
     body: GbpMediaAiCaptionBody,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_active_trial),
 ) -> dict[str, Any]:
     return _ok(
-        ai_caption(
+        _run_google_map_ai(
             db,
-            user.id,
-            media_id,
-            input_data=body.model_dump(),
+            user,
+            action="media_ai_caption",
+            runner=lambda: ai_caption(
+                db,
+                user.id,
+                media_id,
+                input_data=body.model_dump(),
+            ),
         )
     )
 

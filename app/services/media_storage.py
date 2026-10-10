@@ -69,12 +69,38 @@ def save_private_image(
     dest_dir = user_upload_dir(user_id, project_id=project_id)
     (dest_dir / target_name).write_bytes(data)
     rel = user_upload_relative_path(project_id=project_id, filename=target_name)
-    return {
+    out = {
         "url": private_upload_url(user_id, rel),
         "name": target_name,
         "relative_path": rel,
         "visibility": "private",
     }
+    try:
+        from app.db import SessionLocal
+        from app.services.cost_usage_logger import record_infra_cost_usage
+        from app.services.tenant_org import personal_organization_id
+
+        db = SessionLocal()
+        try:
+            record_infra_cost_usage(
+                db,
+                user_id=int(user_id),
+                organization_id=personal_organization_id(int(user_id)),
+                feature_key="storage_put",
+                quantity=1,
+                provider="local_disk",
+                request_id=f"storage:put:{user_id}:{target_name}",
+                credits_used=0,
+                bytes_len=len(data),
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+    except Exception:
+        pass
+    return out
 
 
 def save_public_published_image(

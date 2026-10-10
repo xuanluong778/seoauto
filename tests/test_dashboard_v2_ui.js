@@ -96,18 +96,20 @@ function createDom() {
         body.appendChild(el);
     });
 
-    // Nav badges for 12 groups
+    // Nav badges for beginner tabs + fine-grained groups used in tests
     const navGroups = [
         "priority",
+        "index_crawl",
+        "onpage",
+        "perf_security",
+        "gsc",
         "indexability",
         "crawlability",
-        "onpage",
         "internal_links",
         "performance",
         "structured_data",
         "security_http",
         "ux_mobile",
-        "gsc",
     ];
     navGroups.forEach((g) => {
         const el = makeEl("badge-" + g);
@@ -294,7 +296,8 @@ function main() {
 
     run("TechDashboardV2 and TechSidebarV2 exported", () => {
         assert(TD && TS, "modules missing");
-        assert(TS.NAV_ORDER.length === 12, "expected 12 nav groups, got " + TS.NAV_ORDER.length);
+        assert(TS.NAV_ORDER.length === 7, "expected 7 nav groups, got " + TS.NAV_ORDER.length);
+        assert(TS.NAV_ORDER.join(",") === "overview,priority,index_crawl,onpage,perf_security,gsc,history", "nav order");
         assert(!TS.NAV_ORDER.includes("passed"), "passed should not be in sidebar");
     });
 
@@ -344,15 +347,18 @@ function main() {
         assert(stats.crawlability.open === 1, "crawlability badge");
         assert(stats.onpage.open === 2, "onpage badge");
         assert(stats.internal_links.open === 1, "internal_links badge");
+        assert(stats.index_crawl.open === 2, "index_crawl rollup");
+        assert(stats.perf_security.open === 0, "perf_security empty");
         assert(stats.priority.open === 2, "priority badge");
         assert(stats.security_http.open === 0, "security_http empty");
     });
 
     run("issueNavGroup routes internal_links and security", () => {
         const issue = v2Payload.technical_dashboard_v2.issues[2];
-        assert(TS.issueNavGroup(issue) === "internal_links", "internal link group");
+        assert(TS.issueNavGroupFine(issue) === "internal_links", "internal link fine group");
+        assert(TS.issueNavGroup(issue) === "index_crawl", "internal link folded group");
         assert(TS.normalizeTechTabKey("passed") === "overview", "passed → overview");
-        assert(TS.normalizeTechTabKey("security_ux") === "security_http", "legacy security_ux");
+        assert(TS.normalizeTechTabKey("security_ux") === "perf_security", "legacy security_ux");
     });
 
     run("resolvePriorityIssues from priority_issues", () => {
@@ -397,7 +403,7 @@ function main() {
     run("renderPassedCollapsible shows passed checks", () => {
         TD.renderPassedCollapsible(v2Payload);
         const sec = document.getElementById("seoToolOverviewPassedCollapsible");
-        assert(!sec.hidden, "collapsible visible");
+        assert(sec.hidden, "collapsible hidden on overview");
         assert(document.getElementById("seoToolOverviewPassedCollapsibleCount").textContent === "2", "count");
         assert(document.getElementById("seoToolOverviewPassedCollapsibleBody").children.length === 2, "items");
     });
@@ -415,12 +421,18 @@ function main() {
         const crawl = TD.filterIssuesByGroup(dash, "crawlability");
         const onpage = TD.filterIssuesByGroup(dash, "onpage");
         const internal = TD.filterIssuesByGroup(dash, "internal_links");
+        const indexCrawl = TD.filterIssuesByGroup(dash, "index_crawl");
         assert(crawl.length === 1 && crawl[0].issue_type === "robots_disallow_all", "crawlability");
         assert(onpage.length === 2, "onpage count");
         assert(internal.length === 1 && internal[0].issue_type === "broken_internal_link", "internal_links");
+        assert(indexCrawl.length === 2, "index_crawl includes crawl + internal");
         assert(
             !onpage.some((i) => i.issue_type === "robots_disallow_all"),
             "onpage must not include crawlability issue"
+        );
+        assert(
+            !crawl.some((i) => i.issue_type === "broken_internal_link"),
+            "fine crawlability must not include internal_links"
         );
     });
 
@@ -449,14 +461,17 @@ function main() {
 
     run("TAB_LABELS use Vietnamese SaaS labels", () => {
         assert(TS.TAB_LABELS.priority === "Việc cần sửa", "priority label");
-        assert(TS.TAB_LABELS.indexability === "Index Google", "indexability label");
-        assert(TS.TAB_LABELS.gsc === "Google Search Console", "gsc label");
+        assert(TS.TAB_LABELS.index_crawl === "Index & Crawl", "index_crawl label");
+        assert(TS.TAB_LABELS.indexability === "Index & Crawl", "indexability alias");
+        assert(TS.TAB_LABELS.gsc === "GSC", "gsc label");
+        assert(TS.TAB_LABELS.history === "Lịch sử", "history label");
     });
 
     run("legacyCatToGroup maps sitemap/robots to sidebar tabs", () => {
         assert(TS.legacyCatToGroup("sitemap") === "indexability", "sitemap");
         assert(TS.legacyCatToGroup("robots") === "crawlability", "robots");
-        assert(TS.issueNavGroup({ category: "sitemap" }) === "indexability", "category sitemap");
+        assert(TS.issueNavGroupFine({ category: "sitemap" }) === "indexability", "fine sitemap");
+        assert(TS.issueNavGroup({ category: "sitemap" }) === "index_crawl", "category sitemap folded");
     });
 
     run("resolveGscViewState crawl_only when GSC disabled", () => {
@@ -526,6 +541,11 @@ function main() {
         assert(css.includes("min(440px, 100vw)"), "desktop drawer width");
         assert(css.includes("width: 100vw") && css.includes("@media (max-width: 1024px)"), "mobile full width");
         assert(css.includes(".tech-nav-row[data-tech-nav=\"passed\"]"), "passed hidden from sidebar");
+        assert(!css.includes('.seo-tool-gsc-card {\n    display: none'), "must not hide GSC card");
+        const dashJs = fs.readFileSync(path.join(ROOT, "static/js/seo-tool-dashboard-v2.js"), "utf8");
+        assert(dashJs.includes("Issue xác nhận từ GSC"), "GSC issues heading preserved");
+        assert(dashJs.includes("buildExplorerIssueCard(issue)"), "GSC issues keep original cards");
+        assert(!dashJs.includes('gscCard.hidden = true'), "must not hide GSC connect card in JS");
     });
 
     // Template wiring checks
@@ -534,14 +554,43 @@ function main() {
         assert(html.includes("seo-tool-dashboard-v2.js"), "dashboard js linked");
         assert(html.includes("seo-tool-dashboard-v2.css"), "dashboard css linked");
         assert(html.includes("techIssueDrawer"), "drawer markup");
-        assert(html.includes("data-tech-nav=\"security_http\""), "security_http nav");
-        assert(html.includes("data-tech-nav=\"ux_mobile\""), "ux_mobile nav");
+        assert(html.includes("data-tech-nav=\"index_crawl\""), "index_crawl nav");
+        assert(html.includes("data-tech-nav=\"perf_security\""), "perf_security nav");
+        assert(html.includes("data-tech-nav=\"onpage\""), "onpage nav");
+        assert(!html.includes('data-tech-nav="security_http"'), "fine security_http nav removed");
+        assert(!html.includes('data-tech-nav="ux_mobile"'), "fine ux_mobile nav removed");
         assert(!html.includes('data-tech-nav="passed"'), "passed nav removed");
+        assert(html.includes(">Vấn đề<"), "drawer vấn đề");
+        assert(html.includes("Tại sao quan trọng"), "drawer why");
+        assert(html.includes(">Evidence<"), "drawer evidence");
+        assert(html.includes("URL lỗi"), "drawer urls");
+        assert(html.includes("Cách sửa"), "drawer fix");
+        assert(html.includes("5 lỗi cần sửa nhất"), "overview top issues");
+        assert(html.includes("Xu hướng điểm"), "score trend");
+        assert(html.includes("Mức độ"), "issue table severity col");
+        assert(html.includes("Xem chi tiết"), "issue table detail col");
+        assert(!/seo-tool-gsc-card"\s+hidden/.test(html), "GSC connect card remains visible");
+        assert(html.includes('id="btnGoogleApisConnect"'), "GSC connect");
+        assert(html.includes('id="btnGoogleApisDisconnect"'), "GSC disconnect");
+        assert(html.includes('id="gscSiteSelect"'), "GSC property select");
+        assert(html.includes('id="gscDateRangeSelect"'), "GSC 28/90 days");
+        assert(html.includes('id="gscInspectionLimitSelect"'), "URL Inspection limit");
+        assert(html.includes('id="techContentGsc"'), "GSC tab panel");
+        assert(html.includes('id="techGscTabHost"'), "GSC hub host");
         assert(html.includes("saasCountWarning"), "warning stat");
         assert(html.includes("saasCountOpportunity"), "opportunity stat");
         assert(html.includes("seoToolFilterCategory"), "category filter");
         assert(html.includes("authBoxTop"), "auth preserved");
         assert(html.includes("digiseo_top_nav.html"), "top nav preserved");
+    });
+
+    run("technical scan uses background job poll", () => {
+        const initJs = fs.readFileSync(path.join(ROOT, "static/js/seo_tool/seo-tool-page-init.js"), "utf8");
+        assert(initJs.includes("/analyze/technical/jobs"), "start job endpoint");
+        assert(initJs.includes("pollTechnicalScanJob"), "poll helper");
+        assert(initJs.includes('useSyncFallback'), "404 fallback to sync scan");
+        const dashJs = loadScript("static/js/seo-tool-dashboard-v2.js");
+        assert(dashJs.includes("function setScanJobProgress"), "job progress helper");
     });
 
     console.log("\n" + passed + " passed, " + failed + " failed\n");

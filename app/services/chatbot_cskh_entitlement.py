@@ -48,6 +48,19 @@ MONTHLY_REPLY_LIMIT_BY_PLAN: dict[str, int] = {
 CONSULTATION_TONES = frozenset({"friendly", "professional", "enthusiastic", "concise"})
 
 NO_DATA_REPLY = "Hiện tại tôi chưa có đủ thông tin chính xác về nội dung này."
+NO_DATA_REPLY_SUFFIX = "Bạn vui lòng liên hệ {phone} để được tư vấn nhanh nhất."
+
+
+def build_no_data_reply(phone: str = "") -> str:
+    phone_s = str(phone or "").strip()
+    if phone_s:
+        return f"{NO_DATA_REPLY} {NO_DATA_REPLY_SUFFIX.format(phone=phone_s)}"
+    return NO_DATA_REPLY
+
+
+def is_no_data_reply(reply: str) -> bool:
+    text = str(reply or "").strip()
+    return text == NO_DATA_REPLY or text.startswith(NO_DATA_REPLY)
 
 CREDIT_EXHAUSTED_MESSAGE = REPLY_LIMIT_MESSAGE
 
@@ -64,7 +77,7 @@ def monthly_reply_limit_for_plan(plan_slug: str | None) -> int:
 
 def build_embed_code(bot_id: int, *, base_url: str = "https://seoauto.vn") -> str:
     base = (base_url or "https://seoauto.vn").rstrip("/")
-    return f'<script src="{base}/chatbot/widget.js?v=4" data-bot-id="{int(bot_id)}"></script>'
+    return f'<script src="{base}/chatbot/widget.js?v=7" data-bot-id="{int(bot_id)}"></script>'
 
 
 def default_greeting(bot_name: str, business_name: str, tone: str) -> str:

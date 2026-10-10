@@ -45,7 +45,20 @@
             typeof window.DigiSeoIsTokenInvalid401 === "function"
                 ? window.DigiSeoIsTokenInvalid401(data)
                 : true;
-        if (shouldClear) clearAuthToken();
+        if (!shouldClear) return false;
+        // Prefer refresh over hard logout — access JWT expires every ~20 minutes.
+        if (typeof window.DigiSeoRefreshSessionFromCookie === "function") {
+            window.DigiSeoRefreshSessionFromCookie().then(function (tok) {
+                if (!tok) {
+                    clearAuthToken();
+                    if (typeof window.DigiSeoOpenLoginModal === "function") {
+                        window.DigiSeoOpenLoginModal();
+                    }
+                }
+            });
+            return true;
+        }
+        clearAuthToken();
         const detail = parseApiDetail(data) || "Invalid token";
         const msg =
             detail.toLowerCase().includes("invalid token") || detail.toLowerCase().includes("đăng nhập")
@@ -59,6 +72,9 @@
         return true;
     };
     const apiFetch = (url, opts = {}) => {
+        if (typeof window.DigiSeoAuthFetch === "function") {
+            return window.DigiSeoAuthFetch(url, opts);
+        }
         const o = { credentials: "same-origin", ...opts };
         o.headers = authHeaders({ ...(opts.headers || {}) });
         return fetch(url, o).then(async (res) => {
@@ -327,7 +343,11 @@
             String(byId("wpUrl")?.value || "").trim() ||
             String(byId("targetWebsite")?.value || "").trim();
         const sk = _getWpCategoriesSiteKey(site);
-        const cached = sk ? _bulkWpCategoriesBySiteKey[sk] : null;
+        let cached = sk ? _bulkWpCategoriesBySiteKey[sk] : null;
+        if ((!cached || !cached.length) && typeof _hydrateWpCategoriesFromCache === "function") {
+            const row = _hydrateWpCategoriesFromCache(sk, site);
+            cached = row && row.items;
+        }
         if (sel) fillBulkCategorySelectEl(sel, cached || [], savedId);
         if (pubSel) fillBulkCategorySelectEl(pubSel, cached || [], savedId);
     };
@@ -391,7 +411,14 @@
     const OUTPUT_ACCORDION_KEY = "content_ai_output_accordion_open_v1";
     const setHint = (field, text) => {
         const el = byId(`hint-${field}`);
-        if (el) el.textContent = text || "";
+        if (!el) return;
+        const msg = text || "";
+        el.textContent = msg;
+        // #hint-google-images stays hidden unless we have an active web-image message
+        if (field === "google-images") {
+            if (String(msg).trim()) el.removeAttribute("hidden");
+            else el.setAttribute("hidden", "");
+        }
     };
 
     const _stripText = (html) => {
@@ -559,14 +586,14 @@
         setContentValue(outHtml.join("\n"));
         refreshPreview();
     };
-    const refreshPreview = () => {
-        const contentHtml = getContentValue();
+    const updateContentStatsFromHtml = (html) => {
+        const contentHtml = html != null ? String(html) : String(getContentValue() || "");
         const text = _stripText(contentHtml);
         const words = _countWords(text);
         const chars = text.length;
         const sentences = _countSentences(text);
         const paragraphs = _countParagraphs(contentHtml);
-        const pages = words ? (words / 260) : 0; // ~260 words/page
+        const pages = words ? (words / 260) : 0;
         if (statWords) statWords.textContent = String(words);
         if (statChars) statChars.textContent = String(chars);
         if (statSentences) statSentences.textContent = String(sentences);
@@ -578,6 +605,11 @@
         if (caEdW) caEdW.textContent = String(words);
         if (caEdC) caEdC.textContent = String(chars);
         if (caStickyW) caStickyW.textContent = String(words);
+        return { words, chars, sentences, paragraphs, pages };
+    };
+    const refreshPreview = () => {
+        const contentHtml = getContentValue();
+        updateContentStatsFromHtml(contentHtml);
         const element = byId("contentRender");
         const content = withImageAuthTokensForHtml(String(contentHtml || ""));
         const isEditing = element && document.activeElement === element;

@@ -1,0 +1,237 @@
+{
+  "screenshots": [
+    {
+      "name": "desktop_tool_logged_out",
+      "file": "docs/baseline/wave10/screenshots/desktop_tool_logged_out.png"
+    },
+    {
+      "name": "desktop_auth_modal_open",
+      "file": "docs/baseline/wave10/screenshots/desktop_auth_modal_open.png"
+    },
+    {
+      "name": "mobile_content_ai",
+      "file": "docs/baseline/wave10/screenshots/mobile_content_ai.png"
+    },
+    {
+      "name": "mobile_nav_open",
+      "file": "docs/baseline/wave10/screenshots/mobile_nav_open.png"
+    },
+    {
+      "name": "tablet_content_ai",
+      "file": "docs/baseline/wave10/screenshots/tablet_content_ai.png"
+    },
+    {
+      "name": "desktop_content_ai",
+      "file": "docs/baseline/wave10/screenshots/desktop_content_ai.png"
+    },
+    {
+      "name": "desktop_bulk_tab",
+      "file": "docs/baseline/wave10/screenshots/desktop_bulk_tab.png"
+    },
+    {
+      "name": "desktop_editor_typed",
+      "file": "docs/baseline/wave10/screenshots/desktop_editor_typed.png"
+    },
+    {
+      "name": "desktop_media_studio",
+      "file": "docs/baseline/wave10/screenshots/desktop_media_studio.png"
+    },
+    {
+      "name": "desktop_after_draft",
+      "file": "docs/baseline/wave10/screenshots/desktop_after_draft.png"
+    },
+    {
+      "name": "desktop_delete_modal",
+      "file": "docs/baseline/wave10/screenshots/desktop_delete_modal.png"
+    },
+    {
+      "name": "desktop_settings",
+      "file": "docs/baseline/wave10/screenshots/desktop_settings.png"
+    },
+    {
+      "name": "desktop_pricing",
+      "file": "docs/baseline/wave10/screenshots/desktop_pricing.png"
+    },
+    {
+      "name": "desktop_account_billing",
+      "file": "docs/baseline/wave10/screenshots/desktop_account_billing.png"
+    }
+  ],
+  "interactions": [
+    {
+      "action": "open_auth_modal",
+      "ok": true
+    },
+    {
+      "action": "close_auth_modal",
+      "ok": true
+    },
+    {
+      "action": "mobile_nav_toggle",
+      "ok": true
+    },
+    {
+      "action": "tab_bulk",
+      "ok": true
+    },
+    {
+      "action": "bulk_table_present",
+      "ok": true
+    },
+    {
+      "action": "tab_single",
+      "ok": true
+    },
+    {
+      "action": "editor_input",
+      "ok": true,
+      "text": "WAVE10 editor input keep format"
+    },
+    {
+      "action": "tinymce_controls",
+      "ok": true
+    },
+    {
+      "action": "open_media_studio",
+      "ok": true,
+      "overlay": true
+    },
+    {
+      "action": "form_submit_draft",
+      "ok": true
+    },
+    {
+      "action": "modal_open_close",
+      "ok": true
+    },
+    {
+      "action": "nav_settings",
+      "ok": true,
+      "url": "http://127.0.0.1:8899/settings"
+    },
+    {
+      "action": "goto_pricing",
+      "ok": true,
+      "url": "http://127.0.0.1:8899/pricing"
+    }
+  ],
+  "layout": [
+    {
+      "viewport": "mobile",
+      "header": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 375.0,
+        "height": 68.0
+      },
+      "nav": null,
+      "sidebar_create": {
+        "x": 24.0,
+        "y": 243.0,
+        "width": 155.5,
+        "height": 36.0
+      },
+      "tabs": {
+        "x": 16.0,
+        "y": 68.0,
+        "width": 343.0,
+        "height": 95.0
+      },
+      "form_keyword": {
+        "x": 30.0,
+        "y": 436.0,
+        "width": 315.0,
+        "height": 38.0
+      },
+      "editor": {
+        "x": 56.0,
+        "y": 2864.5,
+        "width": 263.0,
+        "height": 420.0
+      },
+      "loading": null,
+      "empty": null,
+      "error": null
+    },
+    {
+      "viewport": "tablet",
+      "header": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 768.0,
+        "height": 68.0
+      },
+      "nav": null,
+      "sidebar_create": {
+        "x": 24.0,
+        "y": 243.0,
+        "width": 352.0,
+        "height": 36.0
+      },
+      "tabs": {
+        "x": 16.0,
+        "y": 68.0,
+        "width": 736.0,
+        "height": 95.0
+      },
+      "form_keyword": {
+        "x": 30.0,
+        "y": 422.0,
+        "width": 708.0,
+        "height": 38.0
+      },
+      "editor": {
+        "x": 56.0,
+        "y": 2516.2,
+        "width": 656.0,
+        "height": 420.0
+      },
+      "loading": null,
+      "empty": null,
+      "error": null
+    },
+    {
+      "viewport": "desktop",
+      "header": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 1440.0,
+        "height": 104.0
+      },
+      "nav": {
+        "x": 150.8,
+        "y": 34.0,
+        "width": 1246.3,
+        "height": 40.0
+      },
+      "sidebar_create": {
+        "x": 29.0,
+        "y": 551.0,
+        "width": 202.0,
+        "height": 42.0
+      },
+      "tabs": {
+        "x": 276.0,
+        "y": 104.0,
+        "width": 896.0,
+        "height": 50.0
+      },
+      "form_keyword": {
+        "x": 278.0,
+        "y": 239.0,
+        "width": 440.0,
+        "height": 38.0
+      },
+      "editor": {
+        "x": 304.0,
+        "y": 1843.2,
+        "width": 840.0,
+        "height": 420.0
+      },
+      "loading": null,
+      "empty": null,
+      "error": null
+    }
+  ],
+  "errors": []
+}

@@ -6,6 +6,7 @@ import json
 import os
 import re
 import socket
+from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
 
@@ -55,6 +56,25 @@ def _request_proxies() -> dict[str, str] | None:
     if https_p:
         out["https"] = https_p
     return out or None
+
+
+@lru_cache(maxsize=1)
+def wp_server_egress_ip() -> str:
+    """IPv4 this host uses to reach the public internet (for WP firewall whitelist)."""
+    env_ip = (os.getenv("SEOAUTO_PUBLIC_IP") or os.getenv("SERVER_PUBLIC_IP") or "").strip()
+    if env_ip:
+        return env_ip
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(1)
+        sock.connect(("1.1.1.1", 80))
+        ip = str(sock.getsockname()[0] or "").strip()
+        sock.close()
+        if ip and not ip.startswith("127."):
+            return ip
+    except OSError:
+        pass
+    return ""
 
 
 def iter_wp_base_candidates(url: str) -> list[str]:
@@ -108,14 +128,36 @@ def merge_wp_headers(headers: dict[str, str] | None) -> dict[str, str]:
     return merged
 
 
+def _normalize_timeout(timeout: float | tuple[float, float] | None) -> tuple[float, float]:
+    """(connect, read). Keep connect short so a firewalled host cannot stall the UI."""
+    if isinstance(timeout, (tuple, list)) and len(timeout) >= 2:
+        return float(timeout[0]), float(timeout[1])
+    read = float(timeout or 15)
+    connect = min(4.0, max(2.0, read / 4.0))
+    return (connect, read)
+
+
+def _is_connect_timeout(exc: BaseException) -> bool:
+    text = (repr(exc) + " " + str(exc)).lower()
+    return any(
+        m in text
+        for m in (
+            "connecttimeout",
+            "connection timed out",
+            "timed out",
+            "timeout",
+        )
+    )
+
+
 def _build_retry_session() -> requests.Session:
     session = requests.Session()
     session.trust_env = True
     retry = Retry(
-        total=2,
-        connect=1,
-        read=1,
-        backoff_factor=0.4,
+        total=1,
+        connect=0,
+        read=0,
+        backoff_factor=0.2,
         status_forcelist=(502, 503, 504),
         allowed_methods=frozenset({"GET", "HEAD", "POST", "PUT", "PATCH"}),
         raise_on_status=False,
@@ -157,7 +199,13 @@ def format_wp_request_error(exc: Exception, *, host: str = "") -> str:
             "Kiểm tra URL đúng (thử thêm/bỏ www), mạng/DNS máy tính, rồi thử lại."
         )
     if "timed out" in text.lower() or "timeout" in text.lower():
-        return f"Kết nối WordPress quá thời gian chờ ({host_label}). Thử lại sau vài giây."
+        ip = wp_server_egress_ip()
+        ip_bit = f" IP server Seoauto: {ip}." if ip else ""
+        return (
+            f"Kết nối WordPress quá thời gian chờ ({host_label}).{ip_bit} "
+            "Hosting/tường lửa của site đang chặn IP này (cổng 80/443). "
+            "Whitelist IP trên cPanel CSF / Imunify / Cloudflare rồi bấm Kiểm tra kết nối lại."
+        )
     if "SSLError" in text or "certificate" in text.lower():
         return (
             f"Lỗi chứng chỉ HTTPS ({host_label}). Kiểm tra URL https:// đúng domain. "
@@ -221,18 +269,38 @@ def parse_wp_response_json(resp: requests.Response) -> Any:
         ) from exc
 
 
+def wp_http_status_note(resp: requests.Response) -> str:
+    """Log-safe status line: HTTP code + WP error code. Never include secrets."""
+    status = int(getattr(resp, "status_code", 0) or 0)
+    ctype = str((resp.headers or {}).get("Content-Type") or "").split(";")[0].strip().lower()
+    wp_code = ""
+    try:
+        data = resp.json()
+        if isinstance(data, dict):
+            wp_code = str(data.get("code") or "")[:80]
+    except Exception:
+        wp_code = ""
+    kind = "json"
+    if "html" in ctype or (resp.text or "").lstrip()[:15].lower().startswith(("<!doctype", "<html")):
+        kind = "html/waf"
+    parts = [f"HTTP {status}", kind]
+    if wp_code:
+        parts.append(wp_code)
+    return " ".join(parts)
+
+
 def wp_get_json(
     path: str,
     *,
     url: str,
     headers: dict[str, str] | None = None,
     auth: tuple[str, str] | None = None,
-    timeout: float = 25,
+    timeout: float | tuple[float, float] = 15,
     params: dict[str, Any] | None = None,
 ) -> tuple[requests.Response, str]:
     """
-    GET REST path trying host/scheme variants on connection errors.
-    Returns (response, working_base_url).
+    GET REST path trying host/scheme variants on connection errors,
+    redirects, and 401/403/404 (www vs apex). Returns (response, working_base_url).
     """
     candidates = iter_wp_base_candidates(url)
     if not candidates:
@@ -242,29 +310,68 @@ def wp_get_json(
     req_headers = merge_wp_headers(headers)
     verify = _ssl_verify()
     proxies = _request_proxies()
-    req_timeout: float | tuple[float, float] = (min(12.0, timeout), timeout)
+    req_timeout = _normalize_timeout(timeout)
     last_exc: Exception | None = None
+    last_resp: requests.Response | None = None
+    last_base = candidates[0]
     last_host = urlparse(candidates[0]).netloc or candidates[0]
 
     for base in candidates:
         last_host = urlparse(base).netloc or base
+        last_base = base
         full = f"{base}{path}"
         try:
+            from app.services.url_safety import validate_public_http_url
+
+            blocked = validate_public_http_url(full)
+            if blocked:
+                raise ValueError(f"SSRF blocked: {blocked}")
             resp = session.get(
                 full,
                 headers=req_headers,
                 auth=auth,
-                timeout=timeout,
+                timeout=req_timeout,
                 params=params,
                 verify=verify,
+                proxies=proxies,
+                allow_redirects=False,
             )
-            return resp, base
+        except ValueError as exc:
+            last_exc = exc
+            break
         except (requests.RequestException, socket.gaierror, OSError, ProtocolError) as exc:
             last_exc = exc
+            # Timeout / firewalled IP: www and http are usually the same box — do not burn 80s+.
+            if _is_connect_timeout(exc):
+                break
             if not _is_transient_connect_error(exc):
                 break
             continue
 
+        if resp.status_code in (301, 302, 303, 307, 308):
+            loc = str((resp.headers or {}).get("Location") or "").strip()
+            if loc:
+                from urllib.parse import urljoin
+
+                nxt = urljoin(full, loc)
+                try:
+                    from app.services.url_safety import validate_public_http_url
+
+                    if not validate_public_http_url(nxt):
+                        nxt_base = normalize_wp_base_url(nxt)
+                        if nxt_base and nxt_base not in candidates:
+                            candidates.append(nxt_base)
+                except Exception:
+                    pass
+            last_resp = resp
+            continue
+        if resp.status_code in (401, 403, 404) and base != candidates[-1]:
+            last_resp = resp
+            continue
+        return resp, base
+
+    if last_resp is not None:
+        return last_resp, last_base
     if last_exc is not None:
         raise requests.RequestException(format_wp_request_error(last_exc, host=last_host)) from last_exc
     raise requests.RequestException("Không kết nối được WordPress.")

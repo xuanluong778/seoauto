@@ -22,6 +22,11 @@ class TechnicalAnalyzeRequest(BaseModel):
     gsc_start_date: str | None = Field(default=None, description="YYYY-MM-DD khi gsc_date_range=custom")
     gsc_end_date: str | None = Field(default=None, description="YYYY-MM-DD khi gsc_date_range=custom")
     url_inspection_limit: int = Field(default=10, ge=0, le=50)
+    idempotency_key: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Khóa idempotent — retry cùng key không trừ credit/lưu audit trùng.",
+    )
 
 
 class SEOIssue(BaseModel):
@@ -111,6 +116,12 @@ class TechnicalIssue(BaseModel):
     gsc_user_canonical: str | None = None
     gsc_google_canonical: str | None = None
     gsc_last_crawl_time: str | None = None
+    source: str | None = Field(
+        default=None,
+        description="crawl | gsc | hybrid | crux | pagespeed",
+    )
+    evidence: list[dict[str, Any]] | None = Field(default=None)
+    affected_urls: list[str] | None = Field(default=None)
 
 
 class BrokenInternalLink(BaseModel):
@@ -180,6 +191,14 @@ class TechnicalSummary(BaseModel):
     issues_by_severity: dict[str, int] | None = Field(
         default=None,
         description="Count of issues by severity after full audit.",
+    )
+    scan_mode: str | None = Field(
+        default=None,
+        description="crawl | hybrid — GSC xác nhận/ưu tiên, không thay thế crawl.",
+    )
+    partial_data: bool = Field(
+        default=False,
+        description="True khi GSC lỗi/quota hết; audit crawl vẫn hoàn tất.",
     )
 
 

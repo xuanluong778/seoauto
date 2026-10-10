@@ -1,0 +1,387 @@
+{
+  "wave": "3-pgbouncer-production",
+  "snapshot_at": "2026-09-06T07:52:12.940302+00:00",
+  "gates": {
+    "TRANSACTION_POOL_COMPATIBILITY": "PASS",
+    "PGBOUNCER_BUSINESS_LOAD_10": "PASS",
+    "PGBOUNCER_BUSINESS_LOAD_50": "PASS",
+    "PGBOUNCER_BUSINESS_LOAD_100": "PASS",
+    "TENANT_QUERY": "FAIL",
+    "NO_POOL_EXHAUSTION": "PASS",
+    "PRODUCTION_LIVE": "PASS",
+    "PGBOUNCER_ROLLBACK": "SKIP"
+  },
+  "index_warn": {
+    "ix_wordpress_publish_jobs_status_created": {
+      "status": "WARN",
+      "reason": "digiseo is not table owner — cannot CREATE INDEX; use table owner or DBA",
+      "fallback_index": "ix_wordpress_publish_jobs_status_retry",
+      "fallback_present": true
+    }
+  },
+  "canary_enable": {
+    "patch": {
+      "backup_written": "/var/www/seoauto_vn_usr/data/www/shared/env.local",
+      "db_use_pgbouncer": "1",
+      "database_url_port": ":6433"
+    },
+    "pm2_reload": {
+      "returncode": 1,
+      "stderr": "[PM2][ERROR] Reload already in progress, please try again in 29 seconds or use --force\n"
+    },
+    "ready": {
+      "gate": "PASS",
+      "ready": {
+        "status": "ready",
+        "lite": true,
+        "checks": {
+          "database": {
+            "ok": true
+          },
+          "redis": {
+            "ok": true
+          }
+        }
+      }
+    }
+  },
+  "pgbouncer_live_check": {
+    "gate": "PASS",
+    "db_use_pgbouncer_env": true,
+    "ready_status": 200,
+    "db_pool_metrics": {
+      "pool_size": null,
+      "checked_in": null,
+      "checked_out": null,
+      "overflow": null
+    }
+  },
+  "transaction_pool_compatibility": {
+    "gate": "PASS",
+    "cases": {
+      "simple_crud": {
+        "ok": true,
+        "detail": "select_commit_ok",
+        "required": true
+      },
+      "prepared_same_tx": {
+        "ok": true,
+        "detail": "prepare_execute_same_tx",
+        "required": true
+      },
+      "prepared_cross_checkout": {
+        "ok": true,
+        "detail": "unexpectedly_ok",
+        "required": false
+      },
+      "advisory_lock_same_tx": {
+        "ok": true,
+        "detail": "advisory_same_tx",
+        "required": true
+      },
+      "listen_notify": {
+        "ok": true,
+        "detail": "listen_ok_in_tx",
+        "required": false
+      },
+      "set_session": {
+        "ok": true,
+        "detail": "set_in_tx=8MB after_commit=8MB",
+        "required": true
+      },
+      "temp_table_same_tx": {
+        "ok": true,
+        "detail": "rows=1",
+        "required": true
+      },
+      "temp_table_after_return": {
+        "ok": false,
+        "detail": "should_not_reach",
+        "required": false
+      },
+      "long_transaction_2s": {
+        "ok": true,
+        "detail": "held_2s_ok",
+        "required": true
+      },
+      "for_update_skip_locked": {
+        "ok": true,
+        "detail": "skip_locked_ok",
+        "required": true
+      }
+    }
+  },
+  "business_load_10": {
+    "gate": "PASS",
+    "concurrency": 10,
+    "duration_sec": 8.0,
+    "total_requests": 299,
+    "error_pct": 0.0,
+    "db_flow_error_pct": 0.0,
+    "rate_limited_429": 7,
+    "p50_ms": 22.8,
+    "p95_ms": 61.3,
+    "p99_ms": 700.1,
+    "status_counts": {
+      "401": 292,
+      "429": 7
+    },
+    "by_flow": {
+      "auth_me": {
+        "ok": 39,
+        "err": 0
+      },
+      "content_ai_projects": {
+        "ok": 39,
+        "err": 0
+      },
+      "content_ai_credit_quote": {
+        "ok": 39,
+        "err": 0
+      },
+      "credits_preview": {
+        "ok": 39,
+        "err": 0
+      },
+      "technical_audit_job": {
+        "ok": 37,
+        "err": 0
+      },
+      "audit_mine": {
+        "ok": 37,
+        "err": 0
+      },
+      "seo_projects": {
+        "ok": 37,
+        "err": 0
+      },
+      "wordpress_test_connection": {
+        "ok": 32,
+        "err": 0
+      }
+    },
+    "db_before": {
+      "label": "load_10_before",
+      "via": "postgres_direct",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 6
+      },
+      "total_connections": 7,
+      "max_connections": 100,
+      "waiting": 6,
+      "slow_queries_gt_1s": 0,
+      "max_transaction_duration_sec": 0.0
+    },
+    "db_after": {
+      "label": "load_10_after",
+      "via": "postgres_direct",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 6
+      },
+      "total_connections": 7,
+      "max_connections": 100,
+      "waiting": 6,
+      "slow_queries_gt_1s": 0,
+      "max_transaction_duration_sec": 0.0
+    },
+    "host_metrics": {
+      "cpu_pct": 2.5,
+      "ram_used_mb": 7016.7,
+      "db_pool": {
+        "pool_size": null,
+        "checked_in": null,
+        "checked_out": null,
+        "overflow": null
+      },
+      "queue_queued": 0
+    },
+    "notes": []
+  },
+  "business_load_50": {
+    "gate": "PASS",
+    "concurrency": 50,
+    "duration_sec": 8.0,
+    "total_requests": 841,
+    "error_pct": 0.0,
+    "db_flow_error_pct": 0.0,
+    "rate_limited_429": 101,
+    "p50_ms": 34.8,
+    "p95_ms": 702.7,
+    "p99_ms": 2935.8,
+    "status_counts": {
+      "401": 740,
+      "429": 101
+    },
+    "by_flow": {
+      "auth_me": {
+        "ok": 130,
+        "err": 0
+      },
+      "content_ai_projects": {
+        "ok": 122,
+        "err": 0
+      },
+      "content_ai_credit_quote": {
+        "ok": 113,
+        "err": 0
+      },
+      "credits_preview": {
+        "ok": 108,
+        "err": 0
+      },
+      "technical_audit_job": {
+        "ok": 101,
+        "err": 0
+      },
+      "audit_mine": {
+        "ok": 96,
+        "err": 0
+      },
+      "seo_projects": {
+        "ok": 90,
+        "err": 0
+      },
+      "wordpress_test_connection": {
+        "ok": 81,
+        "err": 0
+      }
+    },
+    "db_before": {
+      "label": "load_50_before",
+      "via": "postgres_direct",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 6
+      },
+      "total_connections": 7,
+      "max_connections": 100,
+      "waiting": 6,
+      "slow_queries_gt_1s": 0,
+      "max_transaction_duration_sec": 0.0
+    },
+    "db_after": {
+      "label": "load_50_after",
+      "via": "postgres_direct",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 6
+      },
+      "total_connections": 7,
+      "max_connections": 100,
+      "waiting": 6,
+      "slow_queries_gt_1s": 0,
+      "max_transaction_duration_sec": 0.0
+    },
+    "host_metrics": {
+      "cpu_pct": 22.0,
+      "ram_used_mb": 7040.5,
+      "db_pool": {
+        "pool_size": null,
+        "checked_in": null,
+        "checked_out": null,
+        "overflow": null
+      },
+      "queue_queued": 0
+    },
+    "notes": []
+  },
+  "business_load_100": {
+    "gate": "PASS",
+    "concurrency": 100,
+    "duration_sec": 8.0,
+    "total_requests": 300,
+    "error_pct": 0.0,
+    "db_flow_error_pct": 0.0,
+    "rate_limited_429": 0,
+    "p50_ms": 102.1,
+    "p95_ms": 5835.7,
+    "p99_ms": 6702.5,
+    "status_counts": {
+      "401": 300
+    },
+    "by_flow": {
+      "auth_me": {
+        "ok": 100,
+        "err": 0
+      },
+      "content_ai_projects": {
+        "ok": 100,
+        "err": 0
+      },
+      "content_ai_credit_quote": {
+        "ok": 89,
+        "err": 0
+      },
+      "credits_preview": {
+        "ok": 11,
+        "err": 0
+      }
+    },
+    "db_before": {
+      "label": "load_100_before",
+      "via": "postgres_direct",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 6
+      },
+      "total_connections": 7,
+      "max_connections": 100,
+      "waiting": 6,
+      "slow_queries_gt_1s": 0,
+      "max_transaction_duration_sec": 0.0
+    },
+    "db_after": {
+      "label": "load_100_after",
+      "via": "postgres_direct",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 6
+      },
+      "total_connections": 7,
+      "max_connections": 100,
+      "waiting": 6,
+      "slow_queries_gt_1s": 0,
+      "max_transaction_duration_sec": 0.0
+    },
+    "host_metrics": {
+      "cpu_pct": 0.0,
+      "ram_used_mb": 7082.8,
+      "db_pool": {
+        "pool_size": null,
+        "checked_in": null,
+        "checked_out": null,
+        "overflow": null
+      },
+      "queue_queued": 0
+    },
+    "notes": []
+  },
+  "tenant_query": {
+    "gate": "FAIL",
+    "cross_poll_status": 401
+  },
+  "pool_exhaustion": {
+    "gate": "PASS",
+    "label": "pool_check",
+    "via": "postgres_direct",
+    "connections_by_state": {
+      "active": 1,
+      "idle": 6
+    },
+    "total_connections": 7,
+    "max_connections": 100,
+    "waiting": 6,
+    "slow_queries_gt_1s": 0,
+    "max_transaction_duration_sec": 0.0
+  },
+  "pgbouncer_rollback": {
+    "gate": "SKIP",
+    "note": "use --with-rollback-drill"
+  },
+  "failed_gates": [
+    "TENANT_QUERY"
+  ],
+  "WAVE_3_DB_PGBOUNCER": "FAIL"
+}

@@ -10,7 +10,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.chatbot_cskh import ChatbotBot, ChatbotConversation, ChatbotLead, ChatbotMessage
-from app.services.chatbot_cskh_lead_detect import detect_lead_from_text
+from app.services.chatbot_cskh_lead_detect import detect_lead_from_text, extract_email
 
 CONVERSATION_FILTERS = frozenset({"all", "has_phone", "unprocessed", "handled", "needs_staff"})
 CONVERSATION_STATUSES = frozenset({"open", "needs_staff", "handled"})
@@ -72,6 +72,23 @@ def _conversation_leads(db: Session, conversation_id: int) -> list[ChatbotLead]:
     )
 
 
+def _lead_email(row: ChatbotLead) -> str:
+    return (
+        extract_email(getattr(row, "email", None) or "")
+        or extract_email(row.need or "")
+        or extract_email(row.name or "")
+    )
+
+
+def _merge_email_into_need(need: str, email: str) -> str:
+    text = str(need or "").strip()
+    mail = str(email or "").strip()
+    if mail and mail.lower() not in text.lower():
+        prefix = f"Email: {mail}"
+        text = f"{prefix}\n{text}".strip() if text else prefix
+    return text[:2000]
+
+
 def _lead_to_dict(row: ChatbotLead) -> dict[str, Any]:
     st = str(row.status or "new").lower()
     return {
@@ -81,6 +98,7 @@ def _lead_to_dict(row: ChatbotLead) -> dict[str, Any]:
         "conversation_id": row.conversation_id,
         "name": row.name or "",
         "phone": row.phone or "",
+        "email": _lead_email(row),
         "need": row.need or "",
         "page_url": row.page_url or "",
         "status": st,
@@ -114,11 +132,13 @@ def _conversation_summary(db: Session, conv: ChatbotConversation) -> dict[str, A
         "channel_ref": conv.channel_ref or "",
         "visitor_name": conv.visitor_name or (primary_lead.name if primary_lead else "") or "",
         "visitor_phone": conv.visitor_phone or (primary_lead.phone if primary_lead else "") or "",
+        "visitor_email": (_lead_email(primary_lead) if primary_lead else ""),
         "visitor": conv.visitor_name or (primary_lead.name if primary_lead else "") or "Khách",
         "preview": (last_msg.message[:160] if last_msg else ""),
         "status": st,
         "message_count": msg_count,
         "has_phone": bool((conv.visitor_phone or "").strip() or any((l.phone or "").strip() for l in leads)),
+        "has_email": any(bool(_lead_email(l)) for l in leads),
         "has_lead": bool(leads),
         "lead_status": primary_lead.status if primary_lead else None,
         "lead_id": primary_lead.id if primary_lead else None,
@@ -171,6 +191,9 @@ def list_conversations(
 
 def get_conversation_detail(db: Session, user_id: int, conversation_id: int) -> dict[str, Any]:
     conv = _get_user_conversation(db, user_id, conversation_id)
+    from app.services.chatbot_cskh_email_notify import mark_conversation_read
+
+    mark_conversation_read(db, int(user_id), int(conversation_id), commit=True)
     messages = db.execute(
         select(ChatbotMessage)
         .where(ChatbotMessage.conversation_id == conv.id)
@@ -206,6 +229,10 @@ def update_conversation_status(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="status hội thoại không hợp lệ.")
     conv.status = st
     conv.updated_at = datetime.now(timezone.utc)
+    if st == "handled":
+        from app.services.chatbot_cskh_email_notify import mark_conversation_read
+
+        mark_conversation_read(db, int(user_id), int(conversation_id), commit=False)
     db.commit()
     db.refresh(conv)
     return _conversation_summary(db, conv)
@@ -263,15 +290,20 @@ def upsert_detected_lead(
 ) -> ChatbotLead | None:
     detected = detect_lead_from_text(text)
     phone = detected.get("phone") or ""
+    email = detected.get("email") or ""
     name = detected.get("name") or ""
     need = detected.get("need") or ""
-    if not phone and not (name and need):
+    if not phone and not email and not (name and need):
         return None
 
     if phone:
         conversation.visitor_phone = phone[:32]
     if name:
         conversation.visitor_name = name[:120]
+    elif email and not conversation.visitor_name:
+        conversation.visitor_name = email[:120]
+    if email:
+        need = _merge_email_into_need(need, email)
     if conversation.status == "open":
         conversation.status = "needs_staff"
     conversation.updated_at = datetime.now(timezone.utc)
@@ -291,8 +323,12 @@ def upsert_detected_lead(
             existing.phone = phone[:32]
         if name and not existing.name:
             existing.name = name[:120]
-        if need and not existing.need:
-            existing.need = need[:2000]
+        elif email and not existing.name:
+            existing.name = email[:120]
+        if need:
+            existing.need = _merge_email_into_need(existing.need or "", email or extract_email(need))
+            if not existing.need:
+                existing.need = need[:2000]
         if page_url and not existing.page_url:
             existing.page_url = page_url[:2000]
         db.commit()
@@ -303,7 +339,7 @@ def upsert_detected_lead(
         bot_id=bot.id,
         conversation_id=conversation.id,
         user_id=bot.user_id,
-        name=name[:120] or None,
+        name=(name[:120] or email[:120] or None),
         phone=phone[:32] or None,
         need=need[:2000] or None,
         page_url=str(page_url or "").strip()[:2000] or None,
@@ -320,3 +356,66 @@ def mark_conversation_needs_staff(db: Session, conversation: ChatbotConversation
         conversation.status = "needs_staff"
         conversation.updated_at = datetime.now(timezone.utc)
         db.commit()
+
+
+CUSTOMER_INBOUND_ROLES = frozenset({"user"})
+
+
+def count_unread_conversations(db: Session, user_id: int) -> int:
+    n = db.execute(
+        select(func.count(func.distinct(ChatbotMessage.conversation_id))).where(
+            ChatbotMessage.user_id == int(user_id),
+            ChatbotMessage.role.in_(tuple(CUSTOMER_INBOUND_ROLES)),
+            ChatbotMessage.read_at.is_(None),
+        )
+    ).scalar()
+    return int(n or 0)
+
+
+def notification_item_from_message(
+    db: Session,
+    conversation: ChatbotConversation,
+    message: ChatbotMessage,
+) -> dict[str, Any]:
+    leads = _conversation_leads(db, conversation.id)
+    primary_lead = leads[0] if leads else None
+    preview = str(message.message or "").replace("\n", " ").strip()
+    if len(preview) > 120:
+        preview = preview[:119] + "…"
+    return {
+        "conversation_id": int(conversation.id),
+        "bot_id": int(conversation.bot_id),
+        "visitor_name": (conversation.visitor_name or (primary_lead.name if primary_lead else "") or "Khách")[:120],
+        "preview": preview,
+        "created_at": _iso(message.created_at),
+        "message_id": int(message.id) if message.id else None,
+    }
+
+
+def list_unread_notifications(db: Session, user_id: int, *, limit: int = 40) -> dict[str, Any]:
+    rows = list(
+        db.execute(
+            select(ChatbotMessage)
+            .where(
+                ChatbotMessage.user_id == int(user_id),
+                ChatbotMessage.role.in_(tuple(CUSTOMER_INBOUND_ROLES)),
+                ChatbotMessage.read_at.is_(None),
+            )
+            .order_by(ChatbotMessage.created_at.desc(), ChatbotMessage.id.desc())
+            .limit(400)
+        ).scalars().all()
+    )
+    seen: set[int] = set()
+    items: list[dict[str, Any]] = []
+    for msg in rows:
+        cid = int(msg.conversation_id)
+        if cid in seen:
+            continue
+        seen.add(cid)
+        conv = db.get(ChatbotConversation, cid)
+        if conv is None or int(conv.user_id) != int(user_id):
+            continue
+        items.append(notification_item_from_message(db, conv, msg))
+        if len(items) >= max(1, min(int(limit), 80)):
+            break
+    return {"unread_count": count_unread_conversations(db, user_id), "items": items}

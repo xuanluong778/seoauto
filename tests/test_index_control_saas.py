@@ -18,7 +18,12 @@ from app.models.user import User
 from app.services.index_control_history_store import create_check_session
 from main import app
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://127.0.0.1")
+
+
+@pytest.fixture(autouse=True)
+def _grant_saas_access(monkeypatch):
+    monkeypatch.setattr("app.services.saas_gate.user_has_software_access", lambda db, uid: True)
 
 
 @pytest.fixture()

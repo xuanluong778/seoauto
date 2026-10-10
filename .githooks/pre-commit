@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Enable: git config core.hooksPath .githooks
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+exec bash "$ROOT/scripts/secret_scan.sh" --staged

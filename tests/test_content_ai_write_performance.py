@@ -70,8 +70,13 @@ def test_timing_accumulates_steps():
 
 
 def test_project_store_mutate_single_update(tmp_path, monkeypatch):
+    monkeypatch.setenv("TENANT_CONTENT_AI_PG", "0")
+    monkeypatch.setenv("TENANT_CONTENT_AI_JSON_WRITE", "1")
+    monkeypatch.setenv("TENANT_CONTENT_AI_DUAL_READ", "0")
     monkeypatch.chdir(tmp_path)
-    PROJECT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    proj_file = tmp_path / "data" / "content_ai_projects.json"
+    proj_file.parent.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("app.services.content_ai_project_store.PROJECT_FILE", proj_file)
     source = {
         "target_website": "https://site.test",
         "primary_keyword": "kw a",
@@ -81,10 +86,10 @@ def test_project_store_mutate_single_update(tmp_path, monkeypatch):
     }
     draft = {"title": "T", "content": "<p>one</p>", "slug": "t", "tags": [], "meta_description": "m"}
     pid = save_or_update_written_bulk_project(user_id=7, source_payload=source, draft_payload=draft)
-    before_mtime = PROJECT_FILE.stat().st_mtime
+    before_mtime = proj_file.stat().st_mtime
     row = update_content_ai_project_fields(pid, {"content": "<p>two words here</p>"}, user_id=7)
     assert row and row["id"] == pid
-    raw = json.loads(PROJECT_FILE.read_text(encoding="utf-8"))
+    raw = json.loads(proj_file.read_text(encoding="utf-8"))
     assert len(raw) == 1
     assert "two words" in str(raw[0].get("content") or "")
-    assert PROJECT_FILE.stat().st_mtime >= before_mtime
+    assert proj_file.stat().st_mtime >= before_mtime

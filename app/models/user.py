@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, DateTime, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.models.knowledge import KnowledgeBase
 
 
 class User(Base):
@@ -44,9 +45,13 @@ class User(Base):
         Integer, nullable=False, server_default=text("0"), default=0
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    projects: Mapped[list["Project"]] = relationship("Project", backref="user", cascade="all, delete-orphan")
-    knowledge_bases: Mapped[list["KnowledgeBase"]] = relationship(
-        "KnowledgeBase",
+    # NOTE:
+    # Do not declare `User.projects` relationship here.
+    # It can trigger SQLAlchemy mapper initialization for SEO models
+    # in worker contexts (Celery), blocking chatbot email notifications.
+    # Other parts of the app should access projects via dedicated service queries.
+    knowledge_bases: Mapped[list[KnowledgeBase]] = relationship(
+        KnowledgeBase,
         back_populates="user",
         foreign_keys="KnowledgeBase.user_id",
         cascade="all, delete-orphan",

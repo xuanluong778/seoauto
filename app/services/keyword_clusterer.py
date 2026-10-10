@@ -958,6 +958,37 @@ def _cluster_cohesion_score(
     return round(w_sem_c * sem_avg + w_lex_c * lex_avg + w_int_c * ih, 4)
 
 
+def _token_jaccard(a: str, b: str) -> float:
+    ta = set(re.findall(r"\w+", str(a or "").lower(), flags=re.UNICODE))
+    tb = set(re.findall(r"\w+", str(b or "").lower(), flags=re.UNICODE))
+    union = ta | tb
+    if not union:
+        return 0.0
+    return len(ta & tb) / float(len(union))
+
+
+def _local_cluster_confidence(member_phrases: list[str], intents: list[str]) -> float:
+    """Cheap token + intent confidence used to skip bulk SERP."""
+    if len(member_phrases) <= 1:
+        return 0.32
+    toks = [set(re.findall(r"\w+", str(p or "").lower(), flags=re.UNICODE)) for p in member_phrases]
+    acc = 0.0
+    pairs = 0
+    for i in range(len(toks)):
+        for j in range(i + 1, len(toks)):
+            union = toks[i] | toks[j]
+            if not union:
+                continue
+            acc += len(toks[i] & toks[j]) / float(len(union))
+            pairs += 1
+    jac = acc / pairs if pairs else 0.0
+    labs = [str(x or "").lower() for x in intents]
+    purity = Counter(labs).most_common(1)[0][1] / max(1, len(labs)) if labs else 1.0
+    if "mixed" in labs or "unknown" in labs:
+        purity *= 0.7
+    return round(0.65 * jac + 0.35 * purity, 4)
+
+
 def _validate_split_groups(
     groups: list[list[int]],
     *,
@@ -1149,10 +1180,20 @@ def cluster_keywords(
     snapshots: dict[str, dict[str, Any]] = {}
     serp_failures: list[str] = []
     if fetch_serp:
-        _progress(18, f"Fetch SERP ({len(ordered)} keyword)…")
+        conf_min = float(os.getenv("KEYWORD_CLUSTER_SERP_CONFIDENCE_MIN", "0.55") or 0.55)
+        cap = int(os.getenv("KEYWORD_CLUSTER_SERP_MAX_KEYWORDS", "40") or 40)
+        cap = max(2, min(80, cap))
+        to_fetch: list[str] = []
+        for i, p in enumerate(ordered):
+            row = kw_by_phrase.get(p.lower()) or {}
+            intent = str(row.get("intent") or "").lower()
+            others = [ordered[j] for j in range(n) if j != i]
+            max_j = max((_token_jaccard(p, o) for o in others), default=0.0)
+            if intent in ("mixed", "unknown", "") or max_j < conf_min:
+                to_fetch.append(p)
+        to_fetch = to_fetch[:cap]
+        _progress(18, f"Fetch SERP ({len(to_fetch)}/{len(ordered)} low-confidence)…")
         top_n = int(os.getenv("SERP_TOP_N", "10"))
-        # Concurrency helps a lot; default 8 threads.
-        # Note: providers may rate-limit; tune SERP_FETCH_CONCURRENCY as needed.
         workers = int(os.getenv("SERP_FETCH_CONCURRENCY", "8"))
         workers = max(1, min(32, workers))
 
@@ -1170,25 +1211,26 @@ def cluster_keywords(
 
         done = 0
         serp_failures: list[str] = []
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            futs = [ex.submit(_fetch_one, k) for k in ordered]
-            for fut in as_completed(futs):
-                k, snap = fut.result()
-                snapshots[k] = snap
-                urls = list((snap or {}).get("serp_urls") or [])
-                if not urls:
-                    serp_failures.append(k)
-                    _LOG.warning("SERP fetch empty for keyword: %s (source=%s)", k, (snap or {}).get("source"))
-                done += 1
-                pct = 18 + int(52 * (done / max(1, len(ordered))))
-                _progress(pct, f"Fetch SERP {done}/{len(ordered)}")
+        if to_fetch:
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                futs = [ex.submit(_fetch_one, k) for k in to_fetch]
+                for fut in as_completed(futs):
+                    k, snap = fut.result()
+                    snapshots[k] = snap
+                    urls = list((snap or {}).get("serp_urls") or [])
+                    if not urls:
+                        serp_failures.append(k)
+                        _LOG.warning("SERP fetch empty for keyword: %s (source=%s)", k, (snap or {}).get("source"))
+                    done += 1
+                    pct = 18 + int(52 * (done / max(1, len(to_fetch))))
+                    _progress(pct, f"Fetch SERP {done}/{len(to_fetch)}")
 
     _progress(72, "Tính intent theo SERP/layout")
     for k in ordered:
         row = kw_by_phrase.get(k.lower())
         if row is None:
             continue
-        if fetch_serp:
+        if fetch_serp and snapshots.get(k):
             sig = infer_serp_layout_intent(snapshots.get(k) or {})
             if sig:
                 row["serp_layout_intent"] = sig

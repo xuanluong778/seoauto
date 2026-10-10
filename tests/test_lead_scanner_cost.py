@@ -16,9 +16,11 @@ class LeadScannerCostTests(unittest.TestCase):
         self.assertEqual(q["detail_calls"], 0)
         self.assertEqual(q["detail_cost"], 0)
 
-    def test_cache_quote_zero_credit(self) -> None:
+    def test_cache_quote_discounted(self) -> None:
+        live = quote_lead_basic_scan(mode="keyword", limit=50, from_cache=False)
         q = quote_lead_basic_scan(mode="keyword", limit=50, from_cache=True)
-        self.assertEqual(q["credit_required"], 0)
+        self.assertGreater(q["credit_required"], 0)
+        self.assertLess(q["credit_required"], live["credit_required"])
 
     def test_detail_quote_scales(self) -> None:
         q = quote_lead_detail(3)
@@ -65,26 +67,53 @@ class LeadScannerCostTests(unittest.TestCase):
         user = MagicMock()
         user.id = 99
         user.role = "user"
-        with patch("app.services.cost_control.gate.is_admin", return_value=False):
-            with patch("app.services.cost_control.gate.resolve_cau_ai_plan_slug", return_value="pro"):
-                with patch("app.services.google_map_lead_scanner_service._find_cached_scan", return_value=None):
-                    with patch("app.services.google_map_lead_scanner_service._check_plan_limits", return_value={}):
-                        with patch("app.services.google_map_lead_scanner_service.resolve_cau_ai_plan_slug", return_value="pro"):
-                            with patch("app.services.google_map_lead_scanner_service.lead_scanner_enabled", return_value=True):
-                                with patch("app.services.google_map_lead_scanner_service.places_api_configured", return_value=True):
-                                    with patch("app.services.cost_control.executor.guarded_requests_post") as mock_post:
-                                        with patch("app.services.cost_control.executor.guarded_requests_get") as mock_get:
-                                            with self.assertRaises(HTTPException) as ctx:
-                                                run_scan(
-                                                    db,
-                                                    user,
-                                                    {
-                                                        "mode": "keyword",
-                                                        "keyword": "spa",
-                                                        "limit": 20,
-                                                        "radius_km": 5,
-                                                    },
-                                                )
+        with patch("app.services.cost_control.gate.is_admin", return_value=False), patch(
+            "app.services.cost_control.gate.user_has_software_access", return_value=True
+        ), patch(
+            "app.services.cost_control.gate.resolve_cau_ai_plan_slug", return_value="pro"
+        ), patch(
+            "app.services.saas_economics_guard.assert_expensive_api_allowed"
+        ), patch(
+            "app.services.cost_control.caps.assert_user_credit_caps"
+        ), patch(
+            "app.services.cost_control.caps.assert_provider_daily_caps"
+        ), patch(
+            "app.services.cost_control.gate.check_user_rate_limit"
+        ), patch(
+            "app.services.cost_control.gate.check_user_concurrency"
+        ), patch(
+            "app.services.cost_control.gate.release_user_concurrency"
+        ), patch(
+            "app.services.google_map_lead_scanner_service._find_cached_scan",
+            return_value=None,
+        ), patch(
+            "app.services.google_map_lead_scanner_service._check_plan_limits",
+            return_value={},
+        ), patch(
+            "app.services.google_map_lead_scanner_service.resolve_cau_ai_plan_slug",
+            return_value="pro",
+        ), patch(
+            "app.services.google_map_lead_scanner_service.lead_scanner_enabled",
+            return_value=True,
+        ), patch(
+            "app.services.google_map_lead_scanner_service.places_api_configured",
+            return_value=True,
+        ), patch(
+            "app.services.cost_control.executor.guarded_requests_post"
+        ) as mock_post, patch(
+            "app.services.cost_control.executor.guarded_requests_get"
+        ) as mock_get:
+            with self.assertRaises(HTTPException) as ctx:
+                run_scan(
+                    db,
+                    user,
+                    {
+                        "mode": "keyword",
+                        "keyword": "spa",
+                        "limit": 20,
+                        "radius_km": 5,
+                    },
+                )
         self.assertEqual(ctx.exception.status_code, 402)
         mock_post.assert_not_called()
         mock_get.assert_not_called()

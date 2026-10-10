@@ -1,0 +1,78 @@
+{
+  "wave": 0,
+  "snapshot_at": "2026-09-01T16:40:00+00:00",
+  "base_url": "http://127.0.0.1:8899",
+  "principles": "docs/nguyen-tac-lap-trinh.md",
+  "gates": {
+    "BASELINE": "FAIL",
+    "UI_BASELINE": "PASS",
+    "CONTENT_AI_BASELINE": "PASS"
+  },
+  "overall": "FAIL",
+  "tests_full": {
+    "collected": 1520,
+    "passed": 1463,
+    "failed": 56,
+    "skipped": 1,
+    "elapsed_sec": 532.6,
+    "junit": "docs/baseline/wave0/junit_full.xml",
+    "log": "docs/baseline/wave0/pytest_full.log"
+  },
+  "tests_content_ai": {
+    "core_flows_gate": "PASS",
+    "core_flows_passed": 65,
+    "full_suite_with_schedule": {
+      "passed": 68,
+      "errors": 4,
+      "error_file": "tests/test_content_ai_publish_schedule.py",
+      "error_cause": "NoReferencedTableError payment_orders FK in test SQLite create_all"
+    },
+    "junit": "docs/baseline/wave0/junit_content_ai.xml",
+    "log": "docs/baseline/wave0/pytest_content_ai.log"
+  },
+  "openapi": {
+    "total_paths": 652,
+    "content_ai_paths": 111,
+    "files": [
+      "docs/baseline/wave0/openapi_full.json",
+      "docs/baseline/wave0/openapi_content_ai.json",
+      "docs/baseline/wave0/api_contracts_content_ai.json"
+    ]
+  },
+  "ui_pages": {
+    "count": 16,
+    "public_200": 7,
+    "admin_302_redirect": 9,
+    "snapshot": "docs/baseline/wave0/ui_pages_snapshot.json"
+  },
+  "infra": {
+    "file": "docs/baseline/wave0/infra_metrics.json",
+    "cpu_cores": 8,
+    "mem_available_gb": 20.5,
+    "db_connections": 57,
+    "db_size_mb": 24.1,
+    "redis_keys": 3965,
+    "celery_queue_depth": 0,
+    "pm2": ["seoauto-web", "seoauto-worker", "seoauto-email-beat"]
+  },
+  "content_ai_flows": {
+    "suggest-stream": {"test": "test_content_ai_e2e_audit_fixes.py", "status": "PASS"},
+    "draft": {"test": "test_content_ai_e2e_audit_fixes.py", "status": "PASS"},
+    "regenerate": {"test": "test_content_ai_e2e_audit_fixes.py", "status": "PASS"},
+    "duplicate-check": {"test": "test_content_ai_duplicate_detection.py", "status": "PASS"},
+    "credit": {"test": "test_content_ai_credit.py", "status": "PASS"},
+    "bulk": {"test": "test_content_ai_bulk_progress.py + test_bulk_celery_no_inline_dup.py", "status": "PASS"},
+    "wordpress_publish": {"test": "test_wp_publish_draft.py + test_content_ai_e2e_audit_fixes.py", "status": "PASS"},
+    "output_postprocess": {"test": "test_content_ai_output_postprocess.py", "status": "PASS"}
+  },
+  "failed_test_clusters": [
+    "index_control / indexnow (SaaS gate + auth expectations)",
+    "saas_runtime_guard (prod flag env)",
+    "pricing_quota_credit_checklist",
+    "p0_security_billing_fixes bulk charge",
+    "rank_tracking_concurrent",
+    "serp_top10_crawl / shared_knowledge / url_seo_scoreboard"
+  ],
+  "artifacts_dir": "docs/baseline/wave0/",
+  "script": "scripts/wave0_baseline.py"
+}

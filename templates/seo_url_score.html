@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% include "partials/digiseo_seo_head.html" %}
     {% include "partials/digiseo_theme_head.html" %}
-    <link rel="stylesheet" href="/static/css/seo-score-page.css?v=23">
+    <link rel="stylesheet" href="/static/css/seo-score-page.css?v=25">
     <style>
         :root {
             --bg: linear-gradient(135deg, #050b18 0%, #0c1424 50%, #050b18 100%);
@@ -295,22 +295,22 @@
 
     <form id="ssScoreForm" class="ss-form-card card" autocomplete="off" novalidate>
         <div class="ss-form-row">
-            <div class="ss-field">
-                <label for="u">URL cần chấm điểm</label>
-                <input type="url" id="u" placeholder="https://example.com/page" autocomplete="url">
+            <div class="ss-field ss-field-required">
+                <label for="u">URL <span class="ss-req">*</span></label>
+                <input type="url" id="u" placeholder="https://example.com/page" autocomplete="url" required>
             </div>
             <div class="ss-field">
-                <label for="kw">Từ khóa chính (primary)</label>
+                <label for="kw">Từ khóa chính</label>
                 <input type="text" id="kw" placeholder="ví dụ: dịch vụ seo website" autocomplete="off">
             </div>
         </div>
         <div class="ss-form-row">
             <div class="ss-field">
-                <label for="secKw">Từ khóa phụ <span style="font-weight:400;color:#64748b;">(phân tách bằng dấu phẩy)</span></label>
+                <label for="secKw">Từ khóa phụ</label>
                 <input type="text" id="secKw" placeholder="seo onpage, audit technical" autocomplete="off">
             </div>
             <div class="ss-field">
-                <label for="pageType">Loại trang (page type)</label>
+                <label for="pageType">Loại trang</label>
                 <select id="pageType" class="ss-select">
                     <option value="">— Tự nhận diện —</option>
                     <option value="homepage">Homepage</option>
@@ -324,8 +324,9 @@
         </div>
 
         <details class="ss-advanced">
-            <summary>Tùy chọn nâng cao — Volume &amp; thứ hạng SERP</summary>
+            <summary>Tùy chọn nâng cao</summary>
             <div class="ss-advanced-body">
+                <p class="ss-advanced-hint">Volume, thứ hạng SERP và tùy chọn phân tích keyword.</p>
                 <div class="grid2">
                     <div class="ss-field">
                         <label for="vol">Volume/tháng</label>
@@ -340,36 +341,36 @@
         </details>
 
         <div class="score-actions">
-            <button type="button" class="primary" id="btn">Chấm điểm</button>
+            <button type="button" class="primary" id="btn">Chấm điểm SEO</button>
             <button type="button" class="btn-reset" id="btnReset" title="Xóa toàn bộ ô nhập và kết quả" onclick="if(window.__ssClearForm){window.__ssClearForm(event);return false;}">Làm lại</button>
+        </div>
+        <div id="ssProgress" class="ss-progress" hidden aria-live="polite">
+            <ol class="ss-progress-steps" id="ssProgressSteps"></ol>
         </div>
         <div id="msg"></div>
     </form>
 
     <div class="card ss-results-card" id="out" hidden>
-        <div class="ss-ten-mobile-nav" id="ssTenMobileNav" hidden>
-            <label class="sr-only" for="ssTenMobileSelect">Chọn nhóm điểm</label>
-            <select id="ssTenMobileSelect" class="ss-select"></select>
-        </div>
-        <div class="ss-ten-shell">
-            <aside class="ss-ten-sidebar" id="ssTenSidebar" aria-label="10 nhóm chấm điểm SEO">
-                <div class="ss-ten-sidebar-head">
-                    <span>SEO Score</span>
-                    <span class="ss-ten-total-badge" id="ssTenTotalBadge">—</span>
-                </div>
-                <nav class="ss-ten-nav" id="ssTenNav"></nav>
-            </aside>
-            <div class="ss-ten-content" id="ssTenContent" aria-live="polite"></div>
-        </div>
+        <nav class="ss-sticky-nav" id="ssStickyNav" aria-label="Điều hướng kết quả" hidden>
+            <a href="#ssHeroSection" class="ss-sticky-link">Tổng quan</a>
+            <a href="#ssTop3Section" class="ss-sticky-link">Ưu tiên</a>
+            <a href="#ssGroupsSection" class="ss-sticky-link">10 nhóm</a>
+            <a href="#ssDeepAnalysis" class="ss-sticky-link">Chuyên sâu</a>
+        </nav>
 
-        <details class="ss-collapse" id="shLegacyDetails">
-            <summary>Báo cáo legacy — 15 nhóm / 12 trụ &amp; checklist 8 cột</summary>
+        <section id="ssHeroSection" class="ss-hero-section" aria-live="polite"></section>
+        <section id="ssTop3Section" class="ss-top3-section"></section>
+        <section id="ssGroupsSection" class="ss-groups-section"></section>
+
+        <details class="ss-collapse ss-deep-analysis" id="shLegacyDetails">
+            <summary id="ssDeepAnalysis">Phân tích chuyên sâu</summary>
+            <p class="ss-deep-note">Không ảnh hưởng điểm SEO chính · 12 trụ legacy &amp; checklist 15 nhóm</p>
             <div class="ss-collapse-body">
                 <div class="ss-summary-grid" id="shSummaryGrid">
                     <div class="ss-summary-card score">
-                        <div class="ss-card-label">Legacy total</div>
+                        <div class="ss-card-label">Legacy (tham khảo)</div>
                         <div class="ss-card-value" id="shCardScore"><span class="total" id="total15">—</span></div>
-                        <div class="ss-card-hint">15 nhóm checklist (cap intent)</div>
+                        <div class="ss-card-hint">15 nhóm checklist — không phải điểm chính</div>
                     </div>
                     <div class="ss-summary-card" id="shCardIntentWrap">
                         <div class="ss-card-label">Search Intent</div>
@@ -392,7 +393,7 @@
                     <p id="shConclusionText">—</p>
                 </section>
                 <section class="ss-priority" id="shPrioritySection">
-                    <h2>Cần sửa trước (legacy issues)</h2>
+                    <h2>Cần sửa trước (legacy)</h2>
                     <ul class="ss-fix-list" id="shPriorityList"></ul>
                 </section>
                 <section class="ss-clusters" id="shPillarClusters" aria-label="15 nhóm checklist theo cụm"></section>
@@ -400,9 +401,9 @@
         </details>
 
         <details class="ss-collapse" id="shAdvancedDetails">
-            <summary>Chi tiết nâng cao — 12 trụ legacy &amp; bảng checklist 8 cột</summary>
+            <summary>Checklist kỹ thuật nâng cao</summary>
             <div class="ss-collapse-body">
-                <p style="margin:0 0 10px;font-size:0.82rem;color:#94a3b8;">Thanh dưới = mô hình 12 trụ legacy. Bảng = 15 nhóm + dòng [Kỹ thuật].</p>
+                <p class="ss-deep-note">Bảng checklist 8 cột và 12 trụ legacy — dành cho người có kinh nghiệm SEO.</p>
                 <div id="bars"></div>
                 <h2 style="margin:18px 0 8px;font-size:1rem;">Bảng checklist SEO</h2>
                 <div class="table-wrap digiseo-table-scroll">
@@ -482,13 +483,24 @@
                     </div>
                 </div>
                 <ul class="ss-ai-warnings" id="ssAiFixWarnings" hidden></ul>
+                <div id="ssAiFixWpConfirm" class="ss-ai-wp-confirm" hidden>
+                    <h3 class="ss-ai-wp-confirm-title">Xác nhận áp dụng lên WordPress</h3>
+                    <p class="ss-ai-wp-confirm-text">Hệ thống sẽ sao lưu bản gốc, áp dụng thay đổi, tải lại trang và xác minh. Bạn có thể rollback nếu plugin hỗ trợ.</p>
+                    <ul class="ss-ai-wp-steps">
+                        <li>Preview diff (đã xem ở trên)</li>
+                        <li>Backup original</li>
+                        <li>Apply lên WordPress</li>
+                        <li>Re-fetch &amp; verify</li>
+                    </ul>
+                </div>
             </div>
         </div>
         <footer class="ss-ai-modal-footer" id="ssAiFixFooter">
             <button type="button" class="ss-ai-btn-rescore" id="ssAiFixRescoreBtn" hidden>Chấm điểm lại</button>
             <button type="button" class="ss-ai-btn-regen" id="ssAiFixRegenBtn" hidden>Tạo lại bằng AI</button>
             <button type="button" class="ss-ai-btn-copy" id="ssAiFixCopyBtn" hidden>Copy bản sau</button>
-            <button type="button" class="ss-ai-btn-apply" id="ssAiFixApplyBtn" hidden>Áp dụng</button>
+            <button type="button" class="ss-ai-btn-apply" id="ssAiFixApplyBtn" hidden>Xem preview &amp; áp dụng WP</button>
+            <button type="button" class="ss-ai-btn-apply-confirm" id="ssAiFixApplyConfirmBtn" hidden>Xác nhận áp dụng lên WordPress</button>
             <button type="button" class="ss-ai-btn-close" data-ss-ai-close="1">Đóng</button>
         </footer>
     </div>
@@ -602,14 +614,13 @@
             currentAiFixPayload = null;
             aiFixCreditConfirmed = false;
         }
-        const tenContent = document.getElementById("ssTenContent");
-        if (tenContent) tenContent.innerHTML = "";
-        const tenNav = document.getElementById("ssTenNav");
-        if (tenNav) tenNav.innerHTML = "";
-        const mobileNav = document.getElementById("ssTenMobileNav");
-        if (mobileNav) mobileNav.hidden = true;
-        const totalBadge = document.getElementById("ssTenTotalBadge");
-        if (totalBadge) totalBadge.textContent = "—";
+        const sticky = document.getElementById("ssStickyNav");
+        if (sticky) sticky.hidden = true;
+        ["ssHeroSection", "ssTop3Section", "ssGroupsSection"].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = "";
+        });
+        hideProgressSteps();
         document.getElementById("bars").innerHTML = "";
         renderChecklistTable([]);
         document.getElementById("shPriorityList").innerHTML = "";
@@ -1147,6 +1158,20 @@
         out.keyword = out.keyword || getPrimaryKeyword();
         out.url = out.url || getScoreUrl();
         out.page_field = normalizePageField(out.page_field);
+        const tb = tenBoard(lastResponseData || {});
+        const secKw = document.getElementById("secKw");
+        const pageTypeEl = document.getElementById("pageType");
+        out.evidence = Object.assign({}, out.evidence || {}, {
+            secondary_keywords: parseSecondaryKeywords(secKw ? secKw.value : ""),
+            page_type: (pageTypeEl && pageTypeEl.value) || tb.page_type || "",
+            search_intent: (tb.intent_analysis && tb.intent_analysis.dominant_intent) || "",
+            serp_intent: (tb.intent_analysis && tb.intent_analysis.serp_intent) || "",
+            title: (pe.title && pe.title.current_value) || "",
+            h1: ((pe.headings && pe.headings.current_value && pe.headings.current_value.h1) || [])[0] || "",
+            meta_description: (pe.meta_description && pe.meta_description.current_value) || "",
+            content_summary: (pe.intro && pe.intro.current_value) || "",
+            serp_evidence: (tb.intent_analysis && tb.intent_analysis.evidence) || {},
+        });
         return out;
     }
 
@@ -1204,6 +1229,7 @@
 
     let currentAiFixPayload = null;
     let aiFixCreditConfirmed = false;
+    let aiFixWpPreviewShown = false;
     let userProjectsCache = null;
 
     function hostFromUrl(url) {
@@ -1410,6 +1436,10 @@
             const el = document.getElementById(id);
             if (el) el.hidden = !visible;
         });
+        const confirmBtn = document.getElementById("ssAiFixApplyConfirmBtn");
+        if (confirmBtn) confirmBtn.hidden = true;
+        const wpConfirm = document.getElementById("ssAiFixWpConfirm");
+        if (wpConfirm) wpConfirm.hidden = true;
     }
 
     function setAiFixModalState(state, payload, errorMessage) {
@@ -1488,6 +1518,7 @@
         document.body.classList.remove("ss-ai-modal-open");
         currentAiFixPayload = null;
         aiFixCreditConfirmed = false;
+        aiFixWpPreviewShown = false;
         setAiFixAppliedUi(false);
     }
 
@@ -1588,7 +1619,7 @@
         copyToClipboard(text, btn);
     }
 
-    async function applyAiFix() {
+    async function confirmApplyAiFix() {
         if (!currentAiFixPayload || !currentAiFixPayload.aiResult) return;
         if (!getSeoToken()) {
             syncAuthUi();
@@ -1599,7 +1630,7 @@
         if (!confirmed) return;
 
         const data = currentAiFixPayload;
-        const applyBtn = document.getElementById("ssAiFixApplyBtn");
+        const applyBtn = document.getElementById("ssAiFixApplyConfirmBtn");
         if (applyBtn) applyBtn.disabled = true;
 
         try {
@@ -1634,22 +1665,39 @@
             }
             const appliedVal = d.applied_value != null ? d.applied_value : data.aiResult.after;
             data.current_value = appliedVal;
-            data.aiResult.before = appliedVal;
+            data.aiResult.before = data.aiResult.before != null ? data.aiResult.before : data.current_value;
             data.aiResult.after = appliedVal;
             data.applied = true;
             currentAiFixPayload = data;
             patchScoreboardAfterApply(data.page_field, appliedVal);
             const beforeEl = document.getElementById("ssAiFixBeforeText");
             const afterEl = document.getElementById("ssAiFixAfterText");
-            if (beforeEl) beforeEl.textContent = formatAiFixDisplayValue(appliedVal, data.page_field);
+            if (beforeEl) beforeEl.textContent = formatAiFixDisplayValue(data.aiResult.before, data.page_field);
             if (afterEl) afterEl.textContent = formatAiFixDisplayValue(appliedVal, data.page_field);
             setAiFixModalState("ready", data);
-            setMsg(d.message || "Đã áp dụng lên WordPress.", "ok");
+            setMsg((d.message || "Đã áp dụng lên WordPress.") + " Bạn có thể chấm điểm lại để verify.", "ok");
+            aiFixWpPreviewShown = false;
         } catch (e) {
             setMsg(String(e && e.message ? e.message : e), "err");
         } finally {
             if (applyBtn) applyBtn.disabled = false;
         }
+    }
+
+    function showWpApplyPreview() {
+        if (!currentAiFixPayload || !currentAiFixPayload.aiResult) return;
+        const wpConfirm = document.getElementById("ssAiFixWpConfirm");
+        const applyBtn = document.getElementById("ssAiFixApplyBtn");
+        const confirmBtn = document.getElementById("ssAiFixApplyConfirmBtn");
+        if (wpConfirm) wpConfirm.hidden = false;
+        if (applyBtn) applyBtn.hidden = true;
+        if (confirmBtn) confirmBtn.hidden = false;
+        aiFixWpPreviewShown = true;
+        scrollToSection && wpConfirm && wpConfirm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    async function applyAiFix() {
+        showWpApplyPreview();
     }
 
     function createAiFixButton(payload) {
@@ -1688,6 +1736,8 @@
         if (regenBtn) regenBtn.addEventListener("click", regenerateAiFix);
         if (copyBtn) copyBtn.addEventListener("click", function () { copyAiFixAfter(copyBtn); });
         if (applyBtn) applyBtn.addEventListener("click", applyAiFix);
+        const applyConfirmBtn = document.getElementById("ssAiFixApplyConfirmBtn");
+        if (applyConfirmBtn) applyConfirmBtn.addEventListener("click", confirmApplyAiFix);
         const rescoreBtn = document.getElementById("ssAiFixRescoreBtn");
         if (rescoreBtn) rescoreBtn.addEventListener("click", function () {
             closeAiFixModal();
@@ -1739,17 +1789,364 @@
     function mainScore(d) {
         const tb = tenBoard(d);
         if (tb.total_score != null && tb.total_score !== "") return safeNum(tb.total_score, null);
-        const t15 = d.scores && d.scores.checklist_15_total;
-        if (t15 != null && t15 !== "") return Number(t15);
-        if (d.scores && d.scores.total != null) return Number(d.scores.total);
+        if (d.scores && d.scores.ten_group_total != null) return safeNum(d.scores.ten_group_total, null);
         return null;
     }
 
     function legacyMainScore(d) {
+        if (d.scores && d.scores.legacy_total != null) return Number(d.scores.legacy_total);
         const t15 = d.scores && d.scores.checklist_15_total;
         if (t15 != null && t15 !== "") return Number(t15);
-        if (d.scores && d.scores.total != null) return Number(d.scores.total);
         return null;
+    }
+
+    function scoringVersion(d) {
+        const tb = tenBoard(d);
+        if (tb.scoring_version) return String(tb.scoring_version);
+        if (d.scores && d.scores.scoring_version) return String(d.scores.scoring_version);
+        return "";
+    }
+
+    function scoreLabelText(score) {
+        const n = safeNum(score, 0);
+        if (n >= 80) return "Tốt";
+        if (n >= 65) return "Khá";
+        if (n >= 50) return "Trung bình";
+        return "Cần cải thiện";
+    }
+
+    function normalizeCheckStatus(st) {
+        const s = String(st || "").toUpperCase();
+        if (s === "PASS" || s === "PASSED") return "PASS";
+        if (s === "FAIL" || s === "FAILED") return "FAIL";
+        if (s === "WARNING" || s === "WARN") return "WARNING";
+        return "UNKNOWN";
+    }
+
+    function countOpenIssues(tb) {
+        let n = 0;
+        (tb.groups || []).forEach(function (g) {
+            (g.checks || []).forEach(function (c) {
+                const st = normalizeCheckStatus(c.status);
+                if (st === "FAIL" || st === "WARNING") n += 1;
+            });
+        });
+        return n;
+    }
+
+    function estimateScoreGain(check, groupWeight) {
+        const max = safeNum(check.max_score, 0);
+        const earned = safeNum(check.score, 0);
+        const w = safeNum(groupWeight, 0) / 100;
+        return Math.round(Math.max(0, (max - earned) * w) * 10) / 10;
+    }
+
+    function issuePriorityScore(check, groupWeight) {
+        const st = normalizeCheckStatus(check.status);
+        const sevMap = { FAIL: 3, WARNING: 2, UNKNOWN: 1, PASS: 0 };
+        const sev = sevMap[st] || 1;
+        const conf = safeNum(check.confidence, 0.5);
+        const gain = estimateScoreGain(check, groupWeight);
+        const impactLen = String(check.impact || check.problem || "").length;
+        const impactBoost = impactLen > 40 ? 1.15 : 1;
+        return sev * conf * impactBoost * (1 + gain / 5);
+    }
+
+    function collectTop3Issues(d, tb) {
+        const items = [];
+        const groups = Array.isArray(tb.groups) ? tb.groups : [];
+        groups.forEach(function (g) {
+            const gw = safeNum(g.weight, 0);
+            (g.checks || []).forEach(function (c) {
+                const st = normalizeCheckStatus(c.status);
+                if (st === "PASS") return;
+                items.push({
+                    check: c,
+                    group: g,
+                    group_id: g.id,
+                    group_label: g.label,
+                    severity: st,
+                    priority_score: issuePriorityScore(c, gw),
+                    score_gain: estimateScoreGain(c, gw),
+                });
+            });
+        });
+        (tb.priority_fixes || []).forEach(function (fx) {
+            const exists = items.some(function (it) {
+                return it.check.id === fx.check_id && it.group_id === fx.group;
+            });
+            if (!exists) {
+                items.push({
+                    check: {
+                        id: fx.check_id,
+                        title: fx.title,
+                        problem: fx.problem,
+                        impact: fx.problem,
+                        recommendation: fx.fix,
+                        fix: fx.fix,
+                        status: fx.priority === "high" ? "FAIL" : "WARNING",
+                        confidence: 0.6,
+                        max_score: 10,
+                        score: 0,
+                    },
+                    group: { id: fx.group, label: fx.group_label, weight: 0 },
+                    group_id: fx.group,
+                    group_label: fx.group_label,
+                    severity: fx.priority === "high" ? "FAIL" : "WARNING",
+                    priority_score: fx.priority === "high" ? 2.5 : 1.5,
+                    score_gain: 0,
+                });
+            }
+        });
+        items.sort(function (a, b) { return b.priority_score - a.priority_score; });
+        return items.slice(0, 3);
+    }
+
+    function heroSummaryText(score, issueCount) {
+        const label = scoreLabelText(score);
+        if (issueCount <= 0) {
+            return "Trang của bạn đạt mức " + label.toLowerCase() + ". Không có vấn đề ưu tiên nổi bật.";
+        }
+        if (score >= 80) {
+            return "Trang của bạn đã tối ưu khá tốt. Còn " + issueCount + " vấn đề nên xử lý.";
+        }
+        if (score >= 65) {
+            return "Trang ở mức khá. Nên xử lý " + issueCount + " vấn đề được liệt kê bên dưới.";
+        }
+        return "Trang cần tối ưu thêm. Ưu tiên " + Math.min(issueCount, 3) + " việc quan trọng nhất trước.";
+    }
+
+    const SS_PROGRESS_STEPS = [
+        { id: "fetch", label: "Tải trang" },
+        { id: "onpage", label: "Phân tích on-page" },
+        { id: "links", label: "Kiểm tra link" },
+        { id: "schema", label: "Schema" },
+        { id: "serp", label: "SERP (nếu cần)" },
+        { id: "score", label: "Tính điểm" },
+    ];
+
+    function renderProgressSteps(activeIdx) {
+        const wrap = document.getElementById("ssProgress");
+        const list = document.getElementById("ssProgressSteps");
+        if (!wrap || !list) return;
+        wrap.hidden = false;
+        list.innerHTML = "";
+        SS_PROGRESS_STEPS.forEach(function (step, i) {
+            const li = document.createElement("li");
+            let cls = "ss-progress-step";
+            if (i < activeIdx) cls += " done";
+            else if (i === activeIdx) cls += " active";
+            li.className = cls;
+            li.textContent = (i < activeIdx ? "✓ " : i === activeIdx ? "… " : "") + step.label;
+            list.appendChild(li);
+        });
+    }
+
+    function hideProgressSteps() {
+        const wrap = document.getElementById("ssProgress");
+        if (wrap) wrap.hidden = true;
+    }
+
+    function sleep(ms) {
+        return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    async function runWithProgress(taskFn, hasKeyword) {
+        const steps = hasKeyword ? SS_PROGRESS_STEPS : SS_PROGRESS_STEPS.filter(function (s) { return s.id !== "serp"; });
+        renderProgressSteps(0);
+        for (let i = 0; i < steps.length - 1; i++) {
+            renderProgressSteps(i);
+            await sleep(i === 0 ? 120 : 180);
+        }
+        renderProgressSteps(steps.length - 1);
+        const result = await taskFn();
+        renderProgressSteps(steps.length);
+        await sleep(200);
+        hideProgressSteps();
+        return result;
+    }
+
+    function scrollToSection(id) {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function renderHeroSection(d, tb) {
+        const root = document.getElementById("ssHeroSection");
+        if (!root) return;
+        const score = mainScore(d);
+        const total = score != null ? Math.round(score * 10) / 10 : 0;
+        const tone = scoreTone(total);
+        const issues = countOpenIssues(tb);
+        const ver = scoringVersion(d);
+        root.innerHTML =
+            '<div class="ss-hero-card tone-' + esc(tone) + '">' +
+            '<div class="ss-hero-score-col">' +
+            '<p class="ss-hero-kicker">SEO SCORE</p>' +
+            '<div class="ss-hero-score-big">' + esc(total) + '<span class="ss-hero-denom">/100</span></div>' +
+            '<p class="ss-hero-grade">' + esc(scoreLabelText(total)) + '</p>' +
+            (ver ? '<p class="ss-hero-ver">v' + esc(ver) + '</p>' : '') +
+            '</div>' +
+            '<div class="ss-hero-copy-col">' +
+            '<p class="ss-hero-summary">' + esc(heroSummaryText(total, issues)) + '</p>' +
+            (tb.primary_keyword ? '<p class="ss-hero-kw"><span>Từ khóa:</span> ' + esc(tb.primary_keyword) + '</p>' : '') +
+            (tb.page_type ? '<p class="ss-hero-kw"><span>Loại trang:</span> ' + esc(tb.page_type) + '</p>' : '') +
+            '</div></div>';
+    }
+
+    function severityBadgeClass(st) {
+        const s = normalizeCheckStatus(st);
+        if (s === "FAIL") return "fail";
+        if (s === "WARNING") return "warn";
+        return "unknown";
+    }
+
+    function renderTop3Section(d, tb) {
+        const root = document.getElementById("ssTop3Section");
+        if (!root) return;
+        const top3 = collectTop3Issues(d, tb);
+        root.innerHTML = '<div class="ss-section-head"><h2>Top 3 việc cần làm trước</h2>' +
+            '<p class="ss-section-sub">Sắp xếp theo mức độ × tác động × độ tin cậy</p></div>';
+        if (!top3.length) {
+            const empty = document.createElement("p");
+            empty.className = "ss-empty-hint";
+            empty.textContent = "Không có vấn đề ưu tiên — trang đạt tốt hoặc thiếu keyword để so SERP.";
+            root.appendChild(empty);
+            return;
+        }
+        const grid = document.createElement("div");
+        grid.className = "ss-top3-grid";
+        top3.forEach(function (item, idx) {
+            const c = item.check;
+            const card = document.createElement("article");
+            card.className = "ss-top3-card severity-" + severityBadgeClass(c.status);
+            const gain = item.score_gain > 0 ? "+" + item.score_gain + " điểm ước tính" : "Cải thiện chất lượng";
+            card.innerHTML =
+                '<div class="ss-top3-rank">' + esc(idx + 1) + '</div>' +
+                '<div class="ss-top3-body">' +
+                '<span class="ss-top3-sev">' + esc(normalizeCheckStatus(c.status)) + '</span>' +
+                '<h3 class="ss-top3-title">' + esc(safeStr(c.title, "Vấn đề")) + '</h3>' +
+                '<p class="ss-top3-group">' + esc(safeStr(item.group_label, item.group_id)) + '</p>' +
+                '<p class="ss-top3-impact">' + esc(safeStr(c.impact, c.problem)) + '</p>' +
+                '<p class="ss-top3-gain">' + esc(gain) + '</p>' +
+                '</div>' +
+                '<div class="ss-top3-actions"></div>';
+            const actions = card.querySelector(".ss-top3-actions");
+            const fixBtn = document.createElement("button");
+            fixBtn.type = "button";
+            fixBtn.className = "ss-top3-btn ss-top3-btn-fix";
+            fixBtn.textContent = "Xem cách sửa";
+            fixBtn.addEventListener("click", function () {
+                openGroupCheck(item.group_id, c.id);
+            });
+            actions.appendChild(fixBtn);
+            if (canShowAiFixButton(c, item.group_id)) {
+                const aiBtn = document.createElement("button");
+                aiBtn.type = "button";
+                aiBtn.className = "ss-top3-btn ss-top3-btn-ai";
+                aiBtn.textContent = "AI sửa";
+                aiBtn.addEventListener("click", function () {
+                    openAiFixModal(buildAiFixPayload(c, item.group_id));
+                });
+                actions.appendChild(aiBtn);
+            }
+            grid.appendChild(card);
+        });
+        root.appendChild(grid);
+    }
+
+    function openGroupCheck(groupId, checkId) {
+        const acc = document.getElementById("ss-acc-" + groupId);
+        if (acc) {
+            acc.open = true;
+            scrollToSection("ssGroupsSection");
+            if (checkId) {
+                setTimeout(function () {
+                    const el = document.getElementById("ss-check-" + groupId + "-" + checkId);
+                    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                }, 120);
+            }
+        }
+    }
+
+    function groupStatusLabel(g) {
+        const fail = safeNum(g.checks_failed, 0);
+        const warn = safeNum(g.checks_warning, 0);
+        if (fail > 0) return "Cần sửa";
+        if (warn > 0) return "Cảnh báo";
+        return "Ổn";
+    }
+
+    function renderGroupsAccordion(d, tb) {
+        const root = document.getElementById("ssGroupsSection");
+        if (!root) return;
+        root.innerHTML = '<div class="ss-section-head"><h2>10 nhóm SEO</h2>' +
+            '<p class="ss-section-sub">Bấm từng nhóm để xem chi tiết — không hiển thị hết technical ngay</p></div>';
+        const list = document.createElement("div");
+        list.className = "ss-group-accordion-list";
+        (tb.groups || []).forEach(function (g) {
+            const details = document.createElement("details");
+            details.className = "ss-group-accordion tone-" + scoreTone(g.score);
+            details.id = "ss-acc-" + g.id;
+            const failN = safeNum(g.checks_failed, 0);
+            const warnN = safeNum(g.checks_warning, 0);
+            const passN = safeNum(g.checks_passed, 0);
+            const sc = safeNum(g.score, 0);
+            const summary = document.createElement("summary");
+            summary.className = "ss-group-acc-summary";
+            summary.innerHTML =
+                '<div class="ss-group-acc-main">' +
+                '<span class="ss-group-acc-label">' + esc(safeStr(g.label, g.id)) + '</span>' +
+                '<span class="ss-group-acc-status">' + esc(groupStatusLabel(g)) + '</span>' +
+                '</div>' +
+                '<div class="ss-group-acc-meta">' +
+                '<span class="ss-group-acc-score">' + esc(sc) + '/100</span>' +
+                '<span class="ss-group-acc-issues">' +
+                (failN ? '<em class="fail">' + failN + ' lỗi</em>' : '') +
+                (warnN ? '<em class="warn">' + warnN + ' cảnh báo</em>' : '') +
+                (passN && !failN && !warnN ? '<em class="ok">' + passN + ' đạt</em>' : '') +
+                '</span>' +
+                '<div class="ss-group-acc-bar" aria-hidden="true"><span style="width:' + Math.min(100, sc) + '%"></span></div>' +
+                '</div>';
+            details.appendChild(summary);
+            const body = document.createElement("div");
+            body.className = "ss-group-acc-body";
+            body.appendChild(renderGroupStatsPanel(g));
+            if (g.id === "links" && (g.partial_data || g.warning)) {
+                const warn = document.createElement("div");
+                warn.className = "ss-link-partial-banner";
+                warn.textContent = g.warning || "Chưa đủ dữ liệu để đánh giá link";
+                body.appendChild(warn);
+            }
+            body.appendChild(renderGroupCurrentDataPanel(g.id, tb));
+            const checks = Array.isArray(g.checks) ? g.checks : [];
+            if (checks.length) {
+                const checksWrap = document.createElement("div");
+                checksWrap.className = "ss-group-checks-wrap";
+                checks.forEach(function (c) {
+                    const card = renderCheckCard(c, g.id);
+                    card.id = "ss-check-" + g.id + "-" + safeStr(c.id, "");
+                    checksWrap.appendChild(card);
+                });
+                body.appendChild(checksWrap);
+            } else {
+                appendEmptyData(body, "Chưa có check trong nhóm này.");
+            }
+            details.appendChild(body);
+            list.appendChild(details);
+        });
+        root.appendChild(list);
+    }
+
+    function renderResultsFlow(d) {
+        const tb = tenBoard(d);
+        const sticky = document.getElementById("ssStickyNav");
+        if (sticky) sticky.hidden = false;
+        renderHeroSection(d, tb);
+        renderTop3Section(d, tb);
+        renderGroupsAccordion(d, tb);
+        const badge = document.getElementById("ssTenTotalBadge");
+        if (badge) badge.textContent = safeNum(tb.total_score, 0) + "/100";
     }
 
     async function copyToClipboard(text, btn) {
@@ -2324,16 +2721,36 @@
     }
 
     function checkStatusLabel(st) {
+        const s = String(st || "").toUpperCase();
+        if (s === "PASS" || s === "PASSED") return "Đạt";
+        if (s === "FAIL" || s === "FAILED") return "Lỗi nghiêm trọng";
+        if (s === "WARNING" || s === "WARN") return "Cảnh báo";
+        if (s === "UNKNOWN") return "Chưa xác minh";
         if (st === "passed") return "Đạt";
         if (st === "failed") return "Lỗi nghiêm trọng";
         if (st === "warning") return "Cảnh báo";
         return st;
     }
 
+    function isCheckFailed(st) {
+        const s = String(st || "").toUpperCase();
+        return s === "FAIL" || s === "FAILED" || st === "failed";
+    }
+
+    function isCheckWarning(st) {
+        const s = String(st || "").toUpperCase();
+        return s === "WARNING" || s === "WARN" || s === "UNKNOWN" || st === "warning";
+    }
+
+    function isCheckPassed(st) {
+        const s = String(st || "").toUpperCase();
+        return s === "PASS" || s === "PASSED" || st === "passed";
+    }
+
     function renderChecksSections(checks, root, groupKey) {
-        const failed = checks.filter(function (c) { return c.status === "failed"; });
-        const warned = checks.filter(function (c) { return c.status === "warning"; });
-        const passed = checks.filter(function (c) { return c.status === "passed"; });
+        const failed = checks.filter(function (c) { return isCheckFailed(c.status); });
+        const warned = checks.filter(function (c) { return isCheckWarning(c.status); });
+        const passed = checks.filter(function (c) { return isCheckPassed(c.status); });
 
         function section(title, items, cls) {
             if (!items.length) return;
@@ -2396,25 +2813,36 @@
     function renderCheckCard(c, groupKey) {
         const card = document.createElement("article");
         const st = safeStr(c.status, "warning");
-        card.className = "ss-check-card status-" + st;
+        const stNorm = normalizeCheckStatus(st);
+        card.className = "ss-check-card status-" + stNorm.toLowerCase() + " status-" + safeStr(c.status_legacy || st, "");
         const earned = safeNum(c.score, 0);
         const max = safeNum(c.max_score, 0);
         const problem = safeStr(c.problem, "—");
         const impact = safeStr(c.impact, "—");
-        const fix = safeStr(c.fix, "—");
+        const fix = safeStr(c.recommendation || c.fix, "—");
+        const example = safeStr((c.evidence && c.evidence.example) || c.recommended_value, "");
         card.innerHTML =
             '<header class="ss-check-head">' +
-            '<span class="ss-check-status ' + esc(st) + '">' + esc(checkStatusLabel(st)) + '</span>' +
+            '<span class="ss-check-status ' + esc(stNorm.toLowerCase()) + '">' + esc(checkStatusLabel(st)) + '</span>' +
             '<span class="ss-check-score">' + esc(earned) + '/' + esc(max) + '</span>' +
             '</header>' +
             '<h4 class="ss-check-title">' + esc(safeStr(c.title, "Check")) + '</h4>' +
-            '<div class="ss-check-body">' +
-            '<div class="ss-check-row"><span class="ss-check-k">Vấn đề</span><span class="ss-check-v">' + esc(problem) + '</span></div>' +
-            '<div class="ss-check-row"><span class="ss-check-k">Ảnh hưởng</span><span class="ss-check-v">' + esc(impact) + '</span></div>' +
-            '<div class="ss-check-row"><span class="ss-check-k">Cách sửa</span><span class="ss-check-v ss-check-fix">' + esc(fix) + '</span></div>' +
-            '</div>';
+            '<dl class="ss-check-detail-list">' +
+            '<div class="ss-check-detail-row"><dt>Vấn đề</dt><dd>' + esc(problem) + '</dd></div>' +
+            '<div class="ss-check-detail-row"><dt>Evidence</dt><dd class="ss-check-evidence-slot"></dd></div>' +
+            '<div class="ss-check-detail-row"><dt>Tại sao quan trọng</dt><dd>' + esc(impact) + '</dd></div>' +
+            '<div class="ss-check-detail-row"><dt>Cách sửa</dt><dd class="ss-check-fix">' + esc(fix) + '</dd></div>' +
+            (example && example !== "—"
+                ? '<div class="ss-check-detail-row"><dt>Ví dụ</dt><dd>' + esc(example) + '</dd></div>'
+                : '') +
+            '</dl>';
+        const evSlot = card.querySelector(".ss-check-evidence-slot");
         const evRows = evidencePreviewRows(c);
-        if (evRows.length) appendEvidenceBlock(card, evRows, "Dữ liệu check");
+        if (evRows.length) {
+            appendEvidenceBlock(evSlot, evRows);
+        } else {
+            evSlot.textContent = "—";
+        }
         const foot = document.createElement("div");
         foot.className = "ss-check-foot";
         let hasFoot = false;
@@ -2422,7 +2850,7 @@
             foot.appendChild(createAiFixButton(buildAiFixPayload(c, groupKey)));
             hasFoot = true;
         }
-        const fixText = safeStr(c.fix, "");
+        const fixText = safeStr(c.recommendation || c.fix, "");
         if (fixText && fixText !== "—") {
             const copyBtn = document.createElement("button");
             copyBtn.type = "button";
@@ -2451,7 +2879,8 @@
             '<div class="ss-ten-hero-score tone-' + scoreTone(total) + '">' + esc(Math.round(total * 10) / 10) + '<span>/100</span></div>' +
             '<div class="ss-ten-hero-meta">' +
             '<h2>Tổng quan SEO Score</h2>' +
-            '<p class="ss-ten-hero-sub">' + esc(groups.length) + ' nhóm · trọng số tổng 100 điểm</p>' +
+            '<p class="ss-ten-hero-sub">' + esc(groups.length) + ' nhóm · trọng số tổng 100 điểm' +
+            (tb.scoring_version ? ' · v' + esc(tb.scoring_version) : '') + '</p>' +
             (tb.primary_keyword ? '<p class="ss-ten-kw">Primary: <strong>' + esc(tb.primary_keyword) + '</strong></p>' : '') +
             (Array.isArray(tb.secondary_keywords) && tb.secondary_keywords.length
                 ? '<p class="ss-ten-kw">Secondary: ' + esc(tb.secondary_keywords.join(", ")) + '</p>' : '') +
@@ -2660,15 +3089,7 @@
     }
 
     function renderTenGroupScoreboard(d) {
-        const tb = tenBoard(d);
-        const mobileNav = document.getElementById("ssTenMobileNav");
-        if (mobileNav) mobileNav.hidden = false;
-        renderTenNav(tb);
-        if (activeTenTab !== "overview") {
-            const exists = (tb.groups || []).some(function (g) { return g.id === activeTenTab; });
-            if (!exists) activeTenTab = "overview";
-        }
-        navigateTenTab(activeTenTab);
+        renderResultsFlow(d);
     }
 
     function intentItem(d) {
@@ -2879,6 +3300,10 @@
         }
         renderDebugExtra(d);
         out.hidden = false;
+        setTimeout(function () {
+            const hero = document.getElementById("ssHeroSection");
+            if (hero) hero.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 80);
     }
 
     function applyHistoryItem(item) {
@@ -3126,7 +3551,7 @@
         if (volRaw) body.search_volume = parseInt(volRaw, 10);
         if (rankRaw) body.current_serp_position = parseInt(rankRaw, 10);
         btn.disabled = true;
-        setMsg("Đang phân tích…", "");
+        setMsg("", "");
         out.hidden = true;
         try {
             if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
@@ -3136,16 +3561,21 @@
                     return;
                 }
             }
-            const r = await fetch("/analyze/url-seo-scoreboard", {
-                method: "POST",
-                headers: authHeaders(true),
-                body: JSON.stringify(body),
-            });
-            const d = await r.json().catch(function () { return {}; });
-            if (!r.ok) {
-                setMsg(d.detail ? (typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail)) : "Lỗi " + r.status, "err");
-                return;
-            }
+            const d = await runWithProgress(async function () {
+                const r = await fetch("/analyze/url-seo-scoreboard", {
+                    method: "POST",
+                    headers: authHeaders(true),
+                    body: JSON.stringify(body),
+                });
+                const data = await r.json().catch(function () { return {}; });
+                if (!r.ok) {
+                    const err = data.detail
+                        ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail))
+                        : "Lỗi " + r.status;
+                    throw new Error(err);
+                }
+                return data;
+            }, !!keyword);
             setMsg("Xong.", "ok");
             applyScoreboardResponse(d);
             const histEntry = {
@@ -3163,6 +3593,7 @@
             historyPage = 0;
             renderHistory();
         } catch (e) {
+            hideProgressSteps();
             setMsg(String(e.message || e), "err");
         } finally {
             btn.disabled = false;

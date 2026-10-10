@@ -153,14 +153,22 @@
 .seo-tool-page .seo-tool-primary-btn,
 .seo-tool-page #btnTechnical {
     width: 100%;
-    padding: 13px 18px !important;
+    height: 48px;
+    min-height: 48px;
+    max-height: 48px;
+    padding: 0 18px !important;
     border-radius: 10px !important;
     border: 0 !important;
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
     color: #fff !important;
     font-weight: 700 !important;
     font-size: 0.95rem !important;
+    line-height: 1.2 !important;
     cursor: pointer;
+    box-sizing: border-box !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 }
 

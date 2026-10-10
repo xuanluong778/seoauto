@@ -20,7 +20,7 @@ from app.services.index_control_social_service import (
 )
 from main import app
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://127.0.0.1")
 
 
 @pytest.fixture()

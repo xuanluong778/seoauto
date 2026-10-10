@@ -1,0 +1,5 @@
+{
+  "note": "Pre-WAVE9 observability baseline",
+  "captured_at": "2026-09-02T14:55:33.427050+00:00",
+  "stack": "Uvicorn/API \u2192 PostgreSQL \u2192 Redis \u2192 Celery/Beat \u2192 Content AI \u2192 WP \u2192 Auth"
+}

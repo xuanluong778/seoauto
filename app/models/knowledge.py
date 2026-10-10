@@ -29,6 +29,8 @@ from app.db import Base
 if TYPE_CHECKING:
     from app.models.seo import Project
     from app.models.user import User
+else:
+    from app.models.seo import Project  # noqa: F401 — register mapper target
 
 # --- Scope & status constants (app-level; stored as VARCHAR) ---
 

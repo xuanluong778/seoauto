@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from app.services.chatbot_workflow_runner import (
     STEP_KEYWORD_RESEARCH,
     STEP_WRITE_ARTICLE,
     build_workflow_run_reply,
     run_keyword_cluster_to_article_workflow,
 )
+
+
+@pytest.fixture(autouse=True)
+def _grant_saas_access(monkeypatch):
+    monkeypatch.setattr("app.services.saas_gate.user_has_software_access", lambda db, uid: True)
+    monkeypatch.setattr("app.services.software_access_service.user_has_software_access", lambda db, uid: True)
 
 
 def _mock_research_payload():

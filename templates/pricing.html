@@ -152,7 +152,7 @@
                 <div class="sp-mcard{% if p.is_popular %} is-pro{% endif %}">
                     <div class="sp-mcard-head">
                         <div class="sp-mcard-name">{{ p.name }}</div>
-                        {% if p.is_popular %}<div class="sp-mcard-badge">Khuyên dùng</div>{% endif %}
+                        {% if p.is_popular %}<div class="sp-mcard-badge">{{ p.badge or "Phổ biến" }}</div>{% endif %}
                     </div>
                     <div class="sp-mcard-rows">
                         {% for r in compare_rows %}

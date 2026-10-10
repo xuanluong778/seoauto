@@ -1,0 +1,22 @@
+{
+  "wave": 3,
+  "label": "pre-wave3-baseline",
+  "captured_at": "2026-09-02",
+  "connection_pool_before": {
+    "pool_size": 10,
+    "max_overflow": 20,
+    "pool_pre_ping": false,
+    "statement_timeout": "none",
+    "theoretical_max_per_process": 30,
+    "processes_approx": 21,
+    "theoretical_client_max": 630,
+    "postgres_max_connections": 100,
+    "root_cause": "Default SQLAlchemy pool too large × many Uvicorn/Celery processes"
+  },
+  "observed_failure": "QueuePool limit of size 10 overflow 20 reached (Wave 1 load test)",
+  "pgbouncer_before": "not deployed",
+  "query_issues": [
+    "list_entries_pg SELECT included full payload_json blob on list",
+    "missing composite indexes on content_ai_generations, content_ai_projects list, credit_reservations"
+  ]
+}

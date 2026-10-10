@@ -171,30 +171,29 @@ def download_remote_image_bytes(src: str) -> bytes:
     if not url.lower().startswith(("http://", "https://")):
         raise ValueError("URL ảnh không hợp lệ.")
     try:
-        r = requests.get(
+        from app.services.url_safety import safe_http_get_bytes, validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            raise ValueError(f"URL ảnh không an toàn ({blocked}).")
+        data, err, meta = safe_http_get_bytes(
             url,
-            timeout=25,
-            stream=True,
+            timeout_s=25,
+            max_bytes=8 * 1024 * 1024,
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
             },
         )
+        if err:
+            raise ValueError(f"Không tải được ảnh: {err}")
+        ctype = str((meta or {}).get("content_type") or "").lower()
+    except ValueError:
+        raise
     except Exception as exc:
         raise ValueError(f"Không tải được ảnh: {exc}") from exc
-    if r.status_code != 200:
-        raise ValueError(f"Không tải được ảnh (HTTP {r.status_code}).")
-    ctype = str(r.headers.get("content-type") or "").lower()
     if "image" not in ctype and not re.search(r"\.(jpe?g|png|webp|gif)(\?|$)", url, re.I):
         raise ValueError(f"URL không trả về ảnh (content-type={ctype or 'unknown'}).")
-    max_bytes = 8 * 1024 * 1024
-    data = b""
-    for chunk in r.iter_content(chunk_size=65536):
-        if not chunk:
-            continue
-        data += chunk
-        if len(data) > max_bytes:
-            raise ValueError("Ảnh quá lớn (giới hạn ~8MB).")
     if len(data) < 400:
         raise ValueError("File ảnh tải về quá nhỏ hoặc không hợp lệ.")
     return data

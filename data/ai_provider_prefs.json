@@ -6,6 +6,9 @@
     },
     "1": {
       "pipeline_multi_model": false
+    },
+    "153": {
+      "pipeline_multi_model": false
     }
   }
 }

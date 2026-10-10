@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -34,23 +35,28 @@ logger = logging.getLogger(__name__)
 SEOAUTO_PLAN_SLUG_ORDER: list[str] = ["starter", "pro", "agency", "business"]
 
 # Bump when SEOAUTO_PRICING_SPECS / hybrid defaults change — triggers DB metadata sync.
-PRICING_CATALOG_REVISION = 7
+PRICING_CATALOG_REVISION = 9
 
-# Hàng so sánh chi tiết (phần dưới trang /pricing).
+# Hàng so sánh chi tiết (phần dưới trang /pricing + modal account-billing).
 PRICING_COMPARE_ROWS: list[dict[str, str]] = [
-    {"key": "credits_month", "label": "Credit tặng/tháng"},
-    {"key": "platform_projects", "label": "Website/Project"},
+    {"key": "credits_month", "label": "Credit Premium/tháng"},
+    {"key": "keyword_research_quota", "label": "Keyword Research/tháng"},
+    {"key": "keyword_cluster_quota", "label": "Gom nhóm từ khóa/tháng"},
     {"key": "content_ai_per_month", "label": "Bài AI/tháng"},
-    {"key": "keyword_research_quota", "label": "Keyword Research quota/tháng"},
-    {"key": "audit_technical", "label": "Technical Audit/tháng"},
-    {"key": "audit_seo_score", "label": "SEO Score URL/tháng"},
+    {"key": "index_submit_quota", "label": "Submit Index (URL/tháng)"},
+    {"key": "check_index", "label": "Check Index"},
+    {"key": "audit_technical", "label": "Technical SEO"},
+    {"key": "audit_seo_score", "label": "SEO Score"},
+    {"key": "audit_schema", "label": "Schema"},
+    {"key": "chatbot_enabled", "label": "AI Chatbot"},
+    {"key": "chatbot_reply_monthly", "label": "Chatbot reply/tháng"},
+    {"key": "chatbot_bots", "label": "Số chatbot"},
+    {"key": "platform_projects", "label": "Website/Project"},
+    {"key": "platform_users", "label": "User/team"},
     {"key": "kw_advanced", "label": "Keyword DataForSEO nâng cao"},
     {"key": "google_map_seo", "label": "Google Map SEO"},
     {"key": "lead_scan_monthly", "label": "Lead Scanner/tháng"},
-    {"key": "chatbot_reply_monthly", "label": "Chatbot CSKH reply/tháng"},
-    {"key": "chatbot_bots", "label": "Số chatbot"},
     {"key": "report_whitelabel", "label": "White-label báo cáo"},
-    {"key": "content_byok_ai", "label": "Dùng API AI riêng (BYOK)"},
     {"key": "priority_worker", "label": "Ưu tiên xử lý"},
     {"key": "support", "label": "Hỗ trợ"},
 ]
@@ -140,36 +146,30 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
         "slug": "starter",
         "name": "Basic",
         "fit": "Cá nhân SEO, chủ shop nhỏ",
-        "month_price": 399000,
-        "year_price": 3990000,
+        "month_price": 499000,
+        "year_price": 4990000,
         "is_popular": False,
         "features": [
-            ("User", "1"),
+            ("Keyword Research", "3.000/tháng"),
+            ("Gom nhóm từ khóa", "1.000/tháng"),
+            ("Bài AI/tháng", "80"),
+            ("Submit Index", "500 URL/tháng"),
+            ("Check Index · Technical · SEO Score · Schema", "FREE"),
+            ("Credit Premium/tháng", "500"),
+            ("AI Chatbot", "Không"),
             ("Website/Project", "3"),
-            ("Credit/tháng", "500"),
-            ("Bài AI/tháng", "30"),
-            ("Bulk writer/lần", "10"),
-            ("Bài viết lưu tối đa", "200"),
-            ("Auto Update", "5 bài/tháng"),
-            ("Lên lịch đăng bài", "15 bài/tháng"),
-            ("Rank Tracking", "100 keyword"),
-            ("Technical Audit", "10 lần/tháng"),
-            ("Crawl/lần", "50 URL/tháng"),
-            ("SEO Score", "50 URL/tháng"),
         ],
         "cta": "Mua gói Basic",
         "compare": {
-            # Nhóm 1 — Nền tảng
             "platform_dashboard": True,
             "platform_users": 1,
             "platform_projects": 3,
             "platform_gsc": True,
             "platform_ga4": False,
             "platform_affiliate": True,
-            # Nhóm 2 — Content AI
             "content_single": True,
             "content_bulk": True,
-            "content_ai_per_month": 30,
+            "content_ai_per_month": 80,
             "content_bulk_per_run": 10,
             "content_saved_max": 200,
             "content_auto_update": 5,
@@ -177,20 +177,18 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
             "content_schedule": 15,
             "content_byok_ai": False,
             "content_seoauto_ai": True,
-            # Nhóm 3 — Keyword & SEO Data
             "kw_basic": True,
             "kw_advanced": False,
             "kw_semantic_cluster": True,
             "kw_serp_hybrid": False,
             "kw_excel": True,
             "kw_rank_tracking": 100,
-            # Nhóm 4 — Audit & SEO Score
-            "audit_technical": 10,
+            "audit_technical": "FREE",
             "audit_crawl_per_run": 50,
-            "audit_seo_score": 50,
-            "audit_schema": True,
+            "audit_seo_score": "FREE",
+            "audit_schema": "FREE",
+            "check_index": "FREE",
             "audit_internal_links": True,
-            # Nhóm 5 — Social & Report
             "social_posts": 15,
             "report_client": False,
             "report_whitelabel": False,
@@ -202,22 +200,18 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
         "slug": "pro",
         "name": "Pro",
         "fit": "Freelancer, SEO team nhỏ",
-        "month_price": 699000,
-        "year_price": 6990000,
+        "month_price": 799000,
+        "year_price": 7990000,
         "is_popular": True,
         "features": [
-            ("User", "3"),
+            ("Keyword Research", "10.000/tháng"),
+            ("Gom nhóm từ khóa", "3.000/tháng"),
+            ("Bài AI/tháng", "200"),
+            ("Submit Index", "2.000 URL/tháng"),
+            ("Check Index · Technical · SEO Score · Schema", "FREE"),
+            ("Credit Premium/tháng", "1500"),
+            ("AI Chatbot", "3 bot · 3.000 reply"),
             ("Website/Project", "8"),
-            ("Credit/tháng", "2000"),
-            ("Bài AI/tháng", "80"),
-            ("Bulk writer/lần", "40"),
-            ("Bài viết lưu tối đa", "600"),
-            ("Auto Update", "20 bài/tháng"),
-            ("Lên lịch đăng bài", "40 bài/tháng"),
-            ("Rank Tracking", "300 keyword"),
-            ("Technical Audit", "25 lần/tháng"),
-            ("Crawl/lần", "150 URL/tháng"),
-            ("SEO Score", "150 URL/tháng"),
         ],
         "cta": "Bắt đầu với Pro",
         "compare": {
@@ -229,7 +223,7 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
             "platform_affiliate": True,
             "content_single": True,
             "content_bulk": True,
-            "content_ai_per_month": 80,
+            "content_ai_per_month": 200,
             "content_bulk_per_run": 40,
             "content_saved_max": 600,
             "content_auto_update": 20,
@@ -243,10 +237,11 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
             "kw_serp_hybrid": True,
             "kw_excel": True,
             "kw_rank_tracking": 300,
-            "audit_technical": 25,
+            "audit_technical": "FREE",
             "audit_crawl_per_run": 150,
-            "audit_seo_score": 150,
-            "audit_schema": True,
+            "audit_seo_score": "FREE",
+            "audit_schema": "FREE",
+            "check_index": "FREE",
             "audit_internal_links": True,
             "social_posts": 40,
             "report_client": False,
@@ -259,24 +254,18 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
         "slug": "agency",
         "name": "Agency",
         "fit": "Agency SEO",
-        "month_price": 1490000,
-        "year_price": 14900000,
+        "month_price": 1690000,
+        "year_price": 16900000,
         "is_popular": False,
         "features": [
-            ("User", "5"),
+            ("Keyword Research", "30.000/tháng"),
+            ("Gom nhóm từ khóa", "10.000/tháng"),
+            ("Bài AI/tháng", "400"),
+            ("Submit Index", "10.000 URL/tháng"),
+            ("Check Index · Technical · SEO Score · Schema", "FREE"),
+            ("Credit Premium/tháng", "3500"),
+            ("AI Chatbot", "15 bot · 15.000 reply"),
             ("Website/Project", "20"),
-            ("Credit/tháng", "6000"),
-            ("Bài AI/tháng", "200"),
-            ("Bulk writer/lần", "100"),
-            ("Bài viết lưu tối đa", "2000"),
-            ("Auto Update", "60 bài/tháng"),
-            ("Lên lịch đăng bài", "120 bài/tháng"),
-            ("Rank Tracking", "1000 keyword"),
-            ("Technical Audit", "60 lần/tháng"),
-            ("Crawl/lần", "500 URL/tháng"),
-            ("SEO Score", "500 URL/tháng"),
-            ("White-label report", "Có"),
-            ("Ưu tiên worker", "Cao"),
         ],
         "cta": "Nâng cấp gói",
         "compare": {
@@ -288,7 +277,7 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
             "platform_affiliate": True,
             "content_single": True,
             "content_bulk": True,
-            "content_ai_per_month": 200,
+            "content_ai_per_month": 400,
             "content_bulk_per_run": 100,
             "content_saved_max": 2000,
             "content_auto_update": 60,
@@ -302,10 +291,11 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
             "kw_serp_hybrid": True,
             "kw_excel": True,
             "kw_rank_tracking": 1000,
-            "audit_technical": 60,
+            "audit_technical": "FREE",
             "audit_crawl_per_run": 500,
-            "audit_seo_score": 500,
-            "audit_schema": True,
+            "audit_seo_score": "FREE",
+            "audit_schema": "FREE",
+            "check_index": "FREE",
             "audit_internal_links": True,
             "social_posts": 120,
             "report_client": True,
@@ -318,24 +308,18 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
         "slug": "business",
         "name": "Business",
         "fit": "Công ty, team lớn",
-        "month_price": 2990000,
-        "year_price": 29900000,
+        "month_price": 3490000,
+        "year_price": 34900000,
         "is_popular": False,
         "features": [
-            ("User", "10"),
+            ("Keyword Research", "80.000/tháng"),
+            ("Gom nhóm từ khóa", "30.000/tháng"),
+            ("Bài AI/tháng", "1.000"),
+            ("Submit Index", "30.000 URL/tháng"),
+            ("Check Index · Technical · SEO Score · Schema", "FREE"),
+            ("Credit Premium/tháng", "7500"),
+            ("AI Chatbot", "50 bot · 50.000 reply"),
             ("Website/Project", "50"),
-            ("Credit/tháng", "15000"),
-            ("Bài AI/tháng", "500"),
-            ("Bulk writer/lần", "300"),
-            ("Bài viết lưu tối đa", "8000"),
-            ("Auto Update", "200 bài/tháng"),
-            ("Lên lịch đăng bài", "400 bài/tháng"),
-            ("Rank Tracking", "5000 keyword"),
-            ("Technical Audit", "150 lần/tháng"),
-            ("Crawl/lần", "2500 URL/tháng"),
-            ("SEO Score", "2500 URL/tháng"),
-            ("White-label report", "Có"),
-            ("Ưu tiên worker", "Cao nhất"),
         ],
         "cta": "Nâng cấp gói",
         "compare": {
@@ -347,7 +331,7 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
             "platform_affiliate": True,
             "content_single": True,
             "content_bulk": True,
-            "content_ai_per_month": 500,
+            "content_ai_per_month": 1000,
             "content_bulk_per_run": 300,
             "content_saved_max": 8000,
             "content_auto_update": 200,
@@ -361,10 +345,11 @@ SEOAUTO_PRICING_SPECS: list[dict[str, Any]] = [
             "kw_serp_hybrid": True,
             "kw_excel": True,
             "kw_rank_tracking": 5000,
-            "audit_technical": 150,
+            "audit_technical": "FREE",
             "audit_crawl_per_run": 2500,
-            "audit_seo_score": 2500,
-            "audit_schema": True,
+            "audit_seo_score": "FREE",
+            "audit_schema": "FREE",
+            "check_index": "FREE",
             "audit_internal_links": True,
             "social_posts": 400,
             "report_client": True,
@@ -687,7 +672,9 @@ def admin_pricing_plan_row(db: Session, plan: Plan) -> dict[str, Any]:
         "fit": plan.description or "",
         "month_price": int(plan.price_amount or 0),
         "year_price": int(meta.get("year_price") or 0),
-        "credit_per_month": _int_from_text(feat_map.get("Credit/tháng")),
+        "credit_per_month": _int_from_text(
+            feat_map.get("Credit Premium/tháng") or feat_map.get("Credit/tháng")
+        ),
         "users": int(compare.get("platform_users") or _int_from_text(feat_map.get("User")) or 0),
         "projects": int(compare.get("platform_projects") or _int_from_text(feat_map.get("Website/Project")) or 0),
         "ai_articles_per_month": int(
@@ -848,29 +835,49 @@ def _build_card_highlights(slug: str, compare: dict[str, Any]) -> list[dict[str,
     quotas = PLAN_MONTHLY_QUOTAS.get(slug, {})
     credits = int(PLAN_MONTHLY_BONUS_CREDITS.get(slug, 0))
     kw_q = int(quotas.get("keyword_research", 0))
-    tech_q = int(merged.get("audit_technical") or quotas.get("technical_audit", 0))
+    cluster_q = int(quotas.get("keyword_cluster", 0))
+    index_q = int(quotas.get("index_submit", 0))
+    chatbot_on = bool(merged.get("chatbot_enabled"))
 
-    if merged.get("google_map_seo"):
+    if merged.get("google_map_seo") and not isinstance(merged.get("google_map_seo"), str):
         gmap = f"{_fmt_vn_num(merged.get('google_map_locations', 0))} location"
+    elif isinstance(merged.get("google_map_seo"), str) and merged.get("google_map_seo"):
+        gmap = str(merged.get("google_map_seo"))
     else:
-        gmap = "Không"
-
-    lead_scan = int(merged.get("lead_scan_monthly") or quotas.get("lead_scan", 0))
-    chat_replies = int(merged.get("chatbot_reply_monthly") or quotas.get("chatbot_reply", 0))
-    bots = int(merged.get("chatbot_bots") or chatbot_bot_limit(slug))
+        gmap = ""
 
     rows: list[dict[str, str]] = [
-        {"label": "Credit/tháng", "value": _fmt_vn_num(credits)},
-        {"label": "Website/Project", "value": _fmt_vn_num(merged.get("platform_projects", 0))},
-        {"label": "Bài AI/tháng", "value": _fmt_vn_num(merged.get("content_ai_per_month", 0))},
         {
-            "label": "Keyword & Technical",
-            "value": f"{_fmt_vn_num(kw_q)} KW · {tech_q} audit",
+            "label": "Keyword Research",
+            "value": f"{_fmt_vn_num(kw_q)}/tháng",
+            "emphasize": "1",
         },
-        {"label": "Google Map SEO", "value": gmap},
-        {"label": "Lead Scanner", "value": f"{_fmt_vn_num(lead_scan)} scan/tháng"},
-        {"label": "Chatbot CSKH", "value": f"{_fmt_vn_num(chat_replies)} reply · {bots} bot"},
+        {
+            "label": "Gom nhóm từ khóa",
+            "value": f"{_fmt_vn_num(cluster_q)}/tháng",
+            "emphasize": "1",
+        },
+        {"label": "Bài AI/tháng", "value": _fmt_vn_num(merged.get("content_ai_per_month", 0))},
+        {"label": "Submit Index", "value": f"{_fmt_vn_num(index_q)} URL/tháng"},
+        {
+            "label": "Check Index · Technical · SEO Score · Schema",
+            "value": "FREE",
+            "free": "1",
+        },
+        {"label": "Credit Premium", "value": _fmt_vn_num(credits)},
+        {
+            "label": "AI Chatbot",
+            "value": (
+                f"{_fmt_vn_num(merged.get('chatbot_bots', 0))} bot · "
+                f"{_fmt_vn_num(merged.get('chatbot_reply_monthly', 0))} reply"
+                if chatbot_on
+                else "Từ gói Pro"
+            ),
+        },
+        {"label": "Website/Project", "value": _fmt_vn_num(merged.get("platform_projects", 0))},
     ]
+    if gmap:
+        rows.append({"label": "Google Map SEO", "value": gmap})
     if merged.get("report_whitelabel"):
         rows.append({"label": "White-label", "value": "Có"})
     return rows
@@ -880,15 +887,29 @@ def _enrich_compare_for_display(slug: str, compare: dict[str, Any]) -> dict[str,
     merged = {**compare_patch_for_plan(slug), **(compare or {})}
     merged["credits_month"] = int(PLAN_MONTHLY_BONUS_CREDITS.get(slug, 0))
     merged["keyword_research_quota"] = int(PLAN_MONTHLY_QUOTAS.get(slug, {}).get("keyword_research", 0))
-    if merged.get("google_map_seo"):
+    merged["keyword_cluster_quota"] = int(PLAN_MONTHLY_QUOTAS.get(slug, {}).get("keyword_cluster", 0))
+    merged["index_submit_quota"] = int(PLAN_MONTHLY_QUOTAS.get(slug, {}).get("index_submit", 0))
+    for free_key in ("check_index", "audit_technical", "audit_seo_score", "audit_schema"):
+        merged[free_key] = "FREE"
+    gmap_flag = merged.get("google_map_seo")
+    if gmap_flag and not isinstance(gmap_flag, str):
         merged["google_map_seo"] = f"{_fmt_vn_num(merged.get('google_map_locations', 0))} location"
-    else:
+    elif not gmap_flag:
         merged["google_map_seo"] = False
     return merged
 
 
 def get_seoauto_pricing_cards(db: Session) -> list[dict[str, Any]]:
     """Return 4 pricing cards from DB; fallback to constants if DB is empty."""
+    from app.services.business_api_cache import cache_get, cache_set
+    from app.services.business_api_rollout import business_api_cache_enabled
+
+    cache_key = "biz:pricing:cards:v2"
+    if business_api_cache_enabled():
+        hit = cache_get(cache_key)
+        if isinstance(hit, list) and hit:
+            return hit
+
     # Ensure exists; safe idempotent.
     ensure_seoauto_pricing_plans(db)
     db.flush()
@@ -938,7 +959,7 @@ def get_seoauto_pricing_cards(db: Session) -> list[dict[str, Any]]:
                     meta.get("yearly_bonus_credit") or spec.get("yearly_bonus_credit") or 0
                 ),
                 "is_popular": bool(meta.get("is_popular") if meta.get("is_popular") is not None else spec.get("is_popular")),
-                "badge": "Khuyên dùng" if (meta.get("is_popular") if meta.get("is_popular") is not None else spec.get("is_popular")) else "",
+                "badge": "Phổ biến" if (meta.get("is_popular") if meta.get("is_popular") is not None else spec.get("is_popular")) else "",
                 "cta": str(meta.get("cta") or spec.get("cta") or "Nâng cấp gói"),
                 "features": features,
                 "highlights": _build_card_highlights(slug, compare),
@@ -947,7 +968,10 @@ def get_seoauto_pricing_cards(db: Session) -> list[dict[str, Any]]:
         )
     # Sort by spec order
     by_slug = {c["slug"]: c for c in cards}
-    return [by_slug[s["slug"]] for s in SEOAUTO_PRICING_SPECS if s["slug"] in by_slug]
+    out = [by_slug[s["slug"]] for s in SEOAUTO_PRICING_SPECS if s["slug"] in by_slug]
+    if business_api_cache_enabled() and out:
+        cache_set(cache_key, out, ttl=int(os.getenv("BUSINESS_API_PRICING_CACHE_TTL", "120")))
+    return out
 
 
 def get_billing_catalog(db: Session) -> dict[str, Any]:
@@ -963,10 +987,12 @@ def get_billing_catalog(db: Session) -> dict[str, Any]:
     return {
         "plan_slugs": list(SEOAUTO_PLAN_SLUG_ORDER),
         "plans": plans,
+        "compare_rows": list(PRICING_COMPARE_ROWS),
         "products": _billing_saas_products_payload(),
         "credit_addons": _billing_credit_addons_payload(),
         "credit_addon_notes": list(CREDIT_ADDON_NOTES),
         "article_addons": _billing_article_addons_payload(),
         "article_addon_notes": list(ARTICLE_ADDON_NOTES),
+        "catalog_revision": PRICING_CATALOG_REVISION,
     }
 

@@ -22,3 +22,11 @@ def default_user_rate_per_min(provider: str) -> int:
     return max(1, int(os.getenv(key, os.getenv("COST_CONTROL_USER_RATE_PER_MIN", "30")).strip()))
   except (TypeError, ValueError):
     return 30
+
+
+def default_user_concurrency(provider: str) -> int:
+  key = f"COST_CONTROL_{provider.upper()}_CONCURRENCY"
+  try:
+    return max(1, int(os.getenv(key, os.getenv("COST_CONTROL_USER_CONCURRENCY", "2")).strip()))
+  except (TypeError, ValueError):
+    return 2

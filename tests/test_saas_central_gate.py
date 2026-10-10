@@ -240,7 +240,7 @@ def test_trial_blocks_keyword_and_index_features():
             message="blocked",
             feature_key="keyword_research",
         )
-        with patch("app.services.saas_gate.can_write", return_value=True), patch(
+        with patch("app.services.permissions.has_permission", return_value=True), patch(
             "app.services.saas_gate.user_has_software_access", return_value=True
         ), patch.object(entitlement_service, "resolve_effective_plan", return_value="free_trial_5d"):
             with pytest.raises(HTTPException) as ei:
@@ -283,7 +283,7 @@ def test_index_submit_enforces_feature():
 
     src = inspect.getsource(ic.index_control_submit_indexing)
     assert "index_control_submit" in src
-    assert "enforce_saas_access" in src
+    assert "saas_action_gate" in src
     assert "require_active_trial" in src
 
 

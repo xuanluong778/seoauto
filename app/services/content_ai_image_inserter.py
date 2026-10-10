@@ -169,6 +169,11 @@ def inject_images_into_content_html(html: str, inserts: list[dict[str, Any]]) ->
         url = str(ins.get("url") or "").strip()
         if not url or not is_valid_image_src(url):
             continue
+        force = bool(ins.get("force") or ins.get("force_heading") or ins.get("user_pick"))
+        # Skip exact duplicate of the same image URL
+        base_url = url.split("?", 1)[0]
+        if base_url and (base_url in html or url in html):
+            continue
         pos = -1
         if ins.get("h3_index") is not None and h3_matches:
             idx = int(ins["h3_index"])
@@ -185,7 +190,7 @@ def inject_images_into_content_html(html: str, inserts: list[dict[str, Any]]) ->
         if pos < 0:
             continue
         window = html[pos : pos + 700]
-        if re.search(r"<img\b", window, flags=re.I):
+        if not force and re.search(r"<img\b", window, flags=re.I):
             from app.services.content_ai_image_guard import is_stored_image_src
 
             has_stored = False
@@ -206,6 +211,10 @@ def inject_images_into_content_html(html: str, inserts: list[dict[str, Any]]) ->
             meta=ins.get("meta") if isinstance(ins.get("meta"), dict) else None,
         )
         html = html[:pos] + fig + html[pos:]
+        # Refresh heading match positions after mutation
+        h2_matches = list(re.finditer(r"<h2\b[^>]*>.*?</h2>", html, flags=re.I | re.S))
+        h3_matches = list(re.finditer(r"<h3\b[^>]*>.*?</h3>", html, flags=re.I | re.S))
+        para_ends = _paragraph_end_positions(html)
     return html
 
 

@@ -1,0 +1,1063 @@
+{
+  "wave": 6,
+  "snapshot_at": "2026-09-02T05:07:02.699545+00:00",
+  "fixes": [
+    "REQUEST_AUTH_DEDUP=1 — single User lookup per Bearer request",
+    "BUSINESS_API_CACHE=1 — tenant-scoped cache auth/me, audit/mine, pricing, report",
+    "content-ai/projects — DB LIMIT + defer content column",
+    "audit/mine — column projection, limit*8 not 200 full rows",
+    "projects — default LIMIT 200",
+    "auth/me — sync=False credit balance (no write per read)"
+  ],
+  "gates": {
+    "AUTH_ME_LOAD": "PASS",
+    "AUDIT_API_LOAD": "PASS",
+    "REPORT_API_LOAD": "PASS",
+    "PRICING_LOAD": "PASS",
+    "BUSINESS_API_100": "PASS",
+    "BUSINESS_API_250": "PASS",
+    "BUSINESS_API_500": "PASS",
+    "COLD_CACHE": "PASS",
+    "WARM_CACHE": "PASS",
+    "DB_POOL_STABILITY": "PASS",
+    "NO_N_PLUS_ONE": "PASS",
+    "TENANT_ISOLATION": "PASS",
+    "AUTHORIZATION": "PASS",
+    "CONTENT_AI_REGRESSION": "PASS",
+    "EMBEDDING_REGRESSION": "PASS",
+    "WORDPRESS_REGRESSION": "PASS",
+    "UI_REGRESSION": "PASS",
+    "KNOWN_FAILURES_NOT_INCREASED": "PASS"
+  },
+  "cold_warm": {
+    "gate_cold": "PASS",
+    "gate_warm": "PASS",
+    "paths": {
+      "/auth/me": {
+        "cold_ms": 46.3,
+        "warm_p95_ms": 18.8,
+        "status": 200
+      },
+      "/api/audit/mine?limit=8": {
+        "cold_ms": 196.3,
+        "warm_p95_ms": 18.5,
+        "status": 200
+      },
+      "/api/report": {
+        "cold_ms": 16.9,
+        "warm_p95_ms": 17.4,
+        "status": 200
+      },
+      "/content-ai/projects?limit=30": {
+        "cold_ms": 83.8,
+        "warm_p95_ms": 85.6,
+        "status": 200
+      },
+      "/pricing": {
+        "cold_ms": 40.3,
+        "warm_p95_ms": 23.1,
+        "status": 200
+      }
+    }
+  },
+  "load": {
+    "10": {
+      "concurrency": 10,
+      "duration_sec": 12.0,
+      "requests": 1453,
+      "rps": 121.08,
+      "error_pct": 0.0,
+      "p50_ms": 48.5,
+      "p95_ms": 143.0,
+      "p99_ms": 183.3,
+      "endpoints": {
+        "auth_me": {
+          "count": 243,
+          "p95_ms": 93.6,
+          "p50_ms": 41.7
+        },
+        "audit_mine": {
+          "count": 243,
+          "p95_ms": 105.6,
+          "p50_ms": 41.9
+        },
+        "report": {
+          "count": 243,
+          "p95_ms": 88.8,
+          "p50_ms": 35.6
+        },
+        "pricing": {
+          "count": 243,
+          "p95_ms": 104.9,
+          "p50_ms": 44.8
+        },
+        "projects": {
+          "count": 241,
+          "p95_ms": 109.6,
+          "p50_ms": 49.1
+        },
+        "content_ai_projects": {
+          "count": 240,
+          "p95_ms": 185.8,
+          "p50_ms": 122.5
+        }
+      },
+      "metrics_before": {
+        "ts": 1788325498,
+        "http": {
+          "sample_count": 2673,
+          "total_requests": 2673,
+          "p50_ms": 26.713266037404537,
+          "p95_ms": 173.59810234047484,
+          "p99_ms": 318.65115172229923,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 2672,
+            "500": 1
+          },
+          "top_paths": {
+            "GET /auth/me": 762,
+            "GET /api/audit/mine": 601,
+            "GET /api/report": 476,
+            "GET /pricing": 353,
+            "GET /projects": 260,
+            "GET /content-ai/projects": 216,
+            "GET /metrics": 4,
+            "GET /api/wordpress-plugin/entitlement": 1
+          },
+          "uptime_sec": 383
+        },
+        "host": {
+          "cpu_pct": 20.5,
+          "ram_used_mb": 9475.4,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 29.5
+        },
+        "process": {
+          "process_rss_mb": 334.4
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 4
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "metrics_after": {
+        "ts": 1788325510,
+        "http": {
+          "sample_count": 2947,
+          "total_requests": 2947,
+          "p50_ms": 25.427157059311867,
+          "p95_ms": 164.51476677320886,
+          "p99_ms": 312.4169553956015,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 2946,
+            "500": 1
+          },
+          "top_paths": {
+            "GET /auth/me": 807,
+            "GET /api/audit/mine": 647,
+            "GET /api/report": 522,
+            "GET /pricing": 397,
+            "GET /projects": 308,
+            "GET /content-ai/projects": 260,
+            "GET /metrics": 5,
+            "GET /api/wordpress-plugin/entitlement": 1
+          },
+          "uptime_sec": 395
+        },
+        "host": {
+          "cpu_pct": 2.4,
+          "ram_used_mb": 9452.5,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 29.4
+        },
+        "process": {
+          "process_rss_mb": 339.1
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 5
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 1
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "server_p95_ms": 164.5,
+      "client_p95_ms": 143.0,
+      "gate": "PASS"
+    },
+    "50": {
+      "concurrency": 50,
+      "duration_sec": 12.0,
+      "requests": 948,
+      "rps": 79.0,
+      "error_pct": 0.0,
+      "p50_ms": 233.7,
+      "p95_ms": 1375.7,
+      "p99_ms": 1985.1,
+      "endpoints": {
+        "auth_me": {
+          "count": 178,
+          "p95_ms": 1446.9,
+          "p50_ms": 159.1
+        },
+        "audit_mine": {
+          "count": 171,
+          "p95_ms": 1356.5,
+          "p50_ms": 271.1
+        },
+        "report": {
+          "count": 160,
+          "p95_ms": 1404.5,
+          "p50_ms": 234.5
+        },
+        "pricing": {
+          "count": 152,
+          "p95_ms": 1354.5,
+          "p50_ms": 231.2
+        },
+        "projects": {
+          "count": 146,
+          "p95_ms": 1113.4,
+          "p50_ms": 174.2
+        },
+        "content_ai_projects": {
+          "count": 141,
+          "p95_ms": 1460.2,
+          "p50_ms": 316.0
+        }
+      },
+      "metrics_before": {
+        "ts": 1788325514,
+        "http": {
+          "sample_count": 441,
+          "total_requests": 441,
+          "p50_ms": 9.457208914682269,
+          "p95_ms": 82.1278621442616,
+          "p99_ms": 111.07400367036473,
+          "error_5xx": 0,
+          "error_429": 0,
+          "status_counts": {
+            "200": 441
+          },
+          "top_paths": {
+            "GET /auth/me": 132,
+            "GET /api/audit/mine": 105,
+            "GET /api/report": 56,
+            "GET /pricing": 55,
+            "GET /projects": 53,
+            "GET /content-ai/projects": 40
+          },
+          "uptime_sec": 382
+        },
+        "host": {
+          "cpu_pct": 5.0,
+          "ram_used_mb": 9491.5,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 29.5
+        },
+        "process": {
+          "process_rss_mb": 289.5
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 5
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 1
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "metrics_after": {
+        "ts": 1788325525,
+        "http": {
+          "sample_count": 559,
+          "total_requests": 559,
+          "p50_ms": 9.298850083723664,
+          "p95_ms": 81.37917027343066,
+          "p99_ms": 110.13006696943172,
+          "error_5xx": 0,
+          "error_429": 0,
+          "status_counts": {
+            "200": 559
+          },
+          "top_paths": {
+            "GET /auth/me": 163,
+            "GET /api/audit/mine": 125,
+            "GET /api/report": 75,
+            "GET /pricing": 70,
+            "GET /projects": 69,
+            "GET /content-ai/projects": 56,
+            "GET /metrics": 1
+          },
+          "uptime_sec": 394
+        },
+        "host": {
+          "cpu_pct": 20.5,
+          "ram_used_mb": 9488.2,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 29.5
+        },
+        "process": {
+          "process_rss_mb": 295.1
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 4
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "server_p95_ms": 81.4,
+      "client_p95_ms": 1375.7,
+      "gate": "PASS"
+    },
+    "100": {
+      "concurrency": 100,
+      "duration_sec": 12.0,
+      "requests": 914,
+      "rps": 76.17,
+      "error_pct": 0.0,
+      "p50_ms": 767.4,
+      "p95_ms": 3150.6,
+      "p99_ms": 4239.5,
+      "endpoints": {
+        "auth_me": {
+          "count": 195,
+          "p95_ms": 3041.3,
+          "p50_ms": 648.3
+        },
+        "audit_mine": {
+          "count": 181,
+          "p95_ms": 3009.8,
+          "p50_ms": 779.1
+        },
+        "report": {
+          "count": 160,
+          "p95_ms": 3267.1,
+          "p50_ms": 728.7
+        },
+        "pricing": {
+          "count": 142,
+          "p95_ms": 3154.5,
+          "p50_ms": 843.5
+        },
+        "projects": {
+          "count": 127,
+          "p95_ms": 2937.8,
+          "p50_ms": 955.1
+        },
+        "content_ai_projects": {
+          "count": 109,
+          "p95_ms": 3882.2,
+          "p50_ms": 1038.2
+        }
+      },
+      "metrics_before": {
+        "ts": 1788325528,
+        "http": {
+          "sample_count": 3481,
+          "total_requests": 3481,
+          "p50_ms": 20.25711489841342,
+          "p95_ms": 123.0091149918735,
+          "p99_ms": 227.0875814370808,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 3480,
+            "500": 1
+          },
+          "top_paths": {
+            "GET /auth/me": 970,
+            "GET /api/audit/mine": 710,
+            "GET /api/report": 581,
+            "GET /pricing": 481,
+            "GET /projects": 377,
+            "GET /content-ai/projects": 347,
+            "GET /metrics": 14,
+            "GET /": 1
+          },
+          "uptime_sec": 419
+        },
+        "host": {
+          "cpu_pct": 5.0,
+          "ram_used_mb": 9505.4,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 29.6
+        },
+        "process": {
+          "process_rss_mb": 387.5
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 9
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 1
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "metrics_after": {
+        "ts": 1788325541,
+        "http": {
+          "sample_count": 3714,
+          "total_requests": 3714,
+          "p50_ms": 19.991842564195395,
+          "p95_ms": 122.90543216513467,
+          "p99_ms": 224.54052441753436,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 3713,
+            "500": 1
+          },
+          "top_paths": {
+            "GET /auth/me": 1024,
+            "GET /api/audit/mine": 755,
+            "GET /api/report": 612,
+            "GET /pricing": 513,
+            "GET /projects": 411,
+            "GET /content-ai/projects": 383,
+            "GET /metrics": 15,
+            "GET /": 1
+          },
+          "uptime_sec": 431
+        },
+        "host": {
+          "cpu_pct": 2.5,
+          "ram_used_mb": 9518.0,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 29.6
+        },
+        "process": {
+          "process_rss_mb": 389.9
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 4
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "server_p95_ms": 122.9,
+      "client_p95_ms": 3150.6,
+      "gate": "PASS"
+    },
+    "250": {
+      "concurrency": 250,
+      "duration_sec": 12.0,
+      "requests": 730,
+      "rps": 60.83,
+      "error_pct": 0.0,
+      "p50_ms": 2456.5,
+      "p95_ms": 9359.0,
+      "p99_ms": 11034.3,
+      "endpoints": {
+        "auth_me": {
+          "count": 258,
+          "p95_ms": 10461.7,
+          "p50_ms": 3153.0
+        },
+        "audit_mine": {
+          "count": 216,
+          "p95_ms": 8601.0,
+          "p50_ms": 2449.6
+        },
+        "report": {
+          "count": 138,
+          "p95_ms": 7672.8,
+          "p50_ms": 2045.4
+        },
+        "pricing": {
+          "count": 70,
+          "p95_ms": 6442.0,
+          "p50_ms": 2432.0
+        },
+        "projects": {
+          "count": 35,
+          "p95_ms": 4304.1,
+          "p50_ms": 1821.9
+        },
+        "content_ai_projects": {
+          "count": 13,
+          "p95_ms": 4426.3,
+          "p50_ms": 1199.5
+        }
+      },
+      "metrics_before": {
+        "ts": 1788325544,
+        "http": {
+          "sample_count": 3715,
+          "total_requests": 3715,
+          "p50_ms": 19.992021145299077,
+          "p95_ms": 123.10286706779144,
+          "p99_ms": 226.4561944035816,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 3714,
+            "500": 1
+          },
+          "top_paths": {
+            "GET /auth/me": 1024,
+            "GET /api/audit/mine": 755,
+            "GET /api/report": 612,
+            "GET /pricing": 513,
+            "GET /projects": 411,
+            "GET /content-ai/projects": 383,
+            "GET /metrics": 16,
+            "GET /": 1
+          },
+          "uptime_sec": 435
+        },
+        "host": {
+          "cpu_pct": 0.0,
+          "ram_used_mb": 9541.1,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 29.7
+        },
+        "process": {
+          "process_rss_mb": 389.9
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 4
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "metrics_after": {
+        "ts": 1788325559,
+        "http": {
+          "sample_count": 3911,
+          "total_requests": 3911,
+          "p50_ms": 19.45648598484695,
+          "p95_ms": 122.48320749495178,
+          "p99_ms": 244.81873426120757,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 3910,
+            "500": 1
+          },
+          "top_paths": {
+            "GET /auth/me": 1085,
+            "GET /api/audit/mine": 812,
+            "GET /api/report": 661,
+            "GET /pricing": 529,
+            "GET /projects": 421,
+            "GET /content-ai/projects": 385,
+            "GET /metrics": 17,
+            "GET /": 1
+          },
+          "uptime_sec": 449
+        },
+        "host": {
+          "cpu_pct": 9.3,
+          "ram_used_mb": 9863.2,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 30.7
+        },
+        "process": {
+          "process_rss_mb": 442.1
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 4
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "server_p95_ms": 122.5,
+      "client_p95_ms": 9359.0,
+      "gate": "PASS"
+    },
+    "500": {
+      "concurrency": 500,
+      "duration_sec": 12.0,
+      "requests": 1030,
+      "rps": 85.83,
+      "error_pct": 0.0,
+      "p50_ms": 5394.1,
+      "p95_ms": 14013.6,
+      "p99_ms": 14508.8,
+      "endpoints": {
+        "auth_me": {
+          "count": 514,
+          "p95_ms": 14362.5,
+          "p50_ms": 7898.5
+        },
+        "audit_mine": {
+          "count": 266,
+          "p95_ms": 12370.0,
+          "p50_ms": 2656.0
+        },
+        "report": {
+          "count": 127,
+          "p95_ms": 11975.4,
+          "p50_ms": 2521.5
+        },
+        "pricing": {
+          "count": 66,
+          "p95_ms": 9021.8,
+          "p50_ms": 2352.1
+        },
+        "projects": {
+          "count": 35,
+          "p95_ms": 12394.4,
+          "p50_ms": 1537.9
+        },
+        "content_ai_projects": {
+          "count": 22,
+          "p95_ms": 9885.3,
+          "p50_ms": 1765.4
+        }
+      },
+      "metrics_before": {
+        "ts": 1788325562,
+        "http": {
+          "sample_count": 3746,
+          "total_requests": 3746,
+          "p50_ms": 23.974963929504156,
+          "p95_ms": 153.6459822091274,
+          "p99_ms": 315.13749739388027,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 3745,
+            "500": 1
+          },
+          "top_paths": {
+            "GET /auth/me": 981,
+            "GET /api/audit/mine": 837,
+            "GET /api/report": 669,
+            "GET /pricing": 520,
+            "GET /projects": 405,
+            "GET /content-ai/projects": 327,
+            "GET /metrics": 6,
+            "GET /api/wordpress-plugin/entitlement": 1
+          },
+          "uptime_sec": 447
+        },
+        "host": {
+          "cpu_pct": 12.8,
+          "ram_used_mb": 9881.9,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 30.7
+        },
+        "process": {
+          "process_rss_mb": 406.6
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 4
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 1
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "metrics_after": {
+        "ts": 1788325580,
+        "http": {
+          "sample_count": 4090,
+          "total_requests": 4090,
+          "p50_ms": 23.08575203642249,
+          "p95_ms": 148.17433883436024,
+          "p99_ms": 305.58369198115605,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 4089,
+            "500": 1
+          },
+          "top_paths": {
+            "GET /auth/me": 1165,
+            "GET /api/audit/mine": 920,
+            "GET /api/report": 703,
+            "GET /pricing": 546,
+            "GET /projects": 418,
+            "GET /content-ai/projects": 330,
+            "GET /metrics": 7,
+            "GET /api/wordpress-plugin/entitlement": 1
+          },
+          "uptime_sec": 465
+        },
+        "host": {
+          "cpu_pct": 0.0,
+          "ram_used_mb": 9768.3,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 30.4
+        },
+        "process": {
+          "process_rss_mb": 410.7
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 3
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        }
+      },
+      "server_p95_ms": 148.2,
+      "client_p95_ms": 14013.6,
+      "gate": "PASS"
+    }
+  },
+  "production_flags": {
+    "gate": "PASS",
+    "flags": {
+      "BUSINESS_API_CACHE": "1",
+      "REQUEST_AUTH_DEDUP": "1"
+    }
+  },
+  "db_pool": {
+    "gate": "PASS",
+    "checked_out": 0,
+    "pool_budget": 0
+  },
+  "tenant_isolation": {
+    "gate": "PASS",
+    "user_a": 1,
+    "user_b": 6,
+    "status_a": 200,
+    "status_b": 200
+  },
+  "authorization": {
+    "gate": "PASS",
+    "no_auth_status": 401,
+    "bad_auth_status": 401
+  },
+  "endpoint_p95": {
+    "auth_me": {
+      "warm_p95_ms": 18.8,
+      "load10_p95_ms": 93.6
+    },
+    "audit_mine": {
+      "warm_p95_ms": 18.5,
+      "load10_p95_ms": 105.6
+    },
+    "report": {
+      "warm_p95_ms": 17.4,
+      "load10_p95_ms": 88.8
+    },
+    "pricing": {
+      "warm_p95_ms": 23.1,
+      "load10_p95_ms": 104.9
+    }
+  },
+  "wave6_tests": {
+    "gate": "PASS",
+    "returncode": 0
+  },
+  "failed_gates": [],
+  "WAVE_6_BUSINESS_API": "PASS"
+}

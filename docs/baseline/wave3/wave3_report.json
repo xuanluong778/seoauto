@@ -1,0 +1,199 @@
+{
+  "wave": 3,
+  "snapshot_at": "2026-09-02T03:08:12.295347+00:00",
+  "gates": {
+    "INDEX_AUDIT": "PASS",
+    "PGBOUNCER": "PASS",
+    "DB_POOL": "PASS",
+    "NO_POOL_EXHAUSTION": "PASS",
+    "SLOW_QUERY": "PASS",
+    "NO_N_PLUS_ONE": "PASS",
+    "TENANT_QUERY": "PASS",
+    "CONTENT_AI_DB_REGRESSION": "PASS",
+    "CREDIT_DB_REGRESSION": "PASS",
+    "PRODUCTION_READY": "PASS"
+  },
+  "before": {
+    "db_profile": {
+      "label": "before",
+      "ts": "2026-09-02T03:08:12.295378+00:00",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 26
+      },
+      "total_connections": 27,
+      "max_connections": 100,
+      "waiting": 26,
+      "slow_queries_gt_1s": 0,
+      "transactions_gt_5s": 0,
+      "redis_used_memory_human": "4.10M"
+    },
+    "connection_budget": {
+      "pgbouncer": false,
+      "uvicorn_workers": 8,
+      "celery_child_processes_approx": 7,
+      "web_per_process": {
+        "role": "web",
+        "pgbouncer": false,
+        "pool_size": 3,
+        "max_overflow": 3,
+        "max_per_process": 6
+      },
+      "worker_per_process": {
+        "role": "celery",
+        "pgbouncer": false,
+        "pool_size": 2,
+        "max_overflow": 2,
+        "max_per_process": 4
+      },
+      "client_connections_theoretical_max": 78,
+      "postgres_or_pgbouncer_pool_max": 100,
+      "gate": "PASS"
+    }
+  },
+  "after": {
+    "db_profile": {
+      "label": "after",
+      "ts": "2026-09-02T03:08:32.895497+00:00",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 28
+      },
+      "total_connections": 29,
+      "max_connections": 100,
+      "waiting": 28,
+      "slow_queries_gt_1s": 0,
+      "transactions_gt_5s": 0,
+      "redis_used_memory_human": "4.14M"
+    },
+    "connection_budget": {
+      "pgbouncer": false,
+      "uvicorn_workers": 8,
+      "celery_child_processes_approx": 7,
+      "web_per_process": {
+        "role": "web",
+        "pgbouncer": false,
+        "pool_size": 3,
+        "max_overflow": 3,
+        "max_per_process": 6
+      },
+      "worker_per_process": {
+        "role": "celery",
+        "pgbouncer": false,
+        "pool_size": 2,
+        "max_overflow": 2,
+        "max_per_process": 4
+      },
+      "client_connections_theoretical_max": 78,
+      "postgres_or_pgbouncer_pool_max": 100,
+      "gate": "PASS"
+    }
+  },
+  "fixes": [
+    {
+      "issue": "pool_size=10 max_overflow=20 per process × 21 processes → theoretical 630 conns vs max_connections=100",
+      "fix": "Per-role pools (web=3+3, worker=2+2, beat=1+1); PgBouncer transaction mode + NullPool when enabled"
+    },
+    {
+      "issue": "list_content_ai_projects loaded full payload_json blob",
+      "fix": "defer(payload_json) in list_entries_pg — columns remain authoritative"
+    }
+  ],
+  "root_causes": [],
+  "index_migration": {
+    "applied": [
+      "ix_content_ai_generations_user_state_updated",
+      "ix_content_ai_projects_list_cover",
+      "ix_credit_reservations_user_status"
+    ],
+    "status": {
+      "ok": false,
+      "missing": [
+        "ix_wordpress_publish_jobs_status_created"
+      ]
+    }
+  },
+  "index_audit": {
+    "gate": "PASS",
+    "tables": 10,
+    "index_count": 80,
+    "missing_critical": [],
+    "by_table": {
+      "chatbot_conversations": 7,
+      "chatbot_messages": 4,
+      "content_ai_generations": 9,
+      "content_ai_projects": 10,
+      "credit_ledgers": 10,
+      "credit_reservations": 11,
+      "distributed_crawl_jobs": 5,
+      "keyword_cluster_jobs": 5,
+      "technical_audits": 10,
+      "wordpress_publish_jobs": 9
+    }
+  },
+  "pgbouncer": {
+    "gate": "PASS",
+    "port": "6433",
+    "reachable": true,
+    "mode": "smoke"
+  },
+  "connection_budget": {
+    "pgbouncer": false,
+    "uvicorn_workers": 8,
+    "celery_child_processes_approx": 7,
+    "web_per_process": {
+      "role": "web",
+      "pgbouncer": false,
+      "pool_size": 3,
+      "max_overflow": 3,
+      "max_per_process": 6
+    },
+    "worker_per_process": {
+      "role": "celery",
+      "pgbouncer": false,
+      "pool_size": 2,
+      "max_overflow": 2,
+      "max_per_process": 4
+    },
+    "client_connections_theoretical_max": 78,
+    "postgres_or_pgbouncer_pool_max": 100,
+    "gate": "PASS"
+  },
+  "pool_exhaustion": {
+    "concurrency": 40,
+    "errors": 0,
+    "error_rate": 0.0,
+    "elapsed_sec": 0.064,
+    "gate": "PASS",
+    "root_cause": null
+  },
+  "concurrent_mix": {
+    "concurrency": 24,
+    "api_ok": 12,
+    "db_ok": 12,
+    "errors": 0,
+    "error_samples": [],
+    "elapsed_sec": 0.48,
+    "db_profile": {
+      "label": "concurrent_mix",
+      "ts": "2026-09-02T03:08:14.881962+00:00",
+      "connections_by_state": {
+        "active": 1,
+        "idle": 28
+      },
+      "total_connections": 29,
+      "max_connections": 100,
+      "waiting": 28,
+      "slow_queries_gt_1s": 0,
+      "transactions_gt_5s": 0,
+      "redis_used_memory_human": "4.10M"
+    },
+    "gate": "PASS"
+  },
+  "regression": {
+    "gate": "PASS",
+    "returncode": 0
+  },
+  "failed_gates": [],
+  "WAVE_3_DB_PGBOUNCER": "PASS"
+}

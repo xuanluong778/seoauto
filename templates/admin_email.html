@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "partials/digiseo_seo_head.html" %}
+    <link rel="stylesheet" href="/static/css/digiseo-nav.css?v=29">
+    <link rel="stylesheet" href="/static/css/digiseo-nav-auth.css?v=4">
+    <link rel="stylesheet" href="/static/css/account-billing.css?v=29">
+    <link rel="stylesheet" href="/static/css/admin-shell.css?v=2">
+    <link rel="stylesheet" href="/static/css/admin-users.css?v=18">
+    <link rel="stylesheet" href="/static/css/admin-email.css?v=3">
+</head>
+<body class="ab-page em-page" data-user-dock="hidden">
+    {% include "partials/digiseo_top_nav.html" %}
+    <div class="adm-wrap">
+        {% include "partials/admin_shell_header.html" %}
+
+        <div class="ab-card">
+            <div class="em-hero adm-toolbar">
+                <div>
+                    <h2 class="ab-title">Email Marketing + AI Composer</h2>
+                    <p class="ab-muted-text">Soạn email bằng AI, rich editor, preview, test send, tracking và automation — SMTP/SES hiện tại không đổi.</p>
+                </div>
+            </div>
+
+            <div class="em-kpis" id="emKpis">
+                <div class="em-kpi"><span>Delivered</span><b id="kpiDelivered">—</b></div>
+                <div class="em-kpi"><span>Open</span><b id="kpiOpened">—</b></div>
+                <div class="em-kpi"><span>Click</span><b id="kpiClicked">—</b></div>
+                <div class="em-kpi"><span>Bounce</span><b id="kpiBounced">—</b></div>
+                <div class="em-kpi"><span>Unsubscribe</span><b id="kpiUnsub">—</b></div>
+            </div>
+
+            <div class="em-layout">
+                <section class="em-panel">
+                    <h3>Campaign composer</h3>
+                    <div class="ab-form-row">
+                        <label>Tên campaign</label>
+                        <input type="text" id="emCampName" class="ab-input" placeholder="VD: Nhắc gia hạn tháng 9" />
+                    </div>
+                    <div class="ab-form-row">
+                        <label>Subject</label>
+                        <input type="text" id="emCampSubject" class="ab-input" placeholder="VD: {{name}}, gói {{plan}} sắp hết hạn" />
+                        <button type="button" class="ab-btn au-btn--blue" id="btnAiSubject">✨ Viết bằng AI</button>
+                    </div>
+                    <div class="ab-form-row">
+                        <label>Preheader</label>
+                        <input type="text" id="emCampPreheader" class="ab-input" placeholder="Dòng xem trước trong inbox" />
+                    </div>
+                    <div class="em-vars" id="emVarChips"></div>
+                    <div class="em-rte-toolbar" id="emToolbar">
+                        <button type="button" data-cmd="bold">B</button>
+                        <button type="button" data-cmd="italic">I</button>
+                        <button type="button" data-cmd="underline">U</button>
+                        <button type="button" data-cmd="insertUnorderedList">• List</button>
+                        <button type="button" id="btnInsertLink">Link</button>
+                        <button type="button" id="btnInsertCta">CTA button</button>
+                        <button type="button" id="btnInsertImgUrl">Ảnh URL</button>
+                        <button type="button" id="btnUploadImg">Upload ảnh</button>
+                        <input type="file" id="emImgFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+                    </div>
+                    <div class="em-tabs">
+                        <button type="button" class="is-on" data-mode="visual" id="tabVisual">Visual</button>
+                        <button type="button" data-mode="html" id="tabHtml">HTML source</button>
+                    </div>
+                    <div id="emVisualWrap">
+                        <div class="em-editor" id="emCampHtmlVisual" contenteditable="true"></div>
+                    </div>
+                    <textarea id="emCampHtmlBody" class="ab-textarea em-source" rows="10" hidden placeholder="HTML body"></textarea>
+                    <p class="ab-muted-text" style="margin-top:8px;">Email body</p>
+                    <div class="ab-form-row">
+                        <label>Text body</label>
+                        <textarea id="emCampTextBody" class="ab-textarea" rows="3" placeholder="Bản text (tuỳ chọn)"></textarea>
+                    </div>
+                    <div class="ab-actions" style="margin-bottom:12px;">
+                        <button type="button" class="ab-btn au-btn--blue" id="btnAiBody">✨ Viết body bằng AI</button>
+                        <button type="button" class="ab-btn secondary" data-ai="rewrite">Viết lại</button>
+                        <button type="button" class="ab-btn secondary" data-ai="shorter">Ngắn hơn</button>
+                        <button type="button" class="ab-btn secondary" data-ai="professional">Chuyên nghiệp hơn</button>
+                        <button type="button" class="ab-btn secondary" data-ai="sales">Bán hàng hơn</button>
+                    </div>
+                    <div class="ab-grid ab-grid--2">
+                        <div class="ab-form-row"><label>CTA label</label><input type="text" id="emCampCtaLabel" class="ab-input" value="Mở ngay" /></div>
+                        <div class="ab-form-row"><label>CTA URL</label><input type="text" id="emCampCtaUrl" class="ab-input" value="https://seoauto.vn/account-billing" placeholder="https://seoauto.vn/account-billing" /></div>
+                    </div>
+                    <div class="ab-form-row">
+                        <label>Discount</label>
+                        <input type="text" id="emCampDiscountCode" class="ab-input" placeholder="SEO10" />
+                    </div>
+                    <div class="ab-grid ab-grid--2">
+                        <div class="ab-form-row">
+                            <label>Segment</label>
+                            <select id="emCampSegmentKind">
+                                <option value="all">Tất cả</option>
+                                <option value="trial">Trial</option>
+                                <option value="active" selected>Active</option>
+                                <option value="expired">Expired (hết hạn)</option>
+                                <option value="low_credit">Low Credit</option>
+                                <option value="by_plan">Theo Plan</option>
+                            </select>
+                        </div>
+                        <div class="ab-form-row">
+                            <label>Plan id</label>
+                            <input type="number" id="emCampSegmentPlanId" class="ab-input" placeholder="nếu by_plan" />
+                        </div>
+                    </div>
+                    <div class="em-recip" id="emRecipientsPanel">
+                        <div class="em-recip-head">
+                            <strong>Chọn Gmail nhận</strong>
+                            <span class="ab-muted-text" id="emRecipMeta">Chọn segment rồi tải danh sách</span>
+                        </div>
+                        <div class="em-recip-toolbar">
+                            <input type="search" id="emRecipSearch" class="ab-input" placeholder="Lọc email..." />
+                            <button type="button" class="ab-btn secondary ab-btn-sm" id="btnRecipReload">Tải danh sách</button>
+                            <button type="button" class="ab-btn secondary ab-btn-sm" id="btnRecipSelectAll">Chọn tất cả</button>
+                            <button type="button" class="ab-btn secondary ab-btn-sm" id="btnRecipClear">Bỏ chọn</button>
+                        </div>
+                        <div class="em-recip-list" id="emRecipList">
+                            <p class="ab-muted-text">Bấm “Tải danh sách” hoặc đổi Segment (vd. Expired) để hiện email.</p>
+                        </div>
+                    </div>
+                    <div class="ab-grid ab-grid--2">
+                        <div class="ab-form-row">
+                            <label>Gửi</label>
+                            <select id="emCampSendMode">
+                                <option value="draft">Lưu nháp</option>
+                                <option value="now">Gửi ngay</option>
+                                <option value="scheduled">Lên lịch</option>
+                            </select>
+                        </div>
+                        <div class="ab-form-row">
+                            <label>Timezone</label>
+                            <select id="emCampTz">
+                                <option value="Asia/Ho_Chi_Minh" selected>Asia/Ho_Chi_Minh</option>
+                                <option value="UTC">UTC</option>
+                                <option value="Asia/Bangkok">Asia/Bangkok</option>
+                                <option value="Asia/Singapore">Asia/Singapore</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="ab-form-row" id="emCampScheduledAtWrap" hidden>
+                        <label>Scheduled at</label>
+                        <input type="datetime-local" id="emCampScheduledAt" class="ab-input" />
+                    </div>
+                    <div class="ab-actions">
+                        <button type="button" class="ab-btn au-btn--blue" id="btnCreateCampaign">Tạo campaign</button>
+                        <button type="button" class="ab-btn secondary" id="btnPreviewDesk">Preview Desktop</button>
+                        <button type="button" class="ab-btn secondary" id="btnPreviewMob">Preview Mobile</button>
+                        <button type="button" class="ab-btn secondary" id="btnTestSend">Send Test</button>
+                    </div>
+                    <div class="em-preview-frame-wrap" id="emPreviewWrap" hidden>
+                        <iframe id="emPreviewFrame" title="Email preview"></iframe>
+                    </div>
+                </section>
+
+                <aside class="em-panel">
+                    <h3>✨ AI Composer brief</h3>
+                    <div class="ab-form-row"><label>Mục tiêu</label><textarea id="emAiGoal" class="ab-textarea" rows="3" placeholder="Nhắc gia hạn, tăng chuyển đổi..."></textarea></div>
+                    <div class="ab-form-row">
+                        <label>Tone</label>
+                        <select id="emAiTone">
+                            <option value="professional">Chuyên nghiệp</option>
+                            <option value="friendly">Thân thiện</option>
+                            <option value="warm">Ấm áp</option>
+                            <option value="urgent">Khẩn</option>
+                            <option value="sales">Bán hàng</option>
+                        </select>
+                    </div>
+                    <div class="ab-form-row"><label>Ưu đãi</label><input type="text" id="emAiOffer" class="ab-input" placeholder="Giảm 20% khi gia hạn 12 tháng" /></div>
+                    <p class="ab-muted-text">AI meter credit (`email.compose` / `email.rewrite`). Biến được giữ: {{name}}, {{plan}}, {{expiry_date}}, {{credit_balance}}.</p>
+
+                    <h3 style="margin-top:18px;">1) Automation</h3>
+                    <div class="ab-form-row">
+                        <label>Trigger</label>
+                        <select id="emAutoEmailType">
+                            <option value="welcome">Welcome</option>
+                            <option value="trial_ending">Trial ending</option>
+                            <option value="exp_before_7">Subscription 7 ngày</option>
+                            <option value="exp_before_3">Subscription 3 ngày</option>
+                            <option value="exp_before_1">Subscription 1 ngày</option>
+                            <option value="exp_on">Đúng ngày hết hạn</option>
+                            <option value="expired">Expired</option>
+                            <option value="exp_after_3">Sau hết hạn 3 ngày</option>
+                            <option value="low_credit">Low credit</option>
+                            <option value="payment_success">Payment success</option>
+                            <option value="payment_fail">Payment fail</option>
+                            <option value="inactive_user">Inactive user</option>
+                        </select>
+                    </div>
+                    <div class="ab-form-row"><label>Enabled</label><input type="checkbox" id="emAutoEnabled" checked /></div>
+                    <div class="ab-form-row"><label>Subject</label><input type="text" id="emAutoSubject" class="ab-input" /></div>
+                    <div class="ab-form-row"><label>HTML</label><textarea id="emAutoHtmlBody" class="ab-textarea" rows="5" placeholder="<p>Xin chào {{name}}</p>"></textarea></div>
+                    <div class="ab-form-row"><label>Text</label><textarea id="emAutoTextBody" class="ab-textarea" rows="2"></textarea></div>
+                    <div class="ab-actions">
+                        <button type="button" class="ab-btn au-btn--blue" id="btnSaveAutoTpl">Lưu template</button>
+                        <button type="button" class="ab-btn secondary" id="btnTriggerAutoTick">Chạy tick ngay</button>
+                    </div>
+                    <div class="ab-table-wrap" style="margin-top:10px;">
+                        <table class="ab-table" id="emAutoTplTable">
+                            <thead><tr><th>Type</th><th>On</th><th>Subject</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </aside>
+            </div>
+
+            <section class="em-panel" style="margin-top:16px;">
+                <h3>Campaigns</h3>
+                <div class="ab-table-wrap">
+                    <table class="ab-table" id="emCampTable">
+                        <thead><tr><th>ID</th><th>Tên</th><th>Status</th><th></th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="em-panel" style="margin-top:16px;">
+                <h3>Lịch sử — delivered / open / click / bounce / unsubscribe</h3>
+                <div class="ab-table-wrap">
+                    <table class="ab-table" id="emHistoryTable">
+                        <thead><tr><th>Thời gian</th><th>Status</th><th>Email</th><th>Detail</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="ab-toast" id="abToast" hidden></div>
+    <script src="/static/js/digiseo-auth-token.js?v=2"></script>
+    <script src="/static/js/digiseo-auth-me.js?v=1"></script>
+    <script src="/static/js/digiseo-admin-nav.js?v=7" defer></script>
+    <script src="/static/js/admin-email.js?v=7"></script>
+    {% include "partials/digiseo_account_widget_bundle.html" %}
+</body>
+</html>

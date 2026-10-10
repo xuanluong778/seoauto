@@ -24,6 +24,7 @@ from sqlalchemy import inspect, text
 from app.db import Base, engine, get_db
 from app.models import seo  # noqa: F401
 from app.models.crawl_job import DistributedCrawlJob, DistributedCrawlResult  # noqa: F401
+from app.models.async_task_owner import AsyncTaskOwner  # noqa: F401
 from app.models.keyword_intel import (  # noqa: F401
     SEOKeywordClusterEntity,
     SEOKeywordEntity,
@@ -100,6 +101,7 @@ from app.routers.admin_backup import router as admin_backup_router
 from app.routers.admin_integrations import router as admin_integrations_router
 from app.routers.admin_lead_scanner import router as admin_lead_scanner_router
 from app.routers.admin_saas_economics import router as admin_saas_economics_router
+from app.routers.admin_email import router as admin_email_router
 from app.routers.credits_preview import router as credits_preview_router
 from app.routers.wordpress_plugin import router as wordpress_plugin_router
 from app.routers.chatbot_cskh import router as chatbot_cskh_router
@@ -111,6 +113,7 @@ from app.routers.chatbot_cskh_facebook import router as chatbot_cskh_facebook_ro
 from app.routers.chatbot_cskh_public import router as chatbot_cskh_public_router
 from app.routers.google_map_seo import router as google_map_seo_router
 from app.routers.seo_public import router as seo_public_router
+from app.routers.email_tracking import router as email_tracking_router
 from app.services.internal_linking import models as il_models  # noqa: F401
 from app.core.runtime import allowed_hosts, cors_allowed_origins, is_production
 from app.middleware.security import SecurityMiddleware
@@ -128,8 +131,16 @@ async def _app_lifespan(_app: FastAPI):
     from app.services.payment_config import log_payment_config_status
     from app.services.saas_runtime_guard import log_saas_runtime_guard
 
+    from app.core.security import validate_jwt_secret_at_startup
+
     log_payment_config_status()
     log_saas_runtime_guard()
+    validate_jwt_secret_at_startup(production=is_production())
+
+    from app.middleware.probe_fastpath import start_ready_cache_background, warm_ready_cache
+
+    warm_ready_cache(lite=True)
+    start_ready_cache_background()
 
     db = SessionLocal()
     try:
@@ -141,7 +152,25 @@ async def _app_lifespan(_app: FastAPI):
 
     start_content_ai_bulk_worker_background()
     start_content_ai_publish_worker_background()
+    try:
+        import asyncio as _asyncio
+
+        from app.services.chatbot_cskh_inbox_realtime import bind_event_loop
+
+        bind_event_loop(_asyncio.get_running_loop())
+    except Exception:
+        pass
     yield
+    try:
+        from app.services.content_ai_bulk_worker_loop import request_content_ai_bulk_worker_stop
+        from app.services.content_ai_publish_worker_loop import (
+            request_content_ai_publish_worker_stop,
+        )
+
+        request_content_ai_bulk_worker_stop()
+        request_content_ai_publish_worker_stop()
+    except Exception:
+        pass
 
 
 _prod = is_production()
@@ -163,20 +192,40 @@ if _cors:
         allow_origins=_cors,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Requested-With",
+            "X-CSRF-Token",
+            "X-XSRF-Token",
+        ],
     )
 
 _hosts = allowed_hosts()
 if _prod and _hosts and _hosts != ["*"]:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=_hosts)
 
+from app.middleware.request_metrics import RequestMetricsMiddleware
+from app.middleware.probe_fastpath import ProbeFastPathMiddleware
+from app.middleware.request_id import RequestIdMiddleware
+
+app.add_middleware(RequestIdMiddleware)
+app.add_middleware(RequestMetricsMiddleware)
 app.add_middleware(SecurityMiddleware)
 app.add_middleware(ChatbotPublicCorsMiddleware)
+
+from app.services.csrf_middleware import CookieCsrfMiddleware
+
+app.add_middleware(CookieCsrfMiddleware)
 
 
 @app.middleware("http")
 async def bind_request_user_context(request: Request, call_next):
     """Attach logged-in user id so LLM/API-key resolution is per-user."""
+    path = request.url.path or ""
+    if path in ("/health", "/ready"):
+        return await call_next(request)
+
     from app.core.user_context import bind_request_user_id, unbind_request_user_id
     from app.db import SessionLocal
     from app.services.auth import user_from_token
@@ -188,14 +237,22 @@ async def bind_request_user_context(request: Request, call_next):
         if token:
             db = SessionLocal()
             try:
-                uid = user_from_token(db, token).id
+                user = user_from_token(db, token)
+                uid = user.id
+                from app.services.business_api_rollout import request_auth_dedup_enabled
+
+                if request_auth_dedup_enabled():
+                    try:
+                        db.expunge(user)
+                    except Exception:
+                        pass
+                    request.state.current_user = user
             except Exception:
                 uid = None
             finally:
                 db.close()
 
     ref_code = (request.query_params.get("ref") or "").strip()
-    path = request.url.path or ""
     skip_ref_redirect = (
         "/static",
         "/affiliate/",
@@ -272,6 +329,7 @@ app.include_router(chatbot_cskh_inbox_router, prefix="/api/chatbot")
 app.include_router(chatbot_cskh_facebook_router, prefix="/api/chatbot")
 app.include_router(google_map_seo_router, prefix="/api/google-map-seo")
 app.include_router(chatbot_cskh_public_router, prefix="/api/chatbot")
+app.include_router(email_tracking_router)
 app.include_router(rank_tracking_router, prefix="/api/rank-tracking")
 app.include_router(social_auto_router, prefix="/api/social")
 app.include_router(social_auto_web20_router, prefix="/api/social")
@@ -295,6 +353,8 @@ app.include_router(admin_lead_scanner_router, prefix="/admin/api")
 app.include_router(admin_lead_scanner_router, prefix="/api/admin")
 app.include_router(admin_saas_economics_router, prefix="/admin/api")
 app.include_router(admin_saas_economics_router, prefix="/api/admin")
+app.include_router(admin_email_router, prefix="/admin/api")
+app.include_router(admin_email_router, prefix="/api/admin")
 Base.metadata.create_all(bind=engine)
 
 _templates = Jinja2Templates(directory="templates")
@@ -486,6 +546,33 @@ def _ensure_sepay_webhook_idempotency() -> None:
 
 
 _ensure_sepay_webhook_idempotency()
+
+
+def _ensure_credentials_publishing_pg() -> None:
+    from app.migrations.ensure_credentials_publishing_pg import ensure_credentials_publishing_schema
+
+    ensure_credentials_publishing_schema()
+
+
+_ensure_credentials_publishing_pg()
+
+
+def _ensure_content_ai_projects_pg() -> None:
+    from app.migrations.ensure_content_ai_projects_pg import ensure_content_ai_projects_schema
+
+    ensure_content_ai_projects_schema()
+
+
+_ensure_content_ai_projects_pg()
+
+
+def _ensure_technical_audits_pg() -> None:
+    from app.migrations.ensure_technical_audits_pg import ensure_technical_audits_schema
+
+    ensure_technical_audits_schema()
+
+
+_ensure_technical_audits_pg()
 
 
 def _ensure_billing_activation_schema() -> None:
@@ -688,13 +775,75 @@ def _ensure_keyword_cluster_project_name() -> None:
 _ensure_keyword_cluster_project_name()
 
 
+def _ensure_keyword_org_scope() -> None:
+    from app.migrations.ensure_keyword_org_scope import ensure_keyword_org_scope
+
+    ensure_keyword_org_scope()
+
+
+_ensure_keyword_org_scope()
+
+
+def _safe_boot_ensure(fn) -> None:
+    """Do not abort process start when DB role cannot ALTER existing tables."""
+    try:
+        fn()
+    except Exception:
+        return
+
+
+def _ensure_chatbot_cskh_lead_contact_columns() -> None:
+    from app.migrations.ensure_chatbot_cskh_lead_contact_columns import ensure_chatbot_cskh_lead_contact_columns
+
+    ensure_chatbot_cskh_lead_contact_columns()
+
+
+_safe_boot_ensure(_ensure_chatbot_cskh_lead_contact_columns)
+
+
+def _ensure_chatbot_cskh_email_notify() -> None:
+    from app.migrations.ensure_chatbot_cskh_email_notify import ensure_chatbot_cskh_email_notify
+
+    ensure_chatbot_cskh_email_notify()
+
+
+_safe_boot_ensure(_ensure_chatbot_cskh_email_notify)
+
+
+def _ensure_email_automation_marketing_tables() -> None:
+    from app.migrations.ensure_email_automation_marketing_tables import ensure_email_automation_marketing_tables
+
+    ensure_email_automation_marketing_tables()
+
+
+_safe_boot_ensure(_ensure_email_automation_marketing_tables)
+
+
+def _ensure_async_task_ownership() -> None:
+    from app.migrations.ensure_async_task_ownership import ensure_async_task_ownership
+
+    ensure_async_task_ownership()
+
+
+_safe_boot_ensure(_ensure_async_task_ownership)
+
+
+def _ensure_rank_tracking_pg() -> None:
+    from app.migrations.ensure_rank_tracking_pg import ensure_rank_tracking_pg
+
+    ensure_rank_tracking_pg()
+
+
+_safe_boot_ensure(_ensure_rank_tracking_pg)
+
+
 def _ensure_check_free_project_column() -> None:
     from app.migrations.ensure_check_free_project_column import ensure_check_free_project_column
 
     ensure_check_free_project_column()
 
 
-_ensure_check_free_project_column()
+_safe_boot_ensure(_ensure_check_free_project_column)
 
 
 def _ensure_google_map_gbp_tables() -> None:
@@ -703,7 +852,7 @@ def _ensure_google_map_gbp_tables() -> None:
     ensure_google_map_gbp_tables()
 
 
-_ensure_google_map_gbp_tables()
+_safe_boot_ensure(_ensure_google_map_gbp_tables)
 
 
 def _ensure_gbp_profile_drafts() -> None:
@@ -712,7 +861,7 @@ def _ensure_gbp_profile_drafts() -> None:
     ensure_gbp_profile_drafts()
 
 
-_ensure_gbp_profile_drafts()
+_safe_boot_ensure(_ensure_gbp_profile_drafts)
 
 
 def _ensure_gbp_review_reply_drafts() -> None:
@@ -721,7 +870,7 @@ def _ensure_gbp_review_reply_drafts() -> None:
     ensure_gbp_review_reply_drafts()
 
 
-_ensure_gbp_review_reply_drafts()
+_safe_boot_ensure(_ensure_gbp_review_reply_drafts)
 
 
 def _ensure_gbp_posts() -> None:
@@ -730,7 +879,7 @@ def _ensure_gbp_posts() -> None:
     ensure_gbp_posts()
 
 
-_ensure_gbp_posts()
+_safe_boot_ensure(_ensure_gbp_posts)
 
 
 def _ensure_gbp_media() -> None:
@@ -739,7 +888,7 @@ def _ensure_gbp_media() -> None:
     ensure_gbp_media()
 
 
-_ensure_gbp_media()
+_safe_boot_ensure(_ensure_gbp_media)
 
 
 def _ensure_gbp_verification() -> None:
@@ -748,7 +897,7 @@ def _ensure_gbp_verification() -> None:
     ensure_gbp_verification()
 
 
-_ensure_gbp_verification()
+_safe_boot_ensure(_ensure_gbp_verification)
 
 
 def _ensure_gbp_reports() -> None:
@@ -757,7 +906,7 @@ def _ensure_gbp_reports() -> None:
     ensure_gbp_reports()
 
 
-_ensure_gbp_reports()
+_safe_boot_ensure(_ensure_gbp_reports)
 
 
 def _ensure_gbp_leads() -> None:
@@ -766,7 +915,7 @@ def _ensure_gbp_leads() -> None:
     ensure_gbp_leads()
 
 
-_ensure_gbp_leads()
+_safe_boot_ensure(_ensure_gbp_leads)
 
 
 def _ensure_gbp_leads_v2() -> None:
@@ -775,7 +924,7 @@ def _ensure_gbp_leads_v2() -> None:
     ensure_gbp_leads_v2()
 
 
-_ensure_gbp_leads_v2()
+_safe_boot_ensure(_ensure_gbp_leads_v2)
 
 
 def _ensure_saas_economics() -> None:
@@ -784,7 +933,35 @@ def _ensure_saas_economics() -> None:
     ensure_saas_economics()
 
 
-_ensure_saas_economics()
+_safe_boot_ensure(_ensure_saas_economics)
+
+
+def _ensure_cost_control_ssot() -> None:
+    from app.migrations.ensure_cost_control_ssot import ensure_cost_control_ssot
+
+    ensure_cost_control_ssot()
+
+
+_safe_boot_ensure(_ensure_cost_control_ssot)
+
+
+def _release_stale_credit_reservations() -> None:
+    from app.db import SessionLocal
+    from app.services.credits import release_stale_reservations
+
+    db = SessionLocal()
+    try:
+        n = release_stale_reservations(db, older_than_seconds=900)
+        if n:
+            db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+_safe_boot_ensure(_release_stale_credit_reservations)
 
 
 def _ensure_dataforseo_usage_logs() -> None:
@@ -793,7 +970,7 @@ def _ensure_dataforseo_usage_logs() -> None:
     ensure_dataforseo_usage_logs()
 
 
-_ensure_dataforseo_usage_logs()
+_safe_boot_ensure(_ensure_dataforseo_usage_logs)
 
 
 def _ensure_wordpress_plugin_tables() -> None:
@@ -802,7 +979,7 @@ def _ensure_wordpress_plugin_tables() -> None:
     ensure_wordpress_plugin_tables()
 
 
-_ensure_wordpress_plugin_tables()
+_safe_boot_ensure(_ensure_wordpress_plugin_tables)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -887,6 +1064,21 @@ def admin_backup_page(request: Request, db: Session = Depends(get_db)):
             "admin_page_lead": "Sao lưu database, uploads, source code và cấu hình hạ tầng.",
         },
     )
+
+@app.get("/admin/email", response_class=HTMLResponse, response_model=None, tags=["pages"])
+def admin_email_page(request: Request, db: Session = Depends(get_db)):
+    gate = _admin_page_user(request, db)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    return _templates.TemplateResponse(
+        request=request,
+        name="admin_email.html",
+        context={
+            "admin_nav_active": "email",
+            "admin_page_lead": "Email Automation & Email Marketing (SMTP/SES).",
+        },
+    )
+
 
 @app.get("/admin/integrations", response_class=HTMLResponse, response_model=None, tags=["pages"])
 def admin_integrations_page(request: Request, db: Session = Depends(get_db)):
@@ -977,6 +1169,49 @@ def admin_saas_economics_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon_ico():
+    """Browser default favicon probe — avoid 404 noise; logo is the brand mark."""
+    return RedirectResponse(url="/static/images/seoauto-logo.png?v=2", status_code=302)
+
+
 @app.get("/health")
-def health_check() -> dict:
+async def health_check() -> dict:
+    """Liveness: process is up (does not verify dependencies)."""
     return {"status": "ok"}
+
+
+@app.get("/ready")
+async def ready_check(full: bool = False):
+    """Readiness: DB + Redis (lite default). ?full=1 adds Celery/fairness (observability)."""
+    import asyncio
+
+    from fastapi.responses import JSONResponse
+
+    from app.services.health_probes import readiness_payload
+
+    loop = asyncio.get_running_loop()
+    body, ready = await loop.run_in_executor(None, lambda: readiness_payload(lite=not full))
+    return JSONResponse(content=body, status_code=200 if ready else 503)
+
+
+@app.get("/metrics")
+def metrics_snapshot(request: Request):
+    """Wave 4 ops metrics — localhost or INTERNAL_CRON_TOKEN only."""
+    import os
+
+    from fastapi.responses import JSONResponse
+
+    from app.services.ops_metrics import collect_ops_metrics
+
+    token = (os.getenv("INTERNAL_CRON_TOKEN") or "").strip()
+    hdr = (request.headers.get("x-internal-token") or "").strip()
+    client = request.client.host if request.client else ""
+    allowed = client in ("127.0.0.1", "::1", "localhost") or (token and hdr == token)
+    if not allowed:
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    return JSONResponse(content=collect_ops_metrics())
+
+
+# Outermost ASGI layer — bypasses BaseHTTPMiddleware stack for /health and cached /ready.
+app = ProbeFastPathMiddleware(app)

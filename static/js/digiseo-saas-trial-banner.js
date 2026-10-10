@@ -64,32 +64,47 @@
             el.innerHTML = "";
             return;
         }
+        // SSOT from backend: paid / free-usage users never see trial-expired upgrade nag.
+        if (data.has_paid_plan || data.free_usage_active) {
+            el.hidden = true;
+            el.innerHTML = "";
+            return;
+        }
         var canActivate = !!data.saas_trial_can_activate;
         var active = !!data.saas_trial_active;
         var used = !!data.saas_trial_used;
-        var freeUsageActive = !!data.free_usage_active;
         var claimBlocked = !!data.trial_claim_blocked;
         if (active) {
             el.hidden = true;
             el.innerHTML = "";
             return;
         }
-        if ((freeUsageActive || claimBlocked) && !active) {
+        if (claimBlocked && !active && !canActivate) {
             el.hidden = true;
             el.innerHTML = "";
             return;
         }
         if (!canActivate && !active && !used) {
             el.hidden = true;
+            el.innerHTML = "";
+            return;
+        }
+        if (used && !active && data.show_upgrade_banner === false) {
+            el.hidden = true;
+            el.innerHTML = "";
             return;
         }
         var msg =
-            data.ai_access_message ||
             data.saas_trial_banner ||
             data.saas_trial_need_credit_message ||
             "";
         if (!msg && canActivate) {
             msg = "Bạn chưa kích hoạt dùng thử 3 ngày.";
+        }
+        if (!msg) {
+            el.hidden = true;
+            el.innerHTML = "";
+            return;
         }
         var html = '<span class="digiseo-saas-trial-banner__text">' + esc(msg) + "</span>";
         if (canActivate) {
@@ -100,7 +115,7 @@
         } else if (data.needs_credit_for_features || data.saas_trial_need_credit_message) {
             html +=
                 ' <button type="button" class="digiseo-saas-trial-banner__cta" data-digiseo-buy-credit="1">Mua credit</button>';
-        } else if (used && !active) {
+        } else if (used && !active && data.show_upgrade_banner !== false) {
             html += ' <a href="/pricing" class="digiseo-saas-trial-banner__cta">Nâng cấp gói</a>';
         }
         el.innerHTML = html;
@@ -207,6 +222,10 @@
                     needs_credit_for_features: status.needs_credit,
                     free_usage_active: status.free_usage_active,
                     trial_claim_blocked: status.trial_claim_blocked,
+                    has_paid_plan: !!status.has_paid_plan,
+                    effective_plan_slug: status.effective_plan_slug || null,
+                    show_upgrade_banner: status.show_upgrade_banner !== false,
+                    show_trial_expired_banner: !!status.show_trial_expired_banner,
                 });
             })
             .catch(function () {

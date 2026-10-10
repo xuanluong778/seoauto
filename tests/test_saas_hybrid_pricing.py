@@ -11,7 +11,7 @@ from app.services.saas_hybrid_pricing import (
 
 
 def test_hybrid_monthly_prices():
-    assert HYBRID_PLAN_DEFAULTS["starter"]["month_price"] == 399_000
+    assert HYBRID_PLAN_DEFAULTS["starter"]["month_price"] == 499_000
     assert HYBRID_PLAN_DEFAULTS["pro"]["month_price"] == 799_000
     assert HYBRID_PLAN_DEFAULTS["agency"]["month_price"] == 1_690_000
     assert HYBRID_PLAN_DEFAULTS["business"]["month_price"] == 3_490_000
@@ -19,13 +19,13 @@ def test_hybrid_monthly_prices():
 
 def test_hybrid_credits_per_month():
     assert PLAN_MONTHLY_BONUS_CREDITS["starter"] == 500
-    assert PLAN_MONTHLY_BONUS_CREDITS["pro"] == 2_500
-    assert PLAN_MONTHLY_BONUS_CREDITS["agency"] == 7_000
-    assert PLAN_MONTHLY_BONUS_CREDITS["business"] == 18_000
+    assert PLAN_MONTHLY_BONUS_CREDITS["pro"] == 1_500
+    assert PLAN_MONTHLY_BONUS_CREDITS["agency"] == 3_500
+    assert PLAN_MONTHLY_BONUS_CREDITS["business"] == 7_500
 
 
 def test_yearly_is_ten_months():
-    assert yearly_price(399_000) == 3_990_000
+    assert yearly_price(499_000) == 4_990_000
     assert yearly_price(799_000) == 7_990_000
 
 

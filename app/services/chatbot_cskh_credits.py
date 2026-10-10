@@ -104,13 +104,12 @@ def record_cskh_ai_reply(db: Session, user_id: int, bot_id: int, plan_slug: str 
     overage = not bool(snap.get("allowed"))
     charged = 0
     if overage:
-        from app.services.credit_cost_registry import new_request_id
         from app.services.credits import consume_credits, cost_chatbot_cskh_reply, credits_enforced
 
         if credits_enforced():
             charged = cost_chatbot_cskh_reply(db=db)
             if charged > 0:
-                rid = new_request_id()
+                used = int(snap.get("ai_replies_used") or 0)
                 consume_credits(
                     db,
                     user_id=int(user_id),
@@ -119,11 +118,11 @@ def record_cskh_ai_reply(db: Session, user_id: int, bot_id: int, plan_slug: str 
                     note=f"bot_id={bot_id}",
                     module="chatbot_cskh",
                     action="reply_overage",
-                    request_id=rid,
+                    request_id=f"cskh:{user_id}:{bot_id}:{month_key()}"[:64],
                     source="overage",
                     feature_code="chatbot_cskh_reply",
-                    job_id=rid,
-                    idempotency_key=f"cskh_overage:{user_id}:{bot_id}:{month_key()}:{rid}"[:128],
+                    job_id=f"cskh_overage:{user_id}:{bot_id}:{month_key()}:{used}"[:128],
+                    idempotency_key=f"cskh_overage:{user_id}:{bot_id}:{month_key()}:{int(used)}"[:128],
                 )
     increment_reply_usage(db, user_id, bot_id, replies=1)
     return {"overage": overage, "credit_charged": charged}

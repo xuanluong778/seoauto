@@ -274,65 +274,17 @@ function hidePassedChecksSection() {
 const TECH_CHIP_NAV_ORDER = (window.TechSidebarV2 && window.TechSidebarV2.NAV_ORDER) || [
     "overview",
     "priority",
-    "indexability",
-    "crawlability",
+    "index_crawl",
     "onpage",
-    "internal_links",
-    "performance",
-    "structured_data",
-    "security_http",
-    "ux_mobile",
+    "perf_security",
     "gsc",
 ];
 
 function syncCategoryChipsBar(payload, stats) {
     const bar = document.getElementById("techCategoryChipsBar");
+    if (bar) bar.hidden = true;
     const scroll = document.getElementById("techCategoryChipsScroll");
-    if (!bar || !scroll) return;
-    if (!payload || !stats) {
-        bar.hidden = true;
-        scroll.textContent = "";
-        return;
-    }
-    const panel = document.getElementById("toolTablePanel");
-    if (!panel || panel.hidden) {
-        bar.hidden = true;
-        return;
-    }
-    bar.hidden = false;
-    scroll.textContent = "";
-    TECH_CHIP_NAV_ORDER.forEach((navId) => {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "tech-category-chip";
-        chip.dataset.techNav = navId;
-        const row = stats[navId] || emptyNavStatRow();
-        const open = row.open || 0;
-        let label = TECH_TAB_LABELS[navId] || navId;
-        if (!TECH_TAB_LABELS[navId] && TECH_PILLAR_UI[navId]) label = TECH_PILLAR_UI[navId].label;
-        if (navId === "overview") {
-            chip.textContent = label;
-        } else {
-            chip.innerHTML =
-                escHtml(label) +
-                ' <span class="tech-category-chip-badge">' +
-                String(open) +
-                "</span>";
-            if (open > 0 && navId !== "passed") chip.classList.add("has-issues");
-        }
-        const active = normalizeTechTabKey(activeTechTab) === navId;
-        chip.classList.toggle("is-active", active);
-        chip.addEventListener("click", () => {
-            navigateTechTab(navId);
-            scroll.querySelectorAll(".tech-category-chip").forEach((c) => {
-                c.classList.toggle(
-                    "is-active",
-                    normalizeTechTabKey(activeTechTab) === c.dataset.techNav
-                );
-            });
-        });
-        scroll.appendChild(chip);
-    });
+    if (scroll) scroll.textContent = "";
 }
 
 let passedFilterExpandWired = false;
@@ -471,6 +423,8 @@ function renderIssuesTable(issues) {
 }
 
 function renderIssuesTableRows(list) {
+    // The current UI renders issue cards; the legacy table is no longer in seo_tool.html.
+    if (!issuesTbody) return;
     issuesTbody.textContent = "";
     const rows = Array.isArray(list) ? list : [];
     if (rows.length === 0) {
@@ -839,6 +793,9 @@ function httpErrorFromResponse(r, d) {
     }
     if (st === 502 || st === 503) {
         return "Hệ thống tạm không phản hồi. Thử lại sau vài phút.";
+    }
+    if (st === 404) {
+        return "Không tìm thấy API quét. Thử tải lại trang (Ctrl+F5). Nếu vẫn lỗi, báo quản trị restart seoauto-web.";
     }
     if (st === 408) {
         return "Hết thời gian chờ phía máy chủ (408). Site có thể quá chậm — thử lại hoặc giảm phạm vi quét.";

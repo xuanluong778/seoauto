@@ -1,0 +1,455 @@
+{
+  "wave": 2,
+  "phase": "production_ready",
+  "snapshot_at": "2026-09-02T02:51:48.322598+00:00",
+  "gates": {
+    "CONTENT_AI_OUTPUT_REGRESSION": "PASS",
+    "UI_REGRESSION": "PASS",
+    "CANARY_ROLLOUT": "PASS",
+    "LOAD_10": "PASS",
+    "LOAD_25": "PASS",
+    "LOAD_50": "PASS",
+    "LOAD_100": "PASS",
+    "PRODUCTION_READY": "PASS"
+  },
+  "rollback_applied": false,
+  "root_causes": [],
+  "output_regression": {
+    "gate": "PASS",
+    "returncode": 0,
+    "tail": "........................                                                 [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n24 passed, 1 warning in 4.54s\n",
+    "root_cause": null
+  },
+  "ui": {
+    "pages": [
+      {
+        "path": "/content-ai",
+        "status": 200
+      },
+      {
+        "path": "/tool",
+        "status": 200
+      },
+      {
+        "path": "/settings",
+        "status": 200
+      },
+      {
+        "path": "/pricing",
+        "status": 200
+      }
+    ],
+    "gate": "PASS"
+  },
+  "canary": {
+    "gate": "PASS",
+    "root_cause": null,
+    "levels": {
+      "5": {
+        "target_percent": 5,
+        "actual_percent": 6.7,
+        "gate": "PASS"
+      },
+      "10": {
+        "target_percent": 10,
+        "actual_percent": 11.0,
+        "gate": "PASS"
+      },
+      "25": {
+        "target_percent": 25,
+        "actual_percent": 25.4,
+        "gate": "PASS"
+      },
+      "50": {
+        "target_percent": 50,
+        "actual_percent": 51.7,
+        "gate": "PASS"
+      },
+      "100": {
+        "target_percent": 100,
+        "actual_percent": 100.0,
+        "gate": "PASS"
+      }
+    }
+  },
+  "load": {
+    "10": {
+      "concurrency": 10,
+      "max_parallel_workers": 10,
+      "gate": "PASS",
+      "root_cause": null,
+      "error_rate": 0.0,
+      "failed": 0,
+      "succeeded": 10,
+      "duplicate_jobs": 0,
+      "duplicate_credits": 0,
+      "enqueue_ms": 236.79,
+      "queue_wait_ms": {
+        "p50": 23.68,
+        "p95": 236.79
+      },
+      "first_token_latency_ms": {
+        "p50": 285.67,
+        "p95": 289.92
+      },
+      "total_duration_ms": {
+        "p50": 1142.69,
+        "p95": 1159.68,
+        "wall_clock_sec": 1.16
+      },
+      "infra_before": {
+        "ts": "2026-09-02T02:51:56.916139+00:00",
+        "redis_used_memory_human": "3.91M",
+        "redis_used_memory_bytes": 4098832,
+        "redis_keys": 2825,
+        "db_connections": 26,
+        "celery_workers": [
+          {
+            "name": "seoauto-worker-content-ai",
+            "cpu": 0.3,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "cpu": 0.3,
+            "memory_mb": 120.9
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "cpu": 0.3,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-email",
+            "cpu": 0.3,
+            "memory_mb": 120.8
+          },
+          {
+            "name": "seoauto-worker-default",
+            "cpu": 0.3,
+            "memory_mb": 121.1
+          }
+        ]
+      },
+      "infra_after": {
+        "ts": "2026-09-02T02:51:58.568537+00:00",
+        "redis_used_memory_human": "3.92M",
+        "redis_used_memory_bytes": 4108672,
+        "redis_keys": 2845,
+        "db_connections": 34,
+        "celery_workers": [
+          {
+            "name": "seoauto-worker-content-ai",
+            "cpu": 0.7,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "cpu": 0,
+            "memory_mb": 120.9
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "cpu": 0,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-email",
+            "cpu": 0,
+            "memory_mb": 120.8
+          },
+          {
+            "name": "seoauto-worker-default",
+            "cpu": 0,
+            "memory_mb": 121.1
+          }
+        ]
+      },
+      "sample_errors": []
+    },
+    "25": {
+      "concurrency": 25,
+      "max_parallel_workers": 20,
+      "gate": "PASS",
+      "root_cause": null,
+      "error_rate": 0.0,
+      "failed": 0,
+      "succeeded": 25,
+      "duplicate_jobs": 0,
+      "duplicate_credits": 0,
+      "enqueue_ms": 512.4,
+      "queue_wait_ms": {
+        "p50": 20.5,
+        "p95": 512.4
+      },
+      "first_token_latency_ms": {
+        "p50": 203.29,
+        "p95": 224.09
+      },
+      "total_duration_ms": {
+        "p50": 813.18,
+        "p95": 896.37,
+        "wall_clock_sec": 1.15
+      },
+      "infra_before": {
+        "ts": "2026-09-02T02:51:59.435589+00:00",
+        "redis_used_memory_human": "3.92M",
+        "redis_used_memory_bytes": 4108688,
+        "redis_keys": 2845,
+        "db_connections": 34,
+        "celery_workers": [
+          {
+            "name": "seoauto-worker-content-ai",
+            "cpu": 0,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "cpu": 0,
+            "memory_mb": 120.9
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "cpu": 0,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-email",
+            "cpu": 0,
+            "memory_mb": 120.8
+          },
+          {
+            "name": "seoauto-worker-default",
+            "cpu": 1.1,
+            "memory_mb": 121.1
+          }
+        ]
+      },
+      "infra_after": {
+        "ts": "2026-09-02T02:52:00.917701+00:00",
+        "redis_used_memory_human": "3.94M",
+        "redis_used_memory_bytes": 4133272,
+        "redis_keys": 2895,
+        "db_connections": 34,
+        "celery_workers": [
+          {
+            "name": "seoauto-worker-content-ai",
+            "cpu": 0,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "cpu": 0,
+            "memory_mb": 120.9
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "cpu": 0.7,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-email",
+            "cpu": 0.7,
+            "memory_mb": 120.8
+          },
+          {
+            "name": "seoauto-worker-default",
+            "cpu": 0,
+            "memory_mb": 121.1
+          }
+        ]
+      },
+      "sample_errors": []
+    },
+    "50": {
+      "concurrency": 50,
+      "max_parallel_workers": 20,
+      "gate": "PASS",
+      "root_cause": null,
+      "error_rate": 0.0,
+      "failed": 0,
+      "succeeded": 50,
+      "duplicate_jobs": 0,
+      "duplicate_credits": 0,
+      "enqueue_ms": 1028.24,
+      "queue_wait_ms": {
+        "p50": 20.56,
+        "p95": 1028.24
+      },
+      "first_token_latency_ms": {
+        "p50": 207.17,
+        "p95": 247.79
+      },
+      "total_duration_ms": {
+        "p50": 828.68,
+        "p95": 991.15,
+        "wall_clock_sec": 2.21
+      },
+      "infra_before": {
+        "ts": "2026-09-02T02:52:02.312640+00:00",
+        "redis_used_memory_human": "3.94M",
+        "redis_used_memory_bytes": 4133288,
+        "redis_keys": 2895,
+        "db_connections": 34,
+        "celery_workers": [
+          {
+            "name": "seoauto-worker-content-ai",
+            "cpu": 0.7,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "cpu": 0.7,
+            "memory_mb": 120.9
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "cpu": 0,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-email",
+            "cpu": 0,
+            "memory_mb": 120.8
+          },
+          {
+            "name": "seoauto-worker-default",
+            "cpu": 0,
+            "memory_mb": 121.1
+          }
+        ]
+      },
+      "infra_after": {
+        "ts": "2026-09-02T02:52:04.873541+00:00",
+        "redis_used_memory_human": "4.03M",
+        "redis_used_memory_bytes": 4223432,
+        "redis_keys": 2995,
+        "db_connections": 34,
+        "celery_workers": [
+          {
+            "name": "seoauto-worker-content-ai",
+            "cpu": 0,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "cpu": 0.4,
+            "memory_mb": 120.9
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "cpu": 0,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-email",
+            "cpu": 0.4,
+            "memory_mb": 120.8
+          },
+          {
+            "name": "seoauto-worker-default",
+            "cpu": 0.4,
+            "memory_mb": 121.1
+          }
+        ]
+      },
+      "sample_errors": []
+    },
+    "100": {
+      "concurrency": 100,
+      "max_parallel_workers": 20,
+      "gate": "PASS",
+      "root_cause": null,
+      "error_rate": 0.0,
+      "failed": 0,
+      "succeeded": 100,
+      "duplicate_jobs": 0,
+      "duplicate_credits": 0,
+      "enqueue_ms": 1812.66,
+      "queue_wait_ms": {
+        "p50": 18.13,
+        "p95": 1812.66
+      },
+      "first_token_latency_ms": {
+        "p50": 228.62,
+        "p95": 266.75
+      },
+      "total_duration_ms": {
+        "p50": 914.49,
+        "p95": 1067.0,
+        "wall_clock_sec": 4.74
+      },
+      "infra_before": {
+        "ts": "2026-09-02T02:52:07.060903+00:00",
+        "redis_used_memory_human": "4.05M",
+        "redis_used_memory_bytes": 4243904,
+        "redis_keys": 2995,
+        "db_connections": 34,
+        "celery_workers": [
+          {
+            "name": "seoauto-worker-content-ai",
+            "cpu": 0.5,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "cpu": 0,
+            "memory_mb": 120.9
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "cpu": 0.5,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-email",
+            "cpu": 0,
+            "memory_mb": 120.8
+          },
+          {
+            "name": "seoauto-worker-default",
+            "cpu": 0.5,
+            "memory_mb": 121.1
+          }
+        ]
+      },
+      "infra_after": {
+        "ts": "2026-09-02T02:52:12.117439+00:00",
+        "redis_used_memory_human": "4.08M",
+        "redis_used_memory_bytes": 4281376,
+        "redis_keys": 3197,
+        "db_connections": 34,
+        "celery_workers": [
+          {
+            "name": "seoauto-worker-content-ai",
+            "cpu": 0.4,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "cpu": 0,
+            "memory_mb": 120.9
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "cpu": 0.4,
+            "memory_mb": 121.0
+          },
+          {
+            "name": "seoauto-worker-email",
+            "cpu": 0.4,
+            "memory_mb": 120.8
+          },
+          {
+            "name": "seoauto-worker-default",
+            "cpu": 0,
+            "memory_mb": 121.1
+          }
+        ]
+      },
+      "sample_errors": []
+    }
+  },
+  "failed_gates": [],
+  "WAVE_2_ASYNC_LLM": "FULL PASS"
+}

@@ -194,10 +194,10 @@ def _mock_fetch_ok(*_a, **_k):
 
 
 def _mock_serp(*_a, **_k):
-    return {"serp_results": [], "keyword": "seo test"}
+    return {"keyword": "seo test", "rows": [], "source": "test", "cache_hit": False, "provider_called": False, "snap": {}}
 
 
-@patch("app.services.url_seo_scoreboard.fetch_serp", side_effect=_mock_serp)
+@patch("app.services.url_seo_scoreboard.fetch_seo_score_serp", side_effect=_mock_serp)
 @patch("app.services.url_seo_scoreboard._safe_fetch", side_effect=_mock_fetch_ok)
 def test_build_url_seo_scoreboard_includes_evidence(_fetch, _serp):
     raw = build_url_seo_scoreboard("https://example.com/test-page", keyword="seo test")
@@ -241,12 +241,11 @@ def test_build_url_seo_scoreboard_includes_evidence(_fetch, _serp):
 
 
 @patch("app.routers.analyze.record_quota_usage")
-@patch("app.routers.analyze.consume_credits")
 @patch("app.routers.analyze.credits_enforced", return_value=False)
 @patch("app.routers.analyze.assert_public_http_url")
-@patch("app.services.url_seo_scoreboard.fetch_serp", side_effect=_mock_serp)
+@patch("app.services.url_seo_scoreboard.fetch_seo_score_serp", side_effect=_mock_serp)
 @patch("app.services.url_seo_scoreboard._safe_fetch", side_effect=_mock_fetch_ok)
-def test_analyze_url_seo_scoreboard_api(_fetch, _serp, _assert_url, _credits, _consume, _quota):
+def test_analyze_url_seo_scoreboard_api(_fetch, _serp, _assert_url, _credits, _quota):
     """POST /analyze/url-seo-scoreboard trả page_evidence đủ field cho AI fix."""
     from contextlib import contextmanager
 
@@ -287,7 +286,16 @@ def test_analyze_url_seo_scoreboard_api(_fetch, _serp, _assert_url, _credits, _c
     @contextmanager
     def _noop_gate(*_a, **_k):
         class _S:
-            pass
+            committed = False
+
+            def commit(self):
+                self.committed = True
+
+            def record_usage(self, **_kw):
+                return None
+
+            def release(self, **_kw):
+                return None
 
         yield _S()
 
@@ -305,7 +313,9 @@ def test_analyze_url_seo_scoreboard_api(_fetch, _serp, _assert_url, _credits, _c
     token = create_access_token({"sub": str(user.id)})
     tc = TestClient(app)
 
-    with patch("app.routers.analyze.cost_gate_session", _noop_gate):
+    with patch("app.routers.analyze.cost_gate_session", _noop_gate), patch(
+        "app.routers.analyze.saas_action_gate", _noop_gate
+    ):
         r = tc.post(
             "/analyze/url-seo-scoreboard",
             json={"url": "https://example.com/test-page", "keyword": "seo test"},

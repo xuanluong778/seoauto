@@ -140,7 +140,13 @@ def provider_for_ledger(*, module: str | None, action: str | None, reason: str |
         return "google_cse"
     if mod == "content_ai" and act in ("ai_image",):
         return "openai"
-    if mod in ("audit", "seo_score"):
+    if mod in ("wordpress",):
+        return "other"
+    if mod in ("index",):
+        return "other"
+    if mod in ("embedding",):
+        return "openai"
+    if mod in ("audit", "seo_score", "crawl"):
         return "crawl"
     if mod in ("content_ai", "cau", "chatbot", "chatbot_cskh"):
         if "anthropic" in act or "claude" in act:
@@ -208,6 +214,15 @@ def _aggregate_burn(
         by_action[key_ma] = by_action.get(key_ma, 0) + used
         by_user[int(row.user_id)] = by_user.get(int(row.user_id), 0) + used
 
+    by_org: dict[int, int] = {}
+    for row in rows:
+        used = _ledger_credit_used(row)
+        if used <= 0:
+            continue
+        oid = getattr(row, "organization_id", None)
+        if oid:
+            by_org[int(oid)] = by_org.get(int(oid), 0) + used
+
     provider_rows = []
     total_cost = 0
     for prov, cred in sorted(by_provider.items(), key=lambda x: -x[1]):
@@ -238,6 +253,7 @@ def _aggregate_burn(
         "by_module": module_rows,
         "by_action": action_rows,
         "by_user_raw": by_user,
+        "by_org_raw": by_org,
     }
 
 
@@ -412,6 +428,16 @@ def build_economics_dashboard(db: Session) -> dict[str, Any]:
     profit_day = rev_day["total_base_vnd"] - daily["estimated_cost_vnd"]
     profit_month = rev_month["total_base_vnd"] - monthly["estimated_cost_vnd"]
 
+    def _gm(rev: int, cost: int) -> float | None:
+        if int(rev) <= 0:
+            return None
+        return round((int(rev) - int(cost)) / float(rev), 4)
+
+    top_orgs: list[dict[str, Any]] = []
+    org_raw = monthly.get("by_org_raw") or {}
+    for oid in sorted(org_raw, key=lambda k: org_raw[k], reverse=True)[:10]:
+        top_orgs.append({"organization_id": int(oid), "credits": int(org_raw[oid])})
+
     at_risk = _build_at_risk_users(
         db,
         burn_by_user=monthly["by_user_raw"],
@@ -482,6 +508,14 @@ def build_economics_dashboard(db: Session) -> dict[str, Any]:
         "profit_vnd": {
             "today": profit_day,
             "month": profit_month,
+        },
+        "gross_margin_pct": {
+            "today": _gm(rev_day["total_base_vnd"], daily["estimated_cost_vnd"]),
+            "month": _gm(rev_month["total_base_vnd"], monthly["estimated_cost_vnd"]),
+            "target": 0.70,
+        },
+        "by_org": {
+            "month": top_orgs,
         },
         "at_risk_users": at_risk,
         "alerts": alerts,

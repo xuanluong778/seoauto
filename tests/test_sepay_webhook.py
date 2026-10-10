@@ -90,7 +90,8 @@ def _payload(**overrides):
 
 def test_webhook_requires_auth(client, monkeypatch):
     tc, _ = client
-    monkeypatch.setenv("SEPAY_WEBHOOK_REQUIRE_AUTH", "1")
+    # Default require_auth=True — forged/unsigned body must be rejected
+    monkeypatch.delenv("SEPAY_WEBHOOK_REQUIRE_AUTH", raising=False)
     r = tc.post("/api/payments/sepay/webhook", json=_payload())
     assert r.status_code == 401
 
@@ -98,6 +99,8 @@ def test_webhook_requires_auth(client, monkeypatch):
 def test_webhook_rejects_invalid_unsigned_payload(client, monkeypatch):
     tc, _ = client
     monkeypatch.setenv("SEPAY_WEBHOOK_REQUIRE_AUTH", "0")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("SEOAUTO_PRODUCTION", raising=False)
     r = tc.post("/api/payments/sepay/webhook", json={"foo": "bar"})
     assert r.status_code == 401
 
@@ -107,8 +110,8 @@ def test_webhook_rejects_missing_config_when_require_auth(client, monkeypatch):
     monkeypatch.delenv("SEPAY_WEBHOOK_SECRET", raising=False)
     monkeypatch.delenv("SEPAY_API_KEY", raising=False)
     monkeypatch.delenv("SEPAY_WEBHOOK_API_KEY", raising=False)
+    monkeypatch.delenv("SEPAY_WEBHOOK_REQUIRE_AUTH", raising=False)
     monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("SEPAY_WEBHOOK_REQUIRE_AUTH", "1")
 
     r = tc.post(
         "/api/payments/sepay/webhook",
@@ -121,13 +124,16 @@ def test_webhook_rejects_missing_config_when_require_auth(client, monkeypatch):
 
 def test_webhook_accepts_unsigned_sepay_payload(client, monkeypatch):
     tc, db = client
+    # Explicit non-production opt-out only
     monkeypatch.setenv("SEPAY_WEBHOOK_REQUIRE_AUTH", "0")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("SEOAUTO_PRODUCTION", raising=False)
     user = _user(db, email="unsigned@test.com")
     order = create_payment_order(db, user_id=user.id, product_code="CREDIT_100K")
     db.commit()
     order_code = order.order_code
 
-    # No Authorization header — SePay "Không xác thực" mode
+    # No Authorization header — local unsigned mode
     r = tc.post(
         "/api/payments/sepay/webhook",
         json=_payload(
@@ -329,3 +335,108 @@ def test_webhook_order_not_found_still_success(client):
     )
     assert r.status_code == 200
     assert r.json()["success"] is True
+
+
+def test_webhook_forged_payload_without_auth_rejected(client, monkeypatch):
+    tc, db = client
+    monkeypatch.delenv("SEPAY_WEBHOOK_REQUIRE_AUTH", raising=False)
+    user = _user(db, email="forged@test.com")
+    order = create_payment_order(db, user_id=user.id, product_code="STARTER_M")
+    db.commit()
+    # Attacker sends valid-looking SePay JSON matching bank account + order code — no auth
+    r = tc.post(
+        "/api/payments/sepay/webhook",
+        json=_payload(
+            id="TX-FORGED-1",
+            code=order.order_code,
+            transferAmount=order.amount,
+            content=f"CK {order.order_code}",
+        ),
+    )
+    assert r.status_code == 401
+    db.refresh(order)
+    assert order.status == "pending"
+
+
+def test_webhook_wrong_hmac_signature_rejected(client, monkeypatch):
+    import json
+    import time
+
+    tc, db = client
+    secret = "hmac-test-secret"
+    monkeypatch.setenv("SEPAY_WEBHOOK_SECRET", secret)
+    monkeypatch.delenv("SEPAY_API_KEY", raising=False)
+    monkeypatch.delenv("SEPAY_WEBHOOK_API_KEY", raising=False)
+    monkeypatch.delenv("SEPAY_WEBHOOK_REQUIRE_AUTH", raising=False)
+    user = _user(db, email="badsig@test.com")
+    order = create_payment_order(db, user_id=user.id, product_code="STARTER_M")
+    db.commit()
+    body = _payload(id="TX-BAD-HMAC", code=order.order_code, transferAmount=order.amount)
+    raw = json.dumps(body, separators=(",", ":")).encode("utf-8")
+    ts = str(int(time.time()))
+    r = tc.post(
+        "/api/payments/sepay/webhook",
+        content=raw,
+        headers={
+            "Content-Type": "application/json",
+            "X-SePay-Signature": "sha256=deadbeef" + ("0" * 56),
+            "X-SePay-Timestamp": ts,
+        },
+    )
+    assert r.status_code == 401
+    db.refresh(order)
+    assert order.status == "pending"
+
+
+def test_webhook_missing_hmac_and_api_key_rejected(client, monkeypatch):
+    tc, db = client
+    monkeypatch.delenv("SEPAY_WEBHOOK_REQUIRE_AUTH", raising=False)
+    user = _user(db, email="nosig@test.com")
+    order = create_payment_order(db, user_id=user.id, product_code="STARTER_M")
+    db.commit()
+    # HMAC headers incomplete (timestamp only) and no API key
+    r = tc.post(
+        "/api/payments/sepay/webhook",
+        json=_payload(id="TX-NOSIG", code=order.order_code, transferAmount=order.amount),
+        headers={"X-SePay-Timestamp": "1710000000"},
+    )
+    assert r.status_code == 401
+    db.refresh(order)
+    assert order.status == "pending"
+
+
+def test_production_ignores_require_auth_off(client, monkeypatch):
+    tc, db = client
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SEPAY_WEBHOOK_REQUIRE_AUTH", "0")
+    user = _user(db, email="prod-unsigned@test.com")
+    order = create_payment_order(db, user_id=user.id, product_code="STARTER_M")
+    db.commit()
+    r = tc.post(
+        "/api/payments/sepay/webhook",
+        json=_payload(id="TX-PROD-UNSIGNED", code=order.order_code, transferAmount=order.amount),
+    )
+    assert r.status_code == 401
+    db.refresh(order)
+    assert order.status == "pending"
+
+
+def test_webhook_replay_same_tx_idempotent_with_auth(client):
+    tc, db = client
+    user = _user(db, email="replay@test.com")
+    order = create_payment_order(db, user_id=user.id, product_code="CREDIT_100K")
+    db.commit()
+    from app.services.credits import get_available_balance
+
+    before = get_available_balance(db, user.id)
+    body = _payload(id="TX-REPLAY-1", code=order.order_code, transferAmount=order.amount)
+    headers = _auth_headers()
+    assert tc.post("/api/payments/sepay/webhook", json=body, headers=headers).status_code == 200
+    mid = get_available_balance(db, user.id)
+    assert mid > before
+    # Replay identical webhook — still 200, no double credit
+    assert tc.post("/api/payments/sepay/webhook", json=body, headers=headers).status_code == 200
+    assert get_available_balance(db, user.id) == mid
+    db.refresh(order)
+    assert order.status == "paid"
+    assert order.activation_status == "activated"

@@ -1,8 +1,5 @@
-"""Bounded retry for external API calls."""
-
-from __future__ import annotations
-
 import logging
+import random
 import time
 from collections.abc import Callable
 from typing import TypeVar
@@ -30,7 +27,9 @@ def retry_external_call(
       retryable = is_retryable(exc) if is_retryable else False
       if not retryable or attempt >= max_retries:
         raise
-      delay = delays[min(attempt, len(delays) - 1)]
+      base = delays[min(attempt, len(delays) - 1)]
+      # exponential-ish backoff with jitter (bounded)
+      delay = min(30.0, base * (1.5 ** attempt) + random.uniform(0.0, 0.75))
       _LOG.info("external_api_retry attempt=%s delay=%.1fs err=%s", attempt + 1, delay, type(exc).__name__)
       time.sleep(delay)
   if last_exc:

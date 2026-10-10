@@ -122,3 +122,33 @@ class SingleFlightGuard:
   def __exit__(self, exc_type, exc, tb) -> None:
     if self.acquired:
       self._lock.release()
+
+
+_concurrency_counts: dict[str, int] = defaultdict(int)
+
+
+def check_user_concurrency(*, scope: str, user_id: int, limit: int) -> None:
+  """Bound parallel paid-API work per user+provider (in-process)."""
+  cap = max(1, int(limit))
+  key = f"conc:{scope}:{user_id}"
+  with _guard_lock:
+    n = int(_concurrency_counts.get(key, 0))
+    if n >= cap:
+      raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+          "code": "concurrency_limited",
+          "message": "Quá nhiều tác vụ API đang chạy. Đợi hoàn tất rồi thử lại.",
+        },
+      )
+    _concurrency_counts[key] = n + 1
+
+
+def release_user_concurrency(*, scope: str, user_id: int) -> None:
+  key = f"conc:{scope}:{user_id}"
+  with _guard_lock:
+    n = int(_concurrency_counts.get(key, 0))
+    if n <= 1:
+      _concurrency_counts.pop(key, None)
+    else:
+      _concurrency_counts[key] = n - 1

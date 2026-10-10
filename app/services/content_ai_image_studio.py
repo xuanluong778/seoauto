@@ -28,6 +28,7 @@ from app.services.content_ai_project_store import (
 from app.services.content_ai_openrouter_images import (
     OPENROUTER_IMAGE_MODELS,
     default_image_model,
+    resolve_openrouter_api_key,
 )
 from app.services.content_ai_thumbnail import generate_openai_image_variants
 from app.services.image_prompt_engine import (
@@ -40,7 +41,8 @@ from app.services.image_style_presets import list_style_presets, normalize_style
 
 
 def _clamp_count(n: int) -> int:
-    return max(2, min(int(n or 3), 4))
+    # Allow 1 for regenerate-one; UI default remains 2–4.
+    return max(1, min(int(n or 3), 4))
 
 
 def _resolve_h2_targets(
@@ -114,10 +116,20 @@ def generate_professional_previews(
     text_hint: str = "",
     project_id: str | None = None,
     image_model: str | None = None,
+    output_format: str = "png",
+    target_width: int | None = None,
+    target_height: int | None = None,
+    size_preset: str = "",
 ) -> dict[str, Any]:
     """
-    Generate 2–4 preview images without modifying project content.
+    Generate 1–4 preview images without modifying project content.
     """
+    from app.services.content_ai_openrouter_images import (
+        credit_cost_for_images,
+        credits_per_image,
+        normalize_image_model,
+    )
+
     ctx: dict[str, Any] = {
         "title": title,
         "primary_keyword": primary_keyword,
@@ -133,9 +145,9 @@ def generate_professional_previews(
         if not row:
             raise ValueError("Không tìm thấy dự án.")
         merged = build_studio_context_from_project(row)
-        for k, v in ctx.items():
-            if not str(ctx.get(k) or "").strip() and v:
-                ctx[k] = v
+        for k in list(ctx.keys()):
+            if not str(ctx.get(k) or "").strip() and merged.get(k):
+                ctx[k] = merged.get(k)
         if not str(title or "").strip():
             ctx["title"] = merged["title"]
         if not str(primary_keyword or "").strip():
@@ -184,6 +196,7 @@ def generate_professional_previews(
             ar_label = f"{tw}x{th}"
 
     n = _clamp_count(count)
+    model_id = normalize_image_model(image_model)
     preset = normalize_style_preset(style_preset)
     prompts: list[str] = []
     slot_meta: list[dict[str, Any]] = []
@@ -226,7 +239,7 @@ def generate_professional_previews(
             stem=f"studio-{slugify_seo(pk)[:24]}",
             custom_width=cw if use_custom else None,
             custom_height=ch if use_custom else None,
-            model=image_model,
+            model=model_id,
             user_id=user_id,
             project_id=project_id,
         )
@@ -259,6 +272,8 @@ def generate_professional_previews(
                 "height": v.get("height") or th,
                 "section_heading": h2,
                 "h2_index": meta.get("h2_index"),
+                "model": v.get("model") or model_id,
+                "credits_per_image": v.get("credits_per_image") or credits_per_image(model_id),
             }
         )
 
@@ -267,6 +282,8 @@ def generate_professional_previews(
     if len(h2_labels) > 1:
         msg_extra = f" ({len(h2_labels)} mục H2: {', '.join(h2_labels[:3])}{'…' if len(h2_labels) > 3 else ''})"
 
+    cpi = credits_per_image(model_id)
+    credits_total = credit_cost_for_images(model=model_id, count=len(previews))
     return {
         "ok": True,
         "previews": previews,
@@ -274,13 +291,19 @@ def generate_professional_previews(
         "style_preset": preset,
         "aspect_ratio": ar_label,
         "image_type": image_type,
+        "image_model": model_id,
         "section_headings": h2_labels,
         "h2_indices": [t[1] for t in h2_targets if t[1] is not None],
         "count": len(previews),
         "output_format": out_fmt,
         "target_width": tw,
         "target_height": th,
-        "message": f"Đã tạo {len(previews)} ảnh preview{msg_extra} — chọn ảnh rồi bấm Chèn vào bài hoặc Featured.",
+        "credits_per_image": cpi,
+        "credits_charged": credits_total,
+        "message": (
+            f"Đã tạo {len(previews)} ảnh preview{msg_extra}"
+            f" — chọn ảnh rồi bấm Chèn vào bài hoặc Featured."
+        ),
     }
 
 
@@ -295,6 +318,8 @@ def insert_selected_image(
     primary_keyword: str = "",
     section_heading: str = "",
     h2_index: int | None = None,
+    h3_index: int | None = None,
+    placement: str = "",
     alt: str = "",
     caption: str = "",
     output_format: str = "",
@@ -304,11 +329,18 @@ def insert_selected_image(
     """
     Insert a user-selected preview URL into content or set featured_image.
     mode: inline | featured | append
+    placement (inline): after_heading | start | end | "" (smart)
     """
     img_url = str(url or "").strip()
     if not img_url:
         raise ValueError("Thiếu URL ảnh.")
     from app.services.content_ai_image_guard import validate_image_url_for_insert
+
+    project: dict[str, Any] | None = None
+    if project_id:
+        project = get_content_ai_project(project_id, user_id=user_id)
+        if not project:
+            raise ValueError("Không tìm thấy dự án.")
 
     site_base = ""
     if project:
@@ -322,12 +354,7 @@ def insert_selected_image(
     mode_l = str(mode or "inline").strip().lower()
     if mode_l not in ("inline", "featured", "append"):
         mode_l = "inline"
-
-    project: dict[str, Any] | None = None
-    if project_id:
-        project = get_content_ai_project(project_id, user_id=user_id)
-        if not project:
-            raise ValueError("Không tìm thấy dự án.")
+    place_l = str(placement or "").strip().lower()
 
     pk = str(primary_keyword or (project or {}).get("primary_keyword") or "").strip()
     ttl = str(title or (project or {}).get("title") or "").strip()
@@ -370,13 +397,19 @@ def insert_selected_image(
 
     if mode_l == "featured":
         updates["featured_image"] = img_url
-    elif mode_l == "append":
+        placement_meta = {"placement": "featured"}
+    elif mode_l == "append" or place_l in ("end", "append", "bottom"):
         from app.services.content_ai_image_inserter import build_figure_html
 
-        fig_html = build_figure_html(url=img_url, alt=alt_text, caption=cap)
-        new_html = (html or "") + fig_html
-        updates["content"] = new_html
-        placement_meta = {"placement": "append"}
+        base = img_url.split("?", 1)[0]
+        if base and (base in (html or "") or img_url in (html or "")):
+            new_html = html
+            placement_meta = {"placement": "skipped_duplicate"}
+        else:
+            fig_html = build_figure_html(url=img_url, alt=alt_text, caption=cap)
+            new_html = (html or "") + fig_html
+            updates["content"] = new_html
+            placement_meta = {"placement": "end"}
     else:
         insert: dict[str, Any] = {
             "url": img_url,
@@ -384,41 +417,89 @@ def insert_selected_image(
             "caption": cap,
             "section_heading": section_heading,
         }
+        if place_l:
+            insert["placement"] = place_l
+        if place_l in ("after_heading", "heading", "user_pick"):
+            insert["force_heading"] = True
+            insert["user_pick"] = True
+        if h3_index is not None:
+            insert["h3_index"] = int(h3_index)
         if h2_index is not None:
             insert["h2_index"] = int(h2_index)
         new_html, placement_meta = inject_image_smart_into_content_html(
             html, insert, outline=outline
         )
-        updates["content"] = new_html
+        if placement_meta.get("placement") != "skipped_duplicate":
+            updates["content"] = new_html
 
     gallery: list[str] = []
     if project:
+        from app.services.content_ai_image_guard import is_stored_image_src
+
         raw_g = project.get("gallery_images")
         if isinstance(raw_g, list):
-            gallery = [str(x) for x in raw_g if str(x).strip()]
-        if img_url not in gallery:
-            gallery.append(img_url)
+            # Keep only durable app-hosted URLs (drop broken external / hotlink leftovers).
+            for x in raw_g:
+                s = str(x or "").strip().split("?", 1)[0]
+                if s and is_stored_image_src(s) and s not in gallery:
+                    gallery.append(s)
+        base_img = img_url.split("?", 1)[0]
+        if base_img and base_img not in gallery:
+            gallery.append(base_img)
         updates["gallery_images"] = gallery[-20:]
 
     updated_project = None
     if project_id and updates:
-        updated_project = update_content_ai_project_fields(project_id, updates, user_id=user_id)
+        update_content_ai_project_fields(project_id, updates, user_id=user_id)
+        # Full project row (incl. content) — list summary lacks "content" and would wipe the editor
+        # if the client calls applyProjectToForm on the response.
+        updated_project = get_content_ai_project(project_id, user_id=user_id)
 
+    skipped = placement_meta.get("placement") == "skipped_duplicate"
+    final_content = updates.get("content", html)
+    if skipped:
+        final_content = html
     return {
         "ok": True,
         "mode": mode_l,
         "url": img_url,
-        "content": updates.get("content", html),
-        "featured_image": updates.get("featured_image") or (project or {}).get("featured_image") or "",
-        "gallery_images": updates.get("gallery_images") or gallery,
+        "content": final_content,
+        "featured_image": updates.get("featured_image")
+        or (updated_project or project or {}).get("featured_image")
+        or "",
+        "gallery_images": updates.get("gallery_images")
+        or gallery
+        or ((updated_project or project or {}).get("gallery_images") or []),
         "alt": alt_text,
         "placement": placement_meta,
         "project": updated_project,
+        "skipped_duplicate": skipped,
+        "message": (
+            "Ảnh đã có trong bài — không chèn trùng."
+            if skipped
+            else (
+                "Đã đặt ảnh đại diện."
+                if mode_l == "featured"
+                else "Đã chèn ảnh vào bài."
+            )
+        ),
         "project_id": project_id,
     }
 
 
 def studio_catalog() -> dict[str, Any]:
+    models = []
+    for m in OPENROUTER_IMAGE_MODELS:
+        mid = str(m.get("id") or "")
+        cpi = int(m.get("credits_per_image") or 0)
+        base = str(m.get("label_vi") or mid)
+        models.append(
+            {
+                **m,
+                "label_vi": f"{base} — {cpi} credit/ảnh",
+                "credits_per_image": cpi,
+            }
+        )
     return {
         "style_presets": list_style_presets(),
         "image_types": [
@@ -448,6 +529,7 @@ def studio_catalog() -> dict[str, Any]:
             {"id": "tech", "label_vi": "Công nghệ"},
             {"id": "neutral", "label_vi": "Trung tính"},
         ],
-        "image_models": list(OPENROUTER_IMAGE_MODELS),
+        "image_models": models,
         "default_image_model": default_image_model(),
+        "openrouter_key_configured": bool(resolve_openrouter_api_key()),
     }

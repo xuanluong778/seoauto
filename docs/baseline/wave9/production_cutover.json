@@ -1,0 +1,38 @@
+{
+  "cutover_at": "2026-09-03T01:39:00Z",
+  "actions": [
+    "pm2 restart seoauto-web --update-env",
+    "installed /etc/cron.d/seoauto-wave9-ops-alert (*/5 + flock)",
+    "re-ran scripts/wave9_observability.py",
+    "re-ran scripts/ops_health_alert.py --simulate"
+  ],
+  "live": {
+    "health": 200,
+    "ready": 200,
+    "x_request_id_on_auth_me": "wave9-final-check",
+    "celery_workers_online": 5,
+    "pm2_workers": [
+      "seoauto-worker-content-ai",
+      "seoauto-worker-wordpress",
+      "seoauto-worker-crawl",
+      "seoauto-worker-email",
+      "seoauto-worker-default"
+    ],
+    "beat_online": true,
+    "beat_lock_ok": true,
+    "db_probe_ok": true,
+    "redis_probe_ok": true,
+    "queue_depth": 0,
+    "alerts_open": 0,
+    "slo_present": true,
+    "secret_redaction": true,
+    "cron_flock_duplicate_blocked": true,
+    "known_failures": 59,
+    "known_failures_baseline": 59
+  },
+  "WAVE_9_OBSERVABILITY": "PASS",
+  "PRODUCTION_OBSERVABILITY": "PASS",
+  "ALERTING": "PASS",
+  "SLO_MONITORING": "PASS",
+  "REGRESSION": "PASS"
+}

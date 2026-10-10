@@ -42,21 +42,22 @@ async def sepay_webhook(
     Authenticated requests always return {"success": true} so provider does not hammer retries
     on business skips; already-processed events return success without re-applying plan/credit.
     """
-    if is_production() and not is_sepay_webhook_configured():
-        from app.services.payment_config import sepay_webhook_require_auth
+    from app.services.payment_config import sepay_webhook_require_auth
 
-        if sepay_webhook_require_auth():
-            logger.error(
-                "sepay_webhook_rejected production=true reason=missing_config "
-                "SEPAY_WEBHOOK_SECRET and/or SEPAY_API_KEY required"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={
-                    "code": "payment_not_configured",
-                    "message": "SePay webhook is not configured on this server.",
-                },
-            )
+    # Fail-closed: missing secrets while auth is required (always in production; default elsewhere).
+    if not is_sepay_webhook_configured() and sepay_webhook_require_auth():
+        logger.error(
+            "sepay_webhook_rejected reason=missing_config production=%s "
+            "SEPAY_WEBHOOK_SECRET and/or SEPAY_API_KEY required",
+            is_production(),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "payment_not_configured",
+                "message": "SePay webhook is not configured on this server.",
+            },
+        )
 
     try:
         body = await request.body()

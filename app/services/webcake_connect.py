@@ -260,6 +260,68 @@ def test_webcake_connection(
     }
 
 
+def _category_row(row: Any) -> dict[str, Any] | None:
+    if not isinstance(row, dict):
+        return None
+    cid = row.get("id")
+    if cid is None:
+        cid = row.get("category_id") or row.get("term_id")
+    name = row.get("name") or row.get("title") or row.get("category_name") or row.get("handle")
+    if cid is None or not str(name or "").strip():
+        return None
+    parent = row.get("parent_id")
+    if parent is None:
+        parent = row.get("parent") or 0
+    return {"id": cid, "name": name, "parent": parent}
+
+
+def list_webcake_blog_categories(*, secrets_blob: str) -> dict[str, Any]:
+    blob = str(secrets_blob or "")
+    try:
+        token, blob = ensure_access_token(blob)
+    except ValueError as exc:
+        data = unpack_webcake_secrets(blob)
+        token = str(data.get("access_token") or "").strip()
+        if not token:
+            return {"ok": False, "items": [], "message": str(exc)}
+    try:
+        r = _api_request("/blog/category/all", token, params={"page": 1, "limit": 250})
+    except requests.RequestException as exc:
+        return {"ok": False, "items": [], "message": f"Không gọi được Webcake API: {exc}"}
+    if r.status_code == 401:
+        try:
+            token, blob = ensure_access_token(blob, force_refresh=True)
+            r = _api_request("/blog/category/all", token, params={"page": 1, "limit": 250})
+        except ValueError as exc:
+            return {"ok": False, "items": [], "message": str(exc)}
+        except requests.RequestException as exc:
+            return {"ok": False, "items": [], "message": f"Không gọi được Webcake API: {exc}"}
+    if r.status_code >= 400:
+        return {
+            "ok": False,
+            "items": [],
+            "message": f"Webcake categories HTTP {r.status_code}.",
+        }
+    try:
+        payload = r.json()
+    except ValueError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    rows = _extract_list(payload, "categories", "data")
+    items = []
+    for row in rows:
+        mapped = _category_row(row)
+        if mapped:
+            items.append(mapped)
+    return {
+        "ok": True,
+        "items": items,
+        "message": f"Đã tải {len(items)} danh mục.",
+        "secrets_blob": blob,
+    }
+
+
 def sync_webcake_categories(*, secrets_blob: str) -> tuple[int | None, str]:
     try:
         token, _ = ensure_access_token(secrets_blob)

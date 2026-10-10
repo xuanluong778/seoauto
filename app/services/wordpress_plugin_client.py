@@ -59,11 +59,23 @@ def plugin_post_json(
         request_id=request_id,
     )
     try:
+        from app.services.url_safety import validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            return None, ErrorClassification(
+                retryable=False,
+                blocked=True,
+                error_code=blocked,
+                message="Site URL blocked by SSRF policy",
+                http_status=0,
+            )
         resp = requests.post(
             url,
             data=body.encode("utf-8"),
             headers=headers,
             timeout=timeout or DEFAULT_TIMEOUT,
+            allow_redirects=False,
         )
     except requests.RequestException as exc:
         return None, classify_exception(exc)
@@ -113,9 +125,28 @@ def plugin_get_json(
         request_id=request_id,
     )
     try:
-        resp = requests.get(url, headers=headers, timeout=timeout or DEFAULT_TIMEOUT)
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            return None, ErrorClassification(
+                retryable=False,
+                blocked=True,
+                error_code=blocked,
+                message="Site URL blocked by SSRF policy",
+                http_status=0,
+            )
+        resp = safe_requests_get(url, headers=headers, timeout=float(timeout or DEFAULT_TIMEOUT))
     except requests.RequestException as exc:
         return None, classify_exception(exc)
+    except ValueError as exc:
+        return None, ErrorClassification(
+            retryable=False,
+            blocked=True,
+            error_code=str(exc),
+            message="Site URL blocked by SSRF policy",
+            http_status=0,
+        )
 
     parsed = _parse_json_response(resp)
     if resp.status_code >= 400:

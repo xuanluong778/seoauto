@@ -1,0 +1,64 @@
+{
+  "wave": 2,
+  "snapshot_at": "2026-09-02T02:34:09.913732+00:00",
+  "load_concurrency": 10,
+  "gates": {
+    "CONTENT_AI_GENERATION": "PASS",
+    "ASYNC_FLAG_ROLLBACK": "PASS",
+    "UI_REGRESSION": "PASS",
+    "CONTENT_AI_STREAM": "PASS",
+    "CONTENT_AI_OUTPUT_REGRESSION": "PASS",
+    "STREAM_ORDERING": "PASS",
+    "GENERATION_IDEMPOTENCY": "PASS",
+    "CREDIT_IDEMPOTENCY": "PASS",
+    "CLIENT_DISCONNECT_RECONNECT": "PASS",
+    "CANCEL_GENERATION": "PASS",
+    "AI_CONCURRENCY": "PASS",
+    "QUEUE_RECOVERY": "PASS",
+    "WORKER_CRASH_RECOVERY": "PASS",
+    "MULTI_TENANT_ISOLATION": "PASS",
+    "KNOWN_FAILURES_NOT_INCREASED": "PASS"
+  },
+  "migration": {
+    "applied": [
+      "EXISTS",
+      "ix_content_ai_generations_org_state"
+    ],
+    "status": {
+      "ok": true,
+      "missing": []
+    }
+  },
+  "ui": {
+    "pages": [
+      {
+        "path": "/content-ai",
+        "status": 200
+      },
+      {
+        "path": "/tool",
+        "status": 200
+      },
+      {
+        "path": "/settings",
+        "status": 200
+      },
+      {
+        "path": "/pricing",
+        "status": 200
+      }
+    ],
+    "gate": "PASS"
+  },
+  "tests_core": {
+    "target": "tests/test_wave2_content_ai_async.py tests/test_wave1_celery_queues.py tests/test_content_ai_e2e_audit_fixes.py tests/test_content_ai_output_postprocess.py tests/test_bulk_celery_no_inline_dup.py",
+    "returncode": 0,
+    "gate": "PASS",
+    "junit": "docs/baseline/wave2/junit_wave2_core.xml",
+    "tail": "........................................                                 [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n40 passed, 1 warning in 5.40s\n"
+  },
+  "known_failures_baseline": 56,
+  "wave2_overall": "PASS",
+  "failed_gates": [],
+  "WAVE_2_ASYNC_LLM": "PASS"
+}

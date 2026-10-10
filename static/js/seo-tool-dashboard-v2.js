@@ -215,6 +215,26 @@
         out.priority = out.priority || { open: 0, total: 0, critical: 0, high: 0, worst: "passed", passed: 0 };
         out.priority.open = pri || out.priority.open;
         out.passed = { open: safeArr(dash.passed_checks).length, passed: safeArr(dash.passed_checks).length, worst: "passed" };
+        function rollup(dest, keys) {
+            var row = { open: 0, total: 0, critical: 0, high: 0, medium: 0, low: 0, worst: "passed", passed: 0 };
+            keys.forEach(function (k) {
+                var s = out[k];
+                if (!s) return;
+                row.open += Number(s.open) || 0;
+                row.total += Number(s.total) || 0;
+                row.critical += Number(s.critical) || 0;
+                row.high += Number(s.high) || 0;
+                row.medium += Number(s.medium) || 0;
+                row.low += Number(s.low) || 0;
+                row.passed += Number(s.passed) || 0;
+                var rank = { critical: 6, warning: 5, high: 5, medium: 4, opportunity: 3, low: 3 };
+                if ((rank[s.worst] || 0) > (rank[row.worst] || 0)) row.worst = s.worst;
+            });
+            out[dest] = row;
+        }
+        rollup("index_crawl", ["indexability", "crawlability", "internal_links"]);
+        rollup("onpage", ["onpage", "structured_data", "ux_mobile"]);
+        rollup("perf_security", ["performance", "security_http"]);
         return out;
     }
 
@@ -292,8 +312,8 @@
     function sevLabelVi(sev) {
         var s = String(sev || "").toLowerCase();
         if (s === "critical") return "Nghiêm trọng";
-        if (s === "warning" || s === "high") return "Cao";
-        if (s === "medium") return "Trung bình";
+        if (s === "warning" || s === "high") return "Cảnh báo";
+        if (s === "medium") return "Cảnh báo";
         if (s === "opportunity" || s === "low") return "Cơ hội";
         return s || "—";
     }
@@ -606,15 +626,11 @@
         var sec = document.getElementById("seoToolOverviewPassedCollapsible");
         var body = document.getElementById("seoToolOverviewPassedCollapsibleBody");
         var countEl = document.getElementById("seoToolOverviewPassedCollapsibleCount");
-        if (!sec || !body) return;
+        if (sec) sec.hidden = true;
+        if (!body) return;
         var dash = getDash(payload);
         var passed = dash ? safeArr(dash.passed_checks) : safeArr(payload && payload.passed_checks);
-        if (!passed.length) {
-            sec.hidden = true;
-            return;
-        }
-        sec.hidden = false;
-        if (countEl) countEl.textContent = String(passed.length);
+        if (countEl) countEl.textContent = String(passed.length || 0);
         body.innerHTML = "";
         passed.slice(0, 50).forEach(function (p) {
             var li = document.createElement("li");
@@ -859,9 +875,11 @@
     }
 
     var ISSUE_GROUP_TABS = {
+        index_crawl: true,
+        onpage: true,
+        perf_security: true,
         indexability: true,
         crawlability: true,
-        onpage: true,
         internal_links: true,
         performance: true,
         structured_data: true,
@@ -1047,10 +1065,24 @@
         if (!issue) return false;
         var key = String(groupKey || "");
         var TS = global.TechSidebarV2;
-        if (TS && typeof TS.normalizeTechTabKey === "function") {
-            key = TS.normalizeTechTabKey(key);
-        }
         if (key === "priority") return false;
+        var fine =
+            TS && typeof TS.issueNavGroupFine === "function"
+                ? TS.issueNavGroupFine(issue)
+                : String(issue.sidebar_key || issue.nav_group || "");
+        if (fine === "gsc_insights") fine = "gsc";
+        var children = TS && TS.TAB_CHILDREN && TS.TAB_CHILDREN[key];
+        if (children && children.length) {
+            return children.indexOf(fine) !== -1;
+        }
+        if (TS && typeof TS.normalizeTechTabKey === "function") {
+            var simple = TS.normalizeTechTabKey(key);
+            children = TS.TAB_CHILDREN && TS.TAB_CHILDREN[simple];
+            if (children && children.length && simple !== key) {
+                /* keep fine-grained match when caller asks crawlability/onpage/etc. */
+            }
+        }
+        if (fine === key) return true;
         if (TS && typeof TS.issueNavGroup === "function") {
             return TS.issueNavGroup(issue) === key;
         }
@@ -1104,6 +1136,9 @@
     }
 
     function hideTechPanels() {
+        if (global.document && global.document.body) {
+            global.document.body.classList.remove("tech-gsc-tab-active");
+        }
         [
             "seoToolResultsOverview",
             "techContentPriority",
@@ -1118,6 +1153,10 @@
             var el = document.getElementById(id);
             if (el) el.hidden = true;
         });
+        var dr = document.querySelector(".tech-dash-date-range");
+        if (dr) dr.hidden = true;
+        var contentHdr = document.getElementById("techContentHeader");
+        if (contentHdr) contentHdr.hidden = true;
     }
 
     function renderOverviewScanHeader(payload, dash) {
@@ -1139,8 +1178,8 @@
         var metaEl = document.getElementById("seoResultsHeaderMeta");
         if (metaEl) {
             var parts = [];
-            if (domain) parts.push("Tổng quan technical cho " + domain);
-            if (score != null && !Number.isNaN(score)) parts.push("Health " + score + "/100");
+            if (domain) parts.push(domain);
+            if (score != null && !Number.isNaN(score)) parts.push(score + "/100");
             if (pages != null) parts.push(fmtNum(pages) + " trang");
             metaEl.textContent = parts.length ? parts.join(" · ") : "—";
         }
@@ -1157,6 +1196,68 @@
         var dr = document.getElementById("techDashDateRange");
         var gi = payload.gsc_intelligence_summary || safeObj(dash && dash.gsc_intelligence) || {};
         if (dr && gi.date_range) dr.value = gi.date_range === "90d" ? "90d" : "28d";
+    }
+
+    function formatAffectedUrlCell(issue) {
+        var urls = safeArr(issue.affected_urls).length ? issue.affected_urls : safeArr(issue.sample_urls);
+        if (!urls.length) return "Toàn site";
+        var first = String(urls[0] || "");
+        if (first.length > 52) first = first.slice(0, 49) + "…";
+        if (urls.length > 1) return first + " +" + (urls.length - 1);
+        return first || "—";
+    }
+
+    function buildSimpleIssueTable(issues, opts) {
+        opts = opts || {};
+        var wrap = document.createElement("div");
+        wrap.className = "tech-simple-table-wrap";
+        var table = document.createElement("table");
+        table.className = "tech-simple-issue-table";
+        table.innerHTML =
+            "<thead><tr><th>Mức độ</th><th>Lỗi</th><th>URL ảnh hưởng</th><th>Tác động</th><th>Xem chi tiết</th></tr></thead>";
+        var tbody = document.createElement("tbody");
+        if (!issues.length) {
+            var emptyRow = document.createElement("tr");
+            emptyRow.innerHTML = '<td colspan="5" class="tech-simple-empty">Chưa có lỗi trong nhóm này.</td>';
+            tbody.appendChild(emptyRow);
+        } else {
+            issues.forEach(function (raw) {
+                var issue = v2IssueToNormalized(raw) || raw;
+                var sev = sevLabel(issue.severity);
+                var tr = document.createElement("tr");
+                tr.className = "tech-simple-issue-row";
+                tr.innerHTML =
+                    '<td><span class="tech-sev-pill tech-sev-' +
+                    esc(sev) +
+                    '">' +
+                    esc(sevLabelVi(sev)) +
+                    "</span></td>" +
+                    '<td class="tech-simple-issue-title">' +
+                    esc(issue.title || "—") +
+                    "</td>" +
+                    '<td class="tech-simple-issue-url">' +
+                    esc(formatAffectedUrlCell(issue)) +
+                    "</td>" +
+                    '<td class="tech-simple-issue-impact">' +
+                    esc(truncateText(formatSeoImpactText(issue), 80)) +
+                    "</td>" +
+                    '<td><button type="button" class="tech-simple-detail-btn">Xem chi tiết</button></td>';
+                var btn = tr.querySelector("button");
+                if (btn) {
+                    btn.addEventListener("click", function (ev) {
+                        ev.stopPropagation();
+                        openIssueDrawer(issue);
+                    });
+                }
+                tr.addEventListener("click", function () {
+                    openIssueDrawer(issue);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        return wrap;
     }
 
     function renderOverviewPriorityTop(dash, hooks) {
@@ -1178,17 +1279,26 @@
                 if (empty) empty.hidden = true;
                 fixes.forEach(function (raw) {
                     var norm = v2IssueToNormalized(raw) || raw;
-                    var tr = document.createElement("tr");
                     var sev = sevLabel(raw.severity);
-                    var urlN = affectedCount(raw);
-                    var impactText = truncateText(formatSeoImpactText(raw), 72);
+                    var tr = document.createElement("tr");
+                    tr.className = "tech-simple-issue-row";
                     tr.innerHTML =
-                        '<td class="tech-dash-table-issue">' + esc(raw.title || "—") + "</td>" +
-                        '<td><span class="saas-badge ' + sevBadgeClass(sev) + '">' + esc(sevLabelVi(sev)) + "</span></td>" +
-                        '<td class="tech-dash-table-impact">' + esc(impactText) + "</td>" +
-                        '<td class="tech-dash-table-urls">' + esc(String(urlN)) + "</td>" +
-                        '<td class="tech-dash-table-action"><button type="button" class="tech-dash-detail-btn">Xem chi tiết</button></td>';
-                    var btn = tr.querySelector(".tech-dash-detail-btn");
+                        '<td><span class="tech-sev-pill tech-sev-' +
+                        esc(sev) +
+                        '">' +
+                        esc(sevLabelVi(sev)) +
+                        "</span></td>" +
+                        '<td class="tech-simple-issue-title">' +
+                        esc(raw.title || "—") +
+                        "</td>" +
+                        '<td class="tech-simple-issue-url">' +
+                        esc(formatAffectedUrlCell(norm)) +
+                        "</td>" +
+                        '<td class="tech-simple-issue-impact">' +
+                        esc(truncateText(formatSeoImpactText(raw), 80)) +
+                        "</td>" +
+                        '<td><button type="button" class="tech-simple-detail-btn">Xem chi tiết</button></td>';
+                    var btn = tr.querySelector("button");
                     if (btn) {
                         btn.addEventListener("click", function (ev) {
                             ev.stopPropagation();
@@ -1770,6 +1880,22 @@
         if (chrome) chrome.hidden = true;
         var issuesCard = document.getElementById("issuesCard");
         if (issuesCard) issuesCard.hidden = true;
+        if (global.document && global.document.body) {
+            global.document.body.classList.add("tech-gsc-tab-active");
+        }
+        var dr = document.querySelector(".tech-dash-date-range");
+        if (dr) dr.hidden = false;
+        var contentHdr = document.getElementById("techContentHeader");
+        if (contentHdr) contentHdr.hidden = false;
+        var titleEl = document.getElementById("techContentTitle");
+        if (titleEl) titleEl.textContent = "Google Search Console";
+        var subEl = document.getElementById("techContentSubtitle");
+        if (subEl) {
+            var n = filterIssuesByGroup(dash, "gsc").length;
+            subEl.textContent =
+                "Search Analytics, URL Inspection, quota và dữ liệu hybrid." +
+                (n ? " — " + n + " lỗi GSC." : "");
+        }
     }
 
     function aggregateIndexBuckets(payload) {
@@ -2020,6 +2146,8 @@
         if (cmp && !cmp.dataset.wired) {
             cmp.dataset.wired = "1";
             cmp.addEventListener("click", function () {
+                global.__seoCompareTargetId = global.__seoLastTechnicalAuditId || null;
+                global.__seoCompareAuto = true;
                 if (hooks && typeof hooks.navigateTab === "function") hooks.navigateTab("history");
             });
         }
@@ -2151,19 +2279,111 @@
         var dash = dashboardV2 || getDashboardForRender(fullPayload);
         renderOverviewV2Summary(fullPayload);
         renderOverviewScanHeader(fullPayload, dash);
-        wireOverviewGscBtnOnce();
-        wireDashboardHeaderActions(hooks);
         renderOverviewPriorityTop(dash, hooks);
-        renderDashboardGscCard(fullPayload, hooks);
-        renderDashboardIndexCard(fullPayload);
         renderDashboardPerfCard(fullPayload);
-        renderDashboardMobileCard(fullPayload);
-        renderDashboardAiCard(fullPayload, dash, hooks);
-        renderPassedCollapsible(fullPayload);
-        var gscSec = document.getElementById("seoToolGscIntelSection");
-        if (gscSec) gscSec.hidden = true;
-        var navSec = document.getElementById("seoToolNavGroupSummaries");
-        if (navSec) navSec.hidden = true;
+        renderScoreTrend(fullPayload, hooks);
+        hideOverviewExtraCards();
+    }
+
+    function hideOverviewExtraCards() {
+        [
+            "techDashGscCard",
+            "techDashIndexCard",
+            "techDashMobileCard",
+            "techDashAiCard",
+            "seoToolGscIntelSection",
+            "seoToolNavGroupSummaries",
+            "seoToolOverviewPassedCollapsible",
+            "seoToolOverviewPassedSection",
+        ].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.hidden = true;
+        });
+    }
+
+    function renderScoreTrend(payload, hooks) {
+        var host = document.getElementById("techDashScoreTrend");
+        if (!host) return;
+        var dash = getDash(payload);
+        var current =
+            dash && dash.technical_health_score != null
+                ? Number(dash.technical_health_score)
+                : payload && payload.technical_summary && payload.technical_summary.health_score != null
+                  ? Number(payload.technical_summary.health_score)
+                  : null;
+        var domain = String((payload && payload.domain) || "").toLowerCase();
+        function paint(points) {
+            host.hidden = false;
+            if (!points.length) {
+                host.innerHTML = '<p class="tech-dash-empty">Cần thêm lần quét để xem xu hướng điểm.</p>';
+                return;
+            }
+            var bars = points
+                .map(function (p, i) {
+                    var v = Math.max(0, Math.min(100, Number(p.score) || 0));
+                    var h = Math.max(6, Math.round((v / 100) * 72));
+                    var isLast = i === points.length - 1;
+                    return (
+                        '<span class="tech-trend-bar' +
+                        (isLast ? " is-current" : "") +
+                        '" style="height:' +
+                        h +
+                        'px" title="' +
+                        esc(String(Math.round(v))) +
+                        (p.at ? " · " + esc(String(p.at).slice(0, 10)) : "") +
+                        '"></span>'
+                    );
+                })
+                .join("");
+            var last = points[points.length - 1];
+            var prev = points.length > 1 ? points[points.length - 2] : null;
+            var delta = prev && last ? Math.round(Number(last.score) - Number(prev.score)) : null;
+            var deltaTxt = "Lần quét này";
+            if (delta != null && !Number.isNaN(delta)) {
+                if (delta > 0) deltaTxt = "Tăng " + delta + " điểm so với lần trước";
+                else if (delta < 0) deltaTxt = "Giảm " + Math.abs(delta) + " điểm so với lần trước";
+                else deltaTxt = "Không đổi so với lần trước";
+            }
+            host.innerHTML =
+                '<div class="tech-trend-bars" aria-hidden="true">' +
+                bars +
+                '</div><p class="tech-trend-caption">' +
+                esc(deltaTxt) +
+                "</p>";
+        }
+        var token = hooks && typeof hooks.getToken === "function" ? hooks.getToken() : null;
+        if (!token) {
+            paint(current != null && !Number.isNaN(current) ? [{ score: current, at: "" }] : []);
+            return;
+        }
+        fetch("/api/audit/runs?limit=8", { headers: { Authorization: "Bearer " + token } })
+            .then(function (r) {
+                return r.json();
+            })
+            .then(function (d) {
+                var items = safeArr(d && (d.items || d.runs || d));
+                var pts = items
+                    .filter(function (run) {
+                        if (!domain) return true;
+                        return String(run.domain || "").toLowerCase() === domain;
+                    })
+                    .map(function (run) {
+                        var st = auditRunStats(run);
+                        return { score: st.score, at: run.at };
+                    })
+                    .filter(function (p) {
+                        return p.score != null && !Number.isNaN(Number(p.score));
+                    })
+                    .slice(0, 6)
+                    .reverse();
+                if (!pts.length && current != null && !Number.isNaN(current)) {
+                    pts = [{ score: current, at: "" }];
+                }
+                paint(pts);
+            })
+            .catch(function () {
+                paint(current != null && !Number.isNaN(current) ? [{ score: current, at: "" }] : []);
+            });
     }
 
     function renderPriorityIssues(dashboardV2, fullPayload) {
@@ -2177,24 +2397,9 @@
         var issues = safeArr(dash && dash.priority_issues);
         var hdr = document.createElement("header");
         hdr.className = "tech-group-page-header";
-        hdr.innerHTML =
-            "<h3>Việc cần sửa</h3><p class=\"tech-group-page-sub\">Top lỗi quan trọng nhất — sắp xếp theo mức ưu tiên, severity và tác động GSC.</p>";
+        hdr.innerHTML = "<h3>Việc cần sửa</h3><p class=\"tech-group-page-sub\">Sửa những lỗi này trước.</p>";
         host.appendChild(hdr);
-        if (!issues.length) {
-            var empty = document.createElement("div");
-            empty.className = "tech-empty-state-card";
-            empty.innerHTML =
-                "<p>Không có lỗi ưu tiên nghiêm trọng trong lần quét này.</p>";
-            host.appendChild(empty);
-            return;
-        }
-        var sorted = sortPriorityIssues(issues);
-        var list = document.createElement("div");
-        list.className = "tech-v2-priority-list";
-        sorted.forEach(function (issue, idx) {
-            list.appendChild(buildFullPriorityCard(issue, idx));
-        });
-        host.appendChild(list);
+        host.appendChild(buildSimpleIssueTable(sortPriorityIssues(issues)));
     }
 
     function buildFullPriorityCard(issue, idx) {
@@ -2314,31 +2519,21 @@
             " lỗi</span>" +
             '<span class="tech-stat-critical">' +
             counts.critical +
-            " critical</span>" +
+            " nghiêm trọng</span>" +
             '<span class="tech-stat-warning">' +
             counts.warning +
-            " warning</span>" +
+            " cảnh báo</span>" +
             '<span class="tech-stat-opportunity">' +
             counts.opportunity +
-            " opportunity</span>" +
-            (passedCount ? '<span class="tech-stat-passed">' + passedCount + " passed</span>" : "") +
+            " cơ hội</span>" +
             "</p></div>";
     }
 
     function renderGroupSummaryCards(issues) {
         var grid = document.getElementById("techGroupSummaryGrid");
         if (!grid) return;
-        var counts = countBySeverity(issues);
-        grid.innerHTML =
-            '<article class="tech-group-summary-card tech-group-summary-card--critical"><span>Lỗi nghiêm trọng</span><strong>' +
-            counts.critical +
-            "</strong></article>" +
-            '<article class="tech-group-summary-card tech-group-summary-card--warning"><span>Cảnh báo</span><strong>' +
-            counts.warning +
-            "</strong></article>" +
-            '<article class="tech-group-summary-card tech-group-summary-card--opportunity"><span>Cơ hội tối ưu</span><strong>' +
-            counts.opportunity +
-            "</strong></article>";
+        grid.innerHTML = "";
+        grid.hidden = true;
     }
 
     function buildExplorerIssueCard(issue) {
@@ -2391,62 +2586,7 @@
         var host = document.getElementById("techGroupExplorerHost");
         if (!host) return;
         host.textContent = "";
-        var isDesktop = global.matchMedia && global.matchMedia("(min-width: 1025px)").matches;
-        if (isDesktop && issues.length) {
-            var tableWrap = document.createElement("div");
-            tableWrap.className = "tech-v2-issue-table-wrap";
-            var table = document.createElement("table");
-            table.className = "tech-v2-issue-table";
-            table.innerHTML =
-                "<thead><tr><th>Severity</th><th>Issue</th><th>URLs</th><th>Source</th><th>Conf.</th><th></th></tr></thead>";
-            var tbody = document.createElement("tbody");
-            issues.forEach(function (issue) {
-                var tr = document.createElement("tr");
-                var sev = sevLabel(issue.severity);
-                var conf =
-                    issue.confidence != null && !Number.isNaN(Number(issue.confidence))
-                        ? Math.round(Number(issue.confidence) * 100) + "%"
-                        : "—";
-                var norm = v2IssueToNormalized(issue) || issue;
-                tr.innerHTML =
-                    '<td><span class="saas-badge ' +
-                    sevBadgeClass(sev) +
-                    '">' +
-                    sev.toUpperCase() +
-                    "</span></td>" +
-                    "<td>" +
-                    esc(issue.title || "—") +
-                    "</td>" +
-                    "<td>" +
-                    affectedCount(issue) +
-                    "</td>" +
-                    "<td>" +
-                    esc(issue.source || "crawl") +
-                    "</td>" +
-                    "<td>" +
-                    conf +
-                    "</td>" +
-                    '<td><button type="button" class="tech-v2-issue-detail-btn">Chi tiết</button></td>';
-                tr.querySelector("button").addEventListener("click", function (ev) {
-                    ev.stopPropagation();
-                    openIssueDrawer(norm);
-                });
-                tr.addEventListener("click", function () {
-                    openIssueDrawer(norm);
-                });
-                tbody.appendChild(tr);
-            });
-            table.appendChild(tbody);
-            tableWrap.appendChild(table);
-            host.appendChild(tableWrap);
-        } else {
-            var grid = document.createElement("div");
-            grid.className = "tech-v2-issue-grid";
-            issues.forEach(function (issue) {
-                grid.appendChild(buildExplorerIssueCard(issue));
-            });
-            host.appendChild(grid);
-        }
+        host.appendChild(buildSimpleIssueTable(issues));
     }
 
     function renderGroupPassedChecks(groupKey, dash) {
@@ -2481,30 +2621,22 @@
         if (chrome) chrome.hidden = false;
         var dash = dashboardV2 || getDashboardForRender(fullPayload);
         var issues = filterIssuesByGroup(dash, groupKey);
-        var passedInGroup = safeArr(dash.passed_checks).filter(function (p) {
-            var ng = String((p && p.nav_group) || "");
-            return ng === sidebarToV2NavGroup(groupKey) || frontNavFromV2(ng) === groupKey;
-        }).length;
-        renderGroupHeader(groupKey, issues, passedInGroup);
+        renderGroupHeader(groupKey, issues, 0);
         renderGroupSummaryCards(issues);
         var explorer = document.getElementById("techGroupExplorerHost");
-        if (explorer) explorer.textContent = "";
-        if (!issues.length) {
-            var empty = document.createElement("div");
-            empty.className = "tech-empty-state-card";
-            empty.innerHTML = "<p>Không phát hiện lỗi trong nhóm này.</p>";
-            if (explorer) explorer.appendChild(empty);
-        } else {
-            renderIssueExplorer(issues);
+        if (explorer) {
+            explorer.textContent = "";
+            explorer.appendChild(buildSimpleIssueTable(issues));
         }
-        renderGroupPassedChecks(groupKey, dash);
+        var passedHost = document.getElementById("techGroupPassedHost");
+        if (passedHost) passedHost.textContent = "";
         var issuesCard = document.getElementById("issuesCard");
         if (issuesCard) issuesCard.hidden = true;
         var catPanel = document.getElementById("techCategoryPanel");
         if (catPanel) catPanel.hidden = true;
         var crawlExtras = document.getElementById("crawlExtrasCard");
         if (crawlExtras) {
-            crawlExtras.hidden = groupKey !== "crawlability" && groupKey !== "internal_links";
+            crawlExtras.hidden = groupKey !== "index_crawl" && groupKey !== "crawlability" && groupKey !== "internal_links";
         }
     }
 
@@ -2531,6 +2663,132 @@
             warning: Number(by.high) || Number(by.warning) || 0,
             pages: run.pages_scanned,
         };
+    }
+
+    function findPreviousRunForDomain(runs, targetRun) {
+        if (!targetRun || !runs || !runs.length) return null;
+        var dom = String(targetRun.domain || targetRun.source_url || "").trim().toLowerCase();
+        if (!dom) return null;
+        var seenTarget = false;
+        for (var i = 0; i < runs.length; i++) {
+            var r = runs[i];
+            var rd = String(r.domain || r.source_url || "").trim().toLowerCase();
+            if (String(r.id) === String(targetRun.id)) {
+                seenTarget = true;
+                continue;
+            }
+            if (seenTarget && rd === dom) return r;
+        }
+        return null;
+    }
+
+    function renderCompareIssueList(title, items, tone) {
+        var sec = document.createElement("div");
+        sec.className = "tech-compare-list tech-compare-list-" + (tone || "neutral");
+        var h = document.createElement("h4");
+        h.className = "tech-compare-list-title";
+        h.textContent = title + " (" + (items ? items.length : 0) + ")";
+        sec.appendChild(h);
+        if (!items || !items.length) {
+            var empty = document.createElement("p");
+            empty.className = "tech-compare-empty";
+            empty.textContent = "Không có.";
+            sec.appendChild(empty);
+            return sec;
+        }
+        var ul = document.createElement("ul");
+        ul.className = "tech-compare-issue-ul";
+        items.slice(0, 12).forEach(function (it) {
+            var li = document.createElement("li");
+            var tier = it.priority_tier ? " [" + it.priority_tier + "]" : "";
+            li.textContent = (it.title || it.issue_type || "—") + tier;
+            ul.appendChild(li);
+        });
+        if (items.length > 12) {
+            var more = document.createElement("li");
+            more.className = "tech-compare-more";
+            more.textContent = "+ " + (items.length - 12) + " lỗi khác…";
+            ul.appendChild(more);
+        }
+        sec.appendChild(ul);
+        return sec;
+    }
+
+    function renderAuditComparePanel(data, hooks) {
+        var host = document.getElementById("techAuditCompareHost");
+        if (!host) return;
+        host.hidden = false;
+        host.textContent = "";
+        var card = document.createElement("div");
+        card.className = "tech-audit-compare-card";
+        var delta = data.score_delta;
+        var deltaText =
+            delta == null
+                ? "—"
+                : (delta > 0 ? "+" : "") + Math.round(Number(delta)) + " điểm";
+        var deltaCls =
+            delta == null ? "" : delta > 0 ? "is-up" : delta < 0 ? "is-down" : "is-flat";
+        card.innerHTML =
+            '<div class="tech-compare-head">' +
+            "<h3>So sánh audit</h3>" +
+            '<button type="button" class="tech-compare-close">Đóng</button>' +
+            "</div>" +
+            '<div class="tech-compare-scores">' +
+            '<div class="tech-compare-score"><span class="lbl">Trước</span><strong>' +
+            (data.score_before != null ? Math.round(Number(data.score_before)) : "—") +
+            "</strong></div>" +
+            '<div class="tech-compare-score tech-compare-delta ' +
+            esc(deltaCls) +
+            '"><span class="lbl">Thay đổi</span><strong>' +
+            esc(deltaText) +
+            "</strong></div>" +
+            '<div class="tech-compare-score"><span class="lbl">Sau</span><strong>' +
+            (data.score_after != null ? Math.round(Number(data.score_after)) : "—") +
+            "</strong></div>" +
+            "</div>";
+        var grid = document.createElement("div");
+        grid.className = "tech-compare-grid";
+        grid.appendChild(renderCompareIssueList("Đã sửa", safeArr(data.fixed), "fixed"));
+        grid.appendChild(renderCompareIssueList("Lỗi mới", safeArr(data.new), "new"));
+        grid.appendChild(renderCompareIssueList("Còn lại", safeArr(data.remaining), "remaining"));
+        card.appendChild(grid);
+        host.appendChild(card);
+        var closeBtn = card.querySelector(".tech-compare-close");
+        if (closeBtn) {
+            closeBtn.addEventListener("click", function () {
+                host.hidden = true;
+                host.textContent = "";
+            });
+        }
+    }
+
+    function fetchAuditCompare(baseId, targetId, token, hooks) {
+        var host = document.getElementById("techAuditCompareHost");
+        if (!host || !baseId || !targetId || !token) return;
+        host.hidden = false;
+        host.innerHTML = '<p class="tech-history-loading">Đang so sánh…</p>';
+        fetch(
+            "/api/audit/compare?base_id=" +
+                encodeURIComponent(baseId) +
+                "&target_id=" +
+                encodeURIComponent(targetId),
+            { headers: { Authorization: "Bearer " + token } }
+        )
+            .then(function (r) {
+                return r.json().then(function (d) {
+                    return { ok: r.ok, d: d };
+                });
+            })
+            .then(function (res) {
+                if (!res.ok) throw new Error((res.d && res.d.detail) || "Không so sánh được");
+                renderAuditComparePanel(res.d, hooks);
+            })
+            .catch(function (err) {
+                host.innerHTML =
+                    '<div class="tech-scan-error-inline"><p>' +
+                    esc(String(err.message || err)) +
+                    "</p></div>";
+            });
     }
 
     function renderAuditHistory(hooks) {
@@ -2567,10 +2825,10 @@
                 table.className = "tech-audit-history-table-wrap";
                 table.innerHTML =
                     "<table class=\"tech-audit-history-table\"><thead><tr>" +
-                    "<th>Thời gian</th><th>Domain</th><th>Score</th><th>Critical</th><th>Warning</th><th>Pages</th><th></th>" +
+                    "<th>Thời gian</th><th>Domain</th><th>Score</th><th>Critical</th><th>Warning</th><th>Pages</th><th></th><th></th>" +
                     "</tr></thead><tbody></tbody></table>";
                 var tbody = table.querySelector("tbody");
-                runs.forEach(function (run) {
+                runs.forEach(function (run, idx) {
                     var st = auditRunStats(run);
                     var tr = document.createElement("tr");
                     tr.innerHTML =
@@ -2592,16 +2850,38 @@
                         "<td>" +
                         (st.pages != null ? st.pages : "—") +
                         "</td>" +
-                        '<td><button type="button" class="tech-audit-open-btn">Mở</button></td>';
-                    tr.querySelector("button").addEventListener("click", function () {
+                        '<td><button type="button" class="tech-audit-open-btn">Mở</button></td>' +
+                        '<td><button type="button" class="tech-audit-compare-btn">So sánh</button></td>';
+                    tr.querySelector(".tech-audit-open-btn").addEventListener("click", function () {
                         if (hooks && typeof hooks.openAudit === "function" && run.id) {
                             hooks.openAudit(run.id);
                         }
+                    });
+                    tr.querySelector(".tech-audit-compare-btn").addEventListener("click", function () {
+                        var prev = findPreviousRunForDomain(runs, run);
+                        if (!prev) {
+                            if (typeof global.setMsg === "function") {
+                                global.setMsg("Không có lần quét trước cùng domain để so sánh.", "error");
+                            }
+                            return;
+                        }
+                        fetchAuditCompare(prev.id, run.id, token, hooks);
                     });
                     tbody.appendChild(tr);
                 });
                 host.textContent = "";
                 host.appendChild(table);
+                if (global.__seoCompareAuto && global.__seoCompareTargetId) {
+                    var targetId = global.__seoCompareTargetId;
+                    global.__seoCompareAuto = false;
+                    var targetRun = runs.filter(function (r) {
+                        return String(r.id) === String(targetId);
+                    })[0];
+                    if (targetRun) {
+                        var baseRun = findPreviousRunForDomain(runs, targetRun);
+                        if (baseRun) fetchAuditCompare(baseRun.id, targetRun.id, token, hooks);
+                    }
+                }
             })
             .catch(function (err) {
                 host.innerHTML =
@@ -2691,6 +2971,26 @@
         }, 450);
     }
 
+    function setScanJobProgress(pct, message) {
+        var wrap = document.getElementById("technicalScanProgressWrap");
+        var bar = document.getElementById("technicalScanProgressBar");
+        var label = document.getElementById("technicalScanProgressLabel");
+        if (!wrap || !bar) return;
+        wrap.hidden = false;
+        if (_scanProgressTimer) {
+            clearInterval(_scanProgressTimer);
+            _scanProgressTimer = null;
+        }
+        var n = Math.max(1, Math.min(96, Number(pct) || 0));
+        bar.style.width = n.toFixed(1) + "%";
+        if (label && message) label.textContent = String(message);
+        var step = Math.min(SCAN_STEPS.length - 1, Math.floor(n / (100 / SCAN_STEPS.length)));
+        if (step !== _scanStepIndex) {
+            _scanStepIndex = step;
+            updateScanSteps(step);
+        }
+    }
+
     function hideScanProgress(completedOk) {
         if (_scanProgressTimer) {
             clearInterval(_scanProgressTimer);
@@ -2773,11 +3073,14 @@
         renderPriorityIssues: renderPriorityIssues,
         renderIssueGroup: renderIssueGroup,
         renderAuditHistory: renderAuditHistory,
+        renderAuditComparePanel: renderAuditComparePanel,
+        fetchAuditCompare: fetchAuditCompare,
         renderOverviewV2Summary: renderOverviewV2Summary,
         renderPassedCollapsible: renderPassedCollapsible,
         getTopPriorityIssues: getTopPriorityIssues,
         sortPriorityIssues: sortPriorityIssues,
         renderOverviewPriorityTop: renderOverviewPriorityTop,
+        buildSimpleIssueTable: buildSimpleIssueTable,
         renderGscTab: renderGscTab,
         resolveGscViewState: resolveGscViewState,
         buildGscLowCtrRows: buildGscLowCtrRows,
@@ -2789,6 +3092,7 @@
         issueMatchesV2Filters: issueMatchesV2Filters,
         getMaxPages: getMaxPages,
         showScanProgress: showScanProgress,
+        setScanJobProgress: setScanJobProgress,
         hideScanProgress: hideScanProgress,
         showScanError: showScanError,
         hideScanError: hideScanError,

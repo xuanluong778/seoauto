@@ -1,0 +1,1406 @@
+{
+  "snapshot_at": "2026-09-06T08:06:58.354253+00:00",
+  "base": "http://127.0.0.1:8899",
+  "duration_sec": 15.0,
+  "read_probe": {
+    "paths": {
+      "auth_me": 31.5,
+      "audit_mine": 110.0,
+      "report": 25.7,
+      "pricing": 24.3,
+      "projects": 22.6
+    },
+    "max_p95_ms": 110.0,
+    "gate": "PASS"
+  },
+  "read_p95_ms": 110.0,
+  "loads": [
+    {
+      "concurrency": 100,
+      "duration_sec": 15.0,
+      "requests": 570,
+      "rps": 38.0,
+      "error_pct": 0.0,
+      "p50_ms": 267.9,
+      "p95_ms": 5537.8,
+      "p99_ms": 7153.4,
+      "server_p95_ms": 740.5,
+      "read_flow_p95_ms": 7298.3,
+      "endpoints": {
+        "projects": {
+          "count": 42,
+          "p95_ms": 6580.1,
+          "error_pct": 0.0
+        },
+        "audit_mine": {
+          "count": 54,
+          "p95_ms": 5245.7,
+          "error_pct": 0.0
+        },
+        "content_ai_projects": {
+          "count": 54,
+          "p95_ms": 5872.2,
+          "error_pct": 0.0
+        },
+        "auth_me": {
+          "count": 75,
+          "p95_ms": 7298.3,
+          "error_pct": 0.0
+        },
+        "report": {
+          "count": 46,
+          "p95_ms": 458.0,
+          "error_pct": 0.0
+        },
+        "pricing": {
+          "count": 46,
+          "p95_ms": 466.3,
+          "error_pct": 0.0
+        },
+        "credits_preview": {
+          "count": 52,
+          "p95_ms": 787.9,
+          "error_pct": 0.0
+        },
+        "credits_ledger": {
+          "count": 32,
+          "p95_ms": 770.5,
+          "error_pct": 0.0
+        },
+        "credit_quote": {
+          "count": 39,
+          "p95_ms": 454.0,
+          "error_pct": 0.0
+        },
+        "duplicate_ping": {
+          "count": 29,
+          "p95_ms": 223.6,
+          "error_pct": 0.0
+        },
+        "technical_audit_job": {
+          "count": 17,
+          "p95_ms": 421.4,
+          "error_pct": 0.0
+        },
+        "duplicate_check": {
+          "count": 37,
+          "p95_ms": 1814.8,
+          "error_pct": 0.0
+        },
+        "bulk_jobs_ping": {
+          "count": 26,
+          "p95_ms": 266.0,
+          "error_pct": 0.0
+        },
+        "wordpress_test_connection": {
+          "count": 21,
+          "p95_ms": 2883.7,
+          "error_pct": 0.0
+        }
+      },
+      "status_counts": {
+        "200": 553,
+        "403": 17
+      },
+      "baseline_sample": {
+        "ts": 1788681784.7596114,
+        "ram_used_mb": 7207.8,
+        "process_rss_mb": 337.7,
+        "cpu_pct": 2.4,
+        "db_connections": 20,
+        "redis_memory_mb": 4.8,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "queued_count": 0,
+        "running_count": 0,
+        "job_wait_p95_ms": null,
+        "workers_online": 6,
+        "http_p95_ms": 590.7902086881222
+      },
+      "metrics_after": {
+        "ts": 1788681811,
+        "http": {
+          "sample_count": 245,
+          "total_requests": 245,
+          "p50_ms": 89.06435099197552,
+          "p95_ms": 740.4523249948395,
+          "p99_ms": 2699.751671401319,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 238,
+            "500": 1,
+            "403": 6
+          },
+          "top_paths": {
+            "GET /auth/me": 48,
+            "GET /api/audit/mine": 30,
+            "GET /api/report": 28,
+            "POST /api/credits/preview": 27,
+            "GET /content-ai/projects": 22,
+            "GET /pricing": 21,
+            "GET /projects": 15,
+            "POST /content-ai/duplicate-check": 11,
+            "GET /auth/credits/ledger": 8,
+            "POST /content-ai/wordpress/test-connection": 8,
+            "GET /content-ai/duplicate-check/ping": 7,
+            "GET /content-ai/bulk-jobs/ping": 7,
+            "POST /analyze/technical/jobs": 6,
+            "POST /content-ai/credit-quote": 5,
+            "GET /api/saas/me": 1,
+            "GET /static/css/account-billing.css": 1
+          },
+          "uptime_sec": 373
+        },
+        "host": {
+          "cpu_pct": 0.0,
+          "ram_used_mb": 7319.2,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 22.8
+        },
+        "process": {
+          "process_rss_mb": 324.9
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_connection_budget": {
+          "role": "web",
+          "pgbouncer": true,
+          "client_pool": "NullPool",
+          "pgbouncer_default_pool_size": 25
+        },
+        "db_connections": {
+          "pg": true,
+          "connections_total": 19,
+          "connections_active": 1
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 3
+        },
+        "redis": {
+          "configured": true,
+          "ping_ms": 1.58,
+          "memory_mb": 4.5,
+          "keys": 4054,
+          "queue_depth": {
+            "content_ai": 0,
+            "wordpress": 0,
+            "crawl": 0,
+            "email": 0,
+            "embedding": 0,
+            "default": 0,
+            "celery": 0
+          },
+          "max_depth": 0
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "celery_beat": {
+          "beat_lock_ok": true,
+          "automation_lock_ttl": 238,
+          "marketing_lock_ttl": 238
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "llm": {
+          "calls": 0,
+          "timeouts": 0,
+          "rate_limited_429": 0,
+          "server_errors_5xx": 0,
+          "tokens_approx": 0,
+          "last_error_at": null
+        },
+        "auth": {
+          "401_count": 0,
+          "403_count": 0,
+          "window_start": 1788681438
+        },
+        "domain_failures": {
+          "content_ai_failed_1h": 0,
+          "jobs_failed_1h": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        },
+        "slo": {
+          "api_p95_ms": 1500.0,
+          "api_5xx_rate_pct": 1.0,
+          "queue_depth_max": 500,
+          "job_wait_p95_ms": 120000.0,
+          "db_pool_util_pct": 90.0,
+          "redis_memory_mb_max": 512.0,
+          "celery_workers_min": 1,
+          "auth_401_spike": 200
+        },
+        "alerts": [],
+        "alert_recovery": {
+          "api_5xx_rate": false,
+          "api_p95": false,
+          "queue_backlog": false,
+          "queue_wait": false,
+          "worker_down": false,
+          "db_unhealthy": false,
+          "redis_unhealthy": false,
+          "auth_401_spike": false
+        }
+      },
+      "system_after": {
+        "ts": 1788681810.7991161,
+        "redis_keys": 4054,
+        "redis_memory_mb": 4.5,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "db_connections": 20,
+        "pm2_workers": [
+          {
+            "name": "seoauto-web",
+            "status": "online",
+            "restarts": 16,
+            "memory_mb": 27.8
+          },
+          {
+            "name": "seoauto-worker-content-ai",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.7
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.2
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "seoauto-worker-email",
+            "status": "online",
+            "restarts": 5,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "seoauto-worker-default",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.5
+          },
+          {
+            "name": "seoauto-worker-embedding",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "worker",
+            "status": "online",
+            "restarts": 0,
+            "memory_mb": 75.9
+          }
+        ]
+      },
+      "gate": "FAIL",
+      "evaluated_p95_ms": 740.5,
+      "evaluated_error_pct": 0.0,
+      "final_gate": "PASS"
+    },
+    {
+      "concurrency": 250,
+      "duration_sec": 15.0,
+      "requests": 167,
+      "rps": 11.13,
+      "error_pct": 0.0,
+      "p50_ms": 255.1,
+      "p95_ms": 17204.6,
+      "p99_ms": 17691.9,
+      "server_p95_ms": 754.5,
+      "read_flow_p95_ms": 17742.8,
+      "endpoints": {
+        "projects": {
+          "count": 16,
+          "p95_ms": 16803.0,
+          "error_pct": 0.0
+        },
+        "auth_me": {
+          "count": 24,
+          "p95_ms": 17742.8,
+          "error_pct": 0.0
+        },
+        "content_ai_projects": {
+          "count": 20,
+          "p95_ms": 16442.4,
+          "error_pct": 0.0
+        },
+        "report": {
+          "count": 16,
+          "p95_ms": 156.0,
+          "error_pct": 0.0
+        },
+        "pricing": {
+          "count": 12,
+          "p95_ms": 347.7,
+          "error_pct": 0.0
+        },
+        "credits_preview": {
+          "count": 16,
+          "p95_ms": 337.8,
+          "error_pct": 0.0
+        },
+        "credit_quote": {
+          "count": 12,
+          "p95_ms": 430.3,
+          "error_pct": 0.0
+        },
+        "credits_ledger": {
+          "count": 8,
+          "p95_ms": 199.2,
+          "error_pct": 0.0
+        },
+        "duplicate_ping": {
+          "count": 4,
+          "p95_ms": 55.4,
+          "error_pct": 0.0
+        },
+        "technical_audit_job": {
+          "count": 3,
+          "p95_ms": 337.2,
+          "error_pct": 0.0
+        },
+        "duplicate_check": {
+          "count": 5,
+          "p95_ms": 463.3,
+          "error_pct": 0.0
+        },
+        "bulk_jobs_ping": {
+          "count": 4,
+          "p95_ms": 80.1,
+          "error_pct": 0.0
+        },
+        "audit_mine": {
+          "count": 20,
+          "p95_ms": 15770.1,
+          "error_pct": 0.0
+        },
+        "wordpress_test_connection": {
+          "count": 7,
+          "p95_ms": 2483.3,
+          "error_pct": 0.0
+        }
+      },
+      "status_counts": {
+        "200": 164,
+        "403": 3
+      },
+      "baseline_sample": {
+        "ts": 1788681821.1339858,
+        "ram_used_mb": 7326.3,
+        "process_rss_mb": 315.2,
+        "cpu_pct": 20.5,
+        "db_connections": 18,
+        "redis_memory_mb": 4.6,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "queued_count": 0,
+        "running_count": 0,
+        "job_wait_p95_ms": null,
+        "workers_online": 6,
+        "http_p95_ms": 2233.6278141941875
+      },
+      "metrics_after": {
+        "ts": 1788681850,
+        "http": {
+          "sample_count": 285,
+          "total_requests": 285,
+          "p50_ms": 78.27980403089896,
+          "p95_ms": 754.5150950085374,
+          "p99_ms": 2591.990379008937,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 277,
+            "500": 1,
+            "403": 7
+          },
+          "top_paths": {
+            "GET /auth/me": 53,
+            "POST /api/credits/preview": 35,
+            "GET /api/report": 32,
+            "GET /api/audit/mine": 31,
+            "GET /pricing": 24,
+            "GET /content-ai/projects": 23,
+            "GET /projects": 16,
+            "POST /content-ai/duplicate-check": 11,
+            "POST /content-ai/wordpress/test-connection": 11,
+            "POST /content-ai/credit-quote": 11,
+            "GET /auth/credits/ledger": 10,
+            "GET /content-ai/bulk-jobs/ping": 10,
+            "GET /content-ai/duplicate-check/ping": 9,
+            "POST /analyze/technical/jobs": 7,
+            "GET /api/saas/me": 1,
+            "GET /static/css/account-billing.css": 1
+          },
+          "uptime_sec": 412
+        },
+        "host": {
+          "cpu_pct": 0.0,
+          "ram_used_mb": 7371.4,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 22.9
+        },
+        "process": {
+          "process_rss_mb": 325.2
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_connection_budget": {
+          "role": "web",
+          "pgbouncer": true,
+          "client_pool": "NullPool",
+          "pgbouncer_default_pool_size": 25
+        },
+        "db_connections": {
+          "pg": true,
+          "connections_total": 18,
+          "connections_active": 1
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 4
+        },
+        "redis": {
+          "configured": true,
+          "ping_ms": 1.62,
+          "memory_mb": 4.5,
+          "keys": 4059,
+          "queue_depth": {
+            "content_ai": 0,
+            "wordpress": 0,
+            "crawl": 0,
+            "email": 0,
+            "embedding": 0,
+            "default": 0,
+            "celery": 0
+          },
+          "max_depth": 0
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "celery_beat": {
+          "beat_lock_ok": true,
+          "automation_lock_ttl": 198,
+          "marketing_lock_ttl": 198
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "llm": {
+          "calls": 0,
+          "timeouts": 0,
+          "rate_limited_429": 0,
+          "server_errors_5xx": 0,
+          "tokens_approx": 0,
+          "last_error_at": null
+        },
+        "auth": {
+          "401_count": 0,
+          "403_count": 0,
+          "window_start": 1788681438
+        },
+        "domain_failures": {
+          "content_ai_failed_1h": 0,
+          "jobs_failed_1h": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        },
+        "slo": {
+          "api_p95_ms": 1500.0,
+          "api_5xx_rate_pct": 1.0,
+          "queue_depth_max": 500,
+          "job_wait_p95_ms": 120000.0,
+          "db_pool_util_pct": 90.0,
+          "redis_memory_mb_max": 512.0,
+          "celery_workers_min": 1,
+          "auth_401_spike": 200
+        },
+        "alerts": [],
+        "alert_recovery": {
+          "api_5xx_rate": false,
+          "api_p95": false,
+          "queue_backlog": false,
+          "queue_wait": false,
+          "worker_down": false,
+          "db_unhealthy": false,
+          "redis_unhealthy": false,
+          "auth_401_spike": false
+        }
+      },
+      "system_after": {
+        "ts": 1788681850.1622503,
+        "redis_keys": 4059,
+        "redis_memory_mb": 4.5,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "db_connections": 19,
+        "pm2_workers": [
+          {
+            "name": "seoauto-web",
+            "status": "online",
+            "restarts": 16,
+            "memory_mb": 27.8
+          },
+          {
+            "name": "seoauto-worker-content-ai",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.7
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.2
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "seoauto-worker-email",
+            "status": "online",
+            "restarts": 5,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "seoauto-worker-default",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.5
+          },
+          {
+            "name": "seoauto-worker-embedding",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "worker",
+            "status": "online",
+            "restarts": 0,
+            "memory_mb": 75.9
+          }
+        ]
+      },
+      "gate": "PASS",
+      "evaluated_p95_ms": 754.5,
+      "evaluated_error_pct": 0.0,
+      "final_gate": "PASS"
+    },
+    {
+      "concurrency": 500,
+      "duration_sec": 15.0,
+      "requests": 174,
+      "rps": 11.6,
+      "error_pct": 0.0,
+      "p50_ms": 312.4,
+      "p95_ms": 34411.7,
+      "p99_ms": 34811.5,
+      "server_p95_ms": 755.9,
+      "read_flow_p95_ms": 34850.5,
+      "endpoints": {
+        "auth_me": {
+          "count": 24,
+          "p95_ms": 34850.5,
+          "error_pct": 0.0
+        },
+        "report": {
+          "count": 16,
+          "p95_ms": 130.7,
+          "error_pct": 0.0
+        },
+        "pricing": {
+          "count": 12,
+          "p95_ms": 148.8,
+          "error_pct": 0.0
+        },
+        "projects": {
+          "count": 16,
+          "p95_ms": 33846.2,
+          "error_pct": 0.0
+        },
+        "credits_preview": {
+          "count": 16,
+          "p95_ms": 455.5,
+          "error_pct": 0.0
+        },
+        "content_ai_projects": {
+          "count": 20,
+          "p95_ms": 33578.4,
+          "error_pct": 0.0
+        },
+        "audit_mine": {
+          "count": 20,
+          "p95_ms": 33009.9,
+          "error_pct": 0.0
+        },
+        "credits_ledger": {
+          "count": 10,
+          "p95_ms": 418.8,
+          "error_pct": 0.0
+        },
+        "duplicate_ping": {
+          "count": 8,
+          "p95_ms": 289.4,
+          "error_pct": 0.0
+        },
+        "credit_quote": {
+          "count": 12,
+          "p95_ms": 457.1,
+          "error_pct": 0.0
+        },
+        "bulk_jobs_ping": {
+          "count": 4,
+          "p95_ms": 142.6,
+          "error_pct": 0.0
+        },
+        "technical_audit_job": {
+          "count": 3,
+          "p95_ms": 254.6,
+          "error_pct": 0.0
+        },
+        "duplicate_check": {
+          "count": 6,
+          "p95_ms": 4842.5,
+          "error_pct": 0.0
+        },
+        "wordpress_test_connection": {
+          "count": 7,
+          "p95_ms": 2570.6,
+          "error_pct": 0.0
+        }
+      },
+      "status_counts": {
+        "200": 171,
+        "403": 3
+      },
+      "baseline_sample": {
+        "ts": 1788681860.759627,
+        "ram_used_mb": 7355.6,
+        "process_rss_mb": 358.5,
+        "cpu_pct": 2.5,
+        "db_connections": 17,
+        "redis_memory_mb": 4.5,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "queued_count": 0,
+        "running_count": 0,
+        "job_wait_p95_ms": null,
+        "workers_online": 6,
+        "http_p95_ms": 544.8868889943697
+      },
+      "metrics_after": {
+        "ts": 1788681910,
+        "http": {
+          "sample_count": 323,
+          "total_requests": 323,
+          "p50_ms": 76.8813649774529,
+          "p95_ms": 755.9417550102805,
+          "p99_ms": 2519.4969365431425,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 315,
+            "500": 1,
+            "403": 7
+          },
+          "top_paths": {
+            "GET /auth/me": 63,
+            "POST /api/credits/preview": 39,
+            "GET /api/report": 36,
+            "GET /api/audit/mine": 31,
+            "GET /pricing": 25,
+            "GET /content-ai/projects": 23,
+            "GET /projects": 18,
+            "POST /content-ai/wordpress/test-connection": 13,
+            "POST /content-ai/credit-quote": 13,
+            "POST /content-ai/duplicate-check": 12,
+            "GET /content-ai/bulk-jobs/ping": 11,
+            "GET /auth/credits/ledger": 10,
+            "GET /content-ai/duplicate-check/ping": 9,
+            "POST /analyze/technical/jobs": 7,
+            "GET /api/saas/me": 6,
+            "GET /api/trial/status": 2,
+            "GET /api/saas/payment-orders/SEOA202609066/status": 2,
+            "GET /static/css/account-billing.css": 1,
+            "GET /account-billing": 1,
+            "GET /api/saas/billing-catalog": 1
+          },
+          "uptime_sec": 472
+        },
+        "host": {
+          "cpu_pct": 0.0,
+          "ram_used_mb": 7408.4,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 23.0
+        },
+        "process": {
+          "process_rss_mb": 325.4
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_connection_budget": {
+          "role": "web",
+          "pgbouncer": true,
+          "client_pool": "NullPool",
+          "pgbouncer_default_pool_size": 25
+        },
+        "db_connections": {
+          "pg": true,
+          "connections_total": 23,
+          "connections_active": 1
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 3
+        },
+        "redis": {
+          "configured": true,
+          "ping_ms": 1.78,
+          "memory_mb": 4.5,
+          "keys": 4063,
+          "queue_depth": {
+            "content_ai": 0,
+            "wordpress": 0,
+            "crawl": 0,
+            "email": 0,
+            "embedding": 0,
+            "default": 0,
+            "celery": 0
+          },
+          "max_depth": 0
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 0,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 0,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "celery_beat": {
+          "beat_lock_ok": true,
+          "automation_lock_ttl": 138,
+          "marketing_lock_ttl": 138
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 0,
+          "bulk_slot_keys": 0
+        },
+        "llm": {
+          "calls": 0,
+          "timeouts": 0,
+          "rate_limited_429": 0,
+          "server_errors_5xx": 0,
+          "tokens_approx": 0,
+          "last_error_at": null
+        },
+        "auth": {
+          "401_count": 0,
+          "403_count": 0,
+          "window_start": 1788681438
+        },
+        "domain_failures": {
+          "content_ai_failed_1h": 0,
+          "jobs_failed_1h": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        },
+        "slo": {
+          "api_p95_ms": 1500.0,
+          "api_5xx_rate_pct": 1.0,
+          "queue_depth_max": 500,
+          "job_wait_p95_ms": 120000.0,
+          "db_pool_util_pct": 90.0,
+          "redis_memory_mb_max": 512.0,
+          "celery_workers_min": 1,
+          "auth_401_spike": 200
+        },
+        "alerts": [],
+        "alert_recovery": {
+          "api_5xx_rate": false,
+          "api_p95": false,
+          "queue_backlog": false,
+          "queue_wait": false,
+          "worker_down": false,
+          "db_unhealthy": false,
+          "redis_unhealthy": false,
+          "auth_401_spike": false
+        }
+      },
+      "system_after": {
+        "ts": 1788681910.4858315,
+        "redis_keys": 4063,
+        "redis_memory_mb": 4.5,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "db_connections": 24,
+        "pm2_workers": [
+          {
+            "name": "seoauto-web",
+            "status": "online",
+            "restarts": 16,
+            "memory_mb": 27.8
+          },
+          {
+            "name": "seoauto-worker-content-ai",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.7
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.2
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "seoauto-worker-email",
+            "status": "online",
+            "restarts": 5,
+            "memory_mb": 121.5
+          },
+          {
+            "name": "seoauto-worker-default",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.5
+          },
+          {
+            "name": "seoauto-worker-embedding",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "worker",
+            "status": "online",
+            "restarts": 0,
+            "memory_mb": 75.9
+          }
+        ]
+      },
+      "gate": "PASS",
+      "evaluated_p95_ms": 755.9,
+      "evaluated_error_pct": 0.0,
+      "final_gate": "PASS"
+    },
+    {
+      "concurrency": 1000,
+      "duration_sec": 15.0,
+      "requests": 170,
+      "rps": 11.33,
+      "error_pct": 0.0,
+      "p50_ms": 144.8,
+      "p95_ms": 70449.9,
+      "p99_ms": 71164.3,
+      "server_p95_ms": 789.9,
+      "read_flow_p95_ms": 71202.5,
+      "endpoints": {
+        "projects": {
+          "count": 16,
+          "p95_ms": 70187.3,
+          "error_pct": 0.0
+        },
+        "report": {
+          "count": 16,
+          "p95_ms": 317.8,
+          "error_pct": 0.0
+        },
+        "audit_mine": {
+          "count": 20,
+          "p95_ms": 69201.3,
+          "error_pct": 0.0
+        },
+        "auth_me": {
+          "count": 24,
+          "p95_ms": 71202.5,
+          "error_pct": 0.0
+        },
+        "pricing": {
+          "count": 12,
+          "p95_ms": 277.2,
+          "error_pct": 0.0
+        },
+        "credits_preview": {
+          "count": 16,
+          "p95_ms": 256.7,
+          "error_pct": 0.0
+        },
+        "credit_quote": {
+          "count": 12,
+          "p95_ms": 172.9,
+          "error_pct": 0.0
+        },
+        "credits_ledger": {
+          "count": 10,
+          "p95_ms": 98.1,
+          "error_pct": 0.0
+        },
+        "duplicate_ping": {
+          "count": 5,
+          "p95_ms": 59.9,
+          "error_pct": 0.0
+        },
+        "duplicate_check": {
+          "count": 5,
+          "p95_ms": 4422.0,
+          "error_pct": 0.0
+        },
+        "technical_audit_job": {
+          "count": 3,
+          "p95_ms": 81.3,
+          "error_pct": 0.0
+        },
+        "bulk_jobs_ping": {
+          "count": 4,
+          "p95_ms": 27.0,
+          "error_pct": 0.0
+        },
+        "content_ai_projects": {
+          "count": 20,
+          "p95_ms": 69816.9,
+          "error_pct": 0.0
+        },
+        "wordpress_test_connection": {
+          "count": 7,
+          "p95_ms": 2359.8,
+          "error_pct": 0.0
+        }
+      },
+      "status_counts": {
+        "200": 167,
+        "403": 3
+      },
+      "baseline_sample": {
+        "ts": 1788681921.1445944,
+        "ram_used_mb": 7407.3,
+        "process_rss_mb": 325.4,
+        "cpu_pct": 0.0,
+        "db_connections": 22,
+        "redis_memory_mb": 4.6,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "queued_count": 0,
+        "running_count": 0,
+        "job_wait_p95_ms": null,
+        "workers_online": 6,
+        "http_p95_ms": 751.6617750050495
+      },
+      "metrics_after": {
+        "ts": 1788682006,
+        "http": {
+          "sample_count": 369,
+          "total_requests": 369,
+          "p50_ms": 70.63652796205133,
+          "p95_ms": 789.9026842322182,
+          "p99_ms": 2458.047365024685,
+          "error_5xx": 1,
+          "error_429": 0,
+          "status_counts": {
+            "200": 357,
+            "500": 1,
+            "403": 7,
+            "304": 4
+          },
+          "top_paths": {
+            "GET /auth/me": 69,
+            "POST /api/credits/preview": 43,
+            "GET /api/report": 40,
+            "GET /api/audit/mine": 33,
+            "GET /pricing": 28,
+            "GET /content-ai/projects": 25,
+            "GET /projects": 23,
+            "POST /content-ai/wordpress/test-connection": 15,
+            "POST /content-ai/credit-quote": 14,
+            "POST /content-ai/duplicate-check": 12,
+            "GET /content-ai/bulk-jobs/ping": 12,
+            "GET /auth/credits/ledger": 11,
+            "GET /content-ai/duplicate-check/ping": 10,
+            "POST /analyze/technical/jobs": 7,
+            "GET /api/saas/me": 7,
+            "GET /api/trial/status": 3,
+            "GET /api/saas/payment-orders/SEOA202609066/status": 2,
+            "GET /api/saas/payment-orders/SEOA202609067/status": 2,
+            "GET /static/css/account-billing.css": 1,
+            "GET /account-billing": 1
+          },
+          "uptime_sec": 568
+        },
+        "host": {
+          "cpu_pct": 0.0,
+          "ram_used_mb": 7503.9,
+          "ram_total_mb": 32143.6,
+          "ram_used_pct": 23.3
+        },
+        "process": {
+          "process_rss_mb": 325.4
+        },
+        "db_pool": {
+          "pool_size": null,
+          "checked_in": null,
+          "checked_out": null,
+          "overflow": null
+        },
+        "db_connection_budget": {
+          "role": "web",
+          "pgbouncer": true,
+          "client_pool": "NullPool",
+          "pgbouncer_default_pool_size": 25
+        },
+        "db_connections": {
+          "pg": true,
+          "connections_total": 23,
+          "connections_active": 1
+        },
+        "db_probe": {
+          "ok": true,
+          "latency_ms": 3
+        },
+        "redis": {
+          "configured": true,
+          "ping_ms": 1.77,
+          "memory_mb": 4.5,
+          "keys": 4073,
+          "queue_depth": {
+            "content_ai": 0,
+            "wordpress": 0,
+            "crawl": 0,
+            "email": 0,
+            "embedding": 0,
+            "default": 0,
+            "celery": 0
+          },
+          "max_depth": 0
+        },
+        "redis_probe": {
+          "ok": true,
+          "latency_ms": 0
+        },
+        "queue": {
+          "queued_count": 0,
+          "running_count": 1,
+          "queued_by_type": {},
+          "job_wait_p95_ms": null,
+          "oldest_queued_job_ids": []
+        },
+        "celery": {
+          "workers_online": 6,
+          "active_tasks": 1,
+          "reserved_tasks": 0,
+          "ping_ok": true
+        },
+        "celery_beat": {
+          "beat_lock_ok": true,
+          "automation_lock_ttl": 43,
+          "marketing_lock_ttl": 43
+        },
+        "fairness": {
+          "redis": true,
+          "technical_slot_keys": 2,
+          "bulk_slot_keys": 0
+        },
+        "llm": {
+          "calls": 0,
+          "timeouts": 0,
+          "rate_limited_429": 0,
+          "server_errors_5xx": 0,
+          "tokens_approx": 0,
+          "last_error_at": null
+        },
+        "auth": {
+          "401_count": 0,
+          "403_count": 0,
+          "window_start": 1788681438
+        },
+        "domain_failures": {
+          "content_ai_failed_1h": 0,
+          "jobs_failed_1h": 0
+        },
+        "env": {
+          "web_workers": "8",
+          "celery_concurrency": "1",
+          "db_pool_size": "10"
+        },
+        "slo": {
+          "api_p95_ms": 1500.0,
+          "api_5xx_rate_pct": 1.0,
+          "queue_depth_max": 500,
+          "job_wait_p95_ms": 120000.0,
+          "db_pool_util_pct": 90.0,
+          "redis_memory_mb_max": 512.0,
+          "celery_workers_min": 1,
+          "auth_401_spike": 200
+        },
+        "alerts": [],
+        "alert_recovery": {
+          "api_5xx_rate": false,
+          "api_p95": false,
+          "queue_backlog": false,
+          "queue_wait": false,
+          "worker_down": false,
+          "db_unhealthy": false,
+          "redis_unhealthy": false,
+          "auth_401_spike": false
+        }
+      },
+      "system_after": {
+        "ts": 1788682005.7950842,
+        "redis_keys": 4073,
+        "redis_memory_mb": 4.5,
+        "queue_depth": {
+          "content_ai": 0,
+          "wordpress": 0,
+          "crawl": 0,
+          "email": 0,
+          "embedding": 0,
+          "default": 0,
+          "celery": 0
+        },
+        "db_connections": 24,
+        "pm2_workers": [
+          {
+            "name": "seoauto-web",
+            "status": "online",
+            "restarts": 16,
+            "memory_mb": 27.8
+          },
+          {
+            "name": "seoauto-worker-content-ai",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.7
+          },
+          {
+            "name": "seoauto-worker-wordpress",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.2
+          },
+          {
+            "name": "seoauto-worker-crawl",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "seoauto-worker-email",
+            "status": "online",
+            "restarts": 5,
+            "memory_mb": 121.5
+          },
+          {
+            "name": "seoauto-worker-default",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.5
+          },
+          {
+            "name": "seoauto-worker-embedding",
+            "status": "online",
+            "restarts": 2,
+            "memory_mb": 121.3
+          },
+          {
+            "name": "worker",
+            "status": "online",
+            "restarts": 0,
+            "memory_mb": 75.9
+          }
+        ]
+      },
+      "gate": "PASS",
+      "evaluated_p95_ms": 789.9,
+      "evaluated_error_pct": 0.0,
+      "final_gate": "PASS"
+    }
+  ],
+  "before": {
+    "ram_used_mb": 7192.0,
+    "cpu_pct": 2.5,
+    "db_connections": {
+      "pg": true,
+      "connections_total": 21,
+      "connections_active": 1
+    },
+    "redis_memory_mb": 4.5,
+    "queue_depth": {
+      "content_ai": 0,
+      "wordpress": 0,
+      "crawl": 0,
+      "email": 0,
+      "embedding": 0,
+      "default": 0,
+      "celery": 0
+    },
+    "queued_count": 0,
+    "workers_online": 6,
+    "http_p95_ms": 511.8894521845469
+  },
+  "after": {
+    "ram_used_mb": 7480.3,
+    "cpu_pct": 0.0,
+    "db_connections": {
+      "pg": true,
+      "connections_total": 21,
+      "connections_active": 1
+    },
+    "redis_memory_mb": 4.5,
+    "queue_depth": {
+      "content_ai": 0,
+      "wordpress": 0,
+      "crawl": 0,
+      "email": 0,
+      "embedding": 0,
+      "default": 0,
+      "celery": 0
+    },
+    "queued_count": 0,
+    "workers_online": 6,
+    "http_p95_ms": 789.9026842322182
+  },
+  "gates": {
+    "LOAD_100": "PASS",
+    "LOAD_250": "PASS",
+    "LOAD_500": "PASS",
+    "LOAD_1000": "PASS",
+    "READ_P95": "PASS",
+    "QUEUE_DRAIN": "PASS",
+    "NO_OOM": "PASS"
+  },
+  "SAAS_LOAD": "PASS"
+}

@@ -302,6 +302,20 @@
             });
         }
 
+        // Per-model image cost override (Nano Banana 1–5 credit/ảnh × số ảnh)
+        if (opts.creditCost != null && Number(opts.creditCost) >= 0) {
+            preview.credit_cost = Number(opts.creditCost);
+            preview.credit_balance_after = Math.max(
+                0,
+                Number(preview.credit_balance || 0) - preview.credit_cost
+            );
+            preview.sufficient_credits =
+                !preview.credits_enabled ||
+                preview.credit_cost <= 0 ||
+                Number(preview.credit_balance || 0) >= preview.credit_cost;
+            if (opts.label) preview.label = opts.label;
+        }
+
         if (!preview.credits_enabled || preview.credit_cost <= 0) {
             return true;
         }
@@ -334,7 +348,9 @@
             return false;
         }
 
-        return waitConfirm(preview, opts);
+        // Đủ credit: không hiện popup "Xác nhận sử dụng credit" — backend vẫn trừ credit khi chạy.
+        // Chỉ chặn qua showBlockedModal khi hết quota / không đủ credit ở trên.
+        return true;
     };
 
     /** Preset actions cho các module */

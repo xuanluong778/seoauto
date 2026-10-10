@@ -1,7 +1,8 @@
 import logging
 import os
 import re
-from collections import defaultdict
+import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urlunparse
 
@@ -23,11 +24,28 @@ from app.services.crawler import (
     parse_sitemap_xml,
 )
 from app.services.index_crawl_rules import (
+    build_crawled_url_robots_blocked_issues,
     build_sitemap_indexability_issues,
+    classify_http_issue_type,
+    googlebot_disallow_all_agents,
     internal_link_issue_message,
     internal_link_issue_type,
+    keep_evidenced_issues,
+    redirect_hops,
+    redirect_loop_slice,
     robots_fetch_issue_type,
     sitemap_missing_issue_type,
+)
+from app.services.onpage_internal_rules import (
+    build_duplicate_content_issues,
+    build_graph_link_issues,
+    build_internal_redirect_issue,
+    dedupe_technical_issues,
+    evaluate_hreflang_page,
+)
+from app.services.perf_security_schema_rules import (
+    build_perf_security_schema_issues,
+    fetch_crux_origin,
 )
 from app.services.audit_debug import AuditDebugSession
 from app.services.parser import parse_page, parse_page_seo_data
@@ -61,6 +79,7 @@ def _tech_issue(
     }
     if url:
         d["url"] = url
+        d["affected_urls"] = [url]
     if remediation:
         d["remediation"] = remediation
     if confidence is not None:
@@ -85,9 +104,22 @@ MAX_INTERNAL_LINK_CHECKS = 220
 _INTERNAL_LINK_WORKERS = 8
 
 
+def _url_match_key(url: str) -> str:
+    """Khóa so khớp URL (slash / encoding) — tránh báo broken khi crawl đã 200."""
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    try:
+        from app.services.seo_normalize import normalize_url_safe
+
+        return normalize_url_safe(raw).strip().lower().rstrip("/")
+    except Exception:
+        return raw.lower().rstrip("/")
+
+
 def _merge_internal_link_checks_with_crawl(pages: list[dict], results: list[dict]) -> list[dict]:
     """Nếu URL đã crawl được 200 + HTML nhưng GET kiểm tra lỗi (HTTP 0), tin crawl — tránh báo sai."""
-    ok_urls: set[str] = set()
+    ok_keys: set[str] = set()
     for page in pages:
         u = page.get("url")
         if not u or not isinstance(u, str):
@@ -97,12 +129,14 @@ def _merge_internal_link_checks_with_crawl(pages: list[dict], results: list[dict
         html = page.get("html")
         if not isinstance(html, str) or not html.strip():
             continue
-        ok_urls.add(u)
+        key = _url_match_key(u)
+        if key:
+            ok_keys.add(key)
 
     merged: list[dict] = []
     for r in results:
         u = r.get("url") or ""
-        if u in ok_urls and r.get("status") == 0:
+        if _url_match_key(u) in ok_keys and r.get("status") == 0:
             merged.append(
                 {
                     **r,
@@ -157,6 +191,13 @@ def _analyze_robots_txt_detailed(
                     "medium",
                     f"Dòng Sitemap trong robots.txt không phải URL hợp lệ: «{raw_sm}».",
                     url=robots.get("url"),
+                    confidence=0.9,
+                    evidence=[
+                        {"kind": "robots_txt", "url": robots.get("url")},
+                        {"kind": "sitemap_line", "value": raw_sm},
+                    ],
+                    source="robots",
+                    detected_from=["robots.txt", "Sitemap:"],
                     remediation=(
                         "Đặt URL tuyệt đối dạng https://ten-mien-cua-ban.com/sitemap_index.xml. "
                         "Không để khoảng trắng thừa; chỉ một URL mỗi dòng Sitemap:."
@@ -175,6 +216,15 @@ def _analyze_robots_txt_detailed(
                     f"(host sitemap: {pn.netloc or '—'}, host site: {site_netloc}). "
                     "Ví dụ: site thegioidigi.com nhưng Sitemap: trỏ tới gtvseo.com — sai cấu hình, Google có thể lập chỉ mục/thu thập không đồng bộ.",
                     url=robots.get("url"),
+                    confidence=0.94,
+                    evidence=[
+                        {"kind": "robots_txt", "url": robots.get("url")},
+                        {"kind": "sitemap_line", "value": raw_sm},
+                        {"kind": "sitemap_host", "value": pn.netloc or ""},
+                        {"kind": "site_host", "value": site_netloc},
+                    ],
+                    source="robots",
+                    detected_from=["robots.txt", "Sitemap:", "host_mismatch"],
                     remediation=(
                         f"1) Mở {robots.get('url')} và sửa dòng Sitemap thành URL sitemap đúng domain "
                         f"(ví dụ: https://{site_netloc}/sitemap_index.xml hoặc /sitemap.xml tùy hệ thống).\n"
@@ -193,6 +243,20 @@ def _analyze_robots_txt_detailed(
                         "high",
                         f"Sitemap đã khai báo nhưng không truy cập được (HTTP {st}): {sm_u}.",
                         url=sm_u,
+                        confidence=0.9 if st else 0.78,
+                        evidence=[
+                            {"kind": "robots_txt", "url": robots.get("url")},
+                            {"kind": "sitemap_url", "url": sm_u},
+                            {"kind": "http_status", "value": st},
+                            *(
+                                [{"kind": "error_kind", "value": chk.get("error_kind")}]
+                                if chk.get("error_kind")
+                                else []
+                            ),
+                        ],
+                        source="robots",
+                        detected_from=["robots.txt", "Sitemap:", "http_status"],
+                        error_kind=str(chk.get("error_kind") or "") or None,
                         remediation=(
                             "Sửa URL trong robots.txt cho khớp file sitemap thực tế; kiểm tra firewall/CDN; "
                             "đảm bảo không redirect vòng hoặc 403 cho Googlebot."
@@ -200,24 +264,36 @@ def _analyze_robots_txt_detailed(
                     )
                 )
 
+    body = str(robots.get("body_preview") or "")
+    google_block_agents = googlebot_disallow_all_agents(body)
+    if google_block_agents:
+        agent_label = ", ".join(google_block_agents[:6])
+        issues.append(
+            _tech_issue(
+                "robots_disallow_all",
+                "high",
+                "Phát hiện Disallow: / cho User-agent * hoặc Googlebot — có thể chặn toàn bộ site với Google.",
+                url=robots.get("url"),
+                confidence=0.96,
+                evidence=[
+                    {"kind": "robots_txt", "url": robots.get("url")},
+                    {"kind": "disallow", "value": "/"},
+                    {"kind": "user_agent", "value": agent_label},
+                ],
+                source="robots",
+                detected_from=["robots.txt", "User-agent", "Disallow: /"],
+                remediation=(
+                    "Mở robots.txt, kiểm tra khối User-agent: * và Googlebot. Chỉ dùng Disallow: / khi thực sự muốn "
+                    "chặn mọi URL (staging). Production không được để rule này cho Googlebot."
+                ),
+            )
+        )
+
     broad_query_done = False
     for rule in robots.get("disallow") or []:
         rule_s = (rule or "").strip()
         if not rule_s:
             continue
-        if rule_s == "/":
-            issues.append(
-                _tech_issue(
-                    "robots_disallow_all",
-                    "high",
-                    "Phát hiện Disallow: / — nếu áp dụng cho User-agent: * có thể chặn toàn bộ site với bot đó.",
-                    url=robots.get("url"),
-                    remediation=(
-                        "Mở robots.txt, kiểm tra từng khối User-agent. Chỉ dùng Disallow: / khi thực sự muốn chặn mọi URL; "
-                        "với Googlebot thông thường không được để rule này (trừ môi trường staging có chủ đích)."
-                    ),
-                )
-            )
         if not broad_query_done and (
             "*?" in rule_s or rule_s in ("*/?", "/*?*", "*?") or "/?" in rule_s and "*" in rule_s
         ):
@@ -228,6 +304,13 @@ def _analyze_robots_txt_detailed(
                     "low",
                     f"Rule Disallow «{rule_s}» có thể chặn hàng loạt URL có query string (?), gồm URL hợp lệ (lọc, tham số sản phẩm, v.v.).",
                     url=robots.get("url"),
+                    confidence=0.55,
+                    evidence=[
+                        {"kind": "robots_txt", "url": robots.get("url")},
+                        {"kind": "disallow", "value": rule_s},
+                    ],
+                    source="robots",
+                    detected_from=["robots.txt", "Disallow"],
                     remediation=(
                         "Rà trong GSC → Settings / Coverage các URL 'Excluded' do robots. "
                         "Thu hẹp rule: chỉ disallow path cụ thể (vd. /filter/, /wp-admin/) thay vì mọi URL có dấu ?. "
@@ -493,6 +576,8 @@ def analyze_technical_seo(
     gsc_start_date: str | None = None,
     gsc_end_date: str | None = None,
     url_inspection_limit: int = 10,
+    deadline_monotonic: float | None = None,
+    progress_hook: Callable[[int, str], None] | None = None,
 ) -> TechnicalAnalyzeResponse:
     try:
         normalized_start = normalize_url(start_url)
@@ -503,7 +588,26 @@ def analyze_technical_seo(
     base_netloc = parsed_start.netloc if parsed_start else ""
 
     debug = AuditDebugSession()
-    crawled = run_technical_crawl(start_url, max_pages=max_pages)
+
+    def _prog(pct: int, msg: str) -> None:
+        if progress_hook:
+            try:
+                progress_hook(int(pct), str(msg))
+            except Exception:
+                pass
+
+    def _crawl_progress(done: int, total: int) -> None:
+        tot = max(1, int(total or 1))
+        _prog(5 + min(50, int(50 * done / tot)), f"Đã crawl {done}/{tot} trang…")
+
+    _prog(4, "Đang crawl website…")
+    crawled = run_technical_crawl(
+        start_url,
+        max_pages=max_pages,
+        deadline_monotonic=deadline_monotonic,
+        on_progress=_crawl_progress,
+    )
+    crawl_partial = bool(crawled.get("partial_data") or crawled.get("truncated"))
     pages = crawled["pages"]
     edges = crawled["edges"]
     base_domain = crawled["domain"]
@@ -519,6 +623,13 @@ def analyze_technical_seo(
                 "high",
                 "Trang bắt đầu dùng HTTP. Nên dùng HTTPS và redirect 301 (mục HTTPS / Technical-SEO.txt).",
                 url=normalized_start,
+                confidence=0.97,
+                evidence=[
+                    {"kind": "url", "url": normalized_start},
+                    {"kind": "scheme", "value": "http"},
+                ],
+                source="crawl",
+                detected_from=["start_url_scheme"],
                 remediation=(
                     f"Bạn đã nhập URL dạng HTTP: {normalized_start}. Hệ thống kiểm tra đúng theo URL đó (không đoán redirect trình duyệt). "
                     f"Ví dụ thực tế — PowerShell: curl.exe -I \"{normalized_start}\" "
@@ -532,18 +643,36 @@ def analyze_technical_seo(
         )
 
     unique_targets = sorted({edge["to"] for edge in edges})
-    if len(unique_targets) > MAX_INTERNAL_LINK_CHECKS:
+    remain = None if deadline_monotonic is None else (float(deadline_monotonic) - time.monotonic())
+    link_cap = MAX_INTERNAL_LINK_CHECKS
+    if remain is not None:
+        if remain < 8:
+            link_cap = 0
+        else:
+            est = int(remain * _INTERNAL_LINK_WORKERS / max(1.0, float(LINK_CHECK_TIMEOUT_SECONDS)))
+            link_cap = max(8, min(MAX_INTERNAL_LINK_CHECKS, est))
+    if len(unique_targets) > link_cap:
         technical_issues.append(
             _tech_issue(
                 "link_check_truncated",
                 "low",
-                f"Site có {len(unique_targets)} URL đích nội bộ; chỉ kiểm tra tối đa {MAX_INTERNAL_LINK_CHECKS} URL "
+                f"Site có {len(unique_targets)} URL đích nội bộ; chỉ kiểm tra tối đa {link_cap} URL "
                 f"(theo thứ tự alphabet) để tránh treo quá lâu.",
+                url=normalized_start or start_url,
+                confidence=0.99,
+                evidence=[
+                    {"kind": "internal_target_count", "value": len(unique_targets)},
+                    {"kind": "check_cap", "value": link_cap},
+                    *([{"kind": "url", "url": normalized_start}] if normalized_start else []),
+                ],
+                source="crawl",
+                detected_from=["internal_link_check", "truncation"],
                 remediation="Giảm max_pages khi quét, hoặc tách audit theo section; ưu tiên sửa các URL đích đầu danh sách.",
             )
         )
-        unique_targets = unique_targets[:MAX_INTERNAL_LINK_CHECKS]
+        unique_targets = unique_targets[:link_cap]
 
+    _prog(58, "Đang kiểm tra liên kết nội bộ…")
     checked_links = _merge_internal_link_checks_with_crawl(
         pages,
         _parallel_check_internal_links(unique_targets),
@@ -558,19 +687,42 @@ def analyze_technical_seo(
         u = str(result.get("url") or "").strip()
         if not u:
             continue
-        try:
-            broken_internal_urls.add(normalize_url(u))
-        except ValueError:
-            broken_internal_urls.add(u)
+        key = _url_match_key(u)
+        if key:
+            broken_internal_urls.add(key)
         issue_type, sev = internal_link_issue_type(result)
         status = int(result.get("status") or 0)
         kind = result.get("error_kind") or ""
+        chain = list(result.get("chain") or [u])
+        loop = redirect_loop_slice(chain)
+        if loop:
+            technical_issues.append(
+                _tech_issue(
+                    "redirect_loop",
+                    "high",
+                    f"Vòng redirect (loop) trên liên kết nội bộ: {' → '.join(loop[:8])}",
+                    url=u,
+                    confidence=0.95,
+                    evidence=[
+                        {"kind": "url", "url": u},
+                        {"kind": "redirect_chain", "value": chain},
+                        {"kind": "redirect_loop", "urls": loop},
+                        {"kind": "http_status", "value": status},
+                    ],
+                    source="crawl",
+                    detected_from=["internal_link_check", "redirect_loop"],
+                    error_kind="redirect_loop",
+                )
+            )
+            continue
         evidence = [
             {"kind": "url", "url": u},
             {"kind": "http_status", "value": status},
         ]
         if kind:
             evidence.append({"kind": "error_kind", "value": kind})
+        if chain:
+            evidence.append({"kind": "redirect_chain", "value": chain[:8]})
         technical_issues.append(
             _tech_issue(
                 issue_type,
@@ -585,20 +737,29 @@ def analyze_technical_seo(
             )
         )
 
-    redirect_chains = [
-        {"url": result["url"], "chain": list(result["chain"]), "hops": len(result["chain"]) - 1}
-        for result in checked_links
-        if not result["is_broken"] and len(result["chain"]) >= 4
-    ]
+    redirect_chains = []
+    for result in checked_links:
+        if result.get("is_broken"):
+            continue
+        chain = list(result.get("chain") or [])
+        if redirect_loop_slice(chain):
+            continue
+        hops = redirect_hops(chain)
+        if hops >= 2:
+            redirect_chains.append({"url": result["url"], "chain": chain, "hops": hops})
+            continue
+        redir = build_internal_redirect_issue(result)
+        if redir:
+            technical_issues.append(redir)
     for chain in redirect_chains:
         full_chain = list(chain["chain"])
         technical_issues.append(
             _tech_issue(
                 "redirect_chain",
                 "medium",
-                f"Chuỗi redirect dài ({chain['hops']} bước, >2 hops) — ảnh hưởng crawl: {chain['url']}",
+                f"Chuỗi redirect dài ({chain['hops']} bước) — ảnh hưởng crawl budget: {chain['url']}",
                 url=chain["url"],
-                confidence=0.85,
+                confidence=0.88,
                 evidence=[
                     {"kind": "url", "url": chain["url"]},
                     {"kind": "redirect_chain", "value": full_chain},
@@ -627,6 +788,13 @@ def analyze_technical_seo(
                 "low",
                 "Thiếu favicon (link rel=icon) trên trang chính — Technical-SEO.txt mục favicon.",
                 url=start_page_url or normalized_start,
+                confidence=0.7,
+                evidence=[
+                    {"kind": "url", "url": start_page_url or normalized_start},
+                    {"kind": "favicon_link", "value": False},
+                ],
+                source="crawl",
+                detected_from=["homepage.html", "link[rel=icon]"],
             )
         )
     if start_html and not sig["html_lang"]:
@@ -636,6 +804,13 @@ def analyze_technical_seo(
                 "medium",
                 "Thiếu thuộc tính lang trên thẻ <html> — International / Technical-SEO.txt.",
                 url=start_page_url or normalized_start,
+                confidence=0.88,
+                evidence=[
+                    {"kind": "url", "url": start_page_url or normalized_start},
+                    {"kind": "html_lang", "value": ""},
+                ],
+                source="crawl",
+                detected_from=["homepage.html", "html[lang]"],
             )
         )
 
@@ -648,7 +823,7 @@ def analyze_technical_seo(
         if _pg.get("crawl_quality_score") is None:
             enrich_page_crawl_intelligence(_pg, domain=_intel_domain, proxy_server=_pg.get("proxy_used"))
 
-    title_by_normalized: dict[str, list[str]] = defaultdict(list)
+    onpage_rows: list[dict] = []
     staged_pipeline_rows: list[dict] = []
 
     kw_intel_on = enable_keyword_intelligence
@@ -674,21 +849,60 @@ def analyze_technical_seo(
         pstatus = int(page.get("status") or 0)
         html = page.get("html") if isinstance(page.get("html"), str) else ""
         if pstatus != 200 or not html.strip():
-            if pstatus and pstatus != 200 and html == "":
-                # Đã báo qua broken_internal_link / broken_internal_http_error → tránh trùng noise.
-                try:
-                    pkey = normalize_url(purl)
-                except ValueError:
-                    pkey = purl
-                if pkey not in broken_internal_urls:
-                    technical_issues.append(
-                        _tech_issue(
-                            "crawl_page_non_200",
-                            "medium" if pstatus in (301, 302, 303, 307, 308) else "high",
-                            f"URL trong crawl trả HTTP {pstatus} (không lấy được HTML): {purl}",
-                            url=purl,
-                        )
+            pkey = _url_match_key(purl)
+            crawl_st = str(page.get("crawl_status") or "")
+            kind = str(page.get("error_kind") or "")
+            if not kind and crawl_st == "timeout":
+                kind = "timeout"
+            elif not kind and crawl_st in ("error", "blocked"):
+                kind = "connection_error"
+            should_emit_http = pstatus == 0 or (pstatus and pstatus != 200)
+            if should_emit_http and pkey not in broken_internal_urls:
+                html_len = len(html.strip())
+                itype, sev = classify_http_issue_type(pstatus, kind)
+                if itype == "crawl_timeout":
+                    msg = f"Timeout khi crawl URL: {purl}"
+                elif itype == "crawl_connection_error":
+                    msg = f"Lỗi kết nối/DNS/SSL khi crawl URL: {purl}"
+                elif itype == "redirect_loop":
+                    msg = f"Vòng redirect khi crawl URL: {purl}"
+                elif itype == "crawl_http_3xx":
+                    msg = f"URL trong crawl trả HTTP {pstatus} (3xx): {purl}"
+                elif itype == "crawl_http_4xx":
+                    msg = f"URL trong crawl trả HTTP {pstatus} (4xx): {purl}"
+                elif itype == "crawl_http_5xx":
+                    msg = f"URL trong crawl trả HTTP {pstatus} (5xx): {purl}"
+                else:
+                    msg = (
+                        f"URL trong crawl trả HTTP {pstatus}"
+                        + (f" (có HTML {html_len} ký tự)" if html_len else " (không lấy được HTML)")
+                        + f": {purl}"
                     )
+                evidence = [
+                    {"kind": "url", "url": purl},
+                    {"kind": "http_status", "value": pstatus},
+                    {"kind": "html_length", "value": html_len},
+                ]
+                if kind:
+                    evidence.append({"kind": "error_kind", "value": kind})
+                if crawl_st:
+                    evidence.append({"kind": "crawl_status", "value": crawl_st})
+                chain = list(page.get("redirect_history") or page.get("raw_redirect_history") or [])
+                if chain:
+                    evidence.append({"kind": "redirect_chain", "value": chain[:8]})
+                technical_issues.append(
+                    _tech_issue(
+                        itype,
+                        sev,
+                        msg,
+                        url=purl,
+                        confidence=0.93 if pstatus else 0.82,
+                        evidence=evidence,
+                        source="crawl",
+                        detected_from=["crawler.status", "http_status"],
+                        error_kind=kind or None,
+                    )
+                )
             continue
 
         if page.get("skip_seo_analysis"):
@@ -705,6 +919,15 @@ def analyze_technical_seo(
                     "low",
                     f"Dữ liệu crawl độ tin cậy thấp (quality={cq}, confidence={cf}); bỏ qua SEO pipeline cho URL để giảm false positive.",
                     url=purl,
+                    confidence=0.62,
+                    evidence=[
+                        {"kind": "url", "url": purl},
+                        {"kind": "crawl_quality_score", "value": cq},
+                        {"kind": "crawl_confidence_score", "value": cf},
+                        {"kind": "reliability_flags", "value": flags},
+                    ],
+                    source="crawl",
+                    detected_from=["crawl_quality", "skip_seo_analysis"],
                     remediation="Kiểm tra chặn bot, proxy, render JS; thử crawl lại hoặc tăng chất lượng proxy/residential.",
                     explanation=(f"Flags: {flags}. " + explain_txt)[:1200],
                 )
@@ -758,24 +981,45 @@ def analyze_technical_seo(
         parsed = bundle.parsed
         pt = bundle.page_type
         for issue in bundle.issues:
+            evidence = list(issue.get("evidence") or [])
+            if not evidence:
+                for field in issue.get("detected_from") or []:
+                    evidence.append({"kind": "detected_from", "text": str(field)})
+            if not any(isinstance(e, dict) and e.get("url") == purl for e in evidence):
+                evidence.append({"kind": "url", "url": purl})
             technical_issues.append(
                 {
                     "type": issue["type"],
                     "severity": issue["severity"],
                     "message": issue["message"],
                     "url": purl,
+                    "affected_urls": list(issue.get("affected_urls") or [purl]),
                     "checklist_group": issue.get("checklist_group")
                     or TECH_CHECKLIST_BY_TYPE.get(issue["type"], "Onpage"),
                     "confidence": issue.get("confidence"),
                     "explanation": issue.get("explanation"),
                     "page_type": pt,
+                    "evidence": evidence,
+                    "detected_from": issue.get("detected_from"),
+                    "source": issue.get("source") or "crawl",
+                    "remediation": issue.get("remediation"),
+                    "how_to_fix": issue.get("how_to_fix"),
+                    "suppressed": issue.get("suppressed", False),
                 }
             )
+        for hf in evaluate_hreflang_page(purl, parsed, pstatus):
+            technical_issues.append(hf)
 
         page_data = structured_to_legacy_page_data(parsed, pstatus)
-        t_norm = (page_data["title"] or "").strip().lower()
-        if t_norm:
-            title_by_normalized[t_norm].append(purl)
+        onpage_rows.append(
+            {
+                "url": purl,
+                "status": pstatus,
+                "title": page_data.get("title") or "",
+                "h1s": parsed.get("h1") or [],
+                "meta_description": page_data.get("meta_description") or "",
+            }
+        )
 
         path_lower = urlparse(purl).path.lower()
         if re.search(r"/page/\d+/?$", path_lower):
@@ -787,21 +1031,17 @@ def analyze_technical_seo(
                         "low",
                         "Trang phân trang có thể thiếu rel=next trong <head> (Technical-SEO.txt).",
                         url=purl,
+                        confidence=0.5,
+                        evidence=[
+                            {"kind": "url", "url": purl},
+                            {"kind": "rel_next", "value": False},
+                        ],
+                        source="crawl",
+                        detected_from=["pagination", "link[rel=next]"],
                     )
                 )
 
-    for _, urls in title_by_normalized.items():
-        if len(urls) <= 1:
-            continue
-        technical_issues.append(
-            _tech_issue(
-                "duplicate_title",
-                "medium",
-                f"Trùng thẻ Title trên {len(urls)} URL: " + "; ".join(urls[:5])
-                + ("…" if len(urls) > 5 else ""),
-                url=urls[0],
-            )
-        )
+    technical_issues.extend(build_duplicate_content_issues(onpage_rows))
 
     entry_for_graph = [normalized_start] if normalized_start else None
 
@@ -814,6 +1054,24 @@ def analyze_technical_seo(
         entry_urls=entry_for_graph,
         keyword_signals_by_url=kw_signals,
         serp_overlay_by_url=url_serp_overlay or None,
+    )
+    technical_issues.extend(
+        build_graph_link_issues(pages, entry_urls=entry_for_graph)
+    )
+    crux = None
+    try:
+        origin = ""
+        if parsed_start and parsed_start.netloc:
+            origin = f"https://{parsed_start.netloc}"
+        elif base_netloc:
+            origin = f"https://{base_netloc}"
+        if origin:
+            crux = fetch_crux_origin(origin)
+    except Exception as exc:
+        _LOG.debug("CrUX skipped: %s", exc)
+        crux = None
+    technical_issues.extend(
+        build_perf_security_schema_issues(pages, start_url=normalized_start or start_url, crux=crux)
     )
 
     if kw_bundle is not None:
@@ -982,6 +1240,61 @@ def analyze_technical_seo(
                     source=raw_issue.get("source"),
                     detected_from=raw_issue.get("detected_from"),
                     error_kind=raw_issue.get("error_kind"),
+                    remediation=raw_issue.get("remediation"),
+                )
+            )
+
+    technical_issues.extend(build_crawled_url_robots_blocked_issues(pages=pages, robots=robots))
+
+    seen_redirect_keys = {
+        _url_match_key(str(i.get("url") or ""))
+        for i in technical_issues
+        if i.get("type") in ("redirect_chain", "redirect_loop")
+    }
+    for page in pages:
+        purl = str(page.get("url") or "").strip()
+        if not purl:
+            continue
+        chain = list(page.get("redirect_history") or page.get("raw_redirect_history") or [])
+        loop = redirect_loop_slice(chain)
+        pkey = _url_match_key(purl)
+        if loop and pkey and pkey not in seen_redirect_keys:
+            seen_redirect_keys.add(pkey)
+            technical_issues.append(
+                _tech_issue(
+                    "redirect_loop",
+                    "high",
+                    f"Vòng redirect khi crawl: {' → '.join(loop[:8])}",
+                    url=purl,
+                    confidence=0.95,
+                    evidence=[
+                        {"kind": "url", "url": purl},
+                        {"kind": "redirect_chain", "value": chain},
+                        {"kind": "redirect_loop", "urls": loop},
+                    ],
+                    source="crawl",
+                    detected_from=["crawler.redirect_history", "redirect_loop"],
+                    error_kind="redirect_loop",
+                )
+            )
+            continue
+        hops = redirect_hops(chain)
+        if hops >= 2 and pkey and pkey not in seen_redirect_keys:
+            seen_redirect_keys.add(pkey)
+            technical_issues.append(
+                _tech_issue(
+                    "redirect_chain",
+                    "medium",
+                    f"Chuỗi redirect dài ({hops} bước) khi crawl: {purl}",
+                    url=purl,
+                    confidence=0.88,
+                    evidence=[
+                        {"kind": "url", "url": purl},
+                        {"kind": "redirect_chain", "value": chain},
+                        {"kind": "hops", "value": hops},
+                    ],
+                    source="crawl",
+                    detected_from=["crawler.redirect_history", "redirect_chain"],
                 )
             )
 
@@ -1004,6 +1317,13 @@ def analyze_technical_seo(
                     "medium",
                     "Chưa khai báo Sitemap: trong robots.txt dù crawler đã tìm được sitemap (Technical-SEO.txt — sitemap trong robots).",
                     url=robots.get("url"),
+                    confidence=0.86,
+                    evidence=[
+                        {"kind": "robots_txt", "url": robots.get("url")},
+                        {"kind": "sitemap_url", "url": norm_sm},
+                    ],
+                    source="robots",
+                    detected_from=["robots.txt", "Sitemap:"],
                     remediation=(
                         f"Thêm vào robots.txt: Sitemap: {norm_sm} "
                         "(hoặc URL sitemap index chính xác). Giúp Google/Bing không phụ thuộc chỉ đường dẫn mặc định."
@@ -1013,8 +1333,8 @@ def analyze_technical_seo(
 
     broken_404_only = [b for b in broken_links if b.get("status") == 404]
 
-    scores = compute_audit_scores(technical_issues)
-    issues_out = format_issue_list(technical_issues)
+    issues_out = keep_evidenced_issues(format_issue_list(dedupe_technical_issues(technical_issues)))
+    scores = compute_audit_scores(issues_out)
 
     topical_rows = list((site_graph_summary or {}).get("topical_authority") or [])
 
@@ -1048,7 +1368,10 @@ def analyze_technical_seo(
     # Hybrid GSC layer (optional) — never fails the whole audit
     gsc_payload: dict = {}
     issues_final = issues_out
-    if use_gsc and user_id and gsc_property:
+    remain_gsc = None if deadline_monotonic is None else (float(deadline_monotonic) - time.monotonic())
+    skip_gsc_budget = remain_gsc is not None and remain_gsc < 20
+    if use_gsc and user_id and gsc_property and not skip_gsc_budget:
+        _prog(82, "Đang lấy dữ liệu Search Console…")
         try:
             from app.services.gsc_enrichment import enrich_technical_audit_with_gsc
 
@@ -1072,6 +1395,11 @@ def analyze_technical_seo(
             issues_final = gsc_payload.get("issues") or issues_out
             if gsc_payload.get("confidence_overall") is not None:
                 technical_summary_dict["gsc_confidence"] = gsc_payload["confidence_overall"]
+            gs = gsc_payload.get("gsc_summary") or {}
+            technical_summary_dict["partial_data"] = bool(
+                gsc_payload.get("partial_data") or gs.get("partial_data") or gs.get("quota_exceeded")
+            )
+            technical_summary_dict["scan_mode"] = "hybrid" if gs.get("connected") else "crawl"
         except Exception as exc:
             import logging
 
@@ -1081,22 +1409,52 @@ def analyze_technical_seo(
                     "enabled": True,
                     "connected": False,
                     "partial_data": True,
+                    "quota_exceeded": False,
                     "message": f"Không tích hợp được GSC: {exc}",
                     "errors": [str(exc)],
                 },
+                "partial_data": True,
+                "issues": [dict(i) if hasattr(i, "model_dump") else i for i in issues_out],
             }
+            technical_summary_dict["partial_data"] = True
+            technical_summary_dict["scan_mode"] = "crawl"
             from app.services.gsc_enrichment import _apply_no_gsc_disclaimers
 
-            _apply_no_gsc_disclaimers(
-                [dict(i) if hasattr(i, "model_dump") else i for i in issues_out]
-            )
+            _apply_no_gsc_disclaimers(gsc_payload["issues"])
+            issues_final = gsc_payload["issues"]
+    elif use_gsc and skip_gsc_budget:
+        from app.services.gsc_enrichment import _apply_no_gsc_disclaimers
+
+        raw_issues = [dict(i) if hasattr(i, "model_dump") else i for i in issues_out]
+        _apply_no_gsc_disclaimers(raw_issues)
+        issues_final = raw_issues
+        technical_summary_dict["scan_mode"] = "crawl"
+        technical_summary_dict["partial_data"] = True
+        gsc_payload = {
+            "gsc_summary": {
+                "enabled": True,
+                "connected": False,
+                "partial_data": True,
+                "message": "Bỏ qua GSC vì hết ngân sách thời gian quét — kết quả crawl vẫn được lưu.",
+            },
+            "partial_data": True,
+            "issues": raw_issues,
+        }
     else:
         from app.services.gsc_enrichment import _apply_no_gsc_disclaimers
 
         raw_issues = [dict(i) if hasattr(i, "model_dump") else i for i in issues_out]
         _apply_no_gsc_disclaimers(raw_issues)
         issues_final = raw_issues
+        technical_summary_dict["scan_mode"] = "crawl"
+        technical_summary_dict["partial_data"] = bool(crawl_partial)
 
+    if crawl_partial:
+        technical_summary_dict["partial_data"] = True
+
+    _prog(92, "Đang tổng hợp báo cáo…")
+
+    gs_out = gsc_payload.get("gsc_summary") or {}
     return TechnicalAnalyzeResponse(
         domain=base_domain,
         pages_scanned=len(pages),
@@ -1113,10 +1471,15 @@ def analyze_technical_seo(
         keyword_intelligence=kw_bundle,
         topical_authority=topical_rows,
         seo_intelligence_core=seo_core,
-        gsc_summary=gsc_payload.get("gsc_summary"),
+        gsc_summary=gs_out or None,
         gsc_enriched_pages=gsc_payload.get("gsc_enriched_pages") or [],
         gsc_confirmed_issues=gsc_payload.get("gsc_confirmed_issues") or [],
         gsc_opportunities=gsc_payload.get("gsc_opportunities") or [],
         url_inspection_results=gsc_payload.get("url_inspection_results") or [],
         confidence_overall=gsc_payload.get("confidence_overall"),
+        partial_data=bool(
+            technical_summary_dict.get("partial_data")
+            or gsc_payload.get("partial_data")
+            or gs_out.get("partial_data")
+        ),
     )

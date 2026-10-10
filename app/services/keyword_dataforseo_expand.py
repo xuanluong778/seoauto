@@ -73,6 +73,8 @@ def peek_k4k_cache_status(
     per_seed = max(15, min(700, per_seed))
     hits = 0
     misses = 0
+    hit_seeds: list[str] = []
+    miss_keywords: list[str] = []
     for seed in seeds or []:
         s = (seed or "").strip()
         if not s:
@@ -80,9 +82,17 @@ def peek_k4k_cache_status(
         cache_key = _k4k_cache_key(s, country=country, language=language, limit=per_seed)
         if _k4k_cache_get(cache_key) is not None:
             hits += 1
+            hit_seeds.append(s)
         else:
             misses += 1
-    return {"hits": hits, "misses": misses, "total": hits + misses}
+            miss_keywords.append(s)
+    return {
+        "hits": hits,
+        "misses": misses,
+        "total": hits + misses,
+        "hit_seeds": hit_seeds,
+        "miss_keywords": miss_keywords,
+    }
 
 
 def expand_keywords_from_dataforseo(

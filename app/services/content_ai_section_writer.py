@@ -180,8 +180,84 @@ def append_html_fragment(base: str, fragment: str) -> str:
     return (b + "\n" + f).strip()
 
 
+def _text_looks_cut_mid_sentence(txt: str) -> bool:
+    """True nếu đoạn văn rất có khả năng bị cắt giữa câu (không phải bullet ngắn cố ý)."""
+    t = str(txt or "").strip()
+    if not t or len(t) < 3:
+        return False
+    if re.search(r"[.!?…\"')\]}]$", t):
+        return False
+    # Dấu phẩy/hai chấm cuối thường là cắt giữa mệnh đề
+    if re.search(r"[,;]$", t):
+        return True
+    words = re.findall(r"\S+", t)
+    if not words:
+        return False
+    last = re.sub(r"[\"')\]]+$", "", words[-1]).lower()
+    dangling = {
+        "của",
+        "và",
+        "hoặc",
+        "để",
+        "cho",
+        "với",
+        "như",
+        "là",
+        "các",
+        "những",
+        "một",
+        "nhiều",
+        "giúp",
+        "đảm",
+        "bảo",
+        "đối",
+        "tại",
+        "trong",
+        "khi",
+        "nếu",
+        "nhưng",
+        "vì",
+        "do",
+        "từ",
+        "đến",
+        "về",
+        "còn",
+        "được",
+        "bị",
+        "sẽ",
+        "đã",
+        "đang",
+        "rằng",
+        "thì",
+        "mà",
+        "hay",
+        "nên",
+        "cũng",
+        "rất",
+        "hơn",
+        "sau",
+        "trước",
+        "theo",
+        "qua",
+        "bằng",
+        "vào",
+        "ra",
+        "lên",
+        "xuống",
+    }
+    if last in dangling:
+        return True
+    # Từ cuối quá ngắn trên đoạn dài → thường là cắt giữa từ
+    if len(t) >= 24 and len(last) <= 3 and not last.isdigit():
+        return True
+    # Đoạn dài không có dấu kết câu
+    if len(t) >= 48 and len(words) >= 8:
+        return True
+    return False
+
+
 def _find_incomplete_section_h2(html: str) -> tuple[str, list[str]] | None:
-    """Tìm H2 chứa đoạn cuối bị cắt ngang (không phải H2 cuối tài liệu)."""
+    """Tìm H2 chứa đoạn bị cắt ngang (ưu tiên từ cuối bài trở lên)."""
     raw = str(html or "").strip()
     if not raw:
         return None
@@ -190,15 +266,10 @@ def _find_incomplete_section_h2(html: str) -> tuple[str, list[str]] | None:
         blocks = list(soup.find_all(["p", "li", "td", "blockquote"]))
         for tag in reversed(blocks):
             txt = tag.get_text(" ", strip=True)
-            if not txt or len(txt) < 12:
+            if not _text_looks_cut_mid_sentence(txt):
                 continue
-            if re.search(r"[.!?…\"')\]}]$", txt):
-                continue
-            # Tìm H2 gần nhất phía trước tag này
             h2_el = tag.find_previous("h2")
-            if not h2_el:
-                return None
-            h2_text = h2_el.get_text(" ", strip=True)
+            h2_text = h2_el.get_text(" ", strip=True) if h2_el else ""
             missing_h3s: list[str] = []
             return h2_text, missing_h3s
     except Exception:
@@ -207,8 +278,28 @@ def _find_incomplete_section_h2(html: str) -> tuple[str, list[str]] | None:
 
 
 def _html_has_incomplete_tail(html: str) -> bool:
-    """Phát hiện bài bị cắt ngang giữa câu ở đoạn cuối."""
+    """Phát hiện bài bị cắt ngang giữa câu."""
     return _find_incomplete_section_h2(html) is not None
+
+
+def iter_incomplete_paragraph_tails(html: str, *, limit: int = 20) -> list[str]:
+    """Danh sách text đoạn bị cắt giữa câu (để test/audit)."""
+    raw = str(html or "").strip()
+    out: list[str] = []
+    if not raw:
+        return out
+    try:
+        soup = BeautifulSoup(raw, "html.parser")
+        for tag in soup.find_all(["p", "li", "td", "blockquote"]):
+            txt = tag.get_text(" ", strip=True)
+            if not _text_looks_cut_mid_sentence(txt):
+                continue
+            out.append(txt)
+            if len(out) >= limit:
+                break
+    except Exception:
+        pass
+    return out
 
 
 def _missing_h3_in_last_section(html: str, outline: str) -> tuple[str, list[str]] | None:
@@ -287,6 +378,25 @@ def _repair_incomplete_tail_section(
         target_h2 = inc[0]
     elif h3_gap:
         target_h2, missing_h3s = h3_gap
+
+    # Intro / đoạn không thuộc H2: append-only hoàn thiện câu bị cắt, không xóa section.
+    if not target_h2 and inc is not None:
+        prompt = (
+            "Đoạn HTML bị CẮT NGANG giữa câu (phần mở bài hoặc đoạn không thuộc H2).\n"
+            "Hãy viết PHẦN TIẾP THEO để hoàn tất câu/đoạn đang mở — chỉ HTML bổ sung, không lặp lại phần đã có.\n"
+            "Hoàn tất mọi câu; không dừng giữa chừng.\n"
+            f"\nPRIMARY_KEYWORD: {primary_keyword}\n"
+            "\n=== HTML HIỆN TẠI (tham khảo, KHÔNG lặp lại) ===\n"
+            + _truncate(out, 9000)
+            + "\n\n=== SOURCE ===\n"
+            + _truncate(source_blob, 6000)
+            + "\n\n=== OUTPUT (HTML phần tiếp theo) ==="
+        )
+        frag = _extract_clean(llm_call(system=system, user=prompt))
+        if frag:
+            out = append_html_fragment(out, frag)
+            _LOG.info("content_ai_section_write repaired incomplete intro/non-h2 tail")
+        return out
 
     if not target_h2:
         return out

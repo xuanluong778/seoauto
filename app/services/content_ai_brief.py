@@ -52,7 +52,12 @@ def _try_competitor_outline(competitor_url: str) -> tuple[list[str], str | None]
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return [], "Link đối thủ không hợp lệ."
         url = parsed.geturl()
-        resp = requests.get(
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            return [], f"Link đối thủ không an toàn ({blocked})."
+        resp = safe_requests_get(
             url,
             timeout=14,
             headers={
@@ -418,7 +423,7 @@ def generate_content_brief(
     ]
     if cat:
         writing_notes_parts.append(f"Category/tags: {cat[:120]}")
-    kb_ctx = build_outline_context_from_knowledge(knowledge, max_chars=2000)
+    kb_ctx = build_outline_context_from_knowledge(knowledge, max_chars=8000)
     if kb_ctx:
         writing_notes_parts.append("Knowledge Base:\n" + kb_ctx)
     if comp_lines:

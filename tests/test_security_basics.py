@@ -5,11 +5,54 @@ from app.services.rbac import can_write, is_admin, normalize_role, normalize_sta
 from app.services.user_scope import belongs_to_user
 
 
+def teardown_function():
+    from app.core import secrets_crypto as sc
+
+    sc._fernet.cache_clear()
+    sc._fernets.cache_clear()
+
+
 def test_encrypt_decrypt_roundtrip():
     plain = "sk-test-key-12345"
     stored = encrypt_secret(plain)
     assert stored.startswith("enc:v1:")
     assert decrypt_secret(stored) == plain
+
+
+def test_decrypt_fallback_from_dev_default_key(monkeypatch):
+    import base64
+    import hashlib
+
+    from cryptography.fernet import Fernet
+
+    from app.core import secrets_crypto as sc
+
+    digest = hashlib.sha256(b"secrets:change-this-in-production").digest()
+    stored = "enc:v1:" + Fernet(base64.urlsafe_b64encode(digest)).encrypt(b"wp-app-pass-default").decode("ascii")
+    monkeypatch.setenv("JWT_SECRET", "production-jwt-now")
+    monkeypatch.delenv("SECRETS_MASTER_KEY", raising=False)
+    sc._fernet.cache_clear()
+    sc._fernets.cache_clear()
+    assert sc.decrypt_secret(stored) == "wp-app-pass-default"
+
+
+def test_decrypt_fallback_from_previous_jwt(monkeypatch):
+    import base64
+    import hashlib
+
+    from cryptography.fernet import Fernet
+
+    from app.core import secrets_crypto as sc
+
+    old = "legacy-jwt-before-rotate"
+    digest = hashlib.sha256(f"secrets:{old}".encode("utf-8")).digest()
+    stored = "enc:v1:" + Fernet(base64.urlsafe_b64encode(digest)).encrypt(b"wp-app-pass-old").decode("ascii")
+    monkeypatch.setenv("JWT_SECRET", "production-jwt-now")
+    monkeypatch.setenv("JWT_SECRET_PREVIOUS", old)
+    monkeypatch.delenv("SECRETS_MASTER_KEY", raising=False)
+    sc._fernet.cache_clear()
+    sc._fernets.cache_clear()
+    assert sc.decrypt_secret(stored) == "wp-app-pass-old"
 
 
 def test_legacy_plaintext_passthrough():

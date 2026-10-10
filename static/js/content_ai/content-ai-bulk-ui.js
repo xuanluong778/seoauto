@@ -10,6 +10,7 @@
         setup: { label: "Đã cấu hình", cls: "st-setup" },
         pending: { label: "Đang chờ", cls: "st-pending" },
         running: { label: "Đang viết", cls: "st-run" },
+        cancelled: { label: "Đã dừng", cls: "st-pending" },
         written: { label: "Đã viết", cls: "st-ok" },
         success: { label: "Đã viết", cls: "st-ok" },
         error: { label: "Lỗi", cls: "st-err" },
@@ -20,6 +21,7 @@
         img_bad_format: { label: "Ảnh sai định dạng", cls: "st-img-fmt" },
         img_too_large: { label: "Ảnh quá 200KB", cls: "st-img-size" },
         scheduled: { label: "Đã đặt lịch", cls: "st-sched" },
+        unpublished: { label: "Chưa đăng", cls: "st-draft" },
         published: { label: "Đã đăng", cls: "st-pub" },
         seo_pass: { label: "Đạt", cls: "st-ok" },
         seo_review: { label: "Cần kiểm tra", cls: "st-warn" },
@@ -30,11 +32,12 @@
         wc_pending: { label: "—", cls: "st-pending" },
         llm_ok: { label: "OK", cls: "st-ok" },
         llm_running: { label: "Đang viết", cls: "st-run" },
-        llm_error: { label: "Lỗi LLM/API", cls: "st-err" },
+        llm_error: { label: "Lỗi", cls: "st-err" },
         llm_pending: { label: "Chưa chạy", cls: "st-pending" },
         badge_ok: { label: "Thành công", cls: "st-ok" },
+        badge_running: { label: "Đang viết", cls: "st-run" },
         badge_review: { label: "Cần kiểm tra", cls: "st-warn" },
-        badge_llm: { label: "Lỗi LLM/API", cls: "st-err" },
+        badge_llm: { label: "Lỗi", cls: "st-err" },
         badge_wc: { label: "Sai số từ", cls: "st-warn" },
         badge_seo: { label: "SEO thấp", cls: "st-warn" },
         badge_empty: { label: "Content rỗng", cls: "st-err" },
@@ -278,6 +281,72 @@
         return "";
     }
 
+    function isLiveBulkWrite() {
+        const stop = byId("btnBulkWriteStopPoll");
+        if (stop && !stop.disabled) return true;
+        const start = byId("btnBulkWriteStart");
+        return !!(start && start.getAttribute("aria-busy") === "true");
+    }
+
+    function jobLooksWritten(row, job) {
+        const wc = resolveActualWc(row, job);
+        if (wc != null && wc >= 40) return true;
+        if (stripHtmlText(resolveContentHtml(job)).length >= 40) return true;
+        try {
+            if (typeof allProjects !== "undefined" && Array.isArray(allProjects)) {
+                const kw = String((row && row.keyword) || (job && job.keyword) || "")
+                    .trim()
+                    .toLowerCase();
+                const hit = allProjects.find(
+                    (p) => String((p && p.primary_keyword) || "").trim().toLowerCase() === kw
+                );
+                if (hit) {
+                    const pwc = parseInt(hit.actual_word_count || hit.word_count || 0, 10);
+                    if (!Number.isNaN(pwc) && pwc >= 40) return true;
+                    if (stripHtmlText(hit.content || "").length >= 40) return true;
+                    const pst = String(hit.status || "").toLowerCase();
+                    if (pst === "ready" || pst === "published") return true;
+                }
+            }
+        } catch (_) {}
+        return false;
+    }
+
+    function reconcileJobItem(row, job) {
+        if (!job) return job;
+        const out = { ...job };
+        const pid =
+            String(out.project_id || "").trim() ||
+            resolveProjectIdForKeyword((row && row.keyword) || out.keyword);
+        if (pid) out.project_id = pid;
+        const st = String(out.status || "").toLowerCase();
+        if (st === "error" || st === "success") return out;
+        // Keep spinner on the row currently being written; do not reset already-written rows.
+        if (st === "running" && isLiveBulkWrite()) {
+            return out;
+        }
+        if (!jobLooksWritten(row, out)) return out;
+        out.status = "success";
+        if (out.word_count == null && out.actual_word_count == null) {
+            const n = resolveActualWc(row, out);
+            if (n != null) out.word_count = n;
+        }
+        return out;
+    }
+
+    function reconcileAllJobItems() {
+        const rows = (core() && core().getRows ? core().getRows() : []) || [];
+        const byKw = Object.create(null);
+        rows.forEach((r) => {
+            const kw = String((r && r.keyword) || "").trim().toLowerCase();
+            if (kw) byKw[kw] = r;
+        });
+        _jobItems = (_jobItems || []).map((j) => {
+            const kw = String((j && j.keyword) || "").trim().toLowerCase();
+            return reconcileJobItem(byKw[kw] || { keyword: j && j.keyword }, j);
+        });
+    }
+
     function isContentEmpty(job) {
         if (!job || job.status !== "success") return true;
         const html = resolveContentHtml(job);
@@ -313,12 +382,13 @@
         return stripHtmlText(html).length >= 40;
     }
 
-    function rowLlmStatus(job) {
-        if (!job) return "llm_pending";
-        const st = String(job.status || "pending");
+    function rowLlmStatus(job, row) {
+        const j = job || { keyword: row && row.keyword, status: "pending" };
+        const st = String(j.status || "pending");
         if (st === "error") return "llm_error";
         if (st === "running") return "llm_running";
-        if (st === "success") return "llm_ok";
+        if (st === "success" || st === "written" || st === "ok") return "llm_ok";
+        if (jobLooksWritten(row || { keyword: j.keyword }, j)) return "llm_ok";
         return "llm_pending";
     }
 
@@ -332,10 +402,14 @@
     }
 
     function rowBadges(row, job) {
-        if (!job) return [pill("badge_review")];
-        if (isLlmError(job)) return [pill("badge_llm")];
+        if (!job) {
+            if (jobLooksWritten(row, { keyword: row && row.keyword })) return [pill("badge_ok")];
+            return [pill("badge_review")];
+        }
+        if (isLlmError(job)) return [pillWithError("badge_llm", job)];
         if (job.status !== "success") {
-            if (job.status === "running") return [pill("llm_running")];
+            if (job.status === "running") return [pill("badge_running")];
+            if (jobLooksWritten(row, job)) return [pill("badge_ok")];
             return [pill("badge_review")];
         }
         const badges = [];
@@ -402,6 +476,7 @@
             if (st === "success") return "written";
             if (st === "error") return "error";
             if (st === "running") return "running";
+            if (st === "cancelled") return "draft";
             return "pending";
         }
         if (isSetupComplete(row)) return "setup";
@@ -460,10 +535,12 @@
             if (st === "published") return "published";
             if (st === "scheduled" || st === "publishing") return "scheduled";
             if (st === "failed") return "error";
-            if (st === "cancelled") return "draft";
         }
         if (jobItem && jobItem.published) return "published";
-        return "draft";
+        const proj = pid ? _projectById[pid] : null;
+        const wpSt = String((proj && (proj.wp_publish_status || proj.publish_status || proj.status)) || "").toLowerCase();
+        if (wpSt === "publish" || wpSt === "published") return "published";
+        return "unpublished";
     }
 
     function rowSchedule(row, jobItem) {
@@ -482,6 +559,44 @@
         const t = String(s || "").trim();
         if (!t) return "—";
         return t.length > n ? t.slice(0, n - 1) + "…" : t;
+    }
+
+    function jobErrorMessage(job) {
+        if (!job || String(job.status || "") !== "error") return "";
+        return String(job.error || job.message || "").trim();
+    }
+
+    function jobErrorShortLabel(job) {
+        const msg = jobErrorMessage(job);
+        if (!msg) return "Lỗi";
+        const low = msg.toLowerCase();
+        if (low.includes("mất kết nối db") || low.includes("server closed the connection")) {
+            return "Lỗi lưu DB";
+        }
+        if (low.includes("401") || low.includes("unauthorized") || low.includes("đăng nhập")) {
+            return "Lỗi đăng nhập";
+        }
+        if (low.includes("quota") || low.includes("credit") || low.includes("hết quota")) {
+            return "Hết quota/credit";
+        }
+        if (low.includes("timeout") || low.includes("timed out")) {
+            return "Timeout LLM";
+        }
+        if (low.includes("rate limit") || low.includes("429")) {
+            return "Rate limit LLM";
+        }
+        return truncate(msg, 28);
+    }
+
+    function pillWithError(key, job) {
+        const m = STATUS[key] || { label: key, cls: "st-pending" };
+        if ((key === "llm_error" || key === "badge_llm") && job && job.status === "error") {
+            const label = jobErrorShortLabel(job);
+            const tip = jobErrorMessage(job);
+            const title = tip ? ` title="${esc(tip)}"` : "";
+            return `<span class="bulk-v2-pill ${m.cls}"${title}>${esc(label)}</span>`;
+        }
+        return pill(key);
     }
 
     function rowSeoCell(jobItem) {
@@ -508,7 +623,7 @@
         const rows = c && c.getRows ? c.getRows() : [];
         return rows.map((row) => ({
             row,
-            job: findJobItem(row.keyword),
+            job: reconcileJobItem(row, findJobItem(row.keyword)),
         }));
     }
 
@@ -531,7 +646,7 @@
                 const checked = _selected.has(id) ? " checked" : "";
                 const targetWc = formatTargetWcLabel(row, job);
                 const actualWc = resolveActualWc(row, job);
-                const llmKey = rowLlmStatus(job);
+                const llmKey = rowLlmStatus(job, row);
                 const ps = rowPublishStatus(row, job);
                 const badges = rowBadges(row, job).join(" ");
                 const pid = job && job.project_id ? String(job.project_id) : "";
@@ -539,6 +654,10 @@
                 const openBtn =
                     `<button type="button" class="ca-bulk-action${setupOk ? " ca-bulk-action--setup" : ""}" data-bulk-edit-row="${esc(id)}" title="${setupOk ? "Đã setup cấu hình" : "Chưa setup đủ cấu hình"}">Sửa</button>`;
                 const deleteBtn = `<button type="button" class="ca-bulk-action ca-bulk-action--danger" data-bulk-delete-row="${esc(id)}">Xóa</button>`;
+                const retryBtn =
+                    job && job.status === "error"
+                        ? ` <button type="button" class="ca-bulk-action ca-bulk-action--retry" data-bulk-retry-row="${esc(id)}" title="Thử lại bài lỗi">Retry</button>`
+                        : "";
                 const openProj = pid
                     ? ` <button type="button" class="ca-bulk-action" data-bulk-open-project="${esc(pid)}">Mở</button>`
                     : "";
@@ -549,10 +668,10 @@
                     `<td class="col-target-wc">${esc(targetWc)}</td>` +
                     `<td class="col-actual-wc">${actualWc != null ? esc(String(actualWc)) : "—"}</td>` +
                     `<td class="col-seo">${rowSeoCell(job)}</td>` +
-                    `<td class="col-llm">${pill(llmKey)}</td>` +
+                    `<td class="col-llm">${pillWithError(llmKey, job)}</td>` +
                     `<td class="col-publish">${pill(ps)}</td>` +
                     `<td class="col-badges">${badges}</td>` +
-                    `<td class="col-act"><div class="bulk-v2-act-btns">${openBtn}${deleteBtn}${openProj}</div></td>` +
+                    `<td class="col-act"><div class="bulk-v2-act-btns">${openBtn}${retryBtn}${deleteBtn}${openProj}</div></td>` +
                     `</tr>`
                 );
             })
@@ -573,7 +692,7 @@
                         `<h4 class="bulk-v2-card-kw">${esc(row.keyword)}</h4>` +
                         `<p class="bulk-v2-card-meta">${esc(truncate(title, 60))}</p>` +
                         `<p class="bulk-v2-card-wc">WC ${esc(targetWc)} → ${actualWc != null ? esc(String(actualWc)) : "—"} · SEO ${job && job.seo_score != null ? esc(String(job.seo_score)) : "—"}</p>` +
-                        `<div class="bulk-v2-card-pills">${rowBadges(row, job).join(" ")} ${pill(rowLlmStatus(job))} ${pill(rowPublishStatus(row, job))}</div>` +
+                        `<div class="bulk-v2-card-pills">${rowBadges(row, job).join(" ")} ${pillWithError(rowLlmStatus(job, row), job)} ${pill(rowPublishStatus(row, job))}</div>` +
                         `<div class="bulk-v2-card-actions">` +
                         `<button type="button" class="btn secondary btn-sm bulk-v2-card-edit${setupOk ? " ca-bulk-action--setup" : ""}" data-bulk-edit-row="${esc(id)}">Sửa bài</button>` +
                         `<button type="button" class="btn secondary btn-sm bulk-v2-card-delete" data-bulk-delete-row="${esc(id)}">Xóa</button>` +
@@ -763,6 +882,54 @@
         else deleteAllRows({ skipConfirm: true });
     }
 
+    async function retryBulkRow(rowId) {
+        const id = String(rowId || "").trim();
+        if (!id) return;
+        const c = core();
+        const row = c && c.findRow ? c.findRow(id) : null;
+        if (!row || !row.keyword) {
+            toast("Không tìm thấy từ khóa để retry.");
+            return;
+        }
+        let jobId = "";
+        try {
+            if (c && c.getBulkJobId) jobId = String(c.getBulkJobId() || "").trim();
+        } catch (_) {}
+        if (!jobId) {
+            try {
+                jobId = String(localStorage.getItem(c && c.BULK_LAST_JOB_KEY ? c.BULK_LAST_JOB_KEY() : "") || "").trim();
+            } catch (_) {}
+        }
+        if (!jobId && typeof window !== "undefined") {
+            try {
+                const keys = Object.keys(localStorage || {});
+                const hit = keys.find((k) => k.includes("content_ai_bulk_job_id") || k.includes("content_ai_bulk_last_job"));
+                if (hit) jobId = String(localStorage.getItem(hit) || "").trim();
+            } catch (_) {}
+        }
+        if (!jobId) {
+            toast("Không có job bulk — chạy viết hàng loạt trước.");
+            return;
+        }
+        try {
+            const res = await fetch(`/content-ai/bulk-jobs/${encodeURIComponent(jobId)}/retry`, {
+                method: "POST",
+                headers: authJsonHeaders(),
+                body: JSON.stringify({ keywords: [row.keyword] }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error((data && data.detail) || `HTTP ${res.status}`);
+            }
+            toast(`Đang thử lại: ${row.keyword}`);
+            if (c && c.setBulkJobId && data.job_id) c.setBulkJobId(data.job_id);
+            if (c && c.startBulkPoll && data.job_id) c.startBulkPoll(data.job_id);
+            else if (c && c.reconnectActiveJob) c.reconnectActiveJob();
+        } catch (e) {
+            toast(`Retry thất bại: ${String(e.message || e)}`);
+        }
+    }
+
     function wireTableEvents() {
         const tbody = byId("caBulkStatusBody");
         if (!tbody) return;
@@ -778,6 +945,9 @@
         });
         tbody.querySelectorAll("[data-bulk-delete-row]").forEach((btn) => {
             btn.addEventListener("click", () => deleteRow(btn.getAttribute("data-bulk-delete-row")));
+        });
+        tbody.querySelectorAll("[data-bulk-retry-row]").forEach((btn) => {
+            btn.addEventListener("click", () => void retryBulkRow(btn.getAttribute("data-bulk-retry-row")));
         });
         tbody.querySelectorAll(".bulk-v2-row-chk").forEach((chk) => {
             chk.addEventListener("change", () => {
@@ -885,7 +1055,7 @@
                   ? p.seo_issues
                   : []) || [];
         const seoStatus = (job && job.seo_status) || p.seo_status || "";
-        const llmErr = job && job.status === "error" ? job.error || "Lỗi LLM/API" : "";
+        const llmErr = jobErrorMessage(job);
         const issueLis = seoIssues.length
             ? seoIssues
                   .slice(0, 40)
@@ -906,7 +1076,7 @@
             `<div class="bulk-v2-article-field"><label>Target word count</label><div>${esc(targetWc)}</div></div>` +
             `<div class="bulk-v2-article-field"><label>Actual word count</label><div>${actualWc != null ? esc(String(actualWc)) : "—"} · ${pill(rowWcStatusKey(row, job))}</div></div>` +
             `<div class="bulk-v2-article-field"><label>SEO score</label><div>${seoScore != null ? esc(String(seoScore)) : "—"} · ${esc(seoStatus || "—")}</div></div>` +
-            `<div class="bulk-v2-article-field"><label>LLM</label><div>${pill(rowLlmStatus(job))}</div></div>` +
+            `<div class="bulk-v2-article-field"><label>LLM</label><div>${pillWithError(rowLlmStatus(job, row), job)}</div></div>` +
             `</div>` +
             `<div class="bulk-v2-article-field"><label>Outline</label><pre class="bulk-v2-article-pre">${esc(outline) || "—"}</pre></div>` +
             `<div class="bulk-v2-article-field"><label>SEO issues</label><ul class="bulk-v2-seo-issue-list">${issueLis}</ul></div>` +
@@ -1767,6 +1937,7 @@
     }
 
     function refresh() {
+        reconcileAllJobItems();
         const ids = getAllWrittenProjectIds({ allowBroken: true });
         const done = () => {
             renderTable();
@@ -1781,13 +1952,59 @@
         }
     }
 
-    function refreshJob(items) {
-        _jobItems = items || [];
+    function mergeJobItemNoDowngrade(prev, incoming) {
+        const a = prev && typeof prev === "object" ? prev : {};
+        const b = incoming && typeof incoming === "object" ? incoming : {};
+        const rank = (s) => {
+            const v = String(s || "").toLowerCase();
+            if (v === "success" || v === "written" || v === "ok") return 40;
+            if (v === "error") return 30;
+            if (v === "cancelled") return 20;
+            if (v === "running") return 10;
+            return 0;
+        };
+        const merged = { ...a, ...b };
+        if (rank(a.status) > rank(b.status)) {
+            merged.status = a.status;
+            if (a.project_id && !String(merged.project_id || "").trim()) merged.project_id = a.project_id;
+            if (a.word_count != null && merged.word_count == null) merged.word_count = a.word_count;
+            if (a.actual_word_count != null && merged.actual_word_count == null) {
+                merged.actual_word_count = a.actual_word_count;
+            }
+            if (a.seo_score != null && merged.seo_score == null) merged.seo_score = a.seo_score;
+        }
+        if (a.project_id && !String(b.project_id || "").trim()) merged.project_id = a.project_id;
+        merged.keyword = b.keyword || a.keyword || "";
+        return merged;
+    }
+
+    function refreshJob(items, opts) {
+        const incoming = Array.isArray(items) ? items : [];
+        const wipe = !!(opts && opts.replace && !incoming.length);
+        if (wipe) {
+            _jobItems = [];
+        } else if (!incoming.length && !(_jobItems || []).length) {
+            _jobItems = [];
+        } else {
+            const byKw = Object.create(null);
+            (_jobItems || []).forEach((it) => {
+                const kw = String((it && it.keyword) || "").trim().toLowerCase();
+                if (kw) byKw[kw] = { ...it };
+            });
+            incoming.forEach((it) => {
+                const kw = String((it && it.keyword) || "").trim().toLowerCase();
+                if (!kw) return;
+                byKw[kw] = mergeJobItemNoDowngrade(byKw[kw], it);
+            });
+            _jobItems = Object.values(byKw);
+        }
+        reconcileAllJobItems();
         if (_jobItems.some((x) => x.status === "running")) {
             setStep("run");
         } else if (_jobItems.some((x) => x.status === "success" || x.status === "error")) {
             setStep("review");
         }
+        renderTable();
         void loadServerSchedules().then(() => refresh());
     }
 
@@ -1811,6 +2028,7 @@
         refreshJob,
         setStep,
         getSelectedIds: () => Array.from(_selected),
+        getSelectedKeywords,
         getDrawerRowId: () => _drawerRowId,
         closeEditor,
         getSelectedProjectIds,

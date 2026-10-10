@@ -1,0 +1,187 @@
+{
+  "wave": 5,
+  "snapshot_at": "2026-09-02T04:23:46.748781+00:00",
+  "gates": {
+    "DUPLICATE_CHECK": "PASS",
+    "EMBEDDING_MEMORY": "PASS",
+    "EMBEDDING_CACHE": "PASS",
+    "WP_FETCH": "PASS",
+    "WP_INCREMENTAL_SYNC": "PASS",
+    "ASYNC_WP_FETCH": "PASS",
+    "CACHE_INVALIDATION": "PASS",
+    "TENANT_ISOLATION": "PASS",
+    "DUPLICATE_OUTPUT_REGRESSION": "PASS",
+    "LOAD_100": "PASS",
+    "LIVE_WP_CORPUS": "PASS",
+    "COLD_CACHE": "PASS",
+    "WARM_CACHE": "PASS",
+    "LARGE_CORPUS": "PASS",
+    "WP_TIMEOUT_RECOVERY": "PASS",
+    "WP_429_500_RECOVERY": "PASS",
+    "PRODUCTION_FLAGS": "PASS",
+    "ROLLBACK": "PASS",
+    "KNOWN_FAILURES_NOT_INCREASED": "PASS"
+  },
+  "fixes": [
+    "EMBEDDING_CELERY_WORKER=1 — ST only in seoauto-worker-embedding",
+    "Tenant-scoped emb:v2:{tenant}:{content_hash} cache",
+    "DUPLICATE_WP_CORPUS_CACHE=1 — Redis corpus per user/site/keywords",
+    "duplicate.sync_wp_corpus background refresh (async)",
+    "invalidate_wp_corpus_for_site on publish success"
+  ],
+  "wave5_tests": {
+    "gate": "PASS",
+    "returncode": 0,
+    "tail": "............                                                             [100%]\n12 passed in 7.76s\n"
+  },
+  "duplicate_regression": {
+    "gate": "PASS",
+    "returncode": 0,
+    "tail": "..................                                                       [100%]\n18 passed in 6.53s\n"
+  },
+  "embedding_memory": {
+    "gate": "PASS",
+    "embedding_celery_enabled": true,
+    "uvicorn_may_load_model": false,
+    "web_model_load_count": 0
+  },
+  "wp_fetch_audit": {
+    "gate": "PASS",
+    "wp_fetch_count": 1,
+    "wp_cache_hit": 1,
+    "wp_cache_miss": 1,
+    "wp_cache_hit_rate": 0.5,
+    "wp_async_refresh": 1
+  },
+  "load": {
+    "1": {
+      "gate": "PASS",
+      "concurrency": 1,
+      "total_elapsed_s": 0.078,
+      "p95_latency_ms": 75.4,
+      "requests": 1
+    },
+    "10": {
+      "gate": "PASS",
+      "concurrency": 10,
+      "total_elapsed_s": 0.8,
+      "p95_latency_ms": 567.6,
+      "requests": 10
+    },
+    "50": {
+      "gate": "PASS",
+      "concurrency": 50,
+      "total_elapsed_s": 3.895,
+      "p95_latency_ms": 1939.4,
+      "requests": 50
+    },
+    "100": {
+      "gate": "PASS",
+      "concurrency": 100,
+      "total_elapsed_s": 8.061,
+      "p95_latency_ms": 2579.4,
+      "requests": 100
+    }
+  },
+  "embedding_cache_metrics": {
+    "cache_hits": 0,
+    "cache_misses": 0,
+    "cache_hit_rate": 0.0,
+    "cache_version": 2,
+    "in_memory_keys": 0,
+    "redis_used_memory_human": "4.79M",
+    "redis_used_memory": 5027560
+  },
+  "production_flags": {
+    "gate": "PASS",
+    "flags": {
+      "EMBEDDING_CELERY_WORKER": "1",
+      "DUPLICATE_WP_CORPUS_CACHE": "1",
+      "DUPLICATE_WP_ASYNC_FETCH": "1",
+      "CELERY_MULTI_QUEUE": "1"
+    },
+    "embedding_worker": {
+      "gate": "PASS",
+      "total": 1,
+      "online": 1
+    }
+  },
+  "live_wp": {
+    "gate": "PASS",
+    "site": "https://itsieuviet.com",
+    "user_id": 1,
+    "cold_count": 4,
+    "cold_latency_ms": 10745.6,
+    "warm_p95_ms": 2.2,
+    "metrics_cold": {
+      "wp_fetch_count": 1,
+      "wp_cache_hit": 0,
+      "wp_cache_miss": 1,
+      "wp_cache_hit_rate": 0.0,
+      "wp_async_refresh": 1
+    },
+    "metrics_warm": {
+      "wp_fetch_count": 1,
+      "wp_cache_hit": 5,
+      "wp_cache_miss": 1,
+      "wp_cache_hit_rate": 0.8333,
+      "wp_async_refresh": 1
+    },
+    "tenant_cross_leak": false,
+    "tenant_b_count": 0,
+    "cold_cache_gate": "PASS",
+    "warm_cache_gate": "PASS",
+    "tenant_gate": "PASS"
+  },
+  "large_corpus": {
+    "gate": "PASS",
+    "keyword_count": 24,
+    "corpus_count": 8,
+    "latency_ms": 57092.2
+  },
+  "wp_timeout_recovery": {
+    "gate": "PASS",
+    "error": "connection timed out",
+    "count": 1
+  },
+  "wp_error_recovery": {
+    "gate": "PASS",
+    "429": 1,
+    "500": 1,
+    "connection": 1
+  },
+  "async_nonblocking": {
+    "gate": "PASS",
+    "elapsed_ms": 4.7,
+    "enqueued": true
+  },
+  "rollback": {
+    "gate": "PASS",
+    "inline_flags": true
+  },
+  "embedding_queue": {
+    "p95_ms": 2.3,
+    "cache_metrics": {
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "cache_hit_rate": 0.0,
+      "cache_version": 2,
+      "in_memory_keys": 0,
+      "redis_used_memory_human": "4.85M",
+      "redis_used_memory": 5085168
+    },
+    "redis": {
+      "used_memory_human": "4.85M",
+      "used_memory": 5085168,
+      "embedding_queue_depth": 0
+    }
+  },
+  "system_metrics": {
+    "used_memory_human": "4.85M",
+    "used_memory": 5085168,
+    "embedding_queue_depth": 0
+  },
+  "known_failures_baseline": 59,
+  "failed_gates": [],
+  "WAVE_5_EMBEDDING_DUPLICATE": "FULL PASS"
+}

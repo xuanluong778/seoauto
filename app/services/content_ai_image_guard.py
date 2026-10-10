@@ -117,12 +117,46 @@ def is_usable_image_src(src: str, *, allow_relative_static: bool = True) -> bool
 
 
 def normalize_content_image_src(src: str, *, site_base: str = "") -> str:
-    """Chuẩn hóa src thành absolute https khi có thể."""
+    """Chuẩn hóa src thành absolute https khi có thể.
+
+    Critical: never rewrite app-hosted paths (/api/user-files/, /static/...)
+    onto ``target_website``. Those files live on seoauto.vn, not the customer's
+    WordPress domain — rewriting breaks insert validation and empty <img> in editor.
+    """
     s = str(src or "").strip()
     if not s:
         return ""
+    # Strip auth tokens from path for stable storage
+    if "token=" in s and ("/api/user-files/" in s.lower() or s.startswith("/static/")):
+        s = re.sub(r"([?&])token=[^&]*", "", s).rstrip("?&")
     if s.startswith("//"):
         return f"https:{s}"
+    low = s.lower()
+    # App-private & static assets stay on this product host — relative only.
+    if low.startswith(("/api/user-files/", "/static/")):
+        return s
+    # Absolute URL that was wrongly built as {target_website}/api/user-files/...
+    try:
+        p = urlparse(s if "://" in s else "")
+        path = str(p.path or "")
+        if path.startswith(("/api/user-files/", "/static/uploads/", "/static/")) and path.startswith("/api/"):
+            return path + (("?" + p.query) if p.query and "token=" not in p.query else "")
+        if path.startswith("/api/user-files/") or path.startswith("/static/uploads/"):
+            return path
+        if path.startswith("/static/") and p.netloc and "user-files" not in path:
+            # /static/ on external site may be intentional for WP uploads — only rewrite
+            # when netloc looks like it incorrectly hosts our private path (handled above).
+            pass
+    except Exception:
+        pass
+    # Mis-prefixed absolute that still contains our private path
+    m = re.search(r"(https?://[^/]+)?(/api/user-files/[^?\s\"']+)", s, flags=re.I)
+    if m and m.group(2):
+        return m.group(2)
+    m2 = re.search(r"(https?://[^/]+)?(/static/uploads/[^?\s\"']+)", s, flags=re.I)
+    if m2 and m2.group(2):
+        return m2.group(2)
+
     if s.startswith("/"):
         base = str(site_base or "").strip().rstrip("/")
         if base:
@@ -133,6 +167,63 @@ def normalize_content_image_src(src: str, *, site_base: str = "") -> str:
     return s
 
 
+def rehydrate_app_media_src(src: str) -> str:
+    """Force app-hosted media back to site-relative path (never customer domain)."""
+    s = str(src or "").strip()
+    if not s:
+        return ""
+    s = re.sub(r"([?&])token=[^&]*", "", s).rstrip("?&")
+    m = re.search(r"(/api/user-files/[^?\s\"'#]+)", s, flags=re.I)
+    if m:
+        return m.group(1)
+    m2 = re.search(r"(/static/uploads/[^?\s\"'#]+)", s, flags=re.I)
+    if m2:
+        return m2.group(1)
+    if s.lower().startswith(("/api/user-files/", "/static/")):
+        return s.split("?", 1)[0]
+    return s
+
+
+def validate_image_url_for_insert(
+    url: str,
+    *,
+    source: str = "insert",
+    site_base: str = "",
+    probe_remote: bool = True,
+) -> str:
+    """Raise ValueError nếu URL không dùng được; trả URL đã chuẩn hóa."""
+    raw = str(url or "").strip()
+    # Prefer pure app paths before any site_base join
+    app_path = rehydrate_app_media_src(raw)
+    if app_path.startswith(("/api/user-files/", "/static/")):
+        if not is_usable_image_src(app_path):
+            log_image_error(image_url=app_path, source=source, error_message="reject_insert_app")
+            raise ValueError("URL ảnh không hợp lệ — cần absolute https hoặc /static/.")
+        # Local app files are already on disk after import — never HTTP-probe via target site.
+        return app_path
+
+    norm = normalize_content_image_src(raw, site_base=site_base)
+    if not is_usable_image_src(norm):
+        log_image_error(image_url=norm, source=source, error_message="reject_insert")
+        raise ValueError("URL ảnh không hợp lệ — cần absolute https hoặc /static/.")
+    if probe_remote and norm.lower().startswith(("http://", "https://")):
+        # Don't probe rewritten customer-domain copies of app media
+        if re.search(r"/api/user-files/", norm, flags=re.I):
+            return rehydrate_app_media_src(norm) or norm
+        probe = probe_image_url(norm)
+        if not probe.get("ok"):
+            log_image_error(
+                image_url=norm,
+                source=source,
+                status_code=probe.get("status_code"),
+                error_message=str(probe.get("error") or "unreachable"),
+            )
+            raise ValueError(
+                f"Ảnh không tải được (HTTP {probe.get('status_code') or 'lỗi'})."
+            )
+    return norm
+
+
 def probe_image_url(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
     """HEAD/GET nhẹ — trả ok, status_code, error."""
     u = normalize_content_image_src(str(url or "").strip())
@@ -141,20 +232,17 @@ def probe_image_url(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
             return {"ok": True, "status_code": None, "error": ""}
         return {"ok": False, "status_code": None, "error": "not_absolute_url"}
     try:
-        r = requests.head(
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        blocked = validate_public_http_url(u)
+        if blocked:
+            return {"ok": False, "status_code": None, "error": blocked}
+        r = safe_requests_get(
             u,
             timeout=timeout,
-            allow_redirects=True,
             headers={"User-Agent": "Mozilla/5.0 (compatible; SEOAuto/1.0)"},
         )
-        if r.status_code in (405, 501):
-            r = requests.get(
-                u,
-                timeout=timeout,
-                stream=True,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; SEOAuto/1.0)"},
-            )
-            r.close()
+        # HEAD not supported in safe_requests_get; GET body is short-circuited by status check
         if r.status_code >= 400:
             return {"ok": False, "status_code": int(r.status_code), "error": f"HTTP {r.status_code}"}
         return {"ok": True, "status_code": int(r.status_code), "error": ""}
@@ -212,11 +300,19 @@ def sanitize_content_html_images(
             changed = True
             continue
 
-        norm = normalize_content_image_src(src, site_base=site_base)
-        if norm and norm != src:
-            img["src"] = norm
-            src = norm
-            changed = True
+        # Always rehydrate app-hosted paths before joining site_base
+        app = rehydrate_app_media_src(src)
+        if app.startswith(("/api/user-files/", "/static/uploads/")):
+            if app != src:
+                img["src"] = app
+                src = app
+                changed = True
+        else:
+            norm = normalize_content_image_src(src, site_base=site_base)
+            if norm and norm != src:
+                img["src"] = norm
+                src = norm
+                changed = True
 
         if not is_usable_image_src(src):
             log_image_error(
@@ -232,7 +328,21 @@ def sanitize_content_html_images(
             changed = True
             continue
 
+        # Never HTTP-probe (and never rewrite) private app media via customer domain
+        if src.lower().startswith(("/api/user-files/", "/static/")):
+            _ensure_img_attrs(img)
+            changed = True
+            continue
+
         if probe_remote and src.lower().startswith(("http://", "https://")):
+            # Broken rewrite: host points to target website but path is our API
+            if "/api/user-files/" in src.lower():
+                fixed = rehydrate_app_media_src(src)
+                img["src"] = fixed
+                src = fixed
+                changed = True
+                _ensure_img_attrs(img)
+                continue
             probe = probe_image_url(src)
             if not probe.get("ok"):
                 log_image_error(
@@ -300,30 +410,3 @@ def repair_content_html_images(
         source=source,
         probe_remote=probe_remote,
     )
-
-
-def validate_image_url_for_insert(
-    url: str,
-    *,
-    source: str = "insert",
-    site_base: str = "",
-    probe_remote: bool = True,
-) -> str:
-    """Raise ValueError nếu URL không dùng được; trả URL đã chuẩn hóa."""
-    norm = normalize_content_image_src(str(url or "").strip(), site_base=site_base)
-    if not is_usable_image_src(norm):
-        log_image_error(image_url=norm, source=source, error_message="reject_insert")
-        raise ValueError("URL ảnh không hợp lệ — cần absolute https hoặc /static/.")
-    if probe_remote and norm.lower().startswith(("http://", "https://")):
-        probe = probe_image_url(norm)
-        if not probe.get("ok"):
-            log_image_error(
-                image_url=norm,
-                source=source,
-                status_code=probe.get("status_code"),
-                error_message=str(probe.get("error") or "unreachable"),
-            )
-            raise ValueError(
-                f"Ảnh không tải được (HTTP {probe.get('status_code') or 'lỗi'})."
-            )
-    return norm

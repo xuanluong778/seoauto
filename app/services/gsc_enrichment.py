@@ -21,7 +21,7 @@ from app.services.gsc_client import (
 )
 from app.services.gsc_priority import (
     append_gsc_disclaimer_if_needed,
-    compute_issue_priority_score,
+    compute_priority_components,
     detect_ctr_opportunities,
     detect_high_impression_technical_issues,
     detect_traffic_drop_opportunities,
@@ -204,6 +204,7 @@ def enrich_technical_audit_with_gsc(
     start_d, end_d = resolve_gsc_date_range(gsc_date_range, start_date=gsc_start_date, end_date=gsc_end_date)
     errors: list[str] = []
     partial = False
+    quota_hit = False
 
     page_metrics: list[dict[str, Any]] = []
     prior_metrics: list[dict[str, Any]] = []
@@ -216,11 +217,24 @@ def enrich_technical_audit_with_gsc(
         )
     except GscPermissionError as exc:
         errors.append(str(exc))
-        empty["gsc_summary"] = _summary_shell(site_url, start_d, end_d, errors, partial=False)
+        empty["gsc_summary"] = {
+            "enabled": True,
+            "connected": False,
+            "property": site_url,
+            "partial_data": True,
+            "quota_exceeded": False,
+            "errors": errors,
+            "message": f"Không đủ quyền GSC — audit crawl tiếp tục: {exc}",
+        }
         _apply_no_gsc_disclaimers(issues)
         empty["errors"] = errors
         empty["issues"] = issues
+        empty["partial_data"] = True
         return empty
+    except GscQuotaError as exc:
+        errors.append(str(exc))
+        partial = True
+        quota_hit = True
     except GscClientError as exc:
         errors.append(str(exc))
         partial = True
@@ -238,6 +252,10 @@ def enrich_technical_audit_with_gsc(
             end_date=prior_end.isoformat(),
             row_limit=3000,
         )
+    except GscQuotaError as exc:
+        errors.append(str(exc))
+        partial = True
+        quota_hit = True
     except Exception as exc:
         _LOG.debug("prior period GSC fetch skipped: %s", exc)
 
@@ -248,7 +266,6 @@ def enrich_technical_audit_with_gsc(
     inspection_limit = max(0, min(int(url_inspection_limit or 0), 50))
     inspection_results: list[dict[str, Any]] = []
     inspections_by_url: dict[str, dict[str, Any]] = {}
-    quota_hit = False
 
     if inspection_limit > 0:
         candidates = _collect_inspection_candidates(
@@ -295,12 +312,20 @@ def enrich_technical_audit_with_gsc(
         confirmed = bool(insp and gsc_evidence_badge(issue, inspection=insp) == "gsc_confirmed")
         badge = gsc_evidence_badge(issue, inspection=insp, gsc_confirmed=confirmed)
         issue["gsc_badge"] = badge
-        issue["priority_score"] = compute_issue_priority_score(
+        if badge == "gsc_confirmed":
+            issue["source"] = "hybrid"
+        elif str(issue.get("source") or "").lower() not in ("gsc", "hybrid", "crawl", "crux", "pagespeed"):
+            issue["source"] = "crawl"
+        components = compute_priority_components(
             issue,
             page_metrics=pm,
             inspection=insp,
             has_gsc=True,
+            affected_url_count=1 if url else None,
+            confidence=issue.get("confidence"),
         )
+        issue["priority_score"] = components["priority_score"]
+        issue["priority_tier"] = components["priority_tier"]
         if pm:
             issue["gsc_clicks"] = int(pm.get("clicks") or 0)
             issue["gsc_impressions"] = int(pm.get("impressions") or 0)
@@ -423,8 +448,17 @@ def _apply_no_gsc_disclaimers(issues: list[dict[str, Any]]) -> None:
         if str(issue.get("type") or "") in INDEX_INFERENCE_TYPES:
             append_gsc_disclaimer_if_needed(issue, has_inspection=False)
         issue["gsc_badge"] = issue.get("gsc_badge") or "crawl_detected"
+        if str(issue.get("source") or "").lower() not in ("gsc", "hybrid", "crawl", "crux", "pagespeed"):
+            issue["source"] = "crawl"
         if issue.get("priority_score") is None:
-            issue["priority_score"] = compute_issue_priority_score(issue, has_gsc=False)
+            components = compute_priority_components(
+                issue,
+                has_gsc=False,
+                affected_url_count=1 if issue.get("url") else None,
+                confidence=issue.get("confidence"),
+            )
+            issue["priority_score"] = components["priority_score"]
+            issue["priority_tier"] = components["priority_tier"]
 
 
 def _summary_shell(

@@ -608,7 +608,7 @@
     flex-shrink: 0;
 }
 
-/* Step modal — links drawer (full) & media (80% width) */
+/* Step modal — links drawer (full) & media (bounded height + inner scroll) */
 .ca-step-modal-overlay:has(.ca-il-workspace) {
     padding: 0;
     align-items: stretch;
@@ -616,9 +616,10 @@
 }
 
 .ca-step-modal-overlay:has(.ca-media-workspace) {
-    padding: 24px;
+    padding: 16px;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 }
 
 .ca-step-modal-overlay:has(.ca-il-workspace) .ca-step-modal {
@@ -628,11 +629,26 @@
     height: 100dvh;
 }
 
+/* =====================================================================
+ * Media modal scrollbar (robust)
+ * DOM when open:
+ *   .ca-step-modal > .dialog > .ca-step-modal-body
+ *     > .ca-step-panel-images (wrapper) > .ca-media-workspace
+ *       > header + tabs + .ca-modal-body-scroll
+ * Nested flex+overflow on workspace clipped content with NO scrollbar
+ * because the panel wrapper was display:block (flex:1 on child was a no-op).
+ * Fix: ONE constrained scroll parent = .ca-step-modal-body (always visible bar).
+ * ===================================================================== */
+
 .ca-step-modal-overlay:has(.ca-media-workspace) .ca-step-modal {
-    width: 80%;
-    max-width: calc(100vw - 48px);
-    max-height: calc(100dvh - 48px);
-    height: auto;
+    width: min(80vw, calc(100vw - 32px));
+    max-width: 1100px;
+    height: calc(100dvh - 32px) !important;
+    max-height: calc(100dvh - 32px) !important;
+    min-height: 0;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
 }
 
 .ca-step-modal-overlay:has(.ca-il-workspace) .ca-step-modal-dialog {
@@ -644,30 +660,148 @@
 }
 
 .ca-step-modal-overlay:has(.ca-media-workspace) .ca-step-modal-dialog {
-    max-height: calc(100dvh - 48px);
-    height: auto;
+    flex: 1 1 0% !important;
+    width: 100%;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
     border-radius: 14px;
+    overflow: hidden !important;
 }
 
-.ca-step-modal-body:has(.ca-il-workspace),
-.ca-step-modal-body:has(.ca-media-workspace) {
+.ca-step-modal-body:has(.ca-il-workspace) {
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: hidden;
     padding: 12px 14px;
     max-height: calc(100dvh - 52px);
 }
 
+/* THE scroll container — always show scrollbar track */
+.ca-step-modal-body:has(.ca-media-workspace) {
+    display: block !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: scroll !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 10px 20px 14px !important;
+    scrollbar-gutter: stable;
+    scrollbar-width: auto !important;
+    scrollbar-color: rgba(0, 230, 118, 0.85) rgba(255, 255, 255, 0.12) !important;
+}
+
+.ca-step-modal-body:has(.ca-media-workspace)::-webkit-scrollbar {
+    width: 12px !important;
+    height: 12px !important;
+    display: block !important;
+    background: transparent;
+}
+.ca-step-modal-body:has(.ca-media-workspace)::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px;
+    margin: 4px 0;
+}
+.ca-step-modal-body:has(.ca-media-workspace)::-webkit-scrollbar-thumb {
+    background: rgba(0, 230, 118, 0.75) !important;
+    border-radius: 8px;
+    border: 2px solid rgba(15, 23, 42, 0.4);
+    min-height: 40px;
+}
+.ca-step-modal-body:has(.ca-media-workspace)::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 230, 118, 0.95) !important;
+}
+
+/* Unwrap nested constraints so height grows → body can scroll */
+.ca-step-modal-body:has(.ca-media-workspace) > .ca-step-panel-images,
+.ca-step-modal-body:has(.ca-media-workspace) > .ca-inline-step-section {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+}
+
+.ca-step-modal-body:has(.ca-media-workspace) .ca-media-workspace,
+.ca-step-modal-body:has(.ca-media-workspace) .ca-media-workspace.ca-step-drawer-panel,
+.ca-step-modal-body:has(.ca-media-workspace) .ca-step-drawer-panel {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    flex: none !important;
+}
+
+.ca-step-modal-body:has(.ca-media-workspace) .ca-modal-body-scroll {
+    display: block !important;
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 12px 0 40px !important;
+}
+
+/* Sticky chrome while body scrolls */
+.ca-step-modal-body:has(.ca-media-workspace) .ca-modal-header-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: linear-gradient(165deg, rgba(8, 18, 12, 0.99) 0%, rgba(15, 23, 42, 0.99) 100%);
+}
+
+.ca-step-modal-body:has(.ca-media-workspace) .ca-modal-tabs {
+    position: sticky;
+    top: 52px;
+    z-index: 3;
+    background: linear-gradient(165deg, rgba(8, 18, 12, 0.99) 0%, rgba(15, 23, 42, 0.99) 100%);
+}
+
 .ca-step-modal-body .ca-il-workspace,
 .ca-step-modal-body .ca-media-workspace {
-    flex: 1;
     min-height: 0;
+}
+
+.ca-step-modal-body .ca-il-workspace {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Preview results block */
+.ca-step-modal-body:has(.ca-media-workspace) #studioGallery.ca-media-gallery-grid:not(:empty),
+.ca-step-modal-body:has(.ca-media-workspace) #googleImageResults.ca-media-gallery-grid:not(:empty) {
+    margin-top: 12px;
+    padding: 10px 4px 20px;
+    border-top: 1px solid rgba(0, 230, 118, 0.18);
+    scroll-margin-top: 16px;
+}
+
+.ca-media-results-label {
+    margin: 12px 0 6px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #a7f3d0;
+}
+
+.ca-step-modal-body:has(.ca-media-workspace) .ca-media-gallery-grid {
+    max-height: none;
+    padding-bottom: 16px;
 }
 
 .ca-step-modal-head {
     position: sticky;
     top: 0;
     z-index: 2;
+    flex-shrink: 0;
 }
 
 /* Hide legacy table UI inside new workspace */
@@ -794,7 +928,13 @@
     flex-direction: column;
     min-height: 0;
     height: 100%;
+    /* Only constrain when NOT inside step modal media body (see :has(.ca-media-workspace) above) */
     max-height: calc(100dvh - 52px);
+}
+
+/* max-height unlocked in media modal scroll block above */
+.ca-step-modal-body:has(.ca-media-workspace) .ca-step-drawer-panel {
+    max-height: none !important;
 }
 
 .ca-step-drawer-panel .ca-step-drawer-body {
@@ -1031,11 +1171,105 @@
     }
 
     .ca-step-modal-overlay:has(.ca-media-workspace) {
-        padding: 12px;
+        padding: 8px;
     }
 
     .ca-step-modal-overlay:has(.ca-media-workspace) .ca-step-modal {
-        width: calc(100vw - 24px);
+        width: calc(100vw - 16px);
         max-width: none;
+        height: calc(100dvh - 16px);
+        max-height: calc(100dvh - 16px);
     }
+}
+
+/* —— Chọn vị trí chèn ảnh (H2/H3 picker) ——
+ * Backdrop MUST be under the modal. Previously modal=100650 < backdrop=100790
+ * so the dim layer swallowed every click on heading buttons (UI looked open but dead).
+ */
+#mediaHeadingPickerBackdrop.modal-backdrop {
+    z-index: 100700 !important;
+    pointer-events: auto !important;
+}
+#mediaHeadingPickerModal.modal,
+#mediaHeadingPickerModal.modal.ca-media-heading-picker-modal {
+    z-index: 100710 !important;
+    padding: 18px;
+    pointer-events: none; /* only the card receives clicks; rest passes to backdrop cancel */
+}
+#mediaHeadingPickerModal.modal.open {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+#mediaHeadingPickerBackdrop.modal-backdrop.open {
+    display: block !important;
+}
+.ca-media-heading-picker-modal .modal-card {
+    position: relative;
+    z-index: 1;
+    width: min(480px, calc(100vw - 32px));
+    max-height: min(80dvh, 640px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    pointer-events: auto !important;
+    background: linear-gradient(165deg, rgba(8, 18, 12, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
+    border: 1px solid rgba(0, 230, 118, 0.28);
+    border-radius: 14px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+.ca-media-heading-picker-modal .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    max-height: min(52dvh, 420px);
+    padding: 8px 12px 12px;
+    pointer-events: auto;
+}
+.ca-media-heading-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: auto;
+}
+.ca-media-heading-pick-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.28);
+    color: #e2e8f0;
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    pointer-events: auto !important;
+    position: relative;
+    z-index: 2;
+    -webkit-tap-highlight-color: rgba(0, 230, 118, 0.25);
+    touch-action: manipulation;
+}
+.ca-media-heading-pick-btn:hover {
+    border-color: rgba(0, 230, 118, 0.45);
+    background: rgba(0, 230, 118, 0.1);
+}
+.ca-media-heading-pick-btn .tag {
+    display: inline-block;
+    margin-right: 8px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #6ee7b7;
+    min-width: 28px;
+}
+.ca-media-heading-pick-btn.is-anchor {
+    border-style: dashed;
+    color: #cbd5e1;
+}
+.ca-media-heading-picker-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }

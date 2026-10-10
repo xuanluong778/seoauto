@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% include "partials/digiseo_seo_head.html" %}
     {% include "partials/digiseo_theme_head.html" %}
-    <link rel="stylesheet" href="/static/css/settings-template-overrides.css?v=20260722b">
+    <link rel="stylesheet" href="/static/css/settings-template-overrides.css?v=20260817emailnotify">
     <link rel="stylesheet" href="/static/css/chatbot-kb-sync.css?v=1">
 </head>
 <body data-user-dock="hidden">
@@ -21,7 +21,7 @@
                 {% if can_manage_api_keys %}<a class="sb-link" href="#api-keys" id="navApiKeysLink"><span class="sb-ico" aria-hidden="true">🔑</span> <span data-i18n="settings.sb.api_keys">Khóa API</span></a>{% endif %}
                 <a class="sb-link" href="#ai-provider"><span class="sb-ico" aria-hidden="true">🤖</span> <span data-i18n="settings.sb.ai_provider">Nhà cung cấp AI</span></a>
                 <a class="sb-link" href="#ai-knowledge-base"><span class="sb-ico" aria-hidden="true">📚</span> <span data-i18n="settings.sb.ai_kb">AI Knowledge Base</span></a>
-                <a class="sb-link" href="#chatbot-knowledge"><span class="sb-ico" aria-hidden="true">🧠</span> <span>Sơ đồ tri thức Chatbot</span></a>
+                <a class="sb-link" href="#email-notifications"><span class="sb-ico" aria-hidden="true">✉️</span> <span data-i18n="settings.sb.email_notify">Thông báo Email</span></a>
                 <a class="sb-link" href="#publishing"><span class="sb-ico" aria-hidden="true">🌐</span> <span data-i18n="settings.sb.publishing">Xuất bản</span></a>
                 <a class="sb-link" href="#publishing" id="navWpHelperLink"><span class="sb-ico" aria-hidden="true">🔌</span> <span>SEO Helper</span></a>
                 <a class="sb-link" href="#search-console"><span class="sb-ico" aria-hidden="true">G</span> <span data-i18n="settings.sb.search_console">Search Console</span> <span class="nav-pro-badge">PRO</span></a>
@@ -285,7 +285,7 @@
                     </div>
                 </div>
                 <p class="card-hint" style="margin-top: 16px;">
-                    Khóa API được mã hóa trong cơ sở dữ liệu (<code style="color:#86efac;">user_api_keys</code>). Chỉ admin cấu hình pool API hệ thống — user thường không thấy và không lưu key riêng. Swagger: <a href="/docs">/docs</a>.
+                    Khóa API được mã hóa trong cơ sở dữ liệu (<code style="color:#86efac;">user_api_keys</code>). Chỉ admin cấu hình pool API hệ thống — user thường không thấy và không lưu key riêng.
                 </p>
             </section>
 
@@ -379,7 +379,7 @@
                 <div class="aikb-head">
                     <div>
                         <h2>Knowledge Base <span class="info" title="RAG: AI tra cứu dữ liệu nội bộ trước khi viết bài.">ⓘ</span></h2>
-                        <p class="lead">Quản lý dữ liệu tham khảo để tạo bài viết chính xác với RAG</p>
+                        <p class="lead">Một Knowledge Base dùng chung cho Content AI, Chatbot và toàn hệ thống</p>
                     </div>
                     <div class="aikb-head-actions">
                         <button type="button" class="aikb-btn-ghost is-active" id="aikbShowGuide" title="Hướng dẫn RAG">Hướng dẫn RAG</button>
@@ -402,7 +402,7 @@
                             </div>
                             <div>
                                 <h3 class="aikb-hero-title">Knowledge Base &amp; RAG</h3>
-                                <p class="aikb-hero-desc">RAG (Retrieval-Augmented Generation) cho phép AI tra cứu dữ liệu nội bộ của bạn trước khi viết bài. Thay vì dựa vào kiến thức chung, AI sẽ tham khảo chính xác từ tài liệu bạn cung cấp — giúp nội dung đúng, đủ và nhất quán.</p>
+                                <p class="aikb-hero-desc">RAG (Retrieval-Augmented Generation) cho phép AI tra cứu dữ liệu nội bộ của bạn trước khi viết bài hoặc trả lời chatbot. Thay vì dựa vào kiến thức chung, AI sẽ tham khảo chính xác từ tài liệu bạn cung cấp — giúp nội dung đúng, đủ và nhất quán trên toàn hệ thống.</p>
                             </div>
                         </div>
                         <button type="button" class="aikb-hero-cta" id="aikbHeroCreate">
@@ -469,66 +469,6 @@
 
                 <div id="aikbListSection" class="aikb-list-section" hidden>
                     <div id="aikbGrid" class="aikb-grid" aria-live="polite"></div>
-                </div>
-            </section>
-
-            <section id="chatbot-knowledge" class="aikb-page">
-                <div class="ckb-head">
-                    <div>
-                        <h2>Sơ đồ tri thức Chatbot</h2>
-                        <p class="lead">Quản lý KB dùng chung với tab Chatbot CSKH — dữ liệu lưu trên server, đồng bộ theo từng chatbot.</p>
-                    </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-                        <span id="stgKbSyncBadge" class="ckb-sync ckb-sync--empty" hidden></span>
-                        <span id="stgKbMapBadge"></span>
-                    </div>
-                </div>
-                <p class="apik-help">Cùng nguồn API <code>/api/chatbot/kb/*</code> với <a href="/chatbot-cskh?tab=kb" id="stgKbLinkCskh">Chatbot CSKH → Sơ đồ tri thức / KB</a>. AI Knowledge Base phía trên vẫn dành riêng cho Content AI (RAG viết bài).</p>
-                <div class="aikb-form apik-form" style="margin-top:16px;">
-                    <label for="stgKbBot">Chatbot</label>
-                    <select id="stgKbBot"><option value="">— Chọn chatbot —</option></select>
-                </div>
-                <div class="ckb-actions">
-                    <button type="button" class="apik-add-btn" id="stgKbBtnAdd"><span class="plus">+</span> Thêm node kiến thức</button>
-                    <button type="button" class="aikb-btn-ghost" id="stgKbBtnImport">Import từ FAQ/Nguồn dữ liệu</button>
-                </div>
-                <div class="aikb-panel" id="stgKbFormCard" hidden style="margin-top:16px;">
-                    <h3>Node kiến thức</h3>
-                    <input type="hidden" id="stgKbEditId" value="">
-                    <div class="ckb-form-grid">
-                        <div>
-                            <label for="stgKbNodeType">Loại</label>
-                            <select id="stgKbNodeType">
-                                <option value="group">Nhóm</option>
-                                <option value="node" selected>Node</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="stgKbParent">Node cha</label>
-                            <select id="stgKbParent"><option value="">— Không có —</option></select>
-                        </div>
-                    </div>
-                    <label for="stgKbTitle">Tiêu đề *</label>
-                    <input type="text" id="stgKbTitle" maxlength="200">
-                    <label for="stgKbContent">Nội dung</label>
-                    <textarea id="stgKbContent" rows="5"></textarea>
-                    <label>Tag</label>
-                    <div class="ckb-tags" id="stgKbTags">
-                        <label><input type="checkbox" value="dịch vụ"> Dịch vụ</label>
-                        <label><input type="checkbox" value="bảng giá"> Bảng giá</label>
-                        <label><input type="checkbox" value="chính sách"> Chính sách</label>
-                        <label><input type="checkbox" value="faq"> FAQ</label>
-                        <label><input type="checkbox" value="bảo hành"> Bảo hành</label>
-                        <label><input type="checkbox" value="liên hệ"> Liên hệ</label>
-                    </div>
-                    <div class="ckb-actions">
-                        <button type="button" class="btn-submit" id="stgKbBtnSave">Lưu</button>
-                        <button type="button" class="btn-cancel" id="stgKbBtnCancel">Huỷ</button>
-                    </div>
-                </div>
-                <div class="aikb-panel" style="margin-top:16px;">
-                    <h3>Cây kiến thức</h3>
-                    <div id="stgKbNodesList"><p class="apik-help">Chọn chatbot để xem sơ đồ tri thức.</p></div>
                 </div>
             </section>
 
@@ -675,20 +615,25 @@
                     <form class="pub-form" id="pubForm" autocomplete="off">
                         <div id="pubFormHrvIntro" hidden>
                             <div class="pub-haravan-modal-tip">
-                                <div class="tip-title">How to get Haravan Private Token</div>
-                                <ol>
-                                    <li>Open <a href="https://partners.haravan.com" target="_blank" rel="noopener" style="color:#93c5fd">partners.haravan.com</a>.</li>
-                                    <li><strong>Apps → Create App</strong> → type <strong>Private App</strong> and select your store.</li>
-                                    <li>Under <strong>Scopes</strong>, enable <code>web.read_contents</code> and <code>web.write_contents</code>.</li>
-                                    <li>Copy the <strong>Private Token</strong> from the app detail page.</li>
-                                </ol>
-                                <div class="tip-note">Private Token is long-lived. Seoauto uses it to call Haravan REST APIs (e.g. blogs).</div>
+                                <button type="button" class="pub-tip-toggle" id="pubHrvTipToggle" aria-expanded="false">
+                                    <span>How to get Haravan Private Token</span>
+                                    <span class="chev" aria-hidden="true">▼</span>
+                                </button>
+                                <div class="pub-tip-body">
+                                    <ol>
+                                        <li>Open <a href="https://partners.haravan.com" target="_blank" rel="noopener" style="color:#93c5fd">partners.haravan.com</a>.</li>
+                                        <li><strong>Apps → Create App</strong> → type <strong>Private App</strong> and select your store.</li>
+                                        <li>Under <strong>Scopes</strong>, enable <code>web.read_contents</code> and <code>web.write_contents</code>.</li>
+                                        <li>Copy the <strong>Private Token</strong> from the app detail page.</li>
+                                    </ol>
+                                    <div class="tip-note">Private Token is long-lived. Seoauto uses it to call Haravan REST APIs (e.g. blogs).</div>
+                                </div>
                             </div>
                         </div>
 
                         <div id="pubFormShopifyBlock" hidden>
                             <div class="pub-shopify-modal-tip">
-                                <button type="button" class="pub-tip-toggle" id="pubShopifyTipToggle" aria-expanded="true">
+                                <button type="button" class="pub-tip-toggle" id="pubShopifyTipToggle" aria-expanded="false">
                                     <span>How to get Client ID &amp; Client Secret</span>
                                     <span class="chev" aria-hidden="true">▼</span>
                                 </button>
@@ -710,7 +655,7 @@
 
                         <div id="pubFormWebcakeBlock" hidden>
                             <div class="pub-webcake-modal-tip">
-                                <button type="button" class="pub-tip-toggle" id="pubWebcakeTipToggle" aria-expanded="true">
+                                <button type="button" class="pub-tip-toggle" id="pubWebcakeTipToggle" aria-expanded="false">
                                     <span>How to get a Webcake access token</span>
                                     <span class="chev" aria-hidden="true">▼</span>
                                 </button>
@@ -728,68 +673,90 @@
                             </div>
                         </div>
 
-                        <label id="pubLabelName">Tên gợi nhớ <span class="req">*</span></label>
-                        <input type="text" id="pubFormName" placeholder="Ví dụ: itsieuviet" list="pubFormNameHistory" required />
-
-                        <label id="pubLabelUrl">Website URL <span class="req">*</span></label>
-                        <input type="text" id="pubFormUrl" placeholder="https://your-site.com" list="pubFormUrlHistory" required />
-
-                        <div id="pubFormWpUserBlock">
-                            <label id="pubLabelUser">Tên đăng nhập (WP user) <span class="req">*</span></label>
-                            <input type="text" id="pubFormUser" placeholder="WordPress username" list="pubFormUserHistory" />
-                        </div>
-
-                        <div id="pubFormShopifyCreds" hidden>
-                            <label id="pubLabelShopifyClientId">Client ID <span class="req">*</span></label>
-                            <div class="pub-pass-wrap">
-                                <input type="text" id="pubShopifyClientId" placeholder="Client ID from Shopify Dev Dashboard" autocomplete="off" />
-                                <button type="button" class="pub-pass-toggle" id="pubToggleShopifyClientId" title="Show / hide">👁</button>
+                        <div class="pub-form-grid">
+                            <div class="pub-field">
+                                <label id="pubLabelName">Tên gợi nhớ <span class="req">*</span></label>
+                                <input type="text" id="pubFormName" placeholder="Ví dụ: itsieuviet" list="pubFormNameHistory" required />
                             </div>
-                            <label id="pubLabelShopifyClientSecret">Client Secret <span class="req" id="pubShopifySecretReq">*</span></label>
-                            <div class="pub-pass-wrap">
-                                <input type="password" id="pubShopifyClientSecret" placeholder="Client Secret from Shopify Dev Dashboard" autocomplete="off" />
-                                <button type="button" class="pub-pass-toggle" id="pubToggleShopifySecret" title="Show / hide">👁</button>
+                            <div class="pub-field">
+                                <label id="pubLabelUrl">Website URL <span class="req">*</span></label>
+                                <input type="text" id="pubFormUrl" placeholder="https://your-site.com" list="pubFormUrlHistory" required />
                             </div>
-                            <p class="pub-pass-hint pub-shopify-secret-hint" id="pubShopifySecretHint">From Shopify Dev Dashboard → Apps → Select app → Client credentials</p>
-                            <label id="pubLabelShopifyApiVersion">API Version</label>
-                            <select id="pubShopifyApiVersion">
-                                <option value="2025-01">2025-01 (Stable)</option>
-                                <option value="2024-10">2024-10</option>
-                                <option value="2024-07">2024-07</option>
-                                <option value="2024-04">2024-04</option>
-                            </select>
+                            <div class="pub-field" id="pubFormWpUserBlock">
+                                <label id="pubLabelUser">Tên đăng nhập (WP user) <span class="req">*</span></label>
+                                <input type="text" id="pubFormUser" placeholder="WordPress username" list="pubFormUserHistory" />
+                            </div>
+                            <div class="pub-field" id="pubFormGenericPassBlock">
+                                <label id="pubLabelPass">Application Password <span class="req" id="pubPassReq">*</span></label>
+                                <div class="pub-pass-wrap">
+                                    <input type="password" id="pubFormPass" placeholder="Tạo trong WP → Users → Profile → Application Passwords" />
+                                    <button type="button" class="pub-pass-toggle" id="pubTogglePass" title="Show / hide">👁</button>
+                                </div>
+                                <p class="pub-pass-hint" id="pubPassHint" hidden></p>
+                            </div>
                         </div>
 
-                        <div id="pubFormWebcakeCreds" hidden>
-                            <label id="pubLabelWebcakeAccess">Access Token <span class="req" id="pubWebcakeAccessReq">*</span></label>
-                            <div class="pub-pass-wrap">
-                                <input type="password" id="pubWebcakeAccessToken" placeholder="Access Token from Webcake" autocomplete="off" />
-                                <button type="button" class="pub-pass-toggle" id="pubToggleWebcakeAccess" title="Show / hide">👁</button>
+                        <div class="pub-form-grid" id="pubFormShopifyCreds" hidden>
+                            <div class="pub-field">
+                                <label id="pubLabelShopifyClientId">Client ID <span class="req">*</span></label>
+                                <div class="pub-pass-wrap">
+                                    <input type="text" id="pubShopifyClientId" placeholder="Client ID from Shopify Dev Dashboard" autocomplete="off" />
+                                    <button type="button" class="pub-pass-toggle" id="pubToggleShopifyClientId" title="Show / hide">👁</button>
+                                </div>
                             </div>
-                            <p class="pub-pass-hint pub-webcake-field-hint" id="pubWebcakeAccessHint">Expires after 1 hour. Seoauto will renew it automatically with the Refresh Token.</p>
-                            <label id="pubLabelWebcakeRefresh">Refresh Token <span class="req" id="pubWebcakeRefreshReq">*</span></label>
-                            <div class="pub-pass-wrap">
-                                <input type="password" id="pubWebcakeRefreshToken" placeholder="Refresh Token from Webcake" autocomplete="off" />
-                                <button type="button" class="pub-pass-toggle" id="pubToggleWebcakeRefresh" title="Show / hide">👁</button>
+                            <div class="pub-field">
+                                <label id="pubLabelShopifyClientSecret">Client Secret <span class="req" id="pubShopifySecretReq">*</span></label>
+                                <div class="pub-pass-wrap">
+                                    <input type="password" id="pubShopifyClientSecret" placeholder="Client Secret from Shopify Dev Dashboard" autocomplete="off" />
+                                    <button type="button" class="pub-pass-toggle" id="pubToggleShopifySecret" title="Show / hide">👁</button>
+                                </div>
+                                <p class="pub-pass-hint pub-shopify-secret-hint" id="pubShopifySecretHint">From Shopify Dev Dashboard → Apps → Select app → Client credentials</p>
                             </div>
-                            <p class="pub-pass-hint pub-webcake-field-hint">Used to renew the Access Token when it expires.</p>
+                            <div class="pub-field pub-field-span">
+                                <label id="pubLabelShopifyApiVersion">API Version</label>
+                                <select id="pubShopifyApiVersion">
+                                    <option value="2025-01">2025-01 (Stable)</option>
+                                    <option value="2024-10">2024-10</option>
+                                    <option value="2024-07">2024-07</option>
+                                    <option value="2024-04">2024-04</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div id="pubFormGenericPassBlock">
-                        <label id="pubLabelPass">Application Password <span class="req" id="pubPassReq">*</span></label>
-                        <div class="pub-pass-wrap">
-                            <input type="password" id="pubFormPass" placeholder="Tạo trong WP → Users → Profile → Application Passwords" />
-                            <button type="button" class="pub-pass-toggle" id="pubTogglePass" title="Show / hide">👁</button>
-                        </div>
-                        <p class="pub-pass-hint" id="pubPassHint" hidden></p>
+                        <div class="pub-form-grid" id="pubFormWebcakeCreds" hidden>
+                            <div class="pub-field">
+                                <label id="pubLabelWebcakeAccess">Access Token <span class="req" id="pubWebcakeAccessReq">*</span></label>
+                                <div class="pub-pass-wrap">
+                                    <input type="password" id="pubWebcakeAccessToken" placeholder="Access Token from Webcake" autocomplete="off" />
+                                    <button type="button" class="pub-pass-toggle" id="pubToggleWebcakeAccess" title="Show / hide">👁</button>
+                                </div>
+                                <p class="pub-pass-hint pub-webcake-field-hint" id="pubWebcakeAccessHint">Expires after 1 hour. Seoauto will renew it automatically with the Refresh Token.</p>
+                            </div>
+                            <div class="pub-field">
+                                <label id="pubLabelWebcakeRefresh">Refresh Token <span class="req" id="pubWebcakeRefreshReq">*</span></label>
+                                <div class="pub-pass-wrap">
+                                    <input type="password" id="pubWebcakeRefreshToken" placeholder="Refresh Token from Webcake" autocomplete="off" />
+                                    <button type="button" class="pub-pass-toggle" id="pubToggleWebcakeRefresh" title="Show / hide">👁</button>
+                                </div>
+                                <p class="pub-pass-hint pub-webcake-field-hint">Used to renew the Access Token when it expires.</p>
+                            </div>
                         </div>
 
-                        <div id="pubFormStatusBlock">
-                            <label>Trạng thái mặc định</label>
-                            <select id="pubFormStatus">
-                                <option value="draft">draft (lưu nháp)</option>
-                                <option value="publish">publish (đăng ngay)</option>
-                            </select>
+                        <div class="pub-form-grid pub-form-grid-meta">
+                            <div class="pub-field" id="pubFormStatusBlock">
+                                <label>Trạng thái mặc định</label>
+                                <select id="pubFormStatus">
+                                    <option value="draft">draft (lưu nháp)</option>
+                                    <option value="publish">publish (đăng ngay)</option>
+                                </select>
+                            </div>
+                            <div class="pub-field" id="pubFormCategoryBlock">
+                                <label id="pubLabelCategory">Danh mục</label>
+                                <select id="pubFormCategory" aria-label="Danh mục nền tảng">
+                                    <option value="">-- Chọn danh mục --</option>
+                                </select>
+                                <p class="pub-pass-hint" id="pubCategoryHint">Tự tải sau khi kết nối thành công.</p>
+                            </div>
                         </div>
 
                         <div class="pub-modal-err" id="pubFormErr" aria-live="polite"></div>
@@ -992,6 +959,52 @@
                 </div>
             </div>
 
+            <section id="email-notifications">
+                <h2 data-i18n="email_notify.title">Thông báo Email</h2>
+                <p class="sys-sub" style="margin-bottom:18px" data-i18n="email_notify.lead">Nhận email khi khách gửi tin nhắn mới vào Chatbot CSKH.</p>
+
+                <div class="sys-card">
+                    <div class="sys-row-toggle">
+                        <div>
+                            <h3 style="margin-bottom:6px" data-i18n="email_notify.toggle_title">Email khi có tin nhắn Chatbot mới</h3>
+                            <p class="sys-sub" style="margin:0" data-i18n="email_notify.toggle_desc">Tắt để dừng gửi thông báo. Job đang chờ sẽ bị hủy.</p>
+                        </div>
+                        <button type="button" class="sys-toggle" id="cskhNotifyEnabled" aria-pressed="true" aria-label="Bật thông báo email Chatbot"></button>
+                    </div>
+                </div>
+
+                <div class="sys-card">
+                    <div class="sys-field">
+                        <label for="cskhNotifyEmail"><span data-i18n="email_notify.email_label">Email nhận thông báo</span></label>
+                        <input type="email" id="cskhNotifyEmail" autocomplete="email" maxlength="255">
+                        <p class="sys-hint" data-i18n="email_notify.email_hint">Mặc định là email tài khoản. Bạn có thể đổi sang địa chỉ khác.</p>
+                    </div>
+                </div>
+
+                <div class="sys-card">
+                    <p class="sys-label" data-i18n="email_notify.delay_label">Thời gian chờ</p>
+                    <p class="sys-sub" data-i18n="email_notify.delay_hint">Chờ trước khi gửi. Nếu bạn đã đọc hoặc trả lời trong khoảng này thì không gửi email.</p>
+                    <div class="sys-choice-grid sys-lang" id="cskhNotifyDelayGrid" role="group" aria-label="Thời gian chờ">
+                        <button type="button" class="sys-choice" data-cskh-delay="0">
+                            <span class="sys-choice-title" data-i18n="email_notify.delay_now">Ngay</span>
+                            <span class="sys-choice-desc">0 phút</span>
+                        </button>
+                        <button type="button" class="sys-choice" data-cskh-delay="120">
+                            <span class="sys-choice-title">2 phút</span>
+                            <span class="sys-choice-desc" data-i18n="email_notify.delay_default">Mặc định</span>
+                        </button>
+                        <button type="button" class="sys-choice" data-cskh-delay="300">
+                            <span class="sys-choice-title">5 phút</span>
+                        </button>
+                        <button type="button" class="sys-choice" data-cskh-delay="600">
+                            <span class="sys-choice-title">10 phút</span>
+                        </button>
+                    </div>
+                </div>
+
+                <p class="sys-save-msg" id="cskhNotifySaveMsg" aria-live="polite"></p>
+            </section>
+
             <section id="search-console">
                 <h2>Search Console <span class="nav-pro-badge">PRO</span></h2>
                 <p>Kết nối Google Search Console &amp; GA4: thực hiện tại <a href="/tool">Phân tích Technical</a> (khu vực kết nối Google). Một số báo cáo nâng cao có thể gắn nhãn PRO trong bản cập nhật sau.</p>
@@ -1085,9 +1098,7 @@
             </section>
         </main>
     </div>
-<script src="/static/js/chatbot-kb-shared.js?v=1"></script>
-<script src="/static/js/settings-chatbot-kb.js?v=1"></script>
-<script src="/static/js/settings-page.js?v=20260722b"></script>
+<script src="/static/js/settings-page.js?v=20260817emailnotify"></script>
 {% include "partials/digiseo_i18n.html" %}
 {% include "partials/digiseo_pricing_bundle.html" %}
 </body>

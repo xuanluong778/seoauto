@@ -378,10 +378,10 @@ def settings_page(
 ) -> HTMLResponse:
     """Trang cài đặt (tài khoản, API, AI, tích hợp…)."""
     from app.services.auth_request import optional_user_from_request
-    from app.services.user_api_access import may_manage_custom_api_keys
+    from app.services.user_api_access import can_see_api_keys_settings_tab
 
     user = optional_user_from_request(request, db)
-    can_manage_api_keys = bool(user and may_manage_custom_api_keys(db, user))
+    can_manage_api_keys = can_see_api_keys_settings_tab(user)
     resp = templates.TemplateResponse(
         request=request,
         name="settings.html",
@@ -449,7 +449,7 @@ def chatbot_embed_widget_js() -> FileResponse:
     return FileResponse(
         _WIDGET_JS,
         media_type="application/javascript",
-        headers={"Cache-Control": "public, max-age=3600"},
+        headers={"Cache-Control": "public, max-age=60, must-revalidate"},
     )
 
 
@@ -1279,6 +1279,8 @@ class ContentAiStudioInsertRequest(BaseModel):
     primary_keyword: str = ""
     section_heading: str = ""
     h2_index: int | None = None
+    h3_index: int | None = None
+    placement: str = ""
     alt: str = ""
     caption: str = ""
 
@@ -1300,6 +1302,8 @@ def content_ai_images_insert_selected(
             primary_keyword=payload.primary_keyword,
             section_heading=payload.section_heading,
             h2_index=payload.h2_index,
+            h3_index=payload.h3_index,
+            placement=payload.placement,
             alt=payload.alt,
             caption=payload.caption,
         )
@@ -1803,14 +1807,20 @@ def _norm_url_for_compare(url: str) -> str:
 def _fetch_wp_term_map(base: str, taxonomy: str, ids: set[int]) -> dict[int, str]:
     if not ids:
         return {}
+    from app.services.url_safety import safe_requests_get, validate_public_http_url
+
     out: dict[int, str] = {}
     chunk: list[int] = []
     for i in sorted(ids):
         chunk.append(i)
         if len(chunk) >= 80:
             try:
-                r = requests.get(
-                    f"{base}/wp-json/wp/v2/{taxonomy}",
+                term_url = f"{base}/wp-json/wp/v2/{taxonomy}"
+                if validate_public_http_url(term_url):
+                    chunk = []
+                    continue
+                r = safe_requests_get(
+                    term_url,
                     params={"include": ",".join(str(x) for x in chunk), "per_page": len(chunk), "_fields": "id,name"},
                     timeout=15,
                     headers={"User-Agent": "Mozilla/5.0"},
@@ -1828,20 +1838,22 @@ def _fetch_wp_term_map(base: str, taxonomy: str, ids: set[int]) -> dict[int, str
             chunk = []
     if chunk:
         try:
-            r = requests.get(
-                f"{base}/wp-json/wp/v2/{taxonomy}",
-                params={"include": ",".join(str(x) for x in chunk), "per_page": len(chunk), "_fields": "id,name"},
-                timeout=15,
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
-            if r.status_code < 400:
-                data = r.json() if r.content else []
-                if isinstance(data, list):
-                    for it in data:
-                        try:
-                            out[int(it.get("id"))] = str(it.get("name") or "").strip()
-                        except Exception:
-                            pass
+            term_url = f"{base}/wp-json/wp/v2/{taxonomy}"
+            if not validate_public_http_url(term_url):
+                r = safe_requests_get(
+                    term_url,
+                    params={"include": ",".join(str(x) for x in chunk), "per_page": len(chunk), "_fields": "id,name"},
+                    timeout=15,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                if r.status_code < 400:
+                    data = r.json() if r.content else []
+                    if isinstance(data, list):
+                        for it in data:
+                            try:
+                                out[int(it.get("id"))] = str(it.get("name") or "").strip()
+                            except Exception:
+                                pass
         except Exception:
             pass
     return out
@@ -1858,7 +1870,11 @@ def _fetch_related_posts_wp(base: str, keyword: str, *, limit: int = 10) -> list
     if keyword:
         params["search"] = keyword
     try:
-        r = requests.get(api, params=params, timeout=18, headers={"User-Agent": "Mozilla/5.0"})
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        if validate_public_http_url(api):
+            return []
+        r = safe_requests_get(api, params=params, timeout=18, headers={"User-Agent": "Mozilla/5.0"})
         if r.status_code >= 400:
             return []
         data = r.json() if r.content else []
@@ -3879,7 +3895,12 @@ def content_ai_outline_reference(
     from app.services.cost_control.types import ExternalApiProvider
 
     def _fetch_competitor() -> requests.Response:
-        return requests.get(
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            raise ValueError(blocked)
+        return safe_requests_get(
             url,
             timeout=18,
             headers={
@@ -4103,17 +4124,23 @@ def _read_image_payload(featured_image: str, logs: list[str]) -> tuple[bytes, st
         return blob, filename, ctype
 
     try:
-        r = requests.get(src, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
-    except requests.RequestException as exc:
+        from app.services.url_safety import safe_http_get_bytes, validate_public_http_url
+
+        blocked = validate_public_http_url(src)
+        if blocked:
+            logs.append(f"[featured-image] blocked: {blocked}")
+            return None
+        blob, err, meta = safe_http_get_bytes(src, timeout_s=20)
+        if err:
+            logs.append(f"[featured-image] fetch failed: {err}")
+            return None
+    except Exception as exc:
         logs.append(f"[featured-image] fetch failed: {exc}")
-        return None
-    if r.status_code >= 400:
-        logs.append(f"[featured-image] fetch HTTP {r.status_code}: {src}")
         return None
     parsed = urlparse(src)
     filename = Path(parsed.path or "").name or f"featured-{uuid4().hex[:8]}.jpg"
-    ctype = r.headers.get("Content-Type") or mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    return r.content, filename, ctype
+    ctype = str(meta.get("content_type") or "") or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return blob, filename, ctype
 
 
 def _upload_featured_media(

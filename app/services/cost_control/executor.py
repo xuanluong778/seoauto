@@ -60,8 +60,46 @@ def execute_guarded_external(
   *,
   is_retryable: Callable[[BaseException], bool] | None = None,
 ) -> T:
+  from app.services.circuit_breaker import CircuitOpenError, call_with_circuit
+
   _assert_gate(provider, action)
-  return retry_external_call(fn, is_retryable=is_retryable)
+  circuit_name = f"{provider.value}:{action}"
+  try:
+    result = call_with_circuit(
+      circuit_name,
+      lambda: retry_external_call(fn, is_retryable=is_retryable),
+    )
+  except CircuitOpenError as exc:
+    _LOG.warning("circuit_open provider=%s action=%s retry_after=%.1f", provider.value, action, exc.retry_after_sec)
+    raise HTTPException(
+      status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+      detail={
+        "code": "provider_circuit_open",
+        "message": "Dịch vụ bên thứ ba tạm quá tải — thử lại sau.",
+        "retry_after_sec": round(exc.retry_after_sec, 1),
+        "provider": provider.value,
+      },
+    ) from exc
+  except Exception as exc:
+    if provider in (ExternalApiProvider.OPENAI, ExternalApiProvider.ANTHROPIC):
+      from app.services.llm_ops_metrics import record_llm_call
+
+      timeout = isinstance(exc, requests.Timeout)
+      record_llm_call(ok=False, timeout=timeout, server_error=not timeout)
+    raise
+  if provider in (ExternalApiProvider.OPENAI, ExternalApiProvider.ANTHROPIC):
+    from app.services.llm_ops_metrics import record_llm_call
+
+    if isinstance(result, requests.Response):
+      code = int(getattr(result, "status_code", 0) or 0)
+      record_llm_call(
+        ok=code < 400,
+        rate_limited=code == 429,
+        server_error=code >= 500,
+      )
+    else:
+      record_llm_call(ok=True)
+  return result
 
 
 def guarded_requests_get(
@@ -73,6 +111,21 @@ def guarded_requests_get(
   **kwargs: Any,
 ) -> requests.Response:
   def _call() -> requests.Response:
+    from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+    u = str(url or "")
+    if u.startswith(("http://", "https://")):
+      blocked = validate_public_http_url(u)
+      if blocked:
+        raise ValueError(blocked)
+      headers = kwargs.get("headers")
+      timeout = kwargs.get("timeout", 30)
+      params = kwargs.get("params")
+      try:
+        t = float(timeout) if timeout is not None else 30.0
+      except (TypeError, ValueError):
+        t = 30.0
+      return safe_requests_get(u, timeout=t, headers=headers, params=params)
     return requests.get(url, **kwargs)
 
   return execute_guarded_external(provider, action, _call, is_retryable=is_retryable)
@@ -87,6 +140,15 @@ def guarded_requests_post(
   **kwargs: Any,
 ) -> requests.Response:
   def _call() -> requests.Response:
+    from app.services.url_safety import validate_public_http_url
+
+    u = str(url or "")
+    if u.startswith(("http://", "https://")):
+      blocked = validate_public_http_url(u)
+      if blocked:
+        raise ValueError(blocked)
+      # Do not follow redirects to private networks.
+      kwargs = {**kwargs, "allow_redirects": False}
     return requests.post(url, **kwargs)
 
   return execute_guarded_external(provider, action, _call, is_retryable=is_retryable)

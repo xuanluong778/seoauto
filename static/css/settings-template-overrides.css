@@ -314,7 +314,9 @@
             margin-bottom: 8px;
         }
         html[data-theme="light"] .sys-field label { color: #334155; }
-        .sys-field input[type="number"] {
+        .sys-field input[type="number"],
+        .sys-field input[type="email"],
+        .sys-field select {
             width: 100%;
             padding: 10px 12px;
             border-radius: 10px;
@@ -324,7 +326,9 @@
             font-family: inherit;
             font-size: 0.95rem;
         }
-        html[data-theme="light"] .sys-field input[type="number"] {
+        html[data-theme="light"] .sys-field input[type="number"],
+        html[data-theme="light"] .sys-field input[type="email"],
+        html[data-theme="light"] .sys-field select {
             background: #fff;
             color: #0f172a;
             border-color: #cbd5e1;
@@ -2122,25 +2126,51 @@
             display: none;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 16px;
+            overflow: hidden;
             z-index: 200;
         }
         .pub-modal-backdrop.is-open { display: flex; }
         .pub-modal {
             background: #ffffff;
             color: #0f172a;
-            width: min(520px, 100%);
+            width: min(640px, 100%);
             border-radius: 18px;
-            padding: 22px 24px 18px;
+            padding: 0;
             box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-            max-height: 92vh;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100dvh - 32px);
+            overflow: hidden;
+            margin: 0;
         }
         .pub-modal-head {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 14px;
+            flex-shrink: 0;
+            padding: 14px 20px 8px;
+            background: inherit;
+        }
+        .pub-form {
+            flex: 0 1 auto;
+            min-height: 0;
+            overflow: hidden;
+            padding: 0 20px 14px;
+        }
+        .pub-form-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 8px 14px;
+        }
+        .pub-form-grid + .pub-form-grid { margin-top: 8px; }
+        .pub-form-grid-meta { margin-top: 8px; }
+        .pub-field-span { grid-column: 1 / -1; }
+        .pub-form-grid:has(#pubFormWpUserBlock[hidden]) #pubFormGenericPassBlock {
+            grid-column: 1 / -1;
+        }
+        .pub-form-grid-meta:has(#pubFormStatusBlock[hidden]) #pubFormCategoryBlock {
+            grid-column: 1 / -1;
         }
         .pub-modal-head h3 { margin: 0; font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; }
         .pub-modal-title-ico {
@@ -2171,21 +2201,21 @@
         .pub-modal-close:hover { background: rgba(15, 23, 42, 0.1); }
         .pub-form label {
             display: block;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 700;
             color: #0f172a;
-            margin: 12px 0 6px;
+            margin: 0 0 4px;
         }
         .pub-form label .req { color: #dc2626; }
         .pub-form input[type="text"],
         .pub-form input[type="password"],
         .pub-form select {
             width: 100%;
-            padding: 10px 12px;
+            padding: 8px 10px;
             border: 1px solid #e2e8f0;
             border-radius: 10px;
             font-family: inherit;
-            font-size: 0.92rem;
+            font-size: 0.9rem;
             color: #0f172a;
             background: #ffffff;
         }
@@ -2193,7 +2223,7 @@
             outline: 2px solid rgba(0, 230, 118, 0.5);
             border-color: rgba(0, 230, 118, 0.7);
         }
-        .pub-modal-err { color: #dc2626; font-size: 0.86rem; margin-top: 8px; min-height: 1em; line-height: 1.45; }
+        .pub-modal-err { color: #dc2626; font-size: 0.82rem; margin-top: 8px; min-height: 0; line-height: 1.4; }
         .pub-modal-err.ok { color: #059669; }
         .pub-modal-err.info { color: #2563eb; }
         .pub-modal.is-haravan .pub-modal-err.ok { color: #4ade80; }
@@ -2201,7 +2231,9 @@
             display: flex;
             justify-content: flex-end;
             gap: 8px;
-            margin-top: 16px;
+            margin-top: 10px;
+            background: #ffffff;
+            padding-top: 8px;
         }
         .pub-modal-foot .btn-cancel,
         .pub-modal-foot .btn-submit {
@@ -2249,6 +2281,11 @@
             background: #0f172a;
             color: #e2e8f0;
             border: 1px solid rgba(51, 65, 85, 0.9);
+        }
+        .pub-modal.is-haravan .pub-modal-foot,
+        .pub-modal.is-shopify .pub-modal-foot,
+        .pub-modal.is-webcake .pub-modal-foot {
+            background: #0f172a;
         }
         .pub-modal.is-haravan .pub-modal-head h3,
         .pub-modal.is-shopify .pub-modal-head h3,
@@ -2335,10 +2372,10 @@
             border-radius: 12px;
             border: 1px solid rgba(59, 130, 246, 0.5);
             background: rgba(59, 130, 246, 0.1);
-            padding: 14px 16px;
-            margin-bottom: 8px;
-            font-size: 0.84rem;
-            line-height: 1.55;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+            font-size: 0.82rem;
+            line-height: 1.5;
             color: #cbd5e1;
         }
         .pub-haravan-modal-tip .tip-title { font-weight: 800; color: #93c5fd; margin-bottom: 8px; }
@@ -2377,12 +2414,25 @@
             font-weight: 800;
             cursor: pointer;
             padding: 0;
-            margin-bottom: 8px;
+            margin-bottom: 0;
             text-align: left;
         }
         .pub-tip-toggle .chev { transition: transform 0.2s; opacity: 0.7; }
         .pub-tip-toggle[aria-expanded="false"] + .pub-tip-body { display: none; }
         .pub-tip-toggle[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+        .pub-tip-toggle[aria-expanded="true"] { margin-bottom: 8px; }
+        .pub-field[hidden],
+        .pub-form-grid[hidden],
+        #pubFormShopifyCreds[hidden],
+        #pubFormWebcakeCreds[hidden] { display: none !important; }
+        .pub-haravan-modal-tip .pub-tip-toggle { color: #93c5fd; }
+        @media (max-width: 580px) {
+            .pub-form-grid { grid-template-columns: 1fr; }
+            .pub-form-grid:has(#pubFormWpUserBlock[hidden]) #pubFormGenericPassBlock,
+            .pub-form-grid-meta:has(#pubFormStatusBlock[hidden]) #pubFormCategoryBlock {
+                grid-column: auto;
+            }
+        }
         .pub-haravan-modal-tip ol { margin: 0 0 8px 18px; padding: 0; }
         .pub-haravan-modal-tip code {
             font-family: ui-monospace, Menlo, monospace;
@@ -2414,8 +2464,8 @@
         .pub-modal-actions-hrv {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 14px;
+            gap: 8px;
+            margin-top: 10px;
         }
         .pub-modal-actions-hrv.is-hidden,
         .pub-modal-actions-hrv[hidden] {
@@ -2436,13 +2486,13 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 9px 16px;
+            padding: 7px 12px;
             border-radius: 10px;
             border: 1px solid rgba(148, 163, 184, 0.35);
             background: rgba(30, 41, 59, 0.9);
             color: #e2e8f0;
             font-family: inherit;
-            font-size: 0.86rem;
+            font-size: 0.82rem;
             font-weight: 700;
             cursor: pointer;
         }

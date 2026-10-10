@@ -1,0 +1,382 @@
+{
+  "wave": 8,
+  "snapshot_at": "2026-09-02T14:37:53.283438+00:00",
+  "fixes": [
+    "security_audit_log — resolve_client_ip (trusted proxy, WAVE 7 parity)",
+    "wave8 IDOR attack matrix — live 2-tenant HTTP probes",
+    "pytest suite — JWT/RBAC/Redis/Celery/upload/audit/error-leak",
+    "SERVER_SESSIONS_ENABLED — 20m access JWT + refresh rotation + PG user_sessions (deploy migration)",
+    "JWT_BLOCK_LEGACY_USER — reject user JWT without sid/jti; typ=service for load scripts",
+    "REFRESH_TOKEN_HTTPONLY_ONLY — refresh in seo_refresh cookie only, not JSON"
+  ],
+  "gates": {
+    "AUTH_SECURITY": "PASS",
+    "RBAC": "PASS",
+    "IDOR": "PASS",
+    "MULTI_TENANT_DB": "PASS",
+    "MULTI_TENANT_REDIS": "PASS",
+    "MULTI_TENANT_QUEUE": "PASS",
+    "CACHE_ISOLATION": "PASS",
+    "CREDIT_ISOLATION": "PASS",
+    "WEBHOOK_SECURITY": "PASS",
+    "SSRF": "PASS",
+    "UPLOAD_SECURITY": "PASS",
+    "SECRET_EXPOSURE": "PASS",
+    "RATE_LIMIT_SECURITY": "PASS",
+    "AUDIT_LOG": "PASS",
+    "CONTENT_AI_SECURITY_REGRESSION": "PASS",
+    "WORDPRESS_SECURITY_REGRESSION": "PASS",
+    "UI_API_REGRESSION": "PASS",
+    "JWT_SHORT_LIVED_ACCESS": "PASS",
+    "REFRESH_TOKEN_ROTATION": "PASS",
+    "SERVER_SIDE_SESSION_REVOKE": "PASS",
+    "LOGOUT_REVOKE": "PASS",
+    "PASSWORD_CHANGE_REVOKE": "PASS",
+    "ROLE_CHANGE_REVOKE": "PASS",
+    "ACCOUNT_DISABLE_REVOKE": "PASS",
+    "REFRESH_REUSE_BLOCKED": "PASS",
+    "STOLEN_TOKEN_AFTER_REVOKE": "PASS",
+    "LEGACY_USER_JWT_BLOCKED": "PASS",
+    "OLD_720H_TOKEN_AFTER_CUTOFF": "PASS",
+    "SERVICE_TOKEN_COMPATIBILITY": "PASS",
+    "SESSION_DB_MIGRATION": "PASS",
+    "REFRESH_TOKEN_HTTPONLY_ONLY": "PASS",
+    "AUTH_REGRESSION": "PASS",
+    "KNOWN_FAILURES_NOT_INCREASED": "PASS"
+  },
+  "auth_live": {
+    "gate": "PASS",
+    "no_auth": 401,
+    "bad_token": 401,
+    "expired_token": 401
+  },
+  "idor_live": {
+    "gate": "PASS",
+    "blocked": 20,
+    "total": 20,
+    "attacks": [
+      {
+        "method": "GET",
+        "path": "/content-ai/projects/f1dfcafd-25f6-4082-b55b-517fbb3bee6c",
+        "kind": "project_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "DELETE",
+        "path": "/content-ai/projects/f1dfcafd-25f6-4082-b55b-517fbb3bee6c",
+        "kind": "project_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/projects/6d577a16-0eb2-461b-abe7-14f9f68e46e7",
+        "kind": "project_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "DELETE",
+        "path": "/content-ai/projects/6d577a16-0eb2-461b-abe7-14f9f68e46e7",
+        "kind": "project_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/projects/9696fa5d-7862-47aa-8662-e0f8427cd210",
+        "kind": "project_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "DELETE",
+        "path": "/content-ai/projects/9696fa5d-7862-47aa-8662-e0f8427cd210",
+        "kind": "project_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/api/audit/9490e57e-ac3c-41dc-a255-0f6ca32e777e",
+        "kind": "audit_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/audit/9490e57e-ac3c-41dc-a255-0f6ca32e777e",
+        "kind": "audit_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/api/audit/dfa861ab-6881-42ea-8427-5ab370d73c84",
+        "kind": "audit_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/audit/dfa861ab-6881-42ea-8427-5ab370d73c84",
+        "kind": "audit_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/api/audit/f2bd8515-0877-4c88-bef6-6dfb99951f3c",
+        "kind": "audit_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/audit/f2bd8515-0877-4c88-bef6-6dfb99951f3c",
+        "kind": "audit_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/bulk-jobs/7fa3726b927f401ba112cd2bc3ac6b99",
+        "kind": "job_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/bulk-jobs/64bdbbd176c8496780fc02844baa702c",
+        "kind": "job_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/bulk-jobs/237f7b67b1ee443c9fff6cfb7faeecf2",
+        "kind": "job_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/generations/d8fb3d02a2714d49b6e1d41d68a0130c/status",
+        "kind": "generation_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/generations/263802d14d604e6b80497f5767e095a0/status",
+        "kind": "generation_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/generations/f678514008e14e8b8abb64c9cd550831/status",
+        "kind": "generation_id",
+        "status": 404,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/content-ai/projects?organizationId=1&limit=5",
+        "kind": "organizationId",
+        "status": 200,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      },
+      {
+        "method": "GET",
+        "path": "/api/audit/mine?organizationId=1&limit=5",
+        "kind": "organizationId",
+        "status": 200,
+        "blocked": true,
+        "leaked": false,
+        "attacker_user": 6,
+        "owner_user": 1
+      }
+    ]
+  },
+  "secret_live": {
+    "gate": "PASS",
+    "leaks": []
+  },
+  "trusted_proxy": {
+    "gate": "PASS",
+    "flags": {
+      "TRUSTED_PROXY_XFF": "1",
+      "TRUSTED_PROXY_IPS": "127.0.0.1,::1"
+    }
+  },
+  "session_flags": {
+    "gate": "PASS",
+    "flags": {
+      "SERVER_SESSIONS_ENABLED": "1",
+      "JWT_ACCESS_EXPIRE_MINUTES": "20",
+      "REFRESH_TOKEN_EXPIRE_DAYS": "30"
+    }
+  },
+  "production_flags": {
+    "gate": "PASS",
+    "flags": {
+      "SERVER_SESSIONS_ENABLED": "1",
+      "JWT_ACCESS_EXPIRE_MINUTES": "20",
+      "JWT_BLOCK_LEGACY_USER": "1",
+      "JWT_SERVICE_TOKENS_ENABLED": "1",
+      "REFRESH_TOKEN_HTTPONLY_ONLY": "1"
+    }
+  },
+  "session_db_migration": {
+    "gate": "PASS",
+    "schema": {
+      "ok": true,
+      "missing": [],
+      "user_sessions": true
+    },
+    "no_boot_migration": true
+  },
+  "legacy_720h_live": {
+    "gate": "PASS",
+    "status": 401,
+    "user_id": 1
+  },
+  "service_token_live": {
+    "gate": "PASS",
+    "status": 200,
+    "user_id": 1
+  },
+  "refresh_httponly_live": {
+    "gate": "PASS",
+    "note": "covered by tests/test_wave8_session_production.py"
+  },
+  "pytest": {
+    "wave8": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "..........................                                               [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\napp/services/media_storage.py:5\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260805_234952/app/services/media_storage.py:5: DeprecationWarning: 'imghdr' is deprecated and slated for removal in Python 3.13\n    import imghdr\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n26 passed, 2 warnings in 26.57s\n",
+      "stderr_tail": ""
+    },
+    "session_auth": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "............                                                             [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n12 passed, 1 warning in 18.39s\n",
+      "stderr_tail": ""
+    },
+    "session_production": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": ".......                                                                  [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n7 passed, 1 warning in 6.10s\n",
+      "stderr_tail": ""
+    },
+    "p0_isolation": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "............................                                             [100%]\n=============================== warnings summary ===============================\ntests/test_p0_security_isolation.py::test_csrf_middleware_blocks_cookie_write_without_origin\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260805_234952/tests/test_p0_security_isolation.py:287: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n28 passed, 1 warning in 20.08s\n",
+      "stderr_tail": ""
+    },
+    "tenant_idor": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": ".........                                                                [100%]\n9 passed in 8.78s\n",
+      "stderr_tail": ""
+    },
+    "security_access": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "...                                                                      [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3 passed, 1 warning in 3.50s\n",
+      "stderr_tail": ""
+    },
+    "trusted_proxy_xff": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "....                                                                     [100%]\n4 passed in 0.17s\n",
+      "stderr_tail": ""
+    },
+    "sepay_webhook": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "....................                                                     [100%]\n=============================== warnings summary ===============================\n../seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /var/www/seoauto_vn_usr/data/www/releases/seoauto-20260803_134545/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n20 passed, 1 warning in 10.03s\n",
+      "stderr_tail": ""
+    },
+    "wordpress": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "...............                                                          [100%]\n15 passed in 9.77s\n",
+      "stderr_tail": ""
+    },
+    "content_ai_dup": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "..................                                                       [100%]\n18 passed in 11.80s\n",
+      "stderr_tail": ""
+    },
+    "wave6_ui": {
+      "gate": "PASS",
+      "returncode": 0,
+      "stdout_tail": "....                                                                     [100%]\n4 passed in 2.22s\n",
+      "stderr_tail": ""
+    }
+  },
+  "failed_gates": [],
+  "WAVE_8_SECURITY_MULTI_TENANT": "FULL PASS"
+}

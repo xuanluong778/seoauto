@@ -30,7 +30,8 @@ from app.services.url_seo_optimization_report import (
     build_url_seo_optimization_report,
 )
 from app.services.serp_competitor_analysis import analyze_serp_competitors
-from app.services.serp_fetcher import fetch_serp
+from app.services.seo_score_serp import fetch_seo_score_serp
+from app.services.seo_score_ssot import SCORING_VERSION
 from app.services.serp_intent_classifier import classify_serp_results
 from app.services.url_seo_ten_group_scoring import (
     GROUP_LABELS,
@@ -160,7 +161,32 @@ def _safe_fetch(url: str) -> dict[str, Any]:
             "notes": ["URL không hợp lệ hoặc không thể chuẩn hóa."],
         }
     try:
-        r = requests.get(nu, timeout=18, headers=dict(LINK_CHECK_HEADERS), allow_redirects=True)
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        blocked = validate_public_http_url(nu)
+        if blocked:
+            return {
+                "ok": False,
+                "normalized_url": nu,
+                "status": 0,
+                "final_url": nu,
+                "html": "",
+                "headers": {},
+                "error": blocked,
+                "notes": [f"URL bị chặn (SSRF): {blocked}"],
+            }
+        r = safe_requests_get(nu, timeout=18, headers=dict(LINK_CHECK_HEADERS))
+    except ValueError as e:
+        return {
+            "ok": False,
+            "normalized_url": nu,
+            "status": 0,
+            "final_url": nu,
+            "html": "",
+            "headers": {},
+            "error": str(e),
+            "notes": [f"URL bị chặn (SSRF): {e}"],
+        }
     except requests.RequestException as e:
         return {
             "ok": False,
@@ -780,10 +806,13 @@ def build_url_seo_scoreboard(
     serp_intent_pkg: dict[str, Any] | None = None
     serp_pos_snap: int | None = None
     serp_rows: list[dict[str, Any]] = []
+    serp_fetch_meta: dict[str, Any] = {}
     serp_analysis_full: dict[str, Any] | None = None
     if (keyword or "").strip():
-        serp = fetch_serp(keyword.strip(), num=10)
-        serp_rows = list(serp.get("serp_results") or [])
+        serp_stats: dict[str, Any] = {}
+        serp_fetch_meta = fetch_seo_score_serp(keyword.strip(), stats=serp_stats)
+        serp_rows = list(serp_fetch_meta.get("rows") or [])
+        serp_fetch_meta["stats"] = serp_stats
         serp_intent_pkg = classify_serp_results(serp_rows) if serp_rows else None
         norm = nu.rstrip("/").lower()
         for i, row in enumerate(serp_rows, start=1):
@@ -821,8 +850,8 @@ def build_url_seo_scoreboard(
         all_issues.extend(iss)
 
     w = {k: round(v / sum(PILLAR_WEIGHTS.values()), 4) for k, v in PILLAR_WEIGHTS.items()}
-    total = round(sum(components[k] * w[k] for k in w), 1)
-    total = max(0.0, min(100.0, total))
+    legacy_total = round(sum(components[k] * w[k] for k in w), 1)
+    legacy_total = max(0.0, min(100.0, legacy_total))
 
     all_issues.sort(key=lambda x: {"P0": 0, "P1": 1, "P2": 2, "P3": 3}.get(str(x.get("priority")), 9))
 
@@ -887,7 +916,7 @@ def build_url_seo_scoreboard(
             keyword.strip(),
             search_volume=search_volume,
             difficulty=kd_pkg,
-            your_ranking_score=float(total),
+            your_ranking_score=float(legacy_total),
             topical_authority_score=None,
         )
         vol = int(search_volume) if search_volume is not None else None
@@ -897,7 +926,7 @@ def build_url_seo_scoreboard(
         gain = max(0.0, (vol or 800) * (ctr_potential - ctr_now))
         opportunity = {
             **opp,
-            "priority_hint": "high" if float(opp.get("opportunity_score") or 0) >= 60 and total < 72 else "medium",
+            "priority_hint": "high" if float(opp.get("opportunity_score") or 0) >= 60 and legacy_total < 72 else "medium",
             "estimated_monthly_visits_gain": {
                 "current_ctr_assumed": round(ctr_now, 4),
                 "target_ctr_assumed": round(ctr_potential, 4),
@@ -912,6 +941,9 @@ def build_url_seo_scoreboard(
             "your_position_snapshot": serp_pos_snap,
             "serp_intent": (serp_intent_pkg or {}).get("serp_intent"),
             "intent_distribution": (serp_intent_pkg or {}).get("intent_distribution"),
+            "cache_hit": bool(serp_fetch_meta.get("cache_hit")),
+            "provider_called": bool(serp_fetch_meta.get("provider_called")),
+            "source": serp_fetch_meta.get("source"),
         }
 
     page_snapshot = {
@@ -958,7 +990,9 @@ def build_url_seo_scoreboard(
             "notes": list(fetch.get("notes") or []),
         },
         "scores": {
-            "total": total,
+            "total": legacy_total,
+            "legacy_total": legacy_total,
+            "legacy_12_pillar_total": legacy_total,
             "components": components,
             "weights_applied": w,
             "editorial_checklist_average": round(float(editorial_checklist.get("average_score") or 0.0), 1),
@@ -1021,11 +1055,18 @@ def build_url_seo_scoreboard(
             legacy_issues=all_issues,
             serp_intent_pkg=serp_intent_pkg,
             link_profile=link_profile,
+            serp_rows=serp_rows,
+            schema_validation=schema_validation,
         )
-        out["scores"]["ten_group_total"] = out["ten_group_scoreboard"].get("total_score")
+        tg = out["ten_group_scoreboard"]
+        ssot_total = float(tg.get("total_score") or legacy_total)
+        out["scores"]["total"] = ssot_total
+        out["scores"]["ten_group_total"] = ssot_total
+        out["scores"]["scoring_version"] = str(tg.get("scoring_version") or SCORING_VERSION)
+        out["scores"]["ssot"] = tg.get("ssot") or {}
     except Exception:
         out["ten_group_scoreboard"] = {
-            "total_score": round(total, 1),
+            "total_score": round(legacy_total, 1),
             "group_scores": {gid: 0.0 for gid in GROUP_WEIGHTS},
             "groups": ensure_ten_groups_complete([]),
             "strengths": [],

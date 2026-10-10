@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from html import escape, unescape
 from typing import Any, Callable
 
 from app.services.content_ai_image_finder import find_best_for_slot
@@ -115,20 +116,40 @@ def _generate_slot_image_ai(
     if db is not None and user is not None:
         from app.services.cost_control.module_gates import content_ai_llm_gate
         from app.services.llm_content_writer import load_llm_config_admin
+        from app.services.content_ai_openrouter_images import (
+            credit_cost_for_images,
+            default_image_model,
+        )
+        from app.services.credits import credits_enforced
+        from app.services.saas_gate import build_job_id, saas_action_gate
 
-        with content_ai_llm_gate(
+        image_model = default_image_model()
+        cost = credit_cost_for_images(model=image_model, count=1)
+        slot_key = build_job_id("ai_image_slot", int(user.id), str(project_id or ""), stem)
+        with saas_action_gate(
             db,
             user,
-            action="image_ai_slot",
-            field="content",
-            use_system_llm=True,
-            llm_cfg=load_llm_config_admin(),
-            feature_key="image_generate",
-            skip_credit_check=True,
+            feature_code="image_generate",
+            credit_cost=cost if credits_enforced() else 0,
+            quota_units=1,
+            job_id=slot_key,
+            idempotency_key=slot_key,
+            charge_mode="reserve",
+            auto_commit_on_success=True,
         ):
-            image_bytes = generate_image_bytes(prompt=prompt)
+            with content_ai_llm_gate(
+                db,
+                user,
+                action="image_ai_slot",
+                field="content",
+                use_system_llm=True,
+                llm_cfg=load_llm_config_admin(),
+                feature_key="image_generate",
+                skip_credit_check=True,
+            ):
+                image_bytes = generate_image_bytes(prompt=prompt, model=image_model)
     else:
-        image_bytes = generate_image_bytes(prompt=prompt)
+        image_bytes = generate_image_bytes(prompt=prompt, model=image_model)
     orient = orientation if orientation in ("landscape", "portrait") else (
         "landscape" if "feat" in stem else "landscape"
     )
@@ -736,3 +757,323 @@ def clear_project_images(project_id: str, *, user_id: int) -> dict[str, Any]:
         user_id=user_id,
     )
     return {"ok": True, "project_id": project_id}
+
+# --- restored helpers lost in merge 90023d0 (from a14cef2) ---
+_FAKE_IMG_SRC_RE = re.compile(
+    r"^(#|javascript:|data:text|about:blank|placeholder|example\.com|your[-_]?image|"
+    r"image[-_]?url|/path/to/|\[.*\]|insert[-_]?image|ảnh[-_]?minh[-_]?họa)",
+    re.I,
+)
+
+_VALID_CONTENT_IMG_PREFIXES = (
+    "/api/user-files/",
+    "/static/uploads/",
+)
+
+_NEARBY_IMAGE_GAP = 450
+_UNSAFE_AFTER_H2_RE = re.compile(r"<(?:table|blockquote|pre|form|nav)\b", re.I)
+
+
+def collect_context_terms(
+    *,
+    primary_keyword: str,
+    title: str,
+    secondary_keywords: list[str] | None,
+    content_html: str,
+) -> list[str]:
+    terms: list[str] = []
+    for raw in (
+        primary_keyword,
+        title.split("|", 1)[0].strip() if title else "",
+        *(secondary_keywords or []),
+    ):
+        t = re.sub(r"\s+", " ", str(raw or "").strip())
+        if t and t.lower() not in {x.lower() for x in terms}:
+            terms.append(t)
+    text = _strip_html_text(content_html)
+    if text:
+        snippet = text[:280]
+        if snippet and snippet.lower() not in {x.lower() for x in terms}:
+            terms.append(snippet)
+    return terms
+
+
+def _figure_snippet(
+    url: str,
+    alt: str,
+    caption: str = "",
+    *,
+    width: int | None = None,
+    height: int | None = None,
+) -> str:
+    if width or height:
+        from app.services.content_ai_image_output import figure_snippet_seo
+
+        return figure_snippet_seo(url, alt, width=width, height=height, caption=caption)
+    alt_esc = escape(str(alt or "").strip()[:200])
+    cap = str(caption or "").strip()[:200]
+    cap_html = f"<figcaption>{escape(cap)}</figcaption>" if cap else ""
+    return (
+        f'<figure class="editor-image content-ai-inline-image">'
+        f'<img src="{url}" alt="{alt_esc}" loading="lazy" decoding="async" />{cap_html}</figure>'
+    )
+
+
+def collect_allowed_urls_from_project(project: dict[str, Any] | None) -> list[str]:
+    """URL ảnh đã upload / gallery — được giữ khi sanitize."""
+    if not project:
+        return []
+    out: list[str] = []
+    for raw in (
+        str(project.get("featured_image") or "").strip(),
+        *(
+            str(u or "").strip()
+            for u in (project.get("gallery_images") or [])
+            if str(u or "").strip()
+        ),
+    ):
+        if raw and raw not in out:
+            out.append(raw)
+    return out
+
+
+def is_valid_content_image_src(src: str, *, allowed_urls: set[str] | None = None) -> bool:
+    """URL ảnh hợp lệ trong editor (upload hệ thống hoặc trong danh sách cho phép)."""
+    raw = str(src or "").strip().strip('"\'')
+    if not raw or raw == "#":
+        return False
+    low = raw.casefold()
+    if _FAKE_IMG_SRC_RE.search(low):
+        return False
+    if allowed_urls and raw in allowed_urls:
+        return True
+    return any(low.startswith(pref) for pref in _VALID_CONTENT_IMG_PREFIXES)
+
+
+def sanitize_invalid_content_images(
+    html: str,
+    *,
+    allowed_urls: list[str] | None = None,
+) -> tuple[str, int]:
+    """
+    Gỡ <img>/<figure> do LLM bịa src (gây icon ảnh lỗi trên preview).
+    Giữ figcaption thành đoạn <p> nếu có chú thích.
+    """
+    raw = str(html or "").strip()
+    if not raw or not re.search(r"<img\b", raw, flags=re.I):
+        return raw, 0
+    from bs4 import BeautifulSoup
+
+    allowed: set[str] = set()
+    for u in allowed_urls or []:
+        t = str(u or "").strip()
+        if t:
+            allowed.add(t)
+
+    soup = BeautifulSoup(raw, "html.parser")
+    removed = 0
+
+    for fig in list(soup.find_all("figure")):
+        img = fig.find("img")
+        if img is None:
+            continue
+        src = str(img.get("src") or "").strip()
+        if is_valid_content_image_src(src, allowed_urls=allowed):
+            continue
+        cap = fig.find("figcaption")
+        cap_text = cap.get_text(" ", strip=True) if cap else ""
+        alt = str(img.get("alt") or "").strip()
+        text_keep = cap_text or alt
+        if text_keep:
+            new_p = soup.new_tag("p")
+            new_p.append(text_keep)
+            fig.replace_with(new_p)
+        else:
+            fig.decompose()
+        removed += 1
+
+    for img in list(soup.find_all("img")):
+        src = str(img.get("src") or "").strip()
+        if is_valid_content_image_src(src, allowed_urls=allowed):
+            continue
+        alt = str(img.get("alt") or "").strip()
+        parent = img.parent
+        img.decompose()
+        removed += 1
+        if parent and getattr(parent, "name", None) == "figure":
+            if not parent.get_text(strip=True) and alt:
+                parent.append(alt)
+            if not parent.get_text(strip=True):
+                parent.decompose()
+
+    return str(soup), removed
+
+
+def _paragraph_end_positions(html: str) -> list[int]:
+    return [m.end() for m in re.finditer(r"</p>", html, flags=re.I)]
+
+
+def _fold_heading_ascii(text: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", str(text or ""))
+    return "".join(c for c in t if unicodedata.category(c) != "Mn").casefold()
+
+
+def _is_faq_or_skip_heading(heading: str) -> bool:
+    from app.services.content_ai_image_output import is_faq_heading
+
+    return is_faq_heading(heading)
+
+
+def _h2_insert_position_unsafe(html: str, pos: int) -> bool:
+    window = html[pos : pos + 900]
+    if _UNSAFE_AFTER_H2_RE.search(window):
+        return True
+    if re.search(r"<h2\b", window, flags=re.I):
+        inner = window[: window.lower().find("<h2")]
+        if _UNSAFE_AFTER_H2_RE.search(inner):
+            return True
+    return False
+
+
+def _has_image_near_position(html: str, pos: int, gap: int = _NEARBY_IMAGE_GAP) -> bool:
+    chunk = html[max(0, pos - gap) : pos + gap]
+    return bool(re.search(r"<(?:img|figure)\b", chunk, flags=re.I))
+
+
+def resolve_smart_inline_h2_index(
+    html: str,
+    *,
+    preferred_index: int | None = None,
+    section_heading: str = "",
+    outline: str = "",
+) -> tuple[int, str]:
+    """
+    Chọn H2 hợp lệ để chèn inline: tránh FAQ, table/blockquote ngay sau H2, vùng đã có ảnh.
+    Trả (h2_index, reason).
+    """
+    h2s = extract_h2_headings(html, outline)
+    if not h2s:
+        return 0, "no_h2"
+
+    h2_matches = list(re.finditer(r"<h2\b[^>]*>.*?</h2>", html, flags=re.I | re.S))
+    if not h2_matches:
+        return 0, "no_h2_tags"
+
+    candidates: list[int] = []
+    pref = int(preferred_index) if preferred_index is not None else -1
+    if section_heading:
+        for i, h in enumerate(h2s):
+            if h.strip().lower() == section_heading.strip().lower():
+                pref = i
+                break
+
+    order: list[int] = []
+    if 0 <= pref < len(h2s):
+        order.append(pref)
+    for i in range(len(h2s)):
+        if i not in order:
+            order.append(i)
+
+    for idx in order:
+        if _is_faq_or_skip_heading(h2s[idx]):
+            continue
+        if idx >= len(h2_matches):
+            continue
+        pos = h2_matches[idx].end()
+        if _h2_insert_position_unsafe(html, pos):
+            continue
+        if _has_image_near_position(html, pos):
+            continue
+        candidates.append(idx)
+
+    if candidates:
+        return candidates[0], "h2_smart"
+    for idx in order:
+        if _is_faq_or_skip_heading(h2s[idx]):
+            continue
+        if idx < len(h2_matches):
+            return idx, "h2_relaxed"
+    return max(0, min(pref, len(h2s) - 1)), "h2_fallback"
+
+
+def inject_image_smart_into_content_html(
+    html: str,
+    insert: dict[str, Any],
+    *,
+    outline: str = "",
+) -> tuple[str, dict[str, Any]]:
+    """
+    Chèn một ảnh inline thông minh. Trả (html_mới, meta) với placement_used.
+    placement: start|end|after_heading|inline (default smart H2).
+    """
+    ins = dict(insert)
+    url = str(ins.get("url") or "").strip()
+    alt = str(ins.get("alt") or "").strip()
+    cap = str(ins.get("caption") or "").strip()
+    placement = str(ins.get("placement") or "").strip().lower()
+
+    # Skip duplicate of the same image already present in content.
+    base_url = url.split("?", 1)[0] if url else ""
+    if url and html and (url in html or (base_url and base_url in html)):
+        return html, {"placement": "skipped_duplicate", "url": url}
+
+    mode_skip = str(ins.get("mode") or "inline").lower()
+    if placement in ("end", "append", "bottom") or mode_skip == "append":
+        return (html or "") + _figure_snippet(url, alt, cap), {"placement": "end"}
+
+    if placement in ("start", "begin", "top", "prepend"):
+        return _figure_snippet(url, alt, cap) + (html or ""), {"placement": "start"}
+
+    # Explicit user pick: always insert below chosen H2/H3 (do not smart-reroute).
+    if placement in ("after_heading", "heading", "user_pick") or ins.get("force_heading") or ins.get("user_pick"):
+        force_ins = {
+            **ins,
+            "url": url,
+            "alt": alt,
+            "caption": cap,
+            "force": True,
+            "force_heading": True,
+            "user_pick": True,
+        }
+        # Prefer h3 when provided
+        if force_ins.get("h3_index") is not None:
+            force_ins.pop("h2_index", None)
+        before = html
+        new_html = inject_images_into_content_html(html, [force_ins])
+        if url and new_html == before:
+            # Fallback end if heading index missing/out of range
+            new_html = (html or "") + _figure_snippet(url, alt, cap)
+            return new_html, {
+                "placement": "end",
+                "placement_reason": "heading_not_found",
+                "h2_index": force_ins.get("h2_index"),
+                "h3_index": force_ins.get("h3_index"),
+            }
+        return new_html, {
+            "placement": "after_heading",
+            "h2_index": force_ins.get("h2_index"),
+            "h3_index": force_ins.get("h3_index"),
+            "section_heading": force_ins.get("section_heading") or "",
+        }
+
+    if mode_skip == "append":
+        return (html or "") + _figure_snippet(url, alt, cap), {"placement": "append"}
+
+    h2_idx, reason = resolve_smart_inline_h2_index(
+        html,
+        preferred_index=ins.get("h2_index"),
+        section_heading=str(ins.get("section_heading") or ""),
+        outline=outline,
+    )
+    ins["h2_index"] = h2_idx
+    before = html
+    new_html = inject_images_into_content_html(html, [ins])
+    meta = {"placement": "inline", "h2_index": h2_idx, "placement_reason": reason}
+    if url and new_html == before:
+        new_html = (html or "") + _figure_snippet(url, alt, cap)
+        meta = {"placement": "append", "placement_reason": "no_safe_h2"}
+    return new_html, meta
+
+

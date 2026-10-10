@@ -2,6 +2,8 @@
 Dense keyword embeddings: sentence-transformers, OpenAI, or L2-normalized TF-IDF fallback.
 
 Vectors are L2-normalized for cosine similarity = dot product.
+
+WAVE 5: when EMBEDDING_CELERY_WORKER=1, Uvicorn delegates ST inference to Celery worker.
 """
 
 from __future__ import annotations
@@ -10,65 +12,42 @@ import hashlib
 import json
 import logging
 import os
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
 
+from app.services import embedding_cache
+from app.services.embedding_worker_rollout import (
+    embedding_celery_enabled,
+    is_embedding_worker_process,
+    uvicorn_may_load_embedding_model,
+)
+
 _LOG = logging.getLogger(__name__)
 
 LAST_BACKEND = "unknown"
-
-_CACHE: dict[str, np.ndarray] = {}
-_CACHE_ORDER: list[str] = []
-_MAX_MEM = int(os.getenv("EMBEDDING_CACHE_MAX_KEYS", "8000"))
+_MODEL_LOAD_COUNT = 0
 
 
-def _redis():
-    try:
-        import redis
-
-        return redis.Redis.from_url(os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"))
-    except Exception:
-        return None
-
-
-def _cache_get(key: str) -> np.ndarray | None:
-    r = _redis()
-    if r:
-        try:
-            raw = r.get(f"emb:{key}")
-            if raw:
-                return np.frombuffer(raw, dtype=np.float32)
-        except Exception:
-            pass
-    return _CACHE.get(key)
-
-
-def _cache_set(key: str, vec: np.ndarray) -> None:
-    r = _redis()
-    v = np.asarray(vec, dtype=np.float32).flatten()
-    if r:
-        try:
-            r.setex(f"emb:{key}", int(os.getenv("EMBEDDING_CACHE_TTL", "604800")), v.tobytes())
-            return
-        except Exception:
-            pass
-    if len(_CACHE_ORDER) >= _MAX_MEM and key not in _CACHE:
-        old = _CACHE_ORDER.pop(0)
-        _CACHE.pop(old, None)
-    _CACHE[key] = v.copy()
-    if key not in _CACHE_ORDER:
-        _CACHE_ORDER.append(key)
-
-
-def _kw_key(kw: str) -> str:
-    return hashlib.sha256(kw.strip().lower().encode("utf-8")).hexdigest()
+def model_load_count() -> int:
+    return int(_MODEL_LOAD_COUNT)
 
 
 def _l2_normalize(mat: np.ndarray) -> np.ndarray:
     n = np.linalg.norm(mat, axis=1, keepdims=True)
     n = np.maximum(n, 1e-12)
     return mat / n
+
+
+@lru_cache(maxsize=1)
+def _get_sentence_transformer(model_name: str):
+    global _MODEL_LOAD_COUNT
+    from sentence_transformers import SentenceTransformer
+
+    _LOG.info("Loading sentence-transformers model=%s", model_name)
+    _MODEL_LOAD_COUNT += 1
+    return SentenceTransformer(model_name)
 
 
 def _embed_openai(keywords: list[str]) -> dict[str, np.ndarray] | None:
@@ -106,11 +85,11 @@ def _embed_openai(keywords: list[str]) -> dict[str, np.ndarray] | None:
 
 
 def _embed_sentence_transformers(keywords: list[str]) -> dict[str, np.ndarray] | None:
+    if not uvicorn_may_load_embedding_model() and not is_embedding_worker_process():
+        return None
     model_name = (os.getenv("SEMANTIC_EMBEDDING_MODEL") or "all-MiniLM-L6-v2").strip()
     try:
-        from sentence_transformers import SentenceTransformer
-
-        model = SentenceTransformer(model_name)
+        model = _get_sentence_transformer(model_name)
         vecs = model.encode(
             keywords,
             batch_size=int(os.getenv("ST_EMBEDDING_BATCH", "32")),
@@ -138,12 +117,51 @@ def _embed_tfidf_dense(keywords: list[str]) -> dict[str, np.ndarray]:
     return {k: Xn[i] for i, k in enumerate(keywords)}
 
 
-def embed_keywords(keywords: list[str], *, use_cache: bool = True) -> dict[str, np.ndarray]:
+def embed_keywords_tfidf_only(keywords: list[str]) -> dict[str, np.ndarray]:
+    """Fallback when Celery embedding worker unavailable."""
+    global LAST_BACKEND
+    uniq = list(dict.fromkeys(k.strip() for k in keywords if k and k.strip()))
+    if not uniq:
+        return {}
+    emb = _embed_tfidf_dense(uniq)
+    LAST_BACKEND = "tfidf_dense"
+    return emb
+
+
+def embed_keywords_local(
+    keywords: list[str],
+    *,
+    tenant_scope: str = "global",
+    use_cache: bool = True,
+) -> dict[str, np.ndarray]:
+    """Run embedding in current process (embedding worker only for ST)."""
+    return _embed_keywords_impl(keywords, tenant_scope=tenant_scope, use_cache=use_cache)
+
+
+def embed_keywords(
+    keywords: list[str],
+    *,
+    tenant_scope: str = "global",
+    use_cache: bool = True,
+) -> dict[str, np.ndarray]:
     """
     Return mapping ``keyword ->`` L2-normalized dense ``np.ndarray`` (float32).
 
-    Resolution order: per-keyword cache → sentence-transformers → OpenAI → TF-IDF.
+    Resolution order: per-keyword cache → Celery worker (WAVE5) → ST → OpenAI → TF-IDF.
     """
+    if embedding_celery_enabled() and not is_embedding_worker_process():
+        from app.workers.embedding_tasks import embed_keywords_via_worker
+
+        return embed_keywords_via_worker(keywords, tenant_scope=tenant_scope)
+    return _embed_keywords_impl(keywords, tenant_scope=tenant_scope, use_cache=use_cache)
+
+
+def _embed_keywords_impl(
+    keywords: list[str],
+    *,
+    tenant_scope: str = "global",
+    use_cache: bool = True,
+) -> dict[str, np.ndarray]:
     uniq = list(dict.fromkeys(k.strip() for k in keywords if k and k.strip()))
     if not uniq:
         return {}
@@ -151,12 +169,14 @@ def embed_keywords(keywords: list[str], *, use_cache: bool = True) -> dict[str, 
     out: dict[str, np.ndarray] = {}
     pending: list[str] = []
     for k in uniq:
-        ck = _kw_key(k)
+        digest = embedding_cache.content_hash(k)
         if use_cache:
-            hit = _cache_get(ck)
+            hit = embedding_cache.cache_get(tenant_scope=tenant_scope, digest=digest)
             if hit is not None and hit.size > 0:
+                embedding_cache.record_cache_hit()
                 out[k] = hit
                 continue
+            embedding_cache.record_cache_miss()
         pending.append(k)
 
     if not pending:
@@ -168,9 +188,10 @@ def embed_keywords(keywords: list[str], *, use_cache: bool = True) -> dict[str, 
     if emb is not None:
         LAST_BACKEND = "sentence_transformers"
     if emb is None:
-        emb = _embed_openai(pending)
-        if emb is not None:
-            LAST_BACKEND = "openai"
+        if os.getenv("SEMANTIC_EMBEDDING_ALLOW_OPENAI", "0").strip().lower() in ("1", "true", "yes"):
+            emb = _embed_openai(pending)
+            if emb is not None:
+                LAST_BACKEND = "openai"
     if emb is None:
         emb = _embed_tfidf_dense(pending)
         LAST_BACKEND = "tfidf_dense"
@@ -180,6 +201,10 @@ def embed_keywords(keywords: list[str], *, use_cache: bool = True) -> dict[str, 
         nv = _l2_normalize(v.reshape(1, -1))[0]
         out[k] = nv
         if use_cache:
-            _cache_set(_kw_key(k), nv)
+            embedding_cache.cache_set(
+                tenant_scope=tenant_scope,
+                digest=embedding_cache.content_hash(k),
+                vec=nv,
+            )
 
     return out

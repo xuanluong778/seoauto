@@ -1,12 +1,16 @@
-"""Lưu kết quả quét Technical SEO để hiển thị trên Dashboard audit."""
+"""Lưu kết quả quét Technical SEO — JSON + PostgreSQL dual-write (Wave 2)."""
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from app.services.json_atomic import mutate_json_list, read_json_list
+
+_LOG = logging.getLogger(__name__)
 
 AUDIT_FILE = Path("data/technical_audits.json")
 MAX_RUNS_PER_USER = 40
@@ -56,6 +60,9 @@ def normalize_audit_record(run: dict | None) -> dict | None:
     out["partial_data"] = bool(out.get("partial_data"))
     out["truncated_issues"] = bool(out.get("truncated_issues"))
     out["normalized_issues_truncated"] = bool(out.get("normalized_issues_truncated"))
+    out["idempotency_key"] = str(out.get("idempotency_key") or "").strip() or None
+    snap = out.get("result_snapshot")
+    out["result_snapshot"] = snap if isinstance(snap, dict) else None
     conf = out.get("confidence_overall")
     try:
         out["confidence_overall"] = float(conf) if conf is not None else None
@@ -76,6 +83,17 @@ def _audit_owner_id(run: dict) -> int | None:
     except (TypeError, ValueError):
         return None
     return uid if uid > 0 else None
+
+
+def _is_json_orphan_audit_id(audit_id: str) -> bool:
+    """True when JSON store marks this audit as legacy orphan (no user_id)."""
+    aid = str(audit_id or "").strip()
+    if not aid:
+        return False
+    for run in _read_runs():
+        if str(run.get("id", "")) == aid and run.get("user_id") is None:
+            return True
+    return False
 
 
 def _trim_retention_for_user(runs: list[dict], user_id: int) -> None:
@@ -102,20 +120,51 @@ def _read_runs() -> list[dict]:
     return runs
 
 
-def save_technical_audit(
+def _pg_ok() -> bool:
+    try:
+        from app.services.technical_audit_pg import technical_audits_pg_enabled
+
+        return technical_audits_pg_enabled()
+    except Exception:
+        return False
+
+
+def _pg_read() -> bool:
+    try:
+        from app.services.technical_audit_pg import (
+            technical_audits_pg_enabled,
+            technical_audits_pg_read_enabled,
+        )
+
+        return technical_audits_pg_enabled() and technical_audits_pg_read_enabled()
+    except Exception:
+        return False
+
+
+def _json_write() -> bool:
+    try:
+        from app.services.technical_audit_pg import technical_audits_json_write_enabled
+
+        return technical_audits_json_write_enabled()
+    except Exception:
+        return True
+
+
+def _build_entry(
     *,
     user_id: int,
     source_url: str,
     result: dict,
-    max_issue_rows: int = 250,
-) -> str:
-    """result: TechnicalAnalyzeResponse.model_dump() hoặc dict tương đương. Trả về audit id."""
+    max_issue_rows: int,
+    idempotency_key: str | None,
+    audit_id: str | None = None,
+) -> dict:
     issues = result.get("issues") or []
     if len(issues) > max_issue_rows:
         issues = issues[:max_issue_rows]
-    audit_id = str(uuid.uuid4())
+    idem = str(idempotency_key or "").strip()[:128] or None
     entry = {
-        "id": audit_id,
+        "id": audit_id or str(uuid.uuid4()),
         "at": datetime.now(timezone.utc).isoformat(),
         "user_id": user_id,
         "source_url": source_url,
@@ -139,16 +188,62 @@ def save_technical_audit(
         "partial_data": bool(result.get("partial_data")),
         "disclaimers": result.get("disclaimers") or [],
         "normalized_issues_truncated": len(result.get("normalized_issues") or []) > max_issue_rows,
+        "idempotency_key": idem,
+        "result_snapshot": result,
     }
     tdv2 = result.get("technical_dashboard_v2")
     if isinstance(tdv2, dict) and tdv2.get("schema_version") == 2:
         entry["technical_dashboard_v2"] = tdv2
-    def _save(runs: list[dict]) -> str:
-        runs.insert(0, entry)
-        _trim_retention_for_user(runs, user_id)
-        return audit_id
+    return entry
 
-    return mutate_json_list(AUDIT_FILE, _save)
+
+def save_technical_audit(
+    *,
+    user_id: int,
+    source_url: str,
+    result: dict,
+    max_issue_rows: int = 250,
+    idempotency_key: str | None = None,
+) -> str:
+    """result: TechnicalAnalyzeResponse.model_dump() hoặc dict tương đương. Trả về audit id."""
+    # Idempotent replay: prefer PG then JSON
+    if idempotency_key:
+        existing = get_audit_by_idempotency(user_id, idempotency_key)
+        if existing and existing.get("id"):
+            return str(existing["id"])
+
+    entry = _build_entry(
+        user_id=user_id,
+        source_url=source_url,
+        result=result,
+        max_issue_rows=max_issue_rows,
+        idempotency_key=idempotency_key,
+    )
+    audit_id = str(entry["id"])
+
+    if _pg_ok():
+        try:
+            from app.services.technical_audit_pg import trim_retention_pg, upsert_audit_entry
+
+            audit_id = upsert_audit_entry(entry)
+            trim_retention_pg(user_id, keep=MAX_RUNS_PER_USER)
+        except Exception:
+            _LOG.exception("technical_audit_pg_write_failed id=%s", audit_id)
+            if not _json_write():
+                raise
+
+    if _json_write():
+        def _save(runs: list[dict]) -> str:
+            # Avoid duplicate id if retry after PG success
+            runs[:] = [r for r in runs if str(r.get("id", "")) != audit_id]
+            entry["id"] = audit_id
+            runs.insert(0, entry)
+            _trim_retention_for_user(runs, user_id)
+            return audit_id
+
+        return mutate_json_list(AUDIT_FILE, _save)
+
+    return audit_id
 
 
 def get_latest_audit(user_id: int) -> dict | None:
@@ -156,6 +251,15 @@ def get_latest_audit(user_id: int) -> dict | None:
     uid = int(user_id)
     if uid <= 0:
         raise ValueError("user_id is required")
+    if _pg_read():
+        try:
+            from app.services.technical_audit_pg import get_latest_pg
+
+            hit = get_latest_pg(uid)
+            if hit and not _is_json_orphan_audit_id(str(hit.get("id") or "")):
+                return normalize_audit_record(hit)
+        except Exception:
+            _LOG.exception("technical_audit_pg_latest_failed user=%s", uid)
     for run in _read_runs():
         raw_uid = run.get("user_id")
         if raw_uid is None:
@@ -166,14 +270,25 @@ def get_latest_audit(user_id: int) -> dict | None:
     return None
 
 
-def list_audits(limit: int = 10, *, user_id: int) -> list[dict]:
+def list_audits(limit: int = 10, *, user_id: int, offset: int = 0) -> list[dict]:
     uid = int(user_id)
     if uid <= 0:
         raise ValueError("user_id is required")
+    if _pg_read():
+        try:
+            from app.services.technical_audit_pg import list_audits_pg
+
+            return list_audits_pg(uid, limit=limit, offset=offset)
+        except Exception:
+            _LOG.exception("technical_audit_pg_list_failed user=%s", uid)
     out: list[dict] = []
+    skipped = 0
     for run in _read_runs():
         raw_uid = run.get("user_id")
         if raw_uid is None or int(raw_uid) != uid:
+            continue
+        if skipped < offset:
+            skipped += 1
             continue
         summary = {
             "at": run.get("at"),
@@ -182,9 +297,15 @@ def list_audits(limit: int = 10, *, user_id: int) -> list[dict]:
             "source_url": run.get("source_url"),
             "pages_scanned": run.get("pages_scanned"),
             "technical_summary": run.get("technical_summary"),
+            "health_score": None,
             "issue_count": len(run.get("issues") or []),
             "truncated_issues": run.get("truncated_issues"),
         }
+        tdv2 = run.get("technical_dashboard_v2")
+        if isinstance(tdv2, dict) and tdv2.get("technical_health_score") is not None:
+            summary["health_score"] = tdv2.get("technical_health_score")
+        elif isinstance(run.get("technical_summary"), dict):
+            summary["health_score"] = (run.get("technical_summary") or {}).get("health_score")
         summary["id"] = run.get("id")
         out.append(summary)
         if len(out) >= limit:
@@ -192,8 +313,15 @@ def list_audits(limit: int = 10, *, user_id: int) -> list[dict]:
     return out
 
 
-def list_mine_recent_by_domain(user_id: int, limit: int = 8) -> list[dict]:
+def list_mine_recent_by_domain(user_id: int, limit: int = 8, db: Any | None = None) -> list[dict]:
     """Mỗi domain chỉ giữ lần quét mới nhất (đầu file = mới)."""
+    if _pg_read():
+        try:
+            from app.services.technical_audit_pg import list_mine_recent_by_domain_pg
+
+            return list_mine_recent_by_domain_pg(user_id, limit=limit, db=db)
+        except Exception:
+            _LOG.exception("technical_audit_pg_mine_failed user=%s", user_id)
     runs = _read_runs()
     seen: set[str] = set()
     out: list[dict] = []
@@ -226,8 +354,40 @@ def list_mine_recent_by_domain(user_id: int, limit: int = 8) -> list[dict]:
 
 def get_audit_for_user(audit_id: str, user_id: int) -> dict | None:
     aid = str(audit_id).strip()
+    if _pg_read():
+        try:
+            from app.services.technical_audit_pg import get_audit_pg
+
+            hit = get_audit_pg(aid, user_id)
+            if hit and not _is_json_orphan_audit_id(aid):
+                return normalize_audit_record(hit)
+        except Exception:
+            _LOG.exception("technical_audit_pg_get_failed id=%s", aid)
     for run in _read_runs():
         if str(run.get("id", "")) == aid and run.get("user_id") is not None and int(run.get("user_id")) == user_id:
+            return normalize_audit_record(run)
+    return None
+
+
+def get_audit_by_idempotency(user_id: int, idempotency_key: str) -> dict | None:
+    """Return latest audit for user matching idempotency key (retry-safe)."""
+    key = str(idempotency_key or "").strip()[:128]
+    if not key:
+        return None
+    uid = int(user_id)
+    if _pg_read():
+        try:
+            from app.services.technical_audit_pg import get_by_idempotency_pg
+
+            hit = get_by_idempotency_pg(uid, key)
+            if hit:
+                return normalize_audit_record(hit)
+        except Exception:
+            _LOG.exception("technical_audit_pg_idem_failed user=%s", uid)
+    for run in _read_runs():
+        if _audit_owner_id(run) != uid:
+            continue
+        if str(run.get("idempotency_key") or "").strip() == key:
             return normalize_audit_record(run)
     return None
 
@@ -235,6 +395,14 @@ def get_audit_for_user(audit_id: str, user_id: int) -> dict | None:
 def delete_audit(audit_id: str, user_id: int) -> bool:
     aid = str(audit_id).strip()
     uid = int(user_id)
+    pg_deleted = False
+    if _pg_ok():
+        try:
+            from app.services.technical_audit_pg import delete_audit_pg
+
+            pg_deleted = delete_audit_pg(aid, uid)
+        except Exception:
+            _LOG.exception("technical_audit_pg_delete_failed id=%s", aid)
 
     def _delete(runs: list[dict]) -> bool:
         before = len(runs)
@@ -249,4 +417,10 @@ def delete_audit(audit_id: str, user_id: int) -> bool:
         ]
         return len(runs) < before
 
-    return mutate_json_list(AUDIT_FILE, _delete)
+    json_deleted = False
+    if _json_write() or not pg_deleted:
+        try:
+            json_deleted = mutate_json_list(AUDIT_FILE, _delete)
+        except Exception:
+            _LOG.exception("technical_audit_json_delete_failed id=%s", aid)
+    return bool(pg_deleted or json_deleted)

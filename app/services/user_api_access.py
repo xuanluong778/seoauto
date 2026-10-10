@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.user import User
+from app.services.permissions import PERM_API_KEYS_MANAGE, has_permission
 from app.services.rbac import is_admin
 from app.services.seoauto_pricing_catalog import SEOAUTO_PLAN_SLUG_ORDER
 
@@ -63,7 +64,16 @@ def resolve_effective_ai_plan_slug(db: Session, user: User) -> str | None:
 
 def may_manage_custom_api_keys(db: Session, user: User) -> bool:
     """Chỉ admin/super_admin cấu hình API hệ thống trong Cài đặt."""
-    return is_admin(user)
+    return has_permission(user, PERM_API_KEYS_MANAGE)
+
+
+def can_see_api_keys_settings_tab(user: User | None) -> bool:
+    """Tab Cài đặt → API Keys: chỉ hiện với role admin / super_admin (không xóa code, chỉ ẩn với User)."""
+    if user is None:
+        return False
+    from app.services.rbac import is_admin_role_name
+
+    return is_admin_role_name(getattr(user, "role", None))
 
 
 def assert_user_may_manage_api_keys(db: Session, user: User) -> None:

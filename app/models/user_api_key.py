@@ -11,6 +11,8 @@ class UserApiKey(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    organization_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     provider: Mapped[str] = mapped_column(String(64), nullable=False, default="openai")
     api_key_encrypted: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -28,3 +30,4 @@ class UserApiKey(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

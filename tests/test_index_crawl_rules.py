@@ -372,3 +372,366 @@ def test_v2_skips_issue_without_evidence_or_urls():
     ]
     v2 = _expand_and_dedupe_v2_issues(normalize_crawl_issues(raw), {"domain": "ex.com"})
     assert v2 == []
+
+
+def test_parse_robots_groups_keeps_agents_separate():
+    from app.services.index_crawl_rules import parse_robots_agent_groups
+
+    body = (
+        "User-agent: AhrefsBot\n"
+        "Disallow: /\n"
+        "\n"
+        "User-agent: *\n"
+        "Disallow: /wp-admin/\n"
+        "Allow: /wp-admin/admin-ajax.php\n"
+    )
+    groups = parse_robots_agent_groups(body)
+    assert len(groups) == 2
+    ahrefs = next(g for g in groups if "AhrefsBot" in g["agents"])
+    star = next(g for g in groups if "*" in g["agents"])
+    assert "/" in ahrefs["disallow"]
+    assert "/" not in star["disallow"]
+
+
+def test_googlebot_disallow_all_ignores_third_party_bots():
+    from app.services.index_crawl_rules import googlebot_disallow_all_agents
+
+    body = (
+        "User-agent: AhrefsBot\nDisallow: /\n\n"
+        "User-agent: GPTBot\nDisallow: /\n\n"
+        "User-agent: *\nDisallow: /wp-admin/\n"
+    )
+    assert googlebot_disallow_all_agents(body) == []
+
+
+def test_googlebot_disallow_all_flags_star_and_googlebot():
+    from app.services.index_crawl_rules import googlebot_disallow_all_agents
+
+    assert googlebot_disallow_all_agents("User-agent: *\nDisallow: /\n") == ["*"]
+    agents = googlebot_disallow_all_agents("User-agent: Googlebot\nDisallow: /\n")
+    assert any(a.lower() == "googlebot" for a in agents)
+
+
+def test_analyze_robots_disallow_all_not_fired_for_ahrefs_only():
+    from app.services.analyzer import _analyze_robots_txt_detailed
+
+    robots = {
+        "url": "https://ex.com/robots.txt",
+        "status": 200,
+        "sitemaps": [],
+        "disallow": ["/", "/wp-admin/"],
+        "body_preview": "User-agent: AhrefsBot\nDisallow: /\n\nUser-agent: *\nDisallow: /wp-admin/\n",
+    }
+    issues = _analyze_robots_txt_detailed(robots, "ex.com", "https")
+    assert not any(i.get("type") == "robots_disallow_all" for i in issues)
+
+
+def test_analyze_robots_disallow_all_has_evidence_when_star_blocked():
+    from app.services.analyzer import _analyze_robots_txt_detailed
+
+    robots = {
+        "url": "https://ex.com/robots.txt",
+        "status": 200,
+        "sitemaps": [],
+        "disallow": ["/"],
+        "body_preview": "User-agent: *\nDisallow: /\n",
+    }
+    issues = _analyze_robots_txt_detailed(robots, "ex.com", "https")
+    hit = [i for i in issues if i.get("type") == "robots_disallow_all"]
+    assert len(hit) == 1
+    assert hit[0].get("evidence")
+    assert any(e.get("kind") == "user_agent" for e in hit[0]["evidence"])
+
+
+def test_merge_link_check_trusts_crawled_slash_variant():
+    from app.services.analyzer import _merge_internal_link_checks_with_crawl
+
+    pages = [{"url": "https://ex.com/about/", "status": 200, "html": "<html>ok</html>"}]
+    results = [{"url": "https://ex.com/about", "status": 0, "is_broken": True, "chain": [], "error_kind": "timeout"}]
+    merged = _merge_internal_link_checks_with_crawl(pages, results)
+    assert merged[0]["is_broken"] is False
+    assert merged[0]["status"] == 200
+
+
+def test_issues_to_legacy_copies_detected_from_as_evidence():
+    from app.services.seo_rule_engine import issues_to_legacy_api_issues
+
+    legacy = issues_to_legacy_api_issues(
+        [
+            {
+                "rule_id": "missing_title",
+                "issue": "Thiếu title",
+                "severity": "high",
+                "confidence": 0.9,
+                "why_it_matters": "SERP",
+                "detected_from": ["parsed.title"],
+                "how_to_fix": ["Thêm title"],
+            }
+        ],
+        "article",
+    )
+    assert legacy[0]["type"] == "missing_title"
+    assert legacy[0]["evidence"]
+    assert legacy[0]["evidence"][0]["kind"] == "detected_from"
+
+
+def test_classify_http_issue_type_splits_status_classes():
+    from app.services.index_crawl_rules import classify_http_issue_type
+
+    assert classify_http_issue_type(301) == ("crawl_http_3xx", "medium")
+    assert classify_http_issue_type(404) == ("crawl_http_4xx", "high")
+    assert classify_http_issue_type(503) == ("crawl_http_5xx", "high")
+    assert classify_http_issue_type(0, "timeout") == ("crawl_timeout", "high")
+    assert classify_http_issue_type(0, "dns_error") == ("crawl_connection_error", "high")
+    assert classify_http_issue_type(0, "ssl_error") == ("crawl_connection_error", "high")
+    assert classify_http_issue_type(0, "redirect_loop") == ("redirect_loop", "high")
+
+
+def test_redirect_loop_slice_and_hops():
+    from app.services.index_crawl_rules import redirect_hops, redirect_loop_slice
+
+    loop = ["https://ex.com/a", "https://ex.com/b", "https://ex.com/a"]
+    assert redirect_loop_slice(loop) == loop
+    assert redirect_loop_slice(["https://ex.com/a", "https://ex.com/b"]) is None
+    assert redirect_hops(["https://ex.com/a", "https://ex.com/b", "https://ex.com/c"]) == 2
+    assert redirect_hops(["https://ex.com/a"]) == 0
+
+
+def test_internal_link_redirect_loop_type():
+    itype, sev = internal_link_issue_type(
+        {
+            "url": "https://ex.com/a",
+            "status": 301,
+            "error_kind": "redirect_loop",
+            "is_broken": True,
+        }
+    )
+    assert itype == "redirect_loop"
+    assert sev == "high"
+    assert "loop" in internal_link_issue_message(
+        {"url": "https://ex.com/a", "status": 301, "error_kind": "redirect_loop"}
+    ).lower()
+
+
+def test_keep_evidenced_issues_drops_without_proof():
+    from app.seo_pipeline.formatter import format_issue_list
+    from app.services.index_crawl_rules import keep_evidenced_issues
+
+    dropped = keep_evidenced_issues(
+        format_issue_list(
+            [
+                {
+                    "type": "crawl_http_4xx",
+                    "severity": "high",
+                    "message": "no proof",
+                    "confidence": 0.9,
+                }
+            ]
+        )
+    )
+    assert dropped == []
+
+    kept = keep_evidenced_issues(
+        format_issue_list(
+            [
+                {
+                    "type": "crawl_http_4xx",
+                    "severity": "high",
+                    "message": "404",
+                    "url": "https://ex.com/missing",
+                    "confidence": 0.9,
+                    "evidence": [
+                        {"kind": "url", "url": "https://ex.com/missing"},
+                        {"kind": "http_status", "value": 404},
+                    ],
+                }
+            ]
+        )
+    )
+    assert len(kept) == 1
+    row = kept[0]
+    assert row["severity"]
+    assert float(row["confidence"]) > 0
+    assert row["evidence"]
+    assert row["affected_urls"] == ["https://ex.com/missing"]
+    assert row.get("remediation") or row.get("suggested_fix")
+
+
+def test_build_crawled_url_robots_blocked_has_contract():
+    from app.services.index_crawl_rules import build_crawled_url_robots_blocked_issues
+
+    pages = [{"url": "https://ex.com/private/x", "status": 200}]
+    robots = {
+        "status": 200,
+        "body_preview": "User-agent: *\nDisallow: /private/\n",
+        "url": "https://ex.com/robots.txt",
+    }
+    issues = build_crawled_url_robots_blocked_issues(pages=pages, robots=robots)
+    assert len(issues) == 1
+    assert issues[0]["type"] == "crawled_url_robots_blocked"
+    assert issues[0]["severity"] == "high"
+    assert issues[0]["confidence"] >= 0.9
+    assert issues[0]["evidence"]
+    assert issues[0]["affected_urls"] == ["https://ex.com/private/x"]
+    assert issues[0]["remediation"]
+    public = build_crawled_url_robots_blocked_issues(
+        pages=[{"url": "https://ex.com/ok", "status": 200}],
+        robots=robots,
+    )
+    assert public == []
+
+
+def test_indexability_signal_conflict_requires_meta_vs_header():
+    from app.services.seo_rule_engine import evaluate_indexability_signal_conflict
+
+    ctx = build_page_rule_context(
+        url="https://ex.com/page",
+        status=200,
+        parsed={"robots_meta": "index,follow"},
+        page_type="article",
+        crawl_record={
+            "indexability": {
+                "indexable": True,
+                "meta_robots_text": "index,follow",
+                "x_robots_tag": "",
+                "indexability_confidence": 0.4,
+            },
+            "canonical_resolution": {},
+            "seo_signals": {},
+            "raw_vs_rendered": {"identical": True},
+        },
+    )
+    ctx["final_indexability_resolved"] = True
+    assert evaluate_indexability_signal_conflict(ctx) is None
+
+    ctx["indexability"]["x_robots_tag"] = "noindex"
+    hit = evaluate_indexability_signal_conflict(ctx)
+    assert hit is not None
+    assert hit["rule_id"] == "indexability_signal_conflict"
+    assert hit["evidence"]
+    assert hit["affected_urls"] == ["https://ex.com/page"]
+
+
+def test_canonical_missing_and_bad_status_carry_evidence():
+    from app.services.seo_rule_engine import evaluate_canonical_missing_high_value
+
+    ctx = build_page_rule_context(
+        url="https://ex.com/article",
+        status=200,
+        parsed={"canonical": ""},
+        page_type="article",
+        crawl_record={
+            "indexability": {"indexable": True, "indexability_confidence": 0.9},
+            "canonical_resolution": {"canonical_url": "", "final_effective_url": "https://ex.com/article"},
+            "seo_signals": {},
+            "raw_vs_rendered": {"identical": True},
+        },
+    )
+    miss = evaluate_canonical_missing_high_value(ctx)
+    assert miss is not None
+    assert miss["evidence"]
+    assert miss["url"] == "https://ex.com/article"
+
+    ctx2 = build_page_rule_context(
+        url="https://ex.com/a",
+        status=200,
+        parsed={"canonical": "https://ex.com/b"},
+        page_type="article",
+        crawl_record={
+            "indexability": {"indexable": True, "indexability_confidence": 0.9},
+            "canonical_resolution": {
+                "canonical_url": "https://ex.com/b",
+                "final_effective_url": "https://ex.com/a",
+            },
+            "seo_signals": {},
+            "raw_vs_rendered": {"identical": True},
+        },
+    )
+    ctx2["canonical_target_analysis"] = {"fetched": True, "target_status": 404, "target_indexable": False}
+    bad = evaluate_canonical_points_to_bad_status(ctx2)
+    assert bad is not None
+    assert any(e.get("kind") == "http_status" and e.get("value") == 404 for e in bad["evidence"])
+    assert bad["affected_urls"] == ["https://ex.com/a"]
+
+
+def test_soft_404_requires_pattern_and_thin_content():
+    from app.services.seo_rule_engine import evaluate_soft_404_heuristic
+
+    ctx = build_page_rule_context(
+        url="https://ex.com/gone",
+        status=200,
+        parsed={"title": "Page not found", "word_count": 20, "visible_text": "404 not found"},
+        page_type="other",
+        crawl_record={
+            "indexability": {"indexable": True, "indexability_confidence": 0.9},
+            "canonical_resolution": {},
+            "seo_signals": {},
+            "raw_vs_rendered": {"identical": True},
+        },
+    )
+    hit = evaluate_soft_404_heuristic(ctx)
+    assert hit is not None
+    assert any(e.get("kind") == "soft_404_pattern" for e in hit["evidence"])
+
+    ctx["parsed"]["title"] = "About us"
+    ctx["parsed"]["visible_text"] = "Hello world product catalog"
+    assert evaluate_soft_404_heuristic(ctx) is None
+
+
+def test_noindex_rules_include_contract_fields():
+    ctx = build_page_rule_context(
+        url="https://ex.com/page",
+        status=200,
+        parsed={"robots_meta": "noindex"},
+        page_type="article",
+        crawl_record={
+            "indexability": {
+                "indexable": False,
+                "meta_robots_text": "noindex",
+                "indexability_confidence": 0.95,
+            },
+            "canonical_resolution": {},
+            "seo_signals": {},
+            "raw_vs_rendered": {"identical": True},
+        },
+    )
+    issue = evaluate_meta_robots_noindex(ctx)
+    assert issue["severity"]
+    assert issue["confidence"] > 0
+    assert issue["evidence"]
+    assert issue["affected_urls"]
+    assert issue["how_to_fix"]
+
+
+def test_crawl_http_3xx_not_critical_in_v2():
+    from app.services.technical_output_normalizer import _map_v2_severity
+
+    assert _map_v2_severity({"issue_type": "crawl_http_3xx", "severity": "medium"}) == "warning"
+    assert _map_v2_severity({"issue_type": "crawl_http_4xx", "severity": "high"}) == "critical"
+    assert _map_v2_severity({"issue_type": "crawl_timeout", "severity": "high"}) == "critical"
+
+
+def test_nav_group_robots_blocked_is_crawlability():
+    issue = {"category": "robots", "issue_type": "crawled_url_robots_blocked", "source": "robots"}
+    assert _map_category_to_nav_group(issue) == "crawlability"
+
+
+def test_classify_too_many_redirects_as_loop():
+    import requests
+
+    from app.services.crawler import classify_request_error
+
+    assert classify_request_error(requests.exceptions.TooManyRedirects("loop")) == "redirect_loop"
+
+
+def test_v2_skips_issue_without_technical_evidence():
+    raw = [
+        {
+            "type": "crawl_http_4xx",
+            "severity": "high",
+            "message": "guess",
+            "checklist_group": "GSC",
+        }
+    ]
+    v2 = _expand_and_dedupe_v2_issues(normalize_crawl_issues(raw), {"domain": "ex.com"})
+    assert v2 == []

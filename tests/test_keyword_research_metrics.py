@@ -48,12 +48,22 @@ def test_majority_intent_unknown_empty() -> None:
         (0.5, "Medium", "dataforseo"),
         (0.9, "High", "dataforseo"),
         ("LOW", "Low", "dataforseo"),
+        ("1", "High", "dataforseo"),
     ],
 )
 def test_competition_from_index(idx, label, source) -> None:
     got_label, got_src = competition_label_from_index(idx)
     assert got_label == label
     assert got_src == source
+
+
+def test_google_ads_competition_index_one_is_low() -> None:
+    label, src = competition_label_from_index(1, provider="google_ads")
+    assert label == "Low"
+    assert src == "google_ads"
+    unknown, na = competition_label_from_index(0, provider="google_ads")
+    assert unknown == "Unknown"
+    assert na == "N/A"
 
 
 def test_parse_monthly_searches() -> None:
@@ -65,6 +75,13 @@ def test_parse_monthly_searches() -> None:
     ]
     vals = parse_monthly_search_values(raw)
     assert vals == [100, 120, 140, 160]
+    named = parse_monthly_search_values(
+        [
+            {"year": 2024, "month": "JANUARY", "search_volume": 10},
+            {"year": 2024, "month": "FEBRUARY", "monthly_searches": 20},
+        ]
+    )
+    assert named == [10, 20]
 
 
 def test_trend_up() -> None:
@@ -72,6 +89,12 @@ def test_trend_up() -> None:
     assert t["direction"] == "up"
     assert t["pct_change"] is not None
     assert t["data_source"] == "dataforseo"
+
+
+def test_trend_google_ads_source() -> None:
+    t = compute_trend([100, 100, 100, 100, 200, 200, 200, 200], data_source="google_ads")
+    assert t["direction"] == "up"
+    assert t["data_source"] == "google_ads"
 
 
 def test_trend_unknown_short_series() -> None:

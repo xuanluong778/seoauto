@@ -15,6 +15,9 @@ def test_run_keyword_research_vi_expansion_count() -> None:
 
 def test_pipeline_fallback_when_k4k_empty() -> None:
     with patch(
+        "app.services.keyword_research_pipeline.expand_keyword_ideas",
+        return_value=[],
+    ), patch(
         "app.services.keyword_research_pipeline.expand_keywords_from_dataforseo",
         return_value=[],
     ):
@@ -37,6 +40,9 @@ def test_pipeline_fallback_when_expand_env_off() -> None:
     import os
 
     with patch(
+        "app.services.keyword_research_pipeline.expand_keyword_ideas",
+        return_value=[],
+    ), patch(
         "app.services.keyword_research_pipeline.expand_keywords_from_dataforseo",
         return_value=[],
     ):

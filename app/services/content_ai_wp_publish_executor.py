@@ -26,6 +26,7 @@ from app.routers.pages import (
     _update_rankmath_via_plugin_endpoint,
     _upload_featured_media,
     _wp_request,
+    _wp_viewable_post_link,
 )
 from app.services.security_audit_log import log_audit_event
 
@@ -128,7 +129,15 @@ def publish_draft_to_wordpress(
                 link = job_dict.get("wp_post_url") or (job_dict.get("result") or {}).get("permalink") or (
                     (job_dict.get("result") or {}).get("link")
                 )
-                status = (job_dict.get("result") or {}).get("status") if isinstance(job_dict.get("result"), dict) else "publish"
+                result_obj = job_dict.get("result") if isinstance(job_dict.get("result"), dict) else {}
+                status = str(result_obj.get("status") or publish_mode or "publish").strip().lower() or "publish"
+                wp_base_out = _normalize_wp_base_url(wp_url)
+                view_link = _wp_viewable_post_link(
+                    wp_base=wp_base_out,
+                    post_id=post_id,
+                    status=status,
+                    public_link=link,
+                )
 
                 if record_usage:
                     from app.services.content_ai_entitlement import record_content_ai_usage
@@ -155,8 +164,14 @@ def publish_draft_to_wordpress(
                     "ok": True,
                     "post_id": post_id,
                     "status": status,
-                    "link": link,
-                    "wp_url": _normalize_wp_base_url(wp_url),
+                    "link": view_link,
+                    "edit_link": _wp_viewable_post_link(
+                        wp_base=wp_base_out,
+                        post_id=post_id,
+                        status="draft",
+                        public_link="",
+                    ),
+                    "wp_url": wp_base_out,
                     "via": "seo_helper_plugin",
                     "job_id": job.id,
                     "logs": [f"published via seoauto-seo-helper connection_id={conn.id}"],
@@ -195,26 +210,39 @@ def publish_draft_to_wordpress(
     logs: list[str] = []
     session: requests.Session | None = None
     me: requests.Response | None = None
-    for label, strip_spaces in (("raw", False), ("strip-spaces", True)):
+    last_http = 0
+    from app.services.wp_connect import wp_get_json, wp_http_status_note
+
+    for label, strip_spaces in (("strip-spaces", True), ("raw", False)):
         candidate = _build_wp_session(username, app_password, strip_spaces=strip_spaces)
-        attempt_logs: list[str] = []
-        resp = _wp_request(
-            session=candidate,
-            method="GET",
-            url=f"{wp_base}/wp-json/wp/v2/users/me",
-            logs=attempt_logs,
-            step=f"auth-check:{label}",
-        )
+        try:
+            resp, working = wp_get_json(
+                "/wp-json/wp/v2/users/me",
+                url=wp_base,
+                headers=dict(candidate.headers),
+                auth=candidate.auth,
+                timeout=20,
+            )
+        except requests.RequestException as exc:
+            logs.append(f"[auth-check:{label}] {exc.__class__.__name__}")
+            continue
+        last_http = int(resp.status_code or 0)
+        logs.append(f"[auth-check:{label}@{working}] {wp_http_status_note(resp)}")
         if resp.status_code < 400:
-            logs.extend(attempt_logs)
+            wp_base = working
             session = candidate
             me = resp
             break
-        logs.extend(attempt_logs)
     if session is None or me is None:
+        code = last_http if last_http in (401, 403, 404) else 401
+        hint = {
+            401: "HTTP 401 — Application Password sai hoặc tài khoản không được phép REST.",
+            403: "HTTP 403 — plugin bảo mật/CDN chặn, hoặc user không đủ quyền.",
+            404: "HTTP 404 — REST API không tìm thấy (permalink Plain hoặc URL sai).",
+        }.get(code, "Không kết nối được WordPress REST (/users/me).")
         raise HTTPException(
-            status_code=401,
-            detail="Xác thực WordPress thất bại. Kiểm tra username/app password.",
+            status_code=401 if code in (401, 403) else (404 if code == 404 else 502),
+            detail=f"Xác thực WordPress thất bại. {hint}",
         )
 
     detected_plugin = _detect_wp_seo_plugin(session=session, wp_base=wp_base, logs=logs)
@@ -382,7 +410,87 @@ def publish_draft_to_wordpress(
         "ok": True,
         "post_id": data.get("id"),
         "status": data.get("status"),
-        "link": data.get("link"),
+        "link": _wp_viewable_post_link(
+            wp_base=wp_base,
+            post_id=data.get("id"),
+            status=data.get("status"),
+            public_link=data.get("link"),
+        ),
+        "edit_link": _wp_viewable_post_link(
+            wp_base=wp_base,
+            post_id=data.get("id"),
+            status="draft",
+            public_link="",
+        ),
         "wp_url": wp_base,
         "logs": logs,
     }
+
+
+def guard_wp_publish_project_duplicate(
+    db: Session,
+    *,
+    user_id: int,
+    project_id: str | None,
+) -> dict[str, Any] | None:
+    """
+    Block duplicate WordPress publish for the same Content AI project (double-click / retry).
+    Returns idempotent JSON payload when a recent publish exists; otherwise marks publishing.
+    """
+    pid = str(project_id or "").strip()
+    if not pid or int(user_id or 0) <= 0:
+        return None
+
+    from app.services.content_ai_publish_schedule_service import _resolve_publish_now_duplicate
+    from app.services.content_ai_project_store import (
+        get_content_ai_project,
+        update_content_ai_project_fields,
+    )
+    from app.services.idempotency_guard import build_idempotency_key, find_usage_by_key
+
+    dup = _resolve_publish_now_duplicate(db, int(user_id), pid)
+    if dup is not None and dup.wp_post_id and int(dup.wp_post_id) > 0:
+        return {
+            "ok": True,
+            "idempotent": True,
+            "post_id": int(dup.wp_post_id),
+            "status": "published",
+            "link": dup.wp_post_url or "",
+            "message": "Bài đã được đăng gần đây (idempotent).",
+        }
+
+    idem_key = build_idempotency_key("wp-publish-project", user_id, pid)
+    prior = find_usage_by_key(db, idem_key)
+    if prior is not None:
+        import json
+
+        meta: dict[str, Any] = {}
+        raw_meta = getattr(prior, "metadata_json", None)
+        if raw_meta:
+            try:
+                meta = json.loads(str(raw_meta))
+            except (TypeError, ValueError):
+                meta = {}
+        post_id = meta.get("post_id")
+        if post_id:
+            return {
+                "ok": True,
+                "idempotent": True,
+                "post_id": post_id,
+                "status": meta.get("status") or "published",
+                "link": meta.get("link") or "",
+                "message": "Bài đã được đăng (idempotent usage key).",
+            }
+
+    proj = get_content_ai_project(pid, user_id=int(user_id))
+    if proj is not None:
+        wp_status = str(proj.get("wp_publish_status") or "").strip().lower()
+        if wp_status == "publishing":
+            raise HTTPException(status_code=409, detail="Bài đang được đăng.")
+
+    update_content_ai_project_fields(
+        pid,
+        {"wp_publish_status": "publishing"},
+        user_id=int(user_id),
+    )
+    return None

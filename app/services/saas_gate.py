@@ -15,7 +15,7 @@ from app.models.user import User
 from app.services import entitlement_service
 from app.services import credits as credits_svc
 from app.services import usage_tracking_service
-from app.services.rbac import can_write, is_admin
+from app.services.rbac import is_admin
 from app.services.software_access_service import user_has_software_access
 from app.services.saas_ui_messages import resolve_ai_access_state
 
@@ -149,17 +149,20 @@ def enforce_saas_access(
     feature_code: str,
     quantity: int = 1,
     require_feature: bool = True,
+    organization_id: int | None = None,
 ) -> str | None:
     """
     Auth-level SaaS checks without credit reservation.
     Always runs even on cache-hit paths (caller must invoke before returning cache).
     """
+    from app.services.permissions import PERM_WORKSPACE_WRITE, has_permission
+
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "auth_required", "message": "Đăng nhập để tiếp tục."},
         )
-    if not can_write(user):
+    if not has_permission(user, PERM_WORKSPACE_WRITE, db=db, organization_id=organization_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "read_only", "message": "Tài khoản chỉ xem — không có quyền."},
@@ -176,6 +179,24 @@ def enforce_saas_access(
         if result.plan_slug:
             plan_slug = result.plan_slug
     return plan_slug
+
+
+def _ledger_module_action_for_feature(feature_code: str) -> tuple[str, str]:
+    """Map SaaS feature_code → CreditLedger (module, action) for reserve SSOT."""
+    fk = str(feature_code or "").strip().lower()
+    if fk in ("content_ai_article", "content_ai_write", "content_ai_bulk_article"):
+        return "content_ai", "article_medium"
+    if fk in ("content_ai_brief",):
+        return "content_ai", "brief_suggest"
+    if fk in ("image_generate", "content_ai_image", "ai_image"):
+        return "content_ai", "ai_image"
+    if fk.startswith("keyword") or fk in ("keyword_research", "keyword_cluster"):
+        return "keyword", "research_run"
+    if fk.startswith("lead_"):
+        return "lead_scanner", "basic_scan"
+    if fk in ("technical_audit",):
+        return "audit", "technical_deep"
+    return "saas_gate", "reserve"
 
 
 @contextmanager
@@ -212,6 +233,7 @@ def saas_action_gate(
         feature_code=feature_code,
         quantity=quota_units,
         require_feature=require_feature,
+        organization_id=organization_id,
     )
 
     quota_remaining = None
@@ -220,6 +242,10 @@ def saas_action_gate(
 
         if cost_control_enforced():
             quota_remaining = _check_quota(db, user, feature_code=feature_code, units=quota_units)
+            from app.services.cost_control.caps import assert_user_credit_caps
+
+            # Product SSOT: wallet + entitlement. No hidden premium_llm monthly cap.
+            assert_user_credit_caps(db, user, extra_credits=max(0, int(credit_cost or 0)))
 
     cost = max(0, int(credit_cost or 0))
     ctx = SaaSGateContext(
@@ -235,7 +261,14 @@ def saas_action_gate(
         quota_remaining=quota_remaining,
     )
 
-    if is_admin(user) or not credits_svc.credits_enforced() or cost <= 0 or charge_mode == "none":
+    from app.services.rbac import admin_skips_credit_deduction
+
+    if (
+        admin_skips_credit_deduction(user)
+        or not credits_svc.credits_enforced()
+        or cost <= 0
+        or charge_mode == "none"
+    ):
         ctx._skip_credit = True
         try:
             yield ctx
@@ -267,6 +300,7 @@ def saas_action_gate(
         return
 
     # reserve mode
+    ledger_module, ledger_action = _ledger_module_action_for_feature(feature_code)
     res = credits_svc.reserve_credits(
         db,
         user_id=int(user.id),
@@ -276,6 +310,8 @@ def saas_action_gate(
         idempotency_key=idem,
         organization_id=organization_id,
         reason=f"reserve:{feature_code}"[:64],
+        module=ledger_module,
+        action=ledger_action,
     )
     ctx.reservation_id = int(res["reservation_id"])
     ctx.reserved_amount = int(res["amount"])

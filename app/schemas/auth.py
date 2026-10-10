@@ -47,14 +47,21 @@ class UserLogin(BaseModel):
         return self
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str | None = None
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token: str | None = None
+    expires_in: int | None = None
 
 
 class UserResponse(BaseModel):
     id: int
-    email: EmailStr
+    # Response must not 500 on legacy/test addresses already stored in DB.
+    email: str
     created_at: datetime
     credit_balance: int = 0
     role: str = "user"

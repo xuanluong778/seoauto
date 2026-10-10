@@ -46,14 +46,17 @@ def is_sepay_webhook_configured() -> bool:
 
 def sepay_webhook_require_auth() -> bool:
     """
-    When false (default), accept unsigned SePay payloads that pass strict field checks.
-    SePay dashboard "Không xác thực" sends no Authorization header — common in production VN setups.
-    Set SEPAY_WEBHOOK_REQUIRE_AUTH=1 to enforce API Key / HMAC only.
+    Require API Key / HMAC for SePay webhooks.
+
+    Default: True (fail-closed). Production always True — cannot be disabled.
+    Non-production may set SEPAY_WEBHOOK_REQUIRE_AUTH=0 only for local unsigned tests.
     """
+    if is_production():
+        return True
     raw = _env_first("SEPAY_WEBHOOK_REQUIRE_AUTH")
     if raw:
         return raw.strip().lower() in ("1", "true", "yes", "on")
-    return False
+    return True
 
 
 def _looks_like_sepay_payload(payload: dict) -> bool:
@@ -213,13 +216,21 @@ def verify_sepay_webhook_auth(
     payload: dict | None = None,
 ) -> bool:
     """
-    Validate SePay webhook auth:
-    1) API Key / shared secret headers (Apikey / Bearer / X-API-Key / X-SePay-Secret)
-    2) HMAC-SHA256 (X-SePay-Signature + X-SePay-Timestamp) when configured
-    3) Unsigned mode: strict payload validation when SEPAY_WEBHOOK_REQUIRE_AUTH is off
+    Validate SePay webhook auth (fail-closed by default):
+    1) HMAC-SHA256 (X-SePay-Signature + X-SePay-Timestamp) when secret configured
+    2) API Key / shared secret headers (Apikey / Bearer / X-API-Key / X-SePay-Secret)
+    3) Unsigned payload only when SEPAY_WEBHOOK_REQUIRE_AUTH is explicitly off (non-production)
     """
+    require_auth = sepay_webhook_require_auth()
     allowed = sepay_auth_tokens()
     hmac_secret = sepay_webhook_secret()
+
+    if require_auth and not allowed and not hmac_secret:
+        logger.error(
+            "sepay_webhook_auth_rejected reason=missing_config "
+            "set SEPAY_WEBHOOK_SECRET and/or SEPAY_API_KEY"
+        )
+        return False
 
     if verify_sepay_hmac_signature(
         raw_body=raw_body,
@@ -242,22 +253,13 @@ def verify_sepay_webhook_auth(
                 logger.info("sepay_webhook_auth_ok method=api_key")
                 return True
 
-    if not sepay_webhook_require_auth() and payload and _looks_like_sepay_payload(payload):
+    # Dev-only escape hatch: unsigned payloads when auth explicitly disabled.
+    if not require_auth and payload and _looks_like_sepay_payload(payload):
         logger.info(
             "sepay_webhook_auth_ok method=unsigned_payload "
-            "(configure API Key on SePay + SEPAY_WEBHOOK_REQUIRE_AUTH=1 for stricter auth)"
+            "(non-production SEPAY_WEBHOOK_REQUIRE_AUTH=0 only)"
         )
         return True
-
-    if not allowed and not hmac_secret and not sepay_webhook_require_auth():
-        if payload and _looks_like_sepay_payload(payload):
-            logger.info("sepay_webhook_auth_ok method=unsigned_payload_no_secret_configured")
-            return True
-        logger.error(
-            "sepay_webhook_auth_rejected reason=missing_config "
-            "set SEPAY_WEBHOOK_SECRET and/or SEPAY_API_KEY, or send valid SePay payload"
-        )
-        return False
 
     auth_scheme = "none"
     if authorization and str(authorization).strip():
@@ -269,6 +271,6 @@ def verify_sepay_webhook_auth(
         bool(x_api_key),
         bool(x_sepay_secret),
         bool(x_sepay_signature and x_sepay_timestamp),
-        sepay_webhook_require_auth(),
+        require_auth,
     )
     return False

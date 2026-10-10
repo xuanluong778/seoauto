@@ -16,6 +16,12 @@ from app.services.chatbot_workflow_service import (
 from app.services.chatbot_workflow_store import get_workflow_for_user
 
 
+@pytest.fixture(autouse=True)
+def _grant_saas_access(monkeypatch):
+    monkeypatch.setattr("app.services.saas_gate.user_has_software_access", lambda db, uid: True)
+    monkeypatch.setattr("app.services.software_access_service.user_has_software_access", lambda db, uid: True)
+
+
 @pytest.fixture
 def db_session():
     return MagicMock()

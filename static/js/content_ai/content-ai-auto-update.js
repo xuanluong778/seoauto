@@ -2736,10 +2736,7 @@
                         cauModalApplyAiField(field, value);
                         cauModalSaveDraft();
                         if (field !== "outline_content") cauModalScoreLive().catch(() => {});
-                        const creditNote = out.credits_charged > 0
-                            ? " (đã trừ " + out.credits_charged + " credit)"
-                            : "";
-                        cauModalSetFieldHint(field, "Đã cập nhật gợi ý AI." + creditNote);
+                        cauModalSetFieldHint(field, "Đã cập nhật gợi ý AI.");
                     } else {
                         cauModalSetFieldHint(field, "AI không trả nội dung — thử lại.");
                     }
@@ -3574,10 +3571,7 @@
             const rep = data.change_report || {};
             const cacheNote = data.from_cache ? " (từ cache)" : "";
             const srcNote = data.source === "rule" ? " [kiểm tra]" : (data.source === "llm" ? " [LLM]" : "");
-            const creditNote = (data.credit && data.credit.credit_charged)
-                ? " · đã trừ " + (data.credit.credit_cost || 0) + " credit"
-                : "";
-            const msg = (rep.reason || data.message || "Đã tạo bản sửa — xem chi tiết trước khi áp dụng.") + srcNote + cacheNote + creditNote;
+            const msg = (rep.reason || data.message || "Đã tạo bản sửa — xem chi tiết trước khi áp dụng.") + srcNote + cacheNote;
             cauSetStatus("cauModalAssistantHint", data.success ? "ok" : "warn", msg);
             return data;
         }).catch((e) => {
@@ -3606,9 +3600,9 @@
         outline_content: form.outline,
     });
 
-    const cauModalContentAiCreditNote = (credit) => {
-        if (!credit || !credit.credit_charged) return "";
-        return " · đã trừ " + (credit.credit_cost || 0) + " credit";
+    const cauModalContentAiCreditNote = (_credit) => {
+        // Không hiển thị thông báo trừ credit — chỉ giữ success message nghiệp vụ.
+        return "";
     };
 
     const cauModalClearRewriteFieldHints = () => {
@@ -3809,8 +3803,7 @@
         }).then((data) => {
             cauModalQueueFixPreview(data, { batch: true });
             cauLoadQuota();
-            const charged = data.credit && data.credit.charged_total ? (" · đã trừ " + data.credit.charged_total + " credit") : "";
-            cauSetStatus("cauModalAssistantHint", "ok", (data.message || "Đã xử lý — xem chi tiết trước khi áp dụng.") + charged);
+            cauSetStatus("cauModalAssistantHint", "ok", data.message || "Đã xử lý — xem chi tiết trước khi áp dụng.");
             return data;
         }).catch((e) => {
             cauSetStatus("cauModalAssistantHint", "err", cauFormatApiError(e, "fix"));
@@ -4145,14 +4138,25 @@
     };
 
     const cauModalUpdate = () => {
-        // Open confirm first — never auto-publish.
-        return cauModalOpenUpdateConfirm();
+        // Skip confirm popup — cập nhật WordPress trực tiếp (giữ status bài gốc).
+        if (!cauModalState.sessionId) {
+            cauSetStatus("cauModalEditorHint", "err", "Chưa có session — tải lại bài.");
+            return Promise.resolve();
+        }
+        const form = cauModalReadForm();
+        if (!form.title.trim() || !form.content.trim()) {
+            cauSetStatus("cauModalEditorHint", "err", "Title/Content không được để trống.");
+            return Promise.resolve();
+        }
+        return cauModalConfirmFinalUpdate();
     };
 
     const cauModalConfirmFinalUpdate = () => {
         if (!cauModalState.sessionId) return Promise.resolve();
         const form = cauModalReadForm();
         const patches = (cauAssistantUI && cauAssistantUI.applied) ? cauAssistantUI.applied.slice() : [];
+        // Close confirm popup immediately on submit; keep closed after success.
+        cauModalCloseWpConfirm();
         cauModalSetLoadState("updateLoading", true, CAU_LOAD_LABELS.modalUpdate);
         cauBeginLoad("modalUpdate");
         return cauApi("POST", "/content-ai/auto-update/modal/update", {

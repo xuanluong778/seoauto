@@ -264,6 +264,11 @@ class SaasMeResponse(BaseModel):
     saas_trial_credit_remaining: int = 0
     saas_trial_banner: str | None = None
     saas_trial_need_credit_message: str | None = None
+    has_paid_plan: bool = False
+    effective_plan_slug: str | None = None
+    plan_source: str | None = None
+    show_upgrade_banner: bool = False
+    show_trial_expired_banner: bool = False
     ai_access_state: str | None = None
     ai_access_message: str | None = None
     can_use_ai: bool = False
@@ -287,6 +292,7 @@ class BillingAddonArticle(BaseModel):
 class BillingPlanProductCodes(BaseModel):
     monthly: str
     yearly: str
+    semi_annual: str | None = None
 
 
 class BillingSaasProduct(BaseModel):
@@ -298,6 +304,26 @@ class BillingSaasProduct(BaseModel):
     price: int
     currency: str = "VND"
     period_days: int
+    duration_months: int | None = None
+    monthly_credit: int | None = None
+    base_credit: int | None = None
+    bonus_credit: int | None = None
+    total_credit: int | None = None
+    base_duration_months: int | None = None
+    bonus_duration_months: int | None = None
+    total_duration_months: int | None = None
+
+
+class BillingPlanHighlight(BaseModel):
+    label: str
+    value: str
+    emphasize: str | None = None
+    free: str | None = None
+
+
+class BillingCompareRow(BaseModel):
+    key: str
+    label: str
 
 
 class BillingPlanCard(BaseModel):
@@ -306,9 +332,17 @@ class BillingPlanCard(BaseModel):
     fit: str = ""
     month_price: int = 0
     year_price: int = 0
+    semi_annual_price: int = 0
+    semi_annual_total_credit: int = 0
+    semi_annual_bonus_credit: int = 0
+    yearly_total_credit: int = 0
+    yearly_bonus_credit: int = 0
     is_popular: bool = False
+    badge: str = ""
     cta: str = "Nâng cấp gói"
     features: list[dict[str, Any]] = Field(default_factory=list)
+    highlights: list[BillingPlanHighlight] = Field(default_factory=list)
+    compare: dict[str, Any] = Field(default_factory=dict)
     tier: int = 0
     product_codes: BillingPlanProductCodes | None = None
 
@@ -316,11 +350,13 @@ class BillingPlanCard(BaseModel):
 class BillingCatalogResponse(BaseModel):
     plan_slugs: list[str] = Field(default_factory=list)
     plans: list[BillingPlanCard] = Field(default_factory=list)
+    compare_rows: list[BillingCompareRow] = Field(default_factory=list)
     products: list[BillingSaasProduct] = Field(default_factory=list)
     credit_addons: list[BillingAddonCredit] = Field(default_factory=list)
     credit_addon_notes: list[str] = Field(default_factory=list)
     article_addons: list[BillingAddonArticle] = Field(default_factory=list)
     article_addon_notes: list[str] = Field(default_factory=list)
+    catalog_revision: int | None = None
 
 
 class PaymentOrderCreateRequest(BaseModel):

@@ -178,7 +178,14 @@ def _wp_patch(
 ) -> dict[str, Any]:
     url = f"{base.rstrip('/')}/wp-json/wp/v2/{resource}/{int(wp_id)}"
     try:
-        r = requests.post(url, headers=headers, auth=auth, json=body, timeout=60)
+        from app.services.url_safety import validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            raise SeoScoreApplyError(f"URL site không an toàn ({blocked})")
+        r = requests.post(url, headers=headers, auth=auth, json=body, timeout=60, allow_redirects=False)
+    except SeoScoreApplyError:
+        raise
     except requests.RequestException as exc:
         raise SeoScoreApplyError(f"Không gọi được WordPress: {exc}") from exc
     if r.status_code >= 400:

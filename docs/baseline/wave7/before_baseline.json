@@ -1,0 +1,47 @@
+{
+  "wave": 7,
+  "phase": "before",
+  "captured_at": "2026-09-02T06:00:00+00:00",
+  "profiled_stack": [
+    "Uvicorn",
+    "PostgreSQL/PgBouncer",
+    "Redis",
+    "Celery (content_ai, embedding, wordpress, crawl, email, default)",
+    "Beat"
+  ],
+  "mixed_traffic": [
+    "/auth/me",
+    "/projects",
+    "/content-ai/projects",
+    "/content-ai/duplicate-check",
+    "/content-ai/credit-quote",
+    "/api/credits/preview",
+    "/analyze/technical/jobs",
+    "/api/audit/mine",
+    "/api/report",
+    "/pricing",
+    "/auth/credits/ledger"
+  ],
+  "risks_before_wave7": [
+    "Single-IP rate limit (/analyze 30/h) causes 429 under mixed load from one client",
+    "Test user id=2 invalid email → /auth/me 500 when rotated in multi-user load",
+    "Cumulative /metrics p95 inflated by slow flows (duplicate_check, audit jobs)",
+    "Host RAM jitter mistaken for memory leak on short soak windows",
+    "Job queue backlog from async technical audits not draining within 30s probe"
+  ],
+  "fixes_planned": [
+    "Per-virtual-user X-Forwarded-For for tenant-scoped rate limits",
+    "Filter working users for /auth/me",
+    "Sequential read probe for business API p95 gate",
+    "Process RSS positive-growth-only leak detection",
+    "Queue drain gate vs peak not baseline",
+    "TRUSTED_PROXY_XFF — only trust X-Real-IP from nginx peer",
+    "SOAK gate uses 5xx-only; 402/403/429 tracked as policy responses"
+  ],
+  "fixes_applied": [
+    "app/services/trusted_proxy.py + TRUSTED_PROXY_XFF=1",
+    "Removed XFF spoof from load harness; multi-user tokens instead",
+    "2h soak with timeseries at soak_2h_timeseries.jsonl",
+    "Security gates: XFF, rate limit 429, multi-user load"
+  ]
+}

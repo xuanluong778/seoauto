@@ -152,3 +152,55 @@ def test_api_audit_404_without_auth_breaking_shape(audit_client):
     client, _user_id, token = audit_client
     r = client.get("/api/audit/nonexistent-id-xyz", headers=_auth(token))
     assert r.status_code == 404
+
+
+def test_api_audit_compare(audit_client):
+    client, user_id, token = audit_client
+    base = {
+        "domain": "cmp.com",
+        "pages_scanned": 3,
+        "issues": [],
+        "technical_summary": {"health_score": 60},
+        "technical_dashboard_v2": {
+            "schema_version": 2,
+            "technical_health_score": 60,
+            "issues": [
+                {
+                    "issue_type": "missing_title",
+                    "title": "Missing title",
+                    "affected_urls": ["https://cmp.com/a"],
+                    "severity": "medium",
+                }
+            ],
+        },
+    }
+    target = {
+        "domain": "cmp.com",
+        "pages_scanned": 3,
+        "issues": [],
+        "technical_summary": {"health_score": 75},
+        "technical_dashboard_v2": {
+            "schema_version": 2,
+            "technical_health_score": 75,
+            "issues": [
+                {
+                    "issue_type": "slow_lcp",
+                    "title": "Slow LCP",
+                    "affected_urls": ["https://cmp.com/b"],
+                    "severity": "high",
+                }
+            ],
+        },
+    }
+    base_id = save_technical_audit(user_id=user_id, source_url="https://cmp.com", result=base)
+    target_id = save_technical_audit(user_id=user_id, source_url="https://cmp.com", result=target)
+    r = client.get(
+        f"/api/audit/compare?base_id={base_id}&target_id={target_id}",
+        headers=_auth(token),
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["score_before"] == 60.0
+    assert data["score_after"] == 75.0
+    assert data["counts"]["fixed"] == 1
+    assert data["counts"]["new"] == 1

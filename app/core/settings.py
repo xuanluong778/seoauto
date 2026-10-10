@@ -38,6 +38,33 @@ def get_smtp_settings() -> dict:
     }
 
 
+def get_resend_settings() -> dict:
+    """Production email via Resend. Never logs the API key."""
+    refresh_env_local()
+    from_addr = (
+        (os.getenv("RESEND_FROM") or "").strip()
+        or (os.getenv("RESEND_FROM_EMAIL") or "").strip()
+    )
+    if (from_addr.startswith('"') and from_addr.endswith('"')) or (
+        from_addr.startswith("'") and from_addr.endswith("'")
+    ):
+        from_addr = from_addr[1:-1].strip()
+    try:
+        timeout = int(os.getenv("RESEND_TIMEOUT_SECONDS", "15") or 15)
+    except (TypeError, ValueError):
+        timeout = 15
+    try:
+        retries = int(os.getenv("RESEND_RETRY_COUNT", "3") or 3)
+    except (TypeError, ValueError):
+        retries = 3
+    return {
+        "api_key": (os.getenv("RESEND_API_KEY") or "").strip(),
+        "from_email": from_addr,
+        "timeout_seconds": max(5, min(timeout, 60)),
+        "retry_count": max(1, min(retries, 5)),
+    }
+
+
 def get_google_oauth_settings() -> dict | None:
     """Client OAuth web (Google Cloud Console). Trả None nếu chưa cấu hình."""
     refresh_env_local()

@@ -42,8 +42,8 @@ DEFAULT_CREDIT_COSTS: list[dict[str, Any]] = [
     {
         "module": "content_ai",
         "action": "addon_research",
-        "credit_cost": 15,
-        "label": "Content AI — nghiên cứu từ khóa",
+        "credit_cost": 22,
+        "label": "Content AI — Deep Research (từ khóa / SERP)",
     },
     {
         "module": "content_ai",
@@ -79,8 +79,8 @@ DEFAULT_CREDIT_COSTS: list[dict[str, Any]] = [
     {
         "module": "content_ai",
         "action": "ai_image",
-        "credit_cost": 15,
-        "label": "Ảnh AI (OpenAI)",
+        "credit_cost": 52,
+        "label": "Ảnh AI Nano Banana (SSOT 50–55 credit/ảnh theo model)",
     },
     # Content Auto Update
     {
@@ -147,7 +147,13 @@ DEFAULT_CREDIT_COSTS: list[dict[str, Any]] = [
         "module": "keyword",
         "action": "cluster_async",
         "credit_cost": 2,
-        "label": "Gom cụm (async)",
+        "label": "Gom cụm async — đơn vị / 50 từ khóa (local embedding)",
+    },
+    {
+        "module": "keyword",
+        "action": "cluster_serp_block",
+        "credit_cost": 9,
+        "label": "Gom cụm — phụ phí SERP / 50 từ khóa (≥70% GM vs DataForSEO)",
     },
     {
         "module": "keyword",
@@ -161,24 +167,24 @@ DEFAULT_CREDIT_COSTS: list[dict[str, Any]] = [
         "credit_cost": 1,
         "label": "Import Excel từ khóa",
     },
-    # Audit / SEO score
+    # Audit / SEO score — FREE (không trừ credit)
     {
         "module": "audit",
         "action": "technical_quick",
-        "credit_cost": 8,
-        "label": "Technical Audit nhanh",
+        "credit_cost": 0,
+        "label": "Technical Audit nhanh (FREE)",
     },
     {
         "module": "audit",
         "action": "technical_deep",
-        "credit_cost": 10,
-        "label": "Technical Audit sâu",
+        "credit_cost": 0,
+        "label": "Technical Audit sâu (FREE)",
     },
     {
         "module": "audit",
         "action": "technical_single_url",
-        "credit_cost": 3,
-        "label": "Audit 1 URL",
+        "credit_cost": 0,
+        "label": "Audit 1 URL (FREE)",
     },
     {
         "module": "audit",
@@ -189,27 +195,27 @@ DEFAULT_CREDIT_COSTS: list[dict[str, Any]] = [
     {
         "module": "seo_score",
         "action": "url_scoreboard",
-        "credit_cost": 3,
-        "label": "SEO Score URL",
+        "credit_cost": 0,
+        "label": "SEO Score URL (FREE)",
     },
     {
         "module": "seo_score",
         "action": "content_score",
-        "credit_cost": 2,
-        "label": "SEO Score nội dung",
+        "credit_cost": 0,
+        "label": "SEO Score nội dung (FREE)",
     },
     {
         "module": "seo_score",
         "action": "ai_fix",
         "credit_cost": 2,
         "label": "SEO Score — Sửa bằng AI",
-        "description": "TODO: bật SEO_SCORE_AI_FIX_BILLING_ENABLED=1 khi thu phí",
+        "description": "Billable by default; set SEO_SCORE_AI_FIX_BILLING_ENABLED=0 to disable",
     },
     {
         "module": "schema",
         "action": "generate",
-        "credit_cost": 5,
-        "label": "Schema JSON-LD generate",
+        "credit_cost": 0,
+        "label": "Schema JSON-LD generate (FREE)",
     },
     # Chatbot CSKH vượt quota
     {
@@ -222,15 +228,15 @@ DEFAULT_CREDIT_COSTS: list[dict[str, Any]] = [
     {
         "module": "lead_scanner",
         "action": "basic_scan",
-        "credit_cost": 12,
-        "cache_discount_percent": 90,
-        "cache_zero_cost": True,
-        "label": "Lead scan cơ bản (API)",
+        "credit_cost": 42,
+        "cache_discount_percent": 50,
+        "cache_zero_cost": False,
+        "label": "Lead scan cơ bản (Places)",
     },
     {
         "module": "lead_scanner",
         "action": "place_detail",
-        "credit_cost": 11,
+        "credit_cost": 22,
         "label": "Lead — lấy SĐT/chi tiết",
     },
     {
@@ -255,8 +261,99 @@ DEFAULT_CREDIT_COSTS: list[dict[str, Any]] = [
     {
         "module": "chatbot",
         "action": "images_bundle",
-        "credit_cost": 5,
-        "label": "Chatbot — gói ảnh",
+        "credit_cost": 52,
+        "label": "Chatbot — gói ảnh AI (theo SSOT ảnh)",
+    },
+    # Rank Tracking / SERP helpers / Google Map AI
+    {
+        "module": "rank_tracking",
+        "action": "check",
+        "credit_cost": 3,
+        "label": "Rank Tracking — check SERP",
+    },
+    {
+        "module": "keyword",
+        "action": "intelligence",
+        "credit_cost": 2,
+        "label": "Keyword Intelligence",
+    },
+    {
+        "module": "serp",
+        "action": "keyword_intelligence",
+        "credit_cost": 3,
+        "label": "SERP Keyword Intelligence",
+    },
+    {
+        "module": "google_map",
+        "action": "ai_generate",
+        "credit_cost": 2,
+        "label": "Google Map SEO — AI generate",
+    },
+    {
+        "module": "wordpress",
+        "action": "publish",
+        "credit_cost": 3,
+        "label": "WordPress — đăng bài / plugin publish",
+    },
+    {
+        "module": "index",
+        "action": "submit_google",
+        "credit_cost": 2,
+        "label": "Submit Index — Google Indexing (mỗi lô 10 URL)",
+    },
+    {
+        "module": "index",
+        "action": "submit_indexnow",
+        "credit_cost": 1,
+        "label": "Submit Index — IndexNow (mỗi lô 20 URL)",
+    },
+    {
+        "module": "embedding",
+        "action": "openai_batch",
+        "credit_cost": 2,
+        "label": "Embedding OpenAI fallback (mỗi lô 100 KW)",
+    },
+    {
+        "module": "email",
+        "action": "user_notify",
+        "credit_cost": 1,
+        "label": "Email user-triggered (CSKH/notify vượt soft-cap)",
+    },
+    {
+        "module": "email",
+        "action": "compose",
+        "credit_cost": 3,
+        "label": "Email Marketing — AI Composer (subject + body)",
+    },
+    {
+        "module": "email",
+        "action": "rewrite",
+        "credit_cost": 2,
+        "label": "Email Marketing — AI rewrite / shorter / tone",
+    },
+    {
+        "module": "crawl",
+        "action": "job",
+        "credit_cost": 2,
+        "label": "Crawl worker job (ngoài audit gate)",
+    },
+    {
+        "module": "storage",
+        "action": "put",
+        "credit_cost": 0,
+        "label": "User/local storage put (usage log; 0 credit)",
+    },
+    {
+        "module": "storage",
+        "action": "r2_put",
+        "credit_cost": 0,
+        "label": "R2/S3 put (usage log; 0 credit)",
+    },
+    {
+        "module": "storage",
+        "action": "r2_get",
+        "credit_cost": 0,
+        "label": "R2/S3 get/egress (usage log; 0 credit)",
     },
 ]
 
@@ -269,6 +366,7 @@ REASON_TO_MODULE_ACTION: dict[str, tuple[str, str]] = {
     "keyword_research_get": ("keyword", "research_cache"),
     "keyword_research_run": ("keyword", "research_run"),
     "keyword_research_async": ("keyword", "research_run"),
+    "keyword_suggest": ("keyword", "research_cache"),
     "volume_batch": ("keyword", "volume_batch_100"),
     "cluster_sync": ("keyword", "cluster_sync"),
     "cluster_save": ("keyword", "cluster_save"),
@@ -291,6 +389,10 @@ REASON_TO_MODULE_ACTION: dict[str, tuple[str, str]] = {
     "lead_map_basic_scan": ("lead_scanner", "basic_scan"),
     "lead_map_place_detail": ("lead_scanner", "place_detail"),
     "lead_map_export": ("lead_scanner", "export"),
+    "rank_tracking_check": ("rank_tracking", "check"),
+    "keyword_intelligence": ("keyword", "intelligence"),
+    "serp_keyword_intelligence": ("serp", "keyword_intelligence"),
+    "google_map_ai_generate": ("google_map", "ai_generate"),
     "chatbot_workflow_research": ("keyword", "research_run"),
     "chatbot_workflow_cluster": ("keyword", "cluster_sync"),
     "chatbot_workflow_content_ai": ("content_ai", "article_short"),
@@ -301,7 +403,49 @@ REASON_TO_MODULE_ACTION: dict[str, tuple[str, str]] = {
     "chatbot_quick_write_images_ai": ("content_ai", "ai_image"),
     "chatbot_keyword_research": ("keyword", "research_run"),
     "chatbot_cskh_overage": ("chatbot_cskh", "reply_overage"),
+    "wp_publish": ("wordpress", "publish"),
+    "index_control_submit": ("index", "submit_google"),
+    "indexnow_submit": ("index", "submit_indexnow"),
+    "embedding_openai": ("embedding", "openai_batch"),
+    "email_user_notify": ("email", "user_notify"),
+    "email_compose": ("email", "compose"),
+    "email_rewrite": ("email", "rewrite"),
+    "crawl_job": ("crawl", "job"),
+    "storage_put": ("storage", "put"),
+    "r2_put": ("storage", "r2_put"),
+    "r2_get": ("storage", "r2_get"),
 }
+
+
+# Bumped when DEFAULT_CREDIT_COSTS for locked keys must overwrite DB rows.
+CREDIT_SSOT_REVISION = 7
+
+SSOT_LOCK_KEYS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("content_ai", "ai_image"),
+        ("content_ai", "addon_research"),
+        ("lead_scanner", "basic_scan"),
+        ("lead_scanner", "place_detail"),
+        ("audit", "technical_quick"),
+        ("audit", "technical_deep"),
+        ("audit", "technical_single_url"),
+        ("seo_score", "url_scoreboard"),
+        ("seo_score", "content_score"),
+        ("schema", "generate"),
+        ("chatbot", "images_bundle"),
+        ("keyword", "cluster_async"),
+        ("keyword", "cluster_serp_block"),
+        ("wordpress", "publish"),
+        ("index", "submit_google"),
+        ("index", "submit_indexnow"),
+        ("embedding", "openai_batch"),
+        ("email", "user_notify"),
+        ("crawl", "job"),
+        ("storage", "put"),
+        ("storage", "r2_put"),
+        ("storage", "r2_get"),
+    }
+)
 
 
 def invalidate_credit_cost_cache() -> None:
@@ -433,6 +577,36 @@ def resolve_credit_cost(
         cache_discount_percent=int(cfg["cache_discount_percent"]),
         cache_zero_cost=bool(cfg["cache_zero_cost"]),
     )
+
+
+def cluster_credit_cost(
+    keyword_count: int,
+    *,
+    async_job: bool = False,
+    fetch_serp: bool = False,
+    db: Session | None = None,
+) -> int:
+    """Credit theo số keyword (block 50). Local embedding nằm trong unit; SERP cộng thêm."""
+    cap = max(1, _int_env("KEYWORD_CLUSTER_MAX_INPUT", 500))
+    n = max(1, min(int(keyword_count or 0), cap))
+    unit_action = "cluster_async" if async_job else "cluster_sync"
+    unit = resolve_credit_cost("keyword", unit_action, db=db)
+    blocks = max(1, (n + 49) // 50)
+    cost = int(unit) * blocks
+    if fetch_serp:
+        cost += resolve_credit_cost("keyword", "cluster_serp_block", db=db) * blocks
+    return max(1, cost)
+
+
+def index_submit_credit_cost(url_count: int, *, provider: str = "google", db: Session | None = None) -> int:
+    n = max(1, int(url_count or 1))
+    if str(provider or "").strip().lower() == "indexnow":
+        unit = resolve_credit_cost("index", "submit_indexnow", db=db)
+        blocks = max(1, (n + 19) // 20)
+        return unit * blocks
+    unit = resolve_credit_cost("index", "submit_google", db=db)
+    blocks = max(1, (n + 9) // 10)
+    return unit * blocks
 
 
 def resolve_credit_cost_for_reason(

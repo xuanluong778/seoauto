@@ -118,26 +118,10 @@
             </div>
         </section>
 
-        <!-- Step 3: Run -->
+        <!-- Step 3: Run controls live in the left sidebar. Keep hidden log for existing JS. -->
         <section class="bulk-v2-panel" id="bulkPanelRun" data-bulk-panel="run" hidden>
-            <div class="bulk-v2-run-hero">
-                <p class="hint">Job chạy trên server — có thể đóng tab sau khi bắt đầu (nếu server vẫn bật).</p>
-                <div class="bulk-v2-run-btns">
-                    <button type="button" class="btn" id="btnBulkWriteStart">Bắt đầu viết bài</button>
-                    <button type="button" class="btn secondary" id="btnBulkWriteStopPoll" hidden>Dừng cập nhật</button>
-                </div>
-            </div>
-            <div class="bulk-job-progress" id="bulkJobProgress" hidden>
-                <div id="bulkJobStatus">Đang chờ…</div>
-                <div class="bar"><div class="fill" id="bulkJobProgressFill"></div></div>
-                <div class="hint" id="bulkJobPct" style="margin-top:6px;">0%</div>
-            </div>
             <label for="bulkJobLog" class="content-ai-aux-hidden" hidden aria-hidden="true">Nhật ký</label>
             <textarea id="bulkJobLog" readonly class="content-ai-aux-hidden" hidden aria-hidden="true"></textarea>
-            <div class="bulk-v2-panel-footer">
-                <button type="button" class="btn secondary" data-bulk-goto="setup">← Cấu hình</button>
-                <button type="button" class="btn" data-bulk-goto="review">Xem kết quả →</button>
-            </div>
         </section>
 
         <!-- Step 4: Review -->

@@ -1,7 +1,9 @@
 .adm-pricing-wrap {
-    max-width: 1200px;
+    width: 90%;
+    max-width: 90%;
     margin: 0 auto;
     padding: 20px 16px 48px;
+    box-sizing: border-box;
 }
 
 .adm-pricing-head {

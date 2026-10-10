@@ -1,83 +1,234 @@
-"""Rank Tracking — JSON file store (per-user projects, keywords, results)."""
+"""Rank Tracking — PostgreSQL store (tenant-scoped, transactional)."""
 
 from __future__ import annotations
 
-import json
 import uuid
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import desc, func, select
+from sqlalchemy.orm import Session
 
-from app.services.user_scope import belongs_to_user
-
-PROJECTS_FILE = Path("data/rank_tracking_projects.json")
-KEYWORDS_FILE = Path("data/rank_tracking_keywords.json")
-RESULTS_FILE = Path("data/rank_tracking_results.json")
+from app.models.rank_tracking import RankTrackingKeyword, RankTrackingProject, RankTrackingResult
+from app.services.tenant_org import personal_organization_id
 
 MAX_PROJECTS = 50
 MAX_KEYWORDS_PER_PROJECT = 500
-MAX_RESULTS = 50000
+MAX_RESULTS_PER_KEYWORD = 500
+CHECK_LOCK_TTL_SEC = 300
 
 DEVICES = frozenset({"desktop", "mobile", "tablet"})
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
-def _read_list(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-    if not isinstance(raw, list):
-        return []
-    return [x for x in raw if isinstance(x, dict)]
+def _ensure_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
-def _write_list(path: Path, items: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-    except OSError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Không ghi được dữ liệu Rank Tracking. Vui lòng liên hệ quản trị.",
-        ) from exc
+def _iso(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 
-def _find_project(project_id: str, user_id: int) -> dict[str, Any] | None:
-    for row in _read_list(PROJECTS_FILE):
-        if str(row.get("id")) == str(project_id) and belongs_to_user(row, user_id):
-            return row
-    return None
+def _resolve_org(user_id: int, organization_id: int | None) -> int:
+    return int(organization_id) if organization_id is not None else personal_organization_id(int(user_id))
 
 
-def _find_keyword(keyword_id: str, user_id: int) -> dict[str, Any] | None:
-    for row in _read_list(KEYWORDS_FILE):
-        if str(row.get("id")) == str(keyword_id) and belongs_to_user(row, user_id):
-            return row
-    return None
+def _project_dict(row: RankTrackingProject) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "organization_id": row.organization_id,
+        "name": row.name,
+        "domain": row.domain,
+        "location_name": row.location_name,
+        "language_name": row.language_name,
+        "device": row.device,
+        "created_at": _iso(row.created_at),
+        "updated_at": _iso(row.updated_at),
+        "last_checked_at": _iso(row.last_checked_at),
+    }
 
 
-def list_projects(user_id: int) -> list[dict[str, Any]]:
-    items = [p for p in _read_list(PROJECTS_FILE) if belongs_to_user(p, user_id)]
-    items.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
-    return items
+def _keyword_dict(row: RankTrackingKeyword) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "organization_id": row.organization_id,
+        "project_id": row.project_id,
+        "keyword": row.keyword,
+        "created_at": _iso(row.created_at),
+        "updated_at": _iso(row.updated_at),
+        "last_checked_at": _iso(row.last_checked_at),
+    }
 
 
-def get_project(project_id: str, user_id: int) -> dict[str, Any]:
-    row = _find_project(project_id, user_id)
-    if not row:
+def _result_dict(row: RankTrackingResult) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "organization_id": row.organization_id,
+        "project_id": row.project_id,
+        "keyword_id": row.keyword_id,
+        "keyword": row.keyword,
+        "domain": row.domain,
+        "rank_absolute": row.rank_absolute,
+        "rank_group": row.rank_group,
+        "url": row.url,
+        "title": row.title,
+        "rank_change": row.rank_change,
+        "found": bool(row.found),
+        "mock": bool(row.mock),
+        "serp_depth": row.serp_depth,
+        "checked_at": _iso(row.checked_at),
+    }
+
+
+def _get_project_row(
+    db: Session,
+    project_id: str,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+    for_update: bool = False,
+) -> RankTrackingProject:
+    org_id = _resolve_org(user_id, organization_id)
+    stmt = select(RankTrackingProject).where(
+        RankTrackingProject.id == str(project_id),
+        RankTrackingProject.user_id == int(user_id),
+        RankTrackingProject.organization_id == org_id,
+    )
+    if for_update:
+        stmt = stmt.with_for_update()
+    row = db.execute(stmt).scalar_one_or_none()
+    if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy project.")
     return row
 
 
+def _get_keyword_row(
+    db: Session,
+    keyword_id: str,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+    for_update: bool = False,
+) -> RankTrackingKeyword:
+    org_id = _resolve_org(user_id, organization_id)
+    stmt = select(RankTrackingKeyword).where(
+        RankTrackingKeyword.id == str(keyword_id),
+        RankTrackingKeyword.user_id == int(user_id),
+        RankTrackingKeyword.organization_id == org_id,
+    )
+    if for_update:
+        stmt = stmt.with_for_update()
+    row = db.execute(stmt).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy keyword.")
+    return row
+
+
+def acquire_keyword_check_lock(
+    db: Session,
+    keyword_id: str,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+    ttl_sec: int = CHECK_LOCK_TTL_SEC,
+) -> RankTrackingKeyword:
+    """Row lock + in-flight guard — prevents duplicate concurrent SERP checks."""
+    now = _now()
+    row = _get_keyword_row(
+        db, keyword_id, user_id, organization_id=organization_id, for_update=True
+    )
+    if row.checking_until is not None and _ensure_utc(row.checking_until) > now:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "rank_check_in_progress",
+                "message": "Keyword đang được check — vui lòng đợi hoàn tất.",
+                "keyword_id": keyword_id,
+            },
+        )
+    row.checking_until = now + timedelta(seconds=max(30, int(ttl_sec)))
+    db.flush()
+    return row
+
+
+def release_keyword_check_lock(db: Session, keyword_row: RankTrackingKeyword) -> None:
+    keyword_row.checking_until = None
+    db.flush()
+
+
+def clear_keyword_check_lock(
+    db: Session,
+    keyword_id: str,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+) -> None:
+    org_id = _resolve_org(user_id, organization_id)
+    row = _get_keyword_row(
+        db, keyword_id, user_id, organization_id=org_id, for_update=True
+    )
+    row.checking_until = None
+    db.flush()
+
+
+def get_keyword(
+    db: Session,
+    keyword_id: str,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+) -> dict[str, Any]:
+    return _keyword_dict(
+        _get_keyword_row(db, keyword_id, user_id, organization_id=organization_id)
+    )
+
+
+def list_projects(
+    db: Session,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+) -> list[dict[str, Any]]:
+    org_id = _resolve_org(user_id, organization_id)
+    rows = (
+        db.query(RankTrackingProject)
+        .filter(
+            RankTrackingProject.user_id == int(user_id),
+            RankTrackingProject.organization_id == org_id,
+        )
+        .order_by(desc(RankTrackingProject.created_at))
+        .all()
+    )
+    return [_project_dict(r) for r in rows]
+
+
+def get_project(
+    db: Session,
+    project_id: str,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+) -> dict[str, Any]:
+    return _project_dict(_get_project_row(db, project_id, user_id, organization_id=organization_id))
+
+
 def create_project(
+    db: Session,
     *,
     user_id: int,
     name: str,
@@ -85,93 +236,168 @@ def create_project(
     location_name: str = "Vietnam",
     language_name: str = "Vietnamese",
     device: str = "desktop",
+    organization_id: int | None = None,
 ) -> dict[str, Any]:
-    all_rows = _read_list(PROJECTS_FILE)
-    owned = [p for p in all_rows if belongs_to_user(p, user_id)]
-    if len(owned) >= MAX_PROJECTS:
+    org_id = _resolve_org(user_id, organization_id)
+    owned = (
+        db.query(func.count(RankTrackingProject.id))
+        .filter(
+            RankTrackingProject.user_id == int(user_id),
+            RankTrackingProject.organization_id == org_id,
+        )
+        .scalar()
+        or 0
+    )
+    if int(owned) >= MAX_PROJECTS:
         raise HTTPException(status_code=400, detail="Đã đạt giới hạn project rank tracking.")
     dev = device if device in DEVICES else "desktop"
-    entry = {
-        "id": str(uuid.uuid4()),
-        "user_id": int(user_id),
-        "name": str(name or domain or "Project").strip()[:200],
-        "domain": str(domain or "").strip().lower()[:253],
-        "location_name": str(location_name or "Vietnam").strip()[:120],
-        "language_name": str(language_name or "Vietnamese").strip()[:120],
-        "device": dev,
-        "created_at": _now(),
-        "updated_at": _now(),
-    }
-    all_rows.append(entry)
-    _write_list(PROJECTS_FILE, all_rows)
-    return entry
+    row = RankTrackingProject(
+        id=str(uuid.uuid4()),
+        user_id=int(user_id),
+        organization_id=org_id,
+        name=str(name or domain or "Project").strip()[:200],
+        domain=str(domain or "").strip().lower()[:253],
+        location_name=str(location_name or "Vietnam").strip()[:120],
+        language_name=str(language_name or "Vietnamese").strip()[:120],
+        device=dev,
+    )
+    db.add(row)
+    db.flush()
+    return _project_dict(row)
 
 
-def list_keywords(user_id: int, *, project_id: str | None = None) -> list[dict[str, Any]]:
-    items = [k for k in _read_list(KEYWORDS_FILE) if belongs_to_user(k, user_id)]
+def list_keywords(
+    db: Session,
+    user_id: int,
+    *,
+    project_id: str | None = None,
+    organization_id: int | None = None,
+) -> list[dict[str, Any]]:
+    org_id = _resolve_org(user_id, organization_id)
+    q = db.query(RankTrackingKeyword).filter(
+        RankTrackingKeyword.user_id == int(user_id),
+        RankTrackingKeyword.organization_id == org_id,
+    )
     if project_id:
-        items = [k for k in items if str(k.get("project_id")) == str(project_id)]
-    items.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
-    return items
+        q = q.filter(RankTrackingKeyword.project_id == str(project_id))
+    rows = q.order_by(desc(RankTrackingKeyword.created_at)).all()
+    return [_keyword_dict(r) for r in rows]
 
 
-def create_keyword(*, user_id: int, project_id: str, keyword: str) -> dict[str, Any]:
-    project = get_project(project_id, user_id)
+def create_keyword(
+    db: Session,
+    *,
+    user_id: int,
+    project_id: str,
+    keyword: str,
+    organization_id: int | None = None,
+) -> dict[str, Any]:
+    org_id = _resolve_org(user_id, organization_id)
+    _get_project_row(db, project_id, user_id, organization_id=org_id)
     kw = str(keyword or "").strip()
     if not kw:
         raise HTTPException(status_code=400, detail="Keyword không được để trống.")
     if len(kw) > 200:
         raise HTTPException(status_code=400, detail="Keyword quá dài.")
-    existing = list_keywords(user_id, project_id=project_id)
-    if len(existing) >= MAX_KEYWORDS_PER_PROJECT:
+    existing_count = (
+        db.query(func.count(RankTrackingKeyword.id))
+        .filter(
+            RankTrackingKeyword.user_id == int(user_id),
+            RankTrackingKeyword.organization_id == org_id,
+            RankTrackingKeyword.project_id == str(project_id),
+        )
+        .scalar()
+        or 0
+    )
+    if int(existing_count) >= MAX_KEYWORDS_PER_PROJECT:
         raise HTTPException(status_code=400, detail="Đã đạt giới hạn keyword cho project.")
     low = kw.lower()
-    for row in existing:
-        if str(row.get("keyword") or "").strip().lower() == low:
-            raise HTTPException(status_code=400, detail="Keyword đã tồn tại trong project.")
-    entry = {
-        "id": str(uuid.uuid4()),
-        "user_id": int(user_id),
-        "project_id": str(project["id"]),
-        "keyword": kw,
-        "created_at": _now(),
-        "updated_at": _now(),
-    }
-    all_rows = _read_list(KEYWORDS_FILE)
-    all_rows.append(entry)
-    _write_list(KEYWORDS_FILE, all_rows)
-    return entry
+    dup = (
+        db.query(RankTrackingKeyword.id)
+        .filter(
+            RankTrackingKeyword.user_id == int(user_id),
+            RankTrackingKeyword.organization_id == org_id,
+            RankTrackingKeyword.project_id == str(project_id),
+            func.lower(RankTrackingKeyword.keyword) == low,
+        )
+        .first()
+    )
+    if dup:
+        raise HTTPException(status_code=400, detail="Keyword đã tồn tại trong project.")
+    row = RankTrackingKeyword(
+        id=str(uuid.uuid4()),
+        user_id=int(user_id),
+        organization_id=org_id,
+        project_id=str(project_id),
+        keyword=kw,
+    )
+    db.add(row)
+    db.flush()
+    return _keyword_dict(row)
 
 
 def list_results(
+    db: Session,
     user_id: int,
     *,
     project_id: str | None = None,
     keyword_id: str | None = None,
+    organization_id: int | None = None,
     limit: int = 200,
 ) -> list[dict[str, Any]]:
-    items = [r for r in _read_list(RESULTS_FILE) if belongs_to_user(r, user_id)]
+    org_id = _resolve_org(user_id, organization_id)
+    q = db.query(RankTrackingResult).filter(
+        RankTrackingResult.user_id == int(user_id),
+        RankTrackingResult.organization_id == org_id,
+    )
     if project_id:
-        items = [r for r in items if str(r.get("project_id")) == str(project_id)]
+        q = q.filter(RankTrackingResult.project_id == str(project_id))
     if keyword_id:
-        items = [r for r in items if str(r.get("keyword_id")) == str(keyword_id)]
-    items.sort(key=lambda x: str(x.get("checked_at") or ""), reverse=True)
-    return items[: max(1, min(int(limit or 200), 1000))]
+        q = q.filter(RankTrackingResult.keyword_id == str(keyword_id))
+    lim = max(1, min(int(limit or 200), 1000))
+    rows = q.order_by(desc(RankTrackingResult.checked_at)).limit(lim).all()
+    return [_result_dict(r) for r in rows]
 
 
-def latest_result_for_keyword(keyword_id: str, user_id: int) -> dict[str, Any] | None:
-    rows = list_results(user_id, keyword_id=keyword_id, limit=1)
+def latest_result_for_keyword(
+    db: Session,
+    keyword_id: str,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+) -> dict[str, Any] | None:
+    rows = list_results(
+        db,
+        user_id,
+        keyword_id=keyword_id,
+        organization_id=organization_id,
+        limit=1,
+    )
     return rows[0] if rows else None
 
 
-def previous_result_for_keyword(keyword_id: str, user_id: int) -> dict[str, Any] | None:
-    rows = list_results(user_id, keyword_id=keyword_id, limit=2)
+def previous_result_for_keyword(
+    db: Session,
+    keyword_id: str,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+) -> dict[str, Any] | None:
+    rows = list_results(
+        db,
+        user_id,
+        keyword_id=keyword_id,
+        organization_id=organization_id,
+        limit=2,
+    )
     return rows[1] if len(rows) > 1 else None
 
 
 def append_result(
+    db: Session,
     *,
     user_id: int,
+    organization_id: int,
     project_id: str,
     keyword_id: str,
     keyword: str,
@@ -184,40 +410,52 @@ def append_result(
     mock: bool = False,
     serp_depth: int = 100,
 ) -> dict[str, Any]:
-    all_rows = _read_list(RESULTS_FILE)
-    if len(all_rows) >= MAX_RESULTS:
-        all_rows = all_rows[-MAX_RESULTS + 1 :]
-    entry = {
-        "id": str(uuid.uuid4()),
-        "user_id": int(user_id),
-        "project_id": str(project_id),
-        "keyword_id": str(keyword_id),
-        "keyword": str(keyword),
-        "domain": str(domain),
-        "rank_absolute": rank_absolute,
-        "rank_group": rank_group,
-        "url": url,
-        "title": title,
-        "rank_change": rank_change,
-        "found": rank_absolute is not None,
-        "mock": bool(mock),
-        "serp_depth": int(serp_depth),
-        "checked_at": _now(),
-    }
-    all_rows.append(entry)
-    _write_list(RESULTS_FILE, all_rows)
+    org_id = int(organization_id)
+    checked = _now()
+    row = RankTrackingResult(
+        id=str(uuid.uuid4()),
+        user_id=int(user_id),
+        organization_id=org_id,
+        project_id=str(project_id),
+        keyword_id=str(keyword_id),
+        keyword=str(keyword),
+        domain=str(domain),
+        rank_absolute=rank_absolute,
+        rank_group=rank_group,
+        url=url,
+        title=title,
+        rank_change=rank_change,
+        found=rank_absolute is not None,
+        mock=bool(mock),
+        serp_depth=int(serp_depth),
+        checked_at=checked,
+    )
+    db.add(row)
 
-    kw_rows = _read_list(KEYWORDS_FILE)
-    for i, row in enumerate(kw_rows):
-        if str(row.get("id")) == str(keyword_id) and belongs_to_user(row, user_id):
-            kw_rows[i] = {**row, "updated_at": _now(), "last_checked_at": entry["checked_at"]}
-            break
-    _write_list(KEYWORDS_FILE, kw_rows)
+    kw_row = _get_keyword_row(db, keyword_id, user_id, organization_id=org_id, for_update=True)
+    kw_row.last_checked_at = checked
+    kw_row.updated_at = checked
 
-    proj_rows = _read_list(PROJECTS_FILE)
-    for i, row in enumerate(proj_rows):
-        if str(row.get("id")) == str(project_id) and belongs_to_user(row, user_id):
-            proj_rows[i] = {**row, "updated_at": _now(), "last_checked_at": entry["checked_at"]}
-            break
-    _write_list(PROJECTS_FILE, proj_rows)
-    return entry
+    proj_row = _get_project_row(db, project_id, user_id, organization_id=org_id, for_update=True)
+    proj_row.last_checked_at = checked
+    proj_row.updated_at = checked
+
+    # Trim old results per keyword
+    excess = (
+        db.query(RankTrackingResult.id)
+        .filter(
+            RankTrackingResult.keyword_id == str(keyword_id),
+            RankTrackingResult.user_id == int(user_id),
+        )
+        .order_by(desc(RankTrackingResult.checked_at))
+        .offset(MAX_RESULTS_PER_KEYWORD)
+        .all()
+    )
+    if excess:
+        ids = [x[0] for x in excess]
+        db.query(RankTrackingResult).filter(RankTrackingResult.id.in_(ids)).delete(
+            synchronize_session=False
+        )
+
+    db.flush()
+    return _result_dict(row)

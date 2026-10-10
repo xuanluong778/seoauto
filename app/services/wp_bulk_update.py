@@ -22,6 +22,8 @@ def normalize_wp_base_url(wp_url: str) -> str:
 
 
 def build_wp_session(username: str, app_password: str, *, strip_spaces: bool) -> requests.Session:
+    from app.services.wp_connect import DEFAULT_WP_HEADERS
+
     user = (username or "").strip()
     pwd = (app_password or "").strip()
     if strip_spaces:
@@ -29,14 +31,23 @@ def build_wp_session(username: str, app_password: str, *, strip_spaces: bool) ->
     token = base64.b64encode(f"{user}:{pwd}".encode("utf-8")).decode("ascii")
     s = requests.Session()
     s.auth = (user, pwd)
-    s.headers.update({"Accept": "application/json", "Authorization": f"Basic {token}"})
+    s.headers.update({**DEFAULT_WP_HEADERS, "Authorization": f"Basic {token}"})
     return s
 
 
-def wp_auth_check(*, session: requests.Session, wp_base: str) -> None:
-    r = session.get(f"{wp_base}/wp-json/wp/v2/users/me", timeout=25)
+def wp_auth_check(*, session: requests.Session, wp_base: str) -> str:
+    from app.services.wp_connect import wp_get_json, wp_http_status_note
+
+    r, working = wp_get_json(
+        "/wp-json/wp/v2/users/me",
+        url=wp_base,
+        headers=dict(session.headers),
+        auth=session.auth,
+        timeout=25,
+    )
     if r.status_code >= 400:
-        raise RuntimeError(f"WP auth failed HTTP {r.status_code}: {(r.text or '')[:500]}")
+        raise RuntimeError(f"WP auth failed {wp_http_status_note(r)}")
+    return working
 
 
 def wp_list_posts(

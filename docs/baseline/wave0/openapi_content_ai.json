@@ -1,0 +1,5029 @@
+{
+  "/content-ai": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Page",
+      "operationId": "content_ai_page_content_ai_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "text/html": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/draft": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Draft",
+      "operationId": "content_ai_draft_content_ai_draft_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentDraftRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/upload-image": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Upload Image",
+      "operationId": "content_ai_upload_image_content_ai_upload_image_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "multipart/form-data": {
+            "schema": {
+              "$ref": "#/components/schemas/Body_content_ai_upload_image_content_ai_upload_image_post"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/google-images/status": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Google Images Status",
+      "description": "Kiểm tra Google CSE + Bing fallback.",
+      "operationId": "content_ai_google_images_status_content_ai_google_images_status_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/google-images/search": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Google Images Search",
+      "description": "Tương thích UI cũ — vẫn dùng pipeline ngữ cảnh (không Bing scrape).",
+      "operationId": "content_ai_google_images_search_content_ai_google_images_search_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "q",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "",
+            "title": "Q"
+          }
+        },
+        {
+          "name": "num",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "default": 8,
+            "title": "Num"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/google-images/search-context": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Google Images Search Context",
+      "operationId": "content_ai_google_images_search_context_content_ai_google_images_search_context_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GoogleImageSearchContextRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/google-images/import": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Google Images Import",
+      "operationId": "content_ai_google_images_import_content_ai_google_images_import_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GoogleImageImportRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/web-images/catalog": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Web Images Catalog",
+      "operationId": "content_ai_web_images_catalog_content_ai_web_images_catalog_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/web-images/search": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Web Images Search",
+      "operationId": "content_ai_web_images_search_content_ai_web_images_search_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiWebImageSearchRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/web-images/insert": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Web Images Insert",
+      "operationId": "content_ai_web_images_insert_content_ai_web_images_insert_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiWebImageInsertRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/projects": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Projects",
+      "operationId": "content_ai_projects_content_ai_projects_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "default": 30,
+            "title": "Limit"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/usage": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Usage",
+      "description": "Current Content AI quota snapshot for the usage widget.",
+      "operationId": "content_ai_usage_content_ai_usage_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentAiUsageResponse"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-jobs/ping": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Bulk Jobs Ping",
+      "operationId": "content_ai_bulk_jobs_ping_content_ai_bulk_jobs_ping_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/duplicate-check/ping": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Duplicate Check Ping",
+      "operationId": "content_ai_duplicate_check_ping_content_ai_duplicate_check_ping_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/duplicate-check": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Duplicate Check",
+      "description": "Check Content AI + published-site articles for exact / same-intent duplicates.",
+      "operationId": "content_ai_duplicate_check_content_ai_duplicate_check_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiDuplicateCheckRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-import/file": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Bulk Import File",
+      "description": "Upload .xlsx / .txt / .csv → danh sách bulk items (mode=normal|clustered).",
+      "operationId": "content_ai_bulk_import_file_content_ai_bulk_import_file_post",
+      "requestBody": {
+        "content": {
+          "multipart/form-data": {
+            "schema": {
+              "$ref": "#/components/schemas/Body_content_ai_bulk_import_file_content_ai_bulk_import_file_post"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-setup/save": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Bulk Setup Save",
+      "description": "Lưu danh sách setup bulk (chưa content) vào dự án — hiển thị tab Lưu nháp.",
+      "operationId": "content_ai_bulk_setup_save_content_ai_bulk_setup_save_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiBulkStartRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-jobs/start": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Bulk Jobs Start",
+      "operationId": "content_ai_bulk_jobs_start_content_ai_bulk_jobs_start_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiBulkStartRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-jobs/{job_id}": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Bulk Job Status",
+      "operationId": "content_ai_bulk_job_status_content_ai_bulk_jobs__job_id__get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "job_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/bulk-jobs/{job_id}/cancel": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Bulk Job Cancel",
+      "operationId": "content_ai_bulk_job_cancel_content_ai_bulk_jobs__job_id__cancel_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "job_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/projects/{project_id}": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Project Detail",
+      "operationId": "content_ai_project_detail_content_ai_projects__project_id__get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Project Delete",
+      "operationId": "content_ai_project_delete_content_ai_projects__project_id__delete",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/projects/{project_id}/delete": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Project Delete Post",
+      "operationId": "content_ai_project_delete_post_content_ai_projects__project_id__delete_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/projects/{project_id}/generate-thumbnail": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Project Generate Thumbnail",
+      "description": "Tự động tìm ảnh theo ngữ cảnh + chèn vào content + thumbnail.",
+      "operationId": "content_ai_project_generate_thumbnail_content_ai_projects__project_id__generate_thumbnail_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/projects/{project_id}/auto-insert-images": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Project Auto Insert Images",
+      "description": "Tự động chèn ảnh minh họa vào bài (theo từ khóa, tiêu đề, các mục H2).",
+      "operationId": "content_ai_project_auto_insert_images_content_ai_projects__project_id__auto_insert_images_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        }
+      ],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ContentAiAutoInsertImagesRequest"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Payload"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/projects/auto-insert-images": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Projects Auto Insert Images Batch",
+      "operationId": "content_ai_projects_auto_insert_images_batch_content_ai_projects_auto_insert_images_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiAutoInsertImagesBatchRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-insert-images": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Auto Insert Images Live",
+      "description": "Chèn ảnh cho bài đang soạn (chưa cần lưu project) — trả content HTML đã chèn ảnh.",
+      "operationId": "content_ai_auto_insert_images_live_content_ai_auto_insert_images_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentDraftRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/projects/{project_id}/generate-thumbnail-ai": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Project Generate Thumbnail Ai",
+      "operationId": "content_ai_project_generate_thumbnail_ai_content_ai_projects__project_id__generate_thumbnail_ai_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/images/studio-presets": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Images Studio Presets",
+      "operationId": "content_ai_images_studio_presets_content_ai_images_studio_presets_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/images/generate-professional": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Images Generate Professional",
+      "description": "AI Visual Content Studio — tạo 1–4 preview, không chèn vào bài. Trừ credit chỉ khi thành công.",
+      "operationId": "content_ai_images_generate_professional_content_ai_images_generate_professional_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiStudioGenerateRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/images/insert-selected": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Images Insert Selected",
+      "description": "Chèn ảnh đã chọn từ studio vào content hoặc featured.",
+      "operationId": "content_ai_images_insert_selected_content_ai_images_insert_selected_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiStudioInsertRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/projects/generate-thumbnails": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Projects Generate Thumbnails Batch",
+      "operationId": "content_ai_projects_generate_thumbnails_batch_content_ai_projects_generate_thumbnails_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiGenerateThumbnailsBatchRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/projects/{project_id}/export.csv": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Project Export Csv",
+      "operationId": "content_ai_project_export_csv_content_ai_projects__project_id__export_csv_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/projects/{project_id}/export.gsheet": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Project Export Gsheet",
+      "operationId": "content_ai_project_export_gsheet_content_ai_projects__project_id__export_gsheet_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/publish-checklist": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Publish Checklist",
+      "description": "Checklist SEO trước publish — chỉ trả JSON cho UI, không ghi vào bài.",
+      "operationId": "content_ai_publish_checklist_content_ai_publish_checklist_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublishChecklistRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-fix": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Auto Fix",
+      "description": "Preview AI Auto Fix theo SEO Core 30 — không ghi DB, chỉ trả patch + diff.",
+      "operationId": "content_ai_auto_fix_content_ai_auto_fix_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SeoAutofixRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/enforce-word-count": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Enforce Word Count",
+      "description": "Post-process HTML sau stream để đạt số từ mục tiêu (±10%).",
+      "operationId": "content_ai_enforce_word_count_content_ai_enforce_word_count_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentEnforceWordCountRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/postprocess-content": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Postprocess Content",
+      "description": "Post-process article HTML (auto blockquotes by word count).",
+      "operationId": "content_ai_postprocess_content_content_ai_postprocess_content_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentPostprocessRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/article-json": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Article Json",
+      "description": "Generate a full SEO article as a strict JSON payload.",
+      "operationId": "content_ai_article_json_content_ai_article_json_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SeoArticleJsonRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/optimize-html": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Optimize Html",
+      "operationId": "content_ai_optimize_html_content_ai_optimize_html_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SeoOptimizeHtmlRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/wp-internal-links": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Internal Links",
+      "operationId": "content_ai_internal_links_content_ai_wp_internal_links_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalLinkRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/wp-internal-links/candidates": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Internal Link Candidates",
+      "operationId": "content_ai_internal_link_candidates_content_ai_wp_internal_links_candidates_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalLinkCandidateRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/wp-internal-links/apply": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Internal Link Apply",
+      "operationId": "content_ai_internal_link_apply_content_ai_wp_internal_links_apply_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalLinkApplyRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/wp-internal-links/row-hint": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Internal Link Row Hint",
+      "operationId": "content_ai_internal_link_row_hint_content_ai_wp_internal_links_row_hint_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalLinkRowHintRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/credit-quote": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Credit Quote",
+      "description": "Ước tính credit trước khi viết bài — dùng cho popup xác nhận.",
+      "operationId": "content_ai_credit_quote_content_ai_credit_quote_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentSuggestRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/llm-providers": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Llm Providers List",
+      "operationId": "content_ai_llm_providers_list_content_ai_llm_providers_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/admin/llm-providers": {
+    "get": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Admin Llm Providers Get",
+      "operationId": "content_ai_admin_llm_providers_get_content_ai_admin_llm_providers_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    },
+    "patch": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Admin Llm Providers Patch",
+      "operationId": "content_ai_admin_llm_providers_patch_content_ai_admin_llm_providers_patch",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiLlmProvidersAdminPatch"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/suggest": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Suggest",
+      "operationId": "content_ai_suggest_content_ai_suggest_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentSuggestRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/suggest-stream": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Suggest Stream",
+      "description": "Stream suggestion progressively as SSE.\nThis is UI-focused: we may generate full text then emit it line-by-line.",
+      "operationId": "content_ai_suggest_stream_content_ai_suggest_stream_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentSuggestRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/outline-reference": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Outline Reference",
+      "operationId": "content_ai_outline_reference_content_ai_outline_reference_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OutlineReferenceRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/outline-refresh": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Outline Refresh",
+      "operationId": "content_ai_outline_refresh_content_ai_outline_refresh_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OutlineRefreshRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/wordpress/test-connection": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Wordpress Test Connection",
+      "operationId": "content_ai_wordpress_test_connection_content_ai_wordpress_test_connection_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/WordPressConnectionBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/wordpress/categories": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Wordpress Categories",
+      "description": "Liệt kê category (wp/v2/categories) — dùng cho dropdown khi viết bulk / đăng bài.",
+      "operationId": "content_ai_wordpress_categories_content_ai_wordpress_categories_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/WordPressCategoriesBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/wordpress/sync-posts": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Wordpress Sync Posts",
+      "operationId": "content_ai_wordpress_sync_posts_content_ai_wordpress_sync_posts_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/WordPressConnectionBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/haravan/test-connection": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Haravan Test Connection",
+      "operationId": "content_ai_haravan_test_connection_content_ai_haravan_test_connection_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HaravanConnectionBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/haravan/sync-blogs": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Haravan Sync Blogs",
+      "operationId": "content_ai_haravan_sync_blogs_content_ai_haravan_sync_blogs_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HaravanConnectionBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/publish-draft": {
+    "post": {
+      "tags": [
+        "pages"
+      ],
+      "summary": "Content Ai Publish Draft",
+      "operationId": "content_ai_publish_draft_content_ai_publish_draft_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/WordpressDraftPublishRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/internal-links/sync": {
+    "post": {
+      "tags": [
+        "content-ai-internal-links"
+      ],
+      "summary": "Internal Links Sync",
+      "operationId": "internal_links_sync_content_ai_internal_links_sync_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SyncRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/internal-links/embed": {
+    "post": {
+      "tags": [
+        "content-ai-internal-links"
+      ],
+      "summary": "Internal Links Embed",
+      "operationId": "internal_links_embed_content_ai_internal_links_embed_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/EmbedRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/internal-links/suggest": {
+    "post": {
+      "tags": [
+        "content-ai-internal-links"
+      ],
+      "summary": "Internal Links Suggest",
+      "operationId": "internal_links_suggest_content_ai_internal_links_suggest_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SuggestRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/internal-links/apply": {
+    "post": {
+      "tags": [
+        "content-ai-internal-links"
+      ],
+      "summary": "Internal Links Apply",
+      "operationId": "internal_links_apply_content_ai_internal_links_apply_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApplyRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/sites/connect": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Sites Connect",
+      "operationId": "api_sites_connect_content_ai_sites_connect_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SiteConnectBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/sites": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Sites List",
+      "operationId": "api_sites_list_content_ai_sites_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/sites/test": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Sites Test",
+      "operationId": "api_sites_test_content_ai_sites_test_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SiteTestBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/quota": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Cau Quota",
+      "operationId": "api_cau_quota_content_ai_auto_update_quota_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/categories": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api List Categories",
+      "operationId": "api_list_categories_content_ai_auto_update_categories_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "site_id",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64,
+            "title": "Site Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/auto-update/posts": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api List Posts",
+      "operationId": "api_list_posts_content_ai_auto_update_posts_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "site_id",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64,
+            "title": "Site Id"
+          }
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 500,
+            "minimum": 1,
+            "default": 1,
+            "title": "Page"
+          }
+        },
+        {
+          "name": "per_page",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "default": 20,
+            "title": "Per Page"
+          }
+        },
+        {
+          "name": "search",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 200,
+            "default": "",
+            "title": "Search"
+          }
+        },
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 16,
+            "default": "all",
+            "title": "Status"
+          }
+        },
+        {
+          "name": "category_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 128,
+            "default": "",
+            "title": "Category Id"
+          }
+        },
+        {
+          "name": "fetch_all",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "Fetch All"
+          }
+        },
+        {
+          "name": "refresh",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "Refresh"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/llm/jobs/{job_id}": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Llm Routed Job",
+      "operationId": "api_llm_routed_job_content_ai_llm_jobs__job_id__get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "job_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/auto-update/jobs/{job_id}": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Cau Crawl Job",
+      "description": "Legacy poll endpoint — CAU list posts now runs synchronously.",
+      "operationId": "api_cau_crawl_job_content_ai_auto_update_jobs__job_id__get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "job_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/auto-update/scan-cache/score": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Upsert Scan Score",
+      "operationId": "api_upsert_scan_score_content_ai_auto_update_scan_cache_score_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ScanScoreUpsertBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/fetch-url": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Fetch Url",
+      "operationId": "api_fetch_url_content_ai_auto_update_fetch_url_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FetchUrlBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/generate": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Generate",
+      "operationId": "api_generate_content_ai_auto_update_generate_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GenerateBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/preview": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Preview",
+      "operationId": "api_preview_content_ai_auto_update_preview_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/app__routers__content_auto_update__PreviewBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/publish": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Publish",
+      "operationId": "api_publish_content_ai_auto_update_publish_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublishBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/restore": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Restore",
+      "operationId": "api_restore_content_ai_auto_update_restore_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RestoreBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/score": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Score",
+      "operationId": "api_modal_score_content_ai_auto_update_modal_score_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalScoreBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/rewrite-content": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Rewrite Content",
+      "operationId": "api_modal_rewrite_content_content_ai_auto_update_modal_rewrite_content_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalRewriteContentBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/append-headings": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Append Headings",
+      "operationId": "api_modal_append_headings_content_ai_auto_update_modal_append_headings_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalAppendHeadingsBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/fix-factor": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Fix Factor",
+      "operationId": "api_modal_fix_factor_content_ai_auto_update_modal_fix_factor_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalFixFactorBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/fix-factors": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Fix Factors",
+      "operationId": "api_modal_fix_factors_content_ai_auto_update_modal_fix_factors_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalFixFactorsBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/fix-factor/apply": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Fix Factor Apply",
+      "operationId": "api_modal_fix_factor_apply_content_ai_auto_update_modal_fix_factor_apply_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalFixFactorApplyBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/analyze": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Analyze",
+      "operationId": "api_modal_analyze_content_ai_auto_update_modal_analyze_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalAnalyzeBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/update-confirm": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Update Confirm",
+      "description": "Build confirm summary + validate + conflict check. Does NOT update WordPress.",
+      "operationId": "api_modal_update_confirm_content_ai_auto_update_modal_update_confirm_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalUpdateConfirmBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/update": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Update",
+      "operationId": "api_modal_update_content_ai_auto_update_modal_update_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ModalUpdateBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/snapshots": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Snapshots",
+      "operationId": "api_modal_snapshots_content_ai_auto_update_modal_snapshots_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "wp_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "title": "Wp Id"
+          }
+        },
+        {
+          "name": "site_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 64,
+            "default": "",
+            "title": "Site Id"
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "default": 30,
+            "title": "Limit"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/auto-update/modal/snapshots/{snapshot_id}": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Snapshot Detail",
+      "operationId": "api_modal_snapshot_detail_content_ai_auto_update_modal_snapshots__snapshot_id__get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "snapshot_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Snapshot Id"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/auto-update/modal/action-history": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Action History",
+      "operationId": "api_modal_action_history_content_ai_auto_update_modal_action_history_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "wp_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "title": "Wp Id"
+          }
+        },
+        {
+          "name": "site_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 64,
+            "default": "",
+            "title": "Site Id"
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "default": 30,
+            "title": "Limit"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/auto-update/modal/reload-remote": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Reload Remote",
+      "description": "Reload latest WP content into session after conflict (does not publish).",
+      "operationId": "api_modal_reload_remote_content_ai_auto_update_modal_reload_remote_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/app__routers__content_auto_update__PreviewBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/history": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api History",
+      "operationId": "api_history_content_ai_auto_update_history_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 200,
+            "minimum": 1,
+            "default": 50,
+            "title": "Limit"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/auto-update/modal/assistant/patch": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Assistant Patch",
+      "description": "Generate one structured patch. Credit only if LLM refine succeeds.",
+      "operationId": "api_modal_assistant_patch_content_ai_auto_update_modal_assistant_patch_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssistantPatchBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/assistant/refresh-plan": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Assistant Refresh Plan",
+      "operationId": "api_modal_assistant_refresh_plan_content_ai_auto_update_modal_assistant_refresh_plan_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssistantRefreshPlanBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/assistant/refresh-run": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Assistant Refresh Run",
+      "description": "Làm mới Content — structured patches only (never full HTML overwrite).",
+      "operationId": "api_modal_assistant_refresh_run_content_ai_auto_update_modal_assistant_refresh_run_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssistantRefreshRunBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/insert/suggest": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Insert Suggest",
+      "description": "AI gợi ý heading/CTA/FAQ cho modal «Thêm nội dung». Template = 0 credit;\nchỉ trừ credit khi LLM trả kết quả thành công.",
+      "operationId": "api_modal_insert_suggest_content_ai_auto_update_modal_insert_suggest_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InsertSuggestBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/insert/generate": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Insert Generate",
+      "description": "Tạo preview cho một khối «Thêm nội dung». Không ghi vào bài, không publish —\nclient chèn tại vị trí «+» khi người dùng bấm Áp dụng. Credit chỉ trừ khi LLM\ntrả kết quả thành công; áp dụng lại không trừ.",
+      "operationId": "api_modal_insert_generate_content_ai_auto_update_modal_insert_generate_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InsertGenerateBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/insert/site-links": {
+    "get": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Insert Site Links",
+      "description": "URL thật của website (cho Internal link). Ownership qua get_site_credentials.",
+      "operationId": "api_modal_insert_site_links_content_ai_auto_update_modal_insert_site_links_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "site_id",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64,
+            "title": "Site Id"
+          }
+        },
+        {
+          "name": "q",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 200,
+            "default": "",
+            "title": "Q"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/auto-update/modal/assistant/apply": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Assistant Apply",
+      "description": "Apply one structured patch. Never charges credit.",
+      "operationId": "api_modal_assistant_apply_content_ai_auto_update_modal_assistant_apply_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssistantApplyBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/auto-update/modal/assistant/undo": {
+    "post": {
+      "tags": [
+        "content-auto-update"
+      ],
+      "summary": "Api Modal Assistant Undo",
+      "description": "Undo one or all applied patches. Never charges credit.",
+      "operationId": "api_modal_assistant_undo_content_ai_auto_update_modal_assistant_undo_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssistantUndoBody"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/board": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Publish Board",
+      "operationId": "api_publish_board_content_ai_bulk_publish_board_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/BoardRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/retry": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Retry Schedule",
+      "operationId": "api_retry_schedule_content_ai_bulk_publish_retry_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RetryScheduleRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/readiness-batch": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Readiness Batch",
+      "operationId": "api_readiness_batch_content_ai_bulk_publish_readiness_batch_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ReadinessBatchRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/schedule-one": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Schedule One",
+      "operationId": "api_schedule_one_content_ai_bulk_publish_schedule_one_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ScheduleOneRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/schedule-batch": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Schedule Batch",
+      "operationId": "api_schedule_batch_content_ai_bulk_publish_schedule_batch_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ScheduleBatchRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/publish-now-one": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Publish Now One",
+      "operationId": "api_publish_now_one_content_ai_bulk_publish_publish_now_one_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublishOneRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/publish-now-batch": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Publish Now Batch",
+      "operationId": "api_publish_now_batch_content_ai_bulk_publish_publish_now_batch_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublishBatchRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/cancel-schedule": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Cancel Schedule",
+      "operationId": "api_cancel_schedule_content_ai_bulk_publish_cancel_schedule_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CancelScheduleRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/update-schedule": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api Update Schedule",
+      "operationId": "api_update_schedule_content_ai_bulk_publish_update_schedule_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateScheduleRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-publish/schedules": {
+    "get": {
+      "tags": [
+        "content-ai-bulk-publish"
+      ],
+      "summary": "Api List Schedules",
+      "operationId": "api_list_schedules_content_ai_bulk_publish_schedules_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "bulk_job_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bulk Job Id"
+          }
+        },
+        {
+          "name": "project_id",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        },
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "maximum": 500,
+            "minimum": 1,
+            "default": 200,
+            "title": "Limit"
+          }
+        },
+        {
+          "name": "all",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "title": "All"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/bulk-images/providers": {
+    "get": {
+      "tags": [
+        "content-ai-bulk-images"
+      ],
+      "summary": "Api Bulk Image Providers",
+      "operationId": "api_bulk_image_providers_content_ai_bulk_images_providers_get",
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-images/status": {
+    "get": {
+      "tags": [
+        "content-ai-bulk-images"
+      ],
+      "summary": "Api Bulk Image Status",
+      "operationId": "api_bulk_image_status_content_ai_bulk_images_status_get",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "project_ids",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "Comma-separated project IDs",
+            "default": "",
+            "title": "Project Ids"
+          },
+          "description": "Comma-separated project IDs"
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "/content-ai/bulk-images/fetch-one": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-images"
+      ],
+      "summary": "Api Bulk Fetch One",
+      "operationId": "api_bulk_fetch_one_content_ai_bulk_images_fetch_one_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/BulkFetchOneRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-images/clear": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-images"
+      ],
+      "summary": "Api Bulk Clear Images",
+      "operationId": "api_bulk_clear_images_content_ai_bulk_images_clear_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/BulkClearImagesRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  },
+  "/content-ai/bulk-images/fetch-batch": {
+    "post": {
+      "tags": [
+        "content-ai-bulk-images"
+      ],
+      "summary": "Api Bulk Fetch Images",
+      "operationId": "api_bulk_fetch_images_content_ai_bulk_images_fetch_batch_post",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/BulkFetchImagesRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ]
+    }
+  }
+}

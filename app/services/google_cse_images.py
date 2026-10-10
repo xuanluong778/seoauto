@@ -265,6 +265,24 @@ def google_cse_image_search(*, q: str, num: int = 8) -> list[dict[str, Any]]:
     return out
 
 
+def _sniff_image_ext(data: bytes) -> str | None:
+    """Detect image format from magic bytes (ignore broken/missing Content-Type)."""
+    if not data or len(data) < 12:
+        return None
+    if data[:3] == b"\xff\xd8\xff":
+        return ".jpg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return ".png"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return ".gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    # JPEG SOI may appear later in rare truncated proxy wraps
+    if b"\xff\xd8\xff" in data[:64]:
+        return ".jpg"
+    return None
+
+
 def import_remote_image_url(
     src: str,
     *,
@@ -272,62 +290,114 @@ def import_remote_image_url(
     user_id: int | None = None,
     project_id: str | None = None,
 ) -> str:
+    """Download a remote image to server storage; returns app-relative URL path."""
     url = str(src or "").strip()
     if not url or not url.lower().startswith(("http://", "https://")):
         raise ValueError("URL ảnh không hợp lệ.")
-    try:
-        r = requests.get(
-            url,
-            timeout=25,
-            stream=True,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-            },
-        )
-    except Exception as exc:
-        raise ValueError(f"Không tải được ảnh: {exc}") from exc
-    if r.status_code != 200:
-        raise ValueError(f"Không tải được ảnh (HTTP {r.status_code}).")
-    ctype = str(r.headers.get("content-type") or "").lower()
-    if "image" not in ctype and not re.search(r"\.(jpe?g|png|webp|gif)(\?|$)", url, re.I):
-        raise ValueError(f"URL không trả về ảnh (content-type={ctype or 'unknown'}).")
-    max_bytes = 6 * 1024 * 1024
+    from urllib.parse import urlparse
+
+    from app.services.url_safety import safe_http_get_bytes, validate_public_http_url
+
+    blocked = validate_public_http_url(url)
+    if blocked:
+        raise ValueError(f"URL ảnh không an toàn ({blocked}).")
+
+    parsed = urlparse(url)
+    referer = f"{parsed.scheme}://{parsed.netloc}/" if parsed.scheme and parsed.netloc else ""
+    header_variants = [
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ),
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        },
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ),
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "Referer": referer or "https://www.google.com/",
+        },
+    ]
+
     data = b""
-    for chunk in r.iter_content(chunk_size=65536):
-        if not chunk:
-            continue
-        data += chunk
-        if len(data) > max_bytes:
-            raise ValueError("Ảnh quá lớn (giới hạn ~6MB).")
-    if len(data) < 500:
+    err: str | None = "fetch_error"
+    meta: dict[str, Any] = {}
+    last_err = ""
+    for headers in header_variants:
+        data, err, meta = safe_http_get_bytes(
+            url,
+            timeout_s=30,
+            max_bytes=8 * 1024 * 1024,
+            headers=headers,
+        )
+        if not err and data:
+            break
+        last_err = err or "empty_body"
+        data = b""
+
+    if err or not data:
+        raise ValueError(f"Không tải được ảnh: {last_err or err or 'empty'}")
+
+    ctype = str((meta or {}).get("content_type") or "").split(";")[0].strip().lower()
+    sniff = _sniff_image_ext(data)
+    if not sniff and "image" not in ctype and not re.search(
+        r"\.(jpe?g|png|webp|gif)(\?|$)", url, re.I
+    ):
+        # Some hosts return octet-stream / empty type; reject only if neither sniff nor type is image.
+        raise ValueError(
+            f"URL không trả về ảnh (content-type={ctype or 'unknown'}, size={len(data)})."
+        )
+    if not sniff and "image" not in ctype:
+        # URL ends with image extension but body may still be HTML block page
+        if data[:200].lstrip().lower().startswith((b"<!doctype", b"<html", b"<head")):
+            raise ValueError("Máy chủ chặn hotlink — không tải được file ảnh.")
+        raise ValueError("Nội dung tải về không phải file ảnh hợp lệ.")
+
+    if len(data) < 400:
         raise ValueError("File ảnh tải về quá nhỏ hoặc không hợp lệ.")
-    ext = ".jpg"
-    if "png" in ctype:
-        ext = ".png"
-    elif "webp" in ctype:
-        ext = ".webp"
-    elif "gif" in ctype:
-        ext = ".gif"
-    elif "jpeg" in ctype or "jpg" in ctype:
-        ext = ".jpg"
-    elif url.lower().endswith(".png"):
-        ext = ".png"
-    elif url.lower().endswith(".webp"):
-        ext = ".webp"
+
+    ext = sniff or ".jpg"
+    if not sniff:
+        if "png" in ctype:
+            ext = ".png"
+        elif "webp" in ctype:
+            ext = ".webp"
+        elif "gif" in ctype:
+            ext = ".gif"
+        elif "jpeg" in ctype or "jpg" in ctype:
+            ext = ".jpg"
+        elif re.search(r"\.png(\?|$)", url, re.I):
+            ext = ".png"
+        elif re.search(r"\.webp(\?|$)", url, re.I):
+            ext = ".webp"
+        elif re.search(r"\.gif(\?|$)", url, re.I):
+            ext = ".gif"
+
     safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", stem).strip("-").lower() or "google-image"
+
+    # Prefer private user storage when authenticated (matches AI studio previews).
+    if user_id is not None and int(user_id) > 0:
+        try:
+            from app.services.media_storage import save_private_image
+
+            saved = save_private_image(
+                user_id=int(user_id),
+                data=data,
+                suffix=ext,
+                stem=safe_stem,
+                project_id=project_id,
+            )
+            if saved and saved.get("url"):
+                return str(saved["url"])
+        except Exception:
+            pass
+
     target_name = f"{safe_stem}-{uuid4().hex[:8]}{ext}"
     target_dir = Path("static") / "uploads" / "content-ai"
     target_dir.mkdir(parents=True, exist_ok=True)
-    target_file = target_dir / target_name
-    target_file.write_bytes(data)
-    if user_id is not None and int(user_id) > 0:
-        try:
-            from app.services.user_data_paths import user_upload_dir
-
-            user_dir = user_upload_dir(int(user_id), project_id=project_id)
-            user_dir.mkdir(parents=True, exist_ok=True)
-            (user_dir / target_name).write_bytes(data)
-        except Exception:
-            pass
+    (target_dir / target_name).write_bytes(data)
     return f"/static/uploads/content-ai/{target_name}"

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from collections import deque
 import time
 import xml.etree.ElementTree as ET
@@ -31,6 +32,8 @@ DEFAULT_HEADERS = {
 
 def classify_request_error(exc: Exception) -> str:
     """Phân loại lỗi kết nối HTTP — DNS, SSL, timeout, v.v."""
+    if isinstance(exc, requests.exceptions.TooManyRedirects):
+        return "redirect_loop"
     if isinstance(exc, requests.exceptions.SSLError):
         return "ssl_error"
     if isinstance(exc, requests.exceptions.Timeout):
@@ -92,9 +95,24 @@ class CrawlRequestError(Exception):
     pass
 
 
+def _safe_get(url: str, *, timeout: int = DEFAULT_TIMEOUT_SECONDS, headers=None, allow_redirects: bool = True):
+    """SSRF-safe GET for crawl targets."""
+    from app.services.url_safety import safe_requests_get, validate_public_http_url
+    if validate_public_http_url(url):
+        raise CrawlRequestError("URL blocked by SSRF guard")
+    # Manual path without auto-follows when needed
+    if not allow_redirects:
+        return safe_requests_get(url, timeout=float(timeout), headers=headers or DEFAULT_HEADERS, max_redirects=0)
+    return safe_requests_get(url, timeout=float(timeout), headers=headers or DEFAULT_HEADERS)
+
+
 def fetch_html(url: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:
+    from app.services.url_safety import assert_public_http_url, safe_requests_get
+
+    safe_url = assert_public_http_url(url, label="URL crawl")
+
     def _get() -> requests.Response:
-        return requests.get(url, timeout=timeout_seconds)
+        return safe_requests_get(safe_url, timeout=float(timeout_seconds))
 
     try:
         if cost_control_enforced():
@@ -103,6 +121,8 @@ def fetch_html(url: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:
             response = _get()
     except CostControlBypassError as exc:
         raise CrawlRequestError("Crawl blocked by cost control") from exc
+    except ValueError as exc:
+        raise CrawlRequestError(f"URL blocked: {exc}") from exc
     except requests.exceptions.Timeout as exc:
         raise CrawlTimeoutError("Request timed out") from exc
     except requests.exceptions.RequestException as exc:
@@ -210,11 +230,7 @@ def crawl_site(start_url: str, max_pages: int = 50) -> dict:
         visited.add(current)
 
         try:
-            response = requests.get(
-                current,
-                timeout=DEFAULT_TIMEOUT_SECONDS,
-                headers=DEFAULT_HEADERS,
-            )
+            response = _safe_get(current, timeout=DEFAULT_TIMEOUT_SECONDS, headers=DEFAULT_HEADERS)
         except requests.exceptions.Timeout:
             continue
         except requests.exceptions.RequestException:
@@ -244,7 +260,13 @@ def crawl_site(start_url: str, max_pages: int = 50) -> dict:
     return {"pages": pages, "total": len(pages)}
 
 
-def crawl_site_detailed(start_url: str, max_pages: int = 50) -> dict:
+def crawl_site_detailed(
+    start_url: str,
+    max_pages: int = 50,
+    *,
+    deadline_monotonic: float | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> dict:
     if max_pages <= 0:
         return {"pages": [], "total": 0, "edges": [], "domain": ""}
 
@@ -259,21 +281,40 @@ def crawl_site_detailed(start_url: str, max_pages: int = 50) -> dict:
     visited: set[str] = set()
     pages: list[dict] = []
     edges: list[dict] = []
+    truncated = False
+
+    def _note() -> None:
+        if on_progress:
+            try:
+                on_progress(len(pages), max_pages)
+            except Exception:
+                pass
 
     while queue and len(pages) < max_pages:
+        if deadline_monotonic is not None and (float(deadline_monotonic) - time.monotonic()) < 3.0:
+            truncated = True
+            break
         current = queue.popleft()
         if current in visited:
             continue
         visited.add(current)
 
         try:
-            response = requests.get(
-                current,
-                timeout=DEFAULT_TIMEOUT_SECONDS,
-                headers=DEFAULT_HEADERS,
-                allow_redirects=True,
+            response = _safe_get(current, timeout=DEFAULT_TIMEOUT_SECONDS, headers=DEFAULT_HEADERS, allow_redirects=True)
+        except requests.exceptions.RequestException as exc:
+            kind = classify_request_error(exc)
+            pages.append(
+                {
+                    "url": current,
+                    "status": 0,
+                    "html": "",
+                    "internal_links": [],
+                    "redirect_history": [current],
+                    "error_kind": kind,
+                    "crawl_status": "timeout" if kind == "timeout" else "error",
+                }
             )
-        except requests.exceptions.RequestException:
+            _note()
             continue
 
         final_url = response.url
@@ -295,6 +336,7 @@ def crawl_site_detailed(start_url: str, max_pages: int = 50) -> dict:
                     **dbg,
                 }
             )
+            _note()
             continue
 
         internal_links: list[str] = []
@@ -323,15 +365,23 @@ def crawl_site_detailed(start_url: str, max_pages: int = 50) -> dict:
                 **dbg,
             }
         )
+        _note()
 
-    return {"pages": pages, "total": len(pages), "edges": edges, "domain": base_domain}
+    return {
+        "pages": pages,
+        "total": len(pages),
+        "edges": edges,
+        "domain": base_domain,
+        "partial_data": truncated,
+        "truncated": truncated,
+    }
 
 
 def check_internal_link_status(url: str, timeout_seconds: float | None = None) -> dict:
     to = timeout_seconds if timeout_seconds is not None else LINK_CHECK_TIMEOUT_SECONDS
     for attempt in range(2):
         try:
-            response = requests.get(
+            response = _safe_get(
                 url,
                 timeout=to,
                 headers=LINK_CHECK_HEADERS,
@@ -352,10 +402,20 @@ def check_internal_link_status(url: str, timeout_seconds: float | None = None) -
         chain = [resp.url for resp in response.history] + [response.url]
         status = response.status_code
         error_kind = classify_http_status(status)
+        keys = []
+        loop = False
+        for hop in chain:
+            k = (hop or "").rstrip("/").lower()
+            if k in keys:
+                loop = True
+                break
+            keys.append(k)
+        if loop:
+            error_kind = "redirect_loop"
         return {
             "url": url,
             "status": status,
-            "is_broken": status >= 400,
+            "is_broken": status >= 400 or loop,
             "chain": chain,
             "error_kind": error_kind,
         }
@@ -365,7 +425,7 @@ def parse_robots_txt(base_url: str) -> dict:
     parsed = urlparse(base_url)
     robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
     try:
-        response = requests.get(robots_url, timeout=DEFAULT_TIMEOUT_SECONDS, headers=DEFAULT_HEADERS)
+        response = _safe_get(robots_url, timeout=DEFAULT_TIMEOUT_SECONDS, headers=DEFAULT_HEADERS)
     except requests.exceptions.RequestException as exc:
         return {
             "url": robots_url,
@@ -415,7 +475,7 @@ def parse_sitemap_xml(base_url: str, robots_sitemaps: list[str] | None = None) -
     last_error: dict | None = None
     for sitemap_url in candidate_urls:
         try:
-            response = requests.get(sitemap_url, timeout=DEFAULT_TIMEOUT_SECONDS, headers=DEFAULT_HEADERS)
+            response = _safe_get(sitemap_url, timeout=DEFAULT_TIMEOUT_SECONDS, headers=DEFAULT_HEADERS)
         except requests.exceptions.RequestException as exc:
             last_error = {
                 "url": sitemap_url,

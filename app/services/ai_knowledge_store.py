@@ -109,6 +109,12 @@ def _read_all() -> list[dict[str, Any]]:
 def _write_all(items: list[dict[str, Any]]) -> None:
     KB_FILE.parent.mkdir(parents=True, exist_ok=True)
     KB_FILE.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        from app.services.chatbot_kb_cache import invalidate_all_kb_caches
+
+        invalidate_all_kb_caches()
+    except Exception:
+        pass
 
 
 def _find_raw(kb_id: str) -> dict[str, Any] | None:

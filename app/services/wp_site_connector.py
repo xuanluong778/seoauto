@@ -290,6 +290,19 @@ def connect_site(
 
 
 def list_sites(user_id: int) -> list[dict[str, Any]]:
+    from app.services.tenant_sites_flags import tenant_sites_dual_read, tenant_sites_pg_enabled
+
+    if tenant_sites_pg_enabled():
+        try:
+            from app.services.wordpress_site_links_pg import list_links_pg
+
+            rows = list_links_pg(user_id=user_id)
+            if rows or not tenant_sites_dual_read():
+                return rows
+        except Exception:
+            logger.exception("wordpress_site_links pg list failed")
+            if not tenant_sites_dual_read():
+                raise
     _sync_from_publishing_sites(user_id)
     items = [_public_site(s) for s in _read_sites() if belongs_to_user(s, user_id)]
     items.sort(key=lambda x: str(x.get("label") or x.get("url") or "").lower())
@@ -297,6 +310,23 @@ def list_sites(user_id: int) -> list[dict[str, Any]]:
 
 
 def get_site(site_id: str, user_id: int) -> dict[str, Any] | None:
+    from app.services.tenant_sites_flags import tenant_sites_dual_read, tenant_sites_pg_enabled
+
+    if not site_id or int(user_id or 0) <= 0:
+        return None
+    if tenant_sites_pg_enabled():
+        try:
+            from app.services.wordpress_site_links_pg import get_link_pg
+
+            row = get_link_pg(str(site_id), user_id=user_id)
+            if row is not None:
+                return row
+            if not tenant_sites_dual_read():
+                return None
+        except Exception:
+            logger.exception("wordpress_site_links pg get failed")
+            if not tenant_sites_dual_read():
+                raise
     _sync_from_publishing_sites(user_id)
     for s in _read_sites():
         if str(s.get("id")) == str(site_id) and belongs_to_user(s, user_id):
@@ -305,18 +335,37 @@ def get_site(site_id: str, user_id: int) -> dict[str, Any] | None:
 
 
 def get_site_credentials(site_id: str, user_id: int) -> dict[str, str]:
+    from app.services.tenant_sites_flags import tenant_sites_dual_read, tenant_sites_pg_enabled
+
+    if tenant_sites_pg_enabled():
+        try:
+            from app.services.wordpress_site_links_pg import get_credentials_pg
+
+            cred = get_credentials_pg(str(site_id), user_id=user_id)
+            if cred.get("url") and cred.get("username") and cred.get("app_password"):
+                return cred
+            if not tenant_sites_dual_read():
+                raise HTTPException(status_code=404, detail="Không tìm thấy site.")
+        except LookupError:
+            if not tenant_sites_dual_read():
+                raise HTTPException(status_code=404, detail="Không tìm thấy site.")
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("wordpress_site_links pg credentials failed")
+            if not tenant_sites_dual_read():
+                raise
+
     site = get_site(site_id, user_id)
     if not site:
         raise HTTPException(status_code=404, detail="Không tìm thấy site.")
     pwd = decrypt_secret(str(site.get("app_password") or "")).strip()
-    # Fallback: password encrypted with another key / corrupted in CAU store.
     if not pwd:
         pub_id = str(site.get("publishing_site_id") or "").strip()
         full = None
         if pub_id:
             full = get_publishing_site(pub_id, user_id=user_id, reveal_password=True)
         if not full:
-            # Match by URL against publishing store
             want = _site_url_key(str(site.get("url") or ""))
             if want:
                 for pub in list_publishing_sites(user_id=user_id, platform="wordpress"):
@@ -331,20 +380,6 @@ def get_site_credentials(site_id: str, user_id: int) -> dict[str, str]:
                 candidate = decrypt_secret(candidate).strip()
             if candidate:
                 pwd = candidate.replace(" ", "")
-                try:
-                    all_s = _read_sites()
-                    for i, row in enumerate(all_s):
-                        if str(row.get("id")) == str(site_id) and belongs_to_user(row, user_id):
-                            row = dict(row)
-                            row["app_password"] = encrypt_secret(pwd)
-                            row["username"] = str(full.get("username") or row.get("username") or "")
-                            if full.get("id"):
-                                row["publishing_site_id"] = str(full.get("id"))
-                            all_s[i] = row
-                            _write_sites(all_s)
-                            break
-                except Exception:
-                    logger.exception("heal CAU site password failed site_id=%s", site_id)
     if not pwd:
         raise HTTPException(
             status_code=400,
@@ -353,7 +388,7 @@ def get_site_credentials(site_id: str, user_id: int) -> dict[str, str]:
     return {
         "url": str(site.get("url") or ""),
         "username": str(site.get("username") or ""),
-        "app_password": pwd,
+        "app_password": pwd.replace(" ", ""),
     }
 
 
@@ -835,8 +870,14 @@ def _parse_home_nav_links(*, base: str) -> list[dict[str, Any]]:
     """Fallback: parse homepage header/nav links when menu-items REST is unavailable."""
     items: list[dict[str, Any]] = []
     try:
-        resp = requests.get(
-            base.rstrip("/") + "/",
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        home = base.rstrip("/") + "/"
+        blocked = validate_public_http_url(home)
+        if blocked:
+            return items
+        resp = safe_requests_get(
+            home,
             headers={
                 "User-Agent": (
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -845,9 +886,8 @@ def _parse_home_nav_links(*, base: str) -> list[dict[str, Any]]:
                 "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
             },
             timeout=20,
-            allow_redirects=True,
         )
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         return items
     if resp.status_code >= 400 or not (resp.text or "").strip():
         return items

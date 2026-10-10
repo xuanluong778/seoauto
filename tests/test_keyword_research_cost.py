@@ -13,6 +13,7 @@ def test_initial_research_skips_bulk_serp() -> None:
     serp_top10 = MagicMock(return_value={"rows": [], "source": "mock"})
     serp_expand = MagicMock(return_value=[])
     with (
+        patch("app.services.keyword_research_pipeline.expand_keyword_ideas", return_value=[]),
         patch("app.services.keyword_research_pipeline.expand_keywords_from_dataforseo", return_value=[]),
         patch("app.services.keyword_research_pipeline.fetch_serp_top10_rows", serp_top10),
         patch("app.services.keyword_research_pipeline.expand_keywords_from_serp", serp_expand),
@@ -74,3 +75,21 @@ def test_k4k_cache_prevents_second_live_call(monkeypatch) -> None:
         assert len(rows1) >= 1
         assert len(rows2) >= 1
         assert live_calls == []
+
+
+def test_ads_live_not_priced_as_dataforseo() -> None:
+    from app.services.keyword_research_cost import attach_cost_meta, check_and_record_live_call, estimated_cost_usd
+
+    stats: dict = {}
+    check_and_record_live_call(stats, label="google_ads_ideas")
+    check_and_record_live_call(stats, label="google_ads_volume")
+    meta = attach_cost_meta(stats)
+    assert stats["google_ads_calls"] == 2
+    assert stats.get("dataforseo_calls", 0) == 0
+    assert stats.get("live_calls", 0) == 0
+    assert estimated_cost_usd(stats) == 0
+    assert meta["live_call_labels"] == ["google_ads_ideas", "google_ads_volume"]
+    check_and_record_live_call(stats, label="search_volume_batch")
+    assert stats["dataforseo_calls"] == 1
+    assert stats["live_calls"] == 1
+    assert estimated_cost_usd(stats) == 0.01

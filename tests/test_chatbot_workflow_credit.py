@@ -37,12 +37,16 @@ def test_insufficient_credit_error():
     assert "3" in err.message
 
 
+@patch("app.services.entitlement_service.can_use_ai", return_value={"allowed": True})
+@patch("app.services.software_access_service.user_has_software_access", return_value=True)
 @patch("app.services.chatbot_workflow_credit.estimate_workflow_credits")
 @patch("app.services.chatbot_workflow_credit.ensure_sufficient_credits", return_value=(50, True))
 @patch("app.services.chatbot_workflow_credit.credits_enforced", return_value=True)
-def test_quote_workflow_credits_sufficient(_enf, _suff, mock_est):
+def test_quote_workflow_credits_sufficient(_enf, _suff, mock_est, _access, _ai):
     mock_est.return_value = {"total": 8, "research": 5, "clustering": 3}
-    quote = quote_workflow_credits(MagicMock(), 1, "keyword_research", {"seed_keyword": "seo"})
+    db = MagicMock()
+    db.get.return_value = MagicMock(id=1, role="user")
+    quote = quote_workflow_credits(db, 1, "keyword_research", {"seed_keyword": "seo"})
     assert quote["credit_required"] == 8
     assert quote["credit_balance"] == 50
     assert quote["sufficient"] is True
@@ -50,12 +54,16 @@ def test_quote_workflow_credits_sufficient(_enf, _suff, mock_est):
     assert quote["insufficient_message"] is None
 
 
+@patch("app.services.entitlement_service.can_use_ai", return_value={"allowed": False, "message": "Bạn cần 18 credit, tài khoản hiện có 2 credit."})
+@patch("app.services.software_access_service.user_has_software_access", return_value=True)
 @patch("app.services.chatbot_workflow_credit.estimate_workflow_credits")
 @patch("app.services.chatbot_workflow_credit.ensure_sufficient_credits", return_value=(2, False))
 @patch("app.services.chatbot_workflow_credit.credits_enforced", return_value=True)
-def test_quote_workflow_credits_insufficient(_enf, _suff, mock_est):
+def test_quote_workflow_credits_insufficient(_enf, _suff, mock_est, _access, _ai):
     mock_est.return_value = {"total": 18}
-    quote = quote_workflow_credits(MagicMock(), 1, "keyword_research", {})
+    db = MagicMock()
+    db.get.return_value = MagicMock(id=1, role="user")
+    quote = quote_workflow_credits(db, 1, "keyword_research", {})
     assert quote["sufficient"] is False
     assert quote["insufficient_message"] == "Bạn cần 18 credit, tài khoản hiện có 2 credit."
 

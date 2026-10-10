@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import case
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.credit_ledger import CreditLedger
@@ -131,12 +132,20 @@ def volume_batch_charge(keyword_count: int, *, db: Session | None = None, from_c
     return volume_batch_charge_from_registry(keyword_count, db=db, from_cache=from_cache)
 
 
-def cost_cluster_sync(*, db: Session | None = None) -> int:
-    return _registry_cost("keyword", "cluster_sync", db=db)
+def cost_cluster_sync(*, db: Session | None = None, keyword_count: int | None = None, fetch_serp: bool = False) -> int:
+    if keyword_count is None:
+        return _registry_cost("keyword", "cluster_sync", db=db)
+    from app.services.credit_cost_registry import cluster_credit_cost
+
+    return cluster_credit_cost(int(keyword_count), async_job=False, fetch_serp=fetch_serp, db=db)
 
 
-def cost_cluster_async(*, db: Session | None = None) -> int:
-    return _registry_cost("keyword", "cluster_async", db=db)
+def cost_cluster_async(*, db: Session | None = None, keyword_count: int | None = None, fetch_serp: bool = False) -> int:
+    if keyword_count is None:
+        return _registry_cost("keyword", "cluster_async", db=db)
+    from app.services.credit_cost_registry import cluster_credit_cost
+
+    return cluster_credit_cost(int(keyword_count), async_job=True, fetch_serp=fetch_serp, db=db)
 
 
 def cost_cluster_save(*, db: Session | None = None) -> int:
@@ -168,6 +177,16 @@ def cost_chatbot_ai_image(*, db: Session | None = None) -> int:
 
 def cost_chatbot_cskh_reply(*, db: Session | None = None) -> int:
     return _registry_cost("chatbot_cskh", "reply_overage", db=db)
+
+
+def cost_wordpress_publish(*, db: Session | None = None) -> int:
+    return _registry_cost("wordpress", "publish", db=db)
+
+
+def cost_index_submit(url_count: int = 1, *, provider: str = "google", db: Session | None = None) -> int:
+    from app.services.credit_cost_registry import index_submit_credit_cost
+
+    return index_submit_credit_cost(url_count, provider=provider, db=db)
 
 
 def estimate_chatbot_workflow_credits(
@@ -407,6 +426,26 @@ def cost_seo_score_ai_fix(*, db: Session | None = None) -> int:
 
 def cost_schema_generate(*, db: Session | None = None) -> int:
     return _registry_cost("schema", "generate", db=db)
+
+
+def cost_rank_tracking_check(*, db: Session | None = None) -> int:
+    return _registry_cost("rank_tracking", "check", db=db)
+
+
+def cost_keyword_suggest(*, db: Session | None = None, from_cache: bool = False) -> int:
+    return cost_research_run(db=db, from_cache=from_cache)
+
+
+def cost_keyword_intelligence(*, db: Session | None = None) -> int:
+    return _registry_cost("keyword", "intelligence", db=db)
+
+
+def cost_serp_keyword_intelligence(*, db: Session | None = None) -> int:
+    return _registry_cost("serp", "keyword_intelligence", db=db)
+
+
+def cost_google_map_ai_generate(*, db: Session | None = None) -> int:
+    return _registry_cost("google_map", "ai_generate", db=db)
 
 
 def cost_content_seo_score(*, db: Session | None = None) -> int:
@@ -736,7 +775,7 @@ def consume_credits(
     """
     Subtract credits FIFO (soonest expiry first). Caller must commit.
     Returns new balance.
-    Admin / super_admin: no deduction (unlimited access).
+    Admin free credits only when ADMIN_FREE_CREDITS=1 (see admin_skips_credit_deduction).
     If idempotency_key matches an existing consumption ledger, no double-spend.
     """
     if amount <= 0:
@@ -751,9 +790,9 @@ def consume_credits(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    from app.services.rbac import is_admin
+    from app.services.rbac import admin_skips_credit_deduction
 
-    if is_admin(user):
+    if admin_skips_credit_deduction(user):
         return get_available_balance(db, user_id)
 
     from app.services.saas_trial_service import assert_trial_credit_cap, add_trial_credit_used
@@ -846,10 +885,16 @@ def reserve_credits(
     organization_id: int | None = None,
     reason: str = "credit_reserve",
     note: str | None = None,
+    module: str | None = None,
+    action: str | None = None,
 ) -> dict:
     """
     Atomically hold credits for a job (debit now, commit/release later).
     Idempotent on idempotency_key via credit_reservations + ledger.
+
+    Callers should pass module/action matching the billable feature so
+    Content AI single-write and Bulk Writer share the same ledger SSOT
+    (e.g. content_ai/article_long) instead of generic saas_gate/reserve.
     """
     from app.models.credit_reservation import CreditReservation
 
@@ -857,6 +902,8 @@ def reserve_credits(
     key = (idempotency_key or "").strip()[:128] or None
     feat = str(feature_code or "unknown")[:64]
     jid = (job_id or "")[:128] or None
+    ledger_module = str(module or "saas_gate").strip()[:64] or "saas_gate"
+    ledger_action = str(action or "reserve").strip()[:64] or "reserve"
 
     if key:
         existing = (
@@ -890,8 +937,8 @@ def reserve_credits(
                     amount=amt,
                     reason=reason[:64],
                     note=note,
-                    module="saas_gate",
-                    action="reserve",
+                    module=ledger_module,
+                    action=ledger_action,
                     request_id=key[:64],
                     source="reserve",
                     organization_id=organization_id,
@@ -943,8 +990,8 @@ def reserve_credits(
         amount=amt,
         reason=reason[:64],
         note=note,
-        module="saas_gate",
-        action="reserve",
+        module=ledger_module,
+        action=ledger_action,
         request_id=(key or "")[:64] or None,
         source="reserve",
         organization_id=organization_id,
@@ -952,19 +999,39 @@ def reserve_credits(
         job_id=jid,
         idempotency_key=key,
     )
-    row = CreditReservation(
-        user_id=int(user_id),
-        organization_id=organization_id,
-        amount=amt,
-        status="reserved",
-        feature_code=feat,
-        job_id=jid,
-        idempotency_key=key,
-        request_id=(key or "")[:64] or None,
-        note=note,
-    )
-    db.add(row)
-    db.flush()
+    try:
+        with db.begin_nested():
+            row = CreditReservation(
+                user_id=int(user_id),
+                organization_id=organization_id,
+                amount=amt,
+                status="reserved",
+                feature_code=feat,
+                job_id=jid,
+                idempotency_key=key,
+                request_id=(key or "")[:64] or None,
+                note=note,
+            )
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        # Concurrent same idempotency_key — ledger consume is idempotent; return winner row.
+        if key:
+            existing = (
+                db.query(CreditReservation)
+                .filter(CreditReservation.idempotency_key == key)
+                .one_or_none()
+            )
+            if existing is not None:
+                st = str(existing.status or "")
+                return {
+                    "reservation_id": int(existing.id),
+                    "amount": int(existing.amount),
+                    "status": st,
+                    "already_committed": st == "committed",
+                    "balance_after": get_available_balance(db, user_id),
+                }
+        raise
     return {
         "reservation_id": int(row.id),
         "amount": amt,
@@ -1032,6 +1099,109 @@ def release_reservation(
     row.status = "released"
     db.flush()
     return amt
+
+
+def commit_reservation_by_job_id(db: Session, *, user_id: int, job_id: str) -> bool:
+    from app.models.credit_reservation import CreditReservation
+
+    jid = str(job_id or "").strip()[:128]
+    if not jid:
+        return False
+    row = (
+        db.query(CreditReservation)
+        .filter(
+            CreditReservation.user_id == int(user_id),
+            CreditReservation.job_id == jid,
+            CreditReservation.status == "reserved",
+        )
+        .order_by(CreditReservation.id.desc())
+        .first()
+    )
+    if row is None:
+        return False
+    commit_reservation(db, reservation_id=int(row.id), user_id=int(user_id))
+    return True
+
+
+def release_reservation_by_job_id(
+    db: Session,
+    *,
+    user_id: int,
+    job_id: str,
+    reason: str = "job_failed",
+) -> int:
+    from app.models.credit_reservation import CreditReservation
+
+    jid = str(job_id or "").strip()[:128]
+    if not jid:
+        return 0
+    row = (
+        db.query(CreditReservation)
+        .filter(
+            CreditReservation.user_id == int(user_id),
+            CreditReservation.job_id == jid,
+            CreditReservation.status == "reserved",
+        )
+        .order_by(CreditReservation.id.desc())
+        .first()
+    )
+    if row is None:
+        return 0
+    return release_reservation(
+        db,
+        reservation_id=int(row.id),
+        user_id=int(user_id),
+        reason=reason,
+    )
+
+
+def refund_unused_reservation(
+    db: Session,
+    *,
+    reservation_id: int,
+    user_id: int,
+    unused: int,
+) -> int:
+    """After commit, refund unused reserved slots (partial success)."""
+    n = max(0, int(unused or 0))
+    if n <= 0:
+        return 0
+    grant_credits(
+        db,
+        user_id=int(user_id),
+        amount=n,
+        reason="failed_refund",
+        note=f"unused reservation_id={reservation_id}"[:500],
+        source_type="refund",
+    )
+    return n
+
+
+def release_stale_reservations(db: Session, *, older_than_seconds: int = 900) -> int:
+    """Release hung reserved holds so retries cannot leak credit."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.credit_reservation import CreditReservation
+
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(60, int(older_than_seconds)))
+    rows = (
+        db.query(CreditReservation)
+        .filter(
+            CreditReservation.status == "reserved",
+            CreditReservation.created_at < cutoff,
+        )
+        .limit(200)
+        .all()
+    )
+    released = 0
+    for row in rows:
+        released += release_reservation(
+            db,
+            reservation_id=int(row.id),
+            user_id=int(row.user_id),
+            reason="stale_reservation",
+        )
+    return released
 
 
 def ensure_plan_monthly_credits(db: Session, user_id: int) -> int | None:

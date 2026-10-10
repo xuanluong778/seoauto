@@ -156,7 +156,7 @@ def fit_word_count(
                 f"Nội dung hiện tại ({wc} từ):\n{cur[:6000]}\n\n"
                 f"Viết TIẾP khoảng {need} từ nữa, không lặp lại ý đã viết"
                 + (f", bám sát keyword «{keyword}» và đúng địa phương trong keyword" if keyword else "")
-                + ". Không bịa số liệu. Chỉ trả về phần HTML bổ sung."
+                + ". Chia thành nhiều <p> ngắn (2–4 câu/đoạn). Không bịa số liệu. Chỉ trả về phần HTML bổ sung."
             ),
             need,
         )
@@ -690,7 +690,8 @@ def build_insert_llm_prompt(
     if target:
         ctx_lines.append(
             f"SỐ TỪ BẮT BUỘC: khoảng {target} từ (chấp nhận {round(target * 0.9)}–{round(target * 1.1)} từ, "
-            "không tính chữ trong heading). Viết đủ độ dài, chia nhiều đoạn <p> ngắn."
+            "không tính chữ trong heading). Viết đủ độ dài, chia nhiều đoạn <p> ngắn "
+            "(ưu tiên 2–4 câu mỗi đoạn, không gom thành đoạn quá dài)."
         )
     user = (
         "\n".join(ctx_lines)

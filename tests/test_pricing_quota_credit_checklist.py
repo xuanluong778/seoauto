@@ -39,30 +39,42 @@ class TestCheck01InsufficientCreditBlocksExternalApi:
         user = MagicMock(id=42, role="user")
         with patch("app.services.cost_control.gate.cost_control_enforced", return_value=True):
             with patch("app.services.cost_control.gate.is_admin", return_value=False):
-                with patch("app.services.cost_control.gate.resolve_cau_ai_plan_slug", return_value="pro"):
-                    with patch("app.services.cost_control.gate.credits_enforced", return_value=True):
-                        with patch("app.services.saas_economics_guard.assert_expensive_api_allowed"):
-                            with patch(
-                                "app.services.cost_control.gate.ensure_sufficient_credits",
-                                return_value=(3, False),
-                            ):
-                                with patch("app.services.cost_control.executor.requests.post") as mock_post:
-                                    req = CostGateRequest(
-                                        db=db,
-                                        user=user,
-                                        provider=ExternalApiProvider.DATAFORSEO,
-                                        action="research_run",
-                                        credit_cost=30,
-                                    )
-                                    with pytest.raises(HTTPException) as exc:
-                                        with cost_gate_session(req):
-                                            execute_guarded_external(
-                                                ExternalApiProvider.DATAFORSEO,
-                                                "research_run",
-                                                lambda: mock_post("https://api.dataforseo.com"),
-                                            )
-                                    assert exc.value.status_code == 402
-                                    mock_post.assert_not_called()
+                with patch("app.services.cost_control.gate.user_has_software_access", return_value=True):
+                    with patch("app.services.cost_control.gate.resolve_cau_ai_plan_slug", return_value="pro"):
+                        with patch("app.services.cost_control.gate.credits_enforced", return_value=True):
+                            with patch("app.services.saas_economics_guard.assert_expensive_api_allowed"):
+                                with patch("app.services.cost_control.caps.assert_user_credit_caps"):
+                                    with patch("app.services.cost_control.caps.assert_provider_daily_caps"):
+                                        with patch("app.services.cost_control.gate.check_user_rate_limit"):
+                                            with patch("app.services.cost_control.gate.check_user_concurrency"):
+                                                with patch(
+                                                    "app.services.cost_control.gate.release_user_concurrency"
+                                                ):
+                                                    with patch(
+                                                        "app.services.cost_control.gate.ensure_sufficient_credits",
+                                                        return_value=(3, False),
+                                                    ):
+                                                        with patch(
+                                                            "app.services.cost_control.executor.requests.post"
+                                                        ) as mock_post:
+                                                            req = CostGateRequest(
+                                                                db=db,
+                                                                user=user,
+                                                                provider=ExternalApiProvider.DATAFORSEO,
+                                                                action="research_run",
+                                                                credit_cost=30,
+                                                            )
+                                                            with pytest.raises(HTTPException) as exc:
+                                                                with cost_gate_session(req):
+                                                                    execute_guarded_external(
+                                                                        ExternalApiProvider.DATAFORSEO,
+                                                                        "research_run",
+                                                                        lambda: mock_post(
+                                                                            "https://api.dataforseo.com"
+                                                                        ),
+                                                                    )
+                                                            assert exc.value.status_code == 402
+                                                            mock_post.assert_not_called()
 
 
 class TestCheck02QuotaExceededBlocksExternalApi:
@@ -73,38 +85,63 @@ class TestCheck02QuotaExceededBlocksExternalApi:
         user = MagicMock(id=7, role="user")
         with patch("app.services.cost_control.gate.cost_control_enforced", return_value=True):
             with patch("app.services.cost_control.gate.is_admin", return_value=False):
-                with patch("app.services.cost_control.gate.resolve_cau_ai_plan_slug", return_value="pro"):
-                    with patch("app.services.cost_control.gate.credits_enforced", return_value=True):
-                        with patch(
-                            "app.services.cost_control.gate.ensure_sufficient_credits",
-                            return_value=(500, True),
-                        ):
-                            with patch(
-                                "app.services.cost_control.gate.usage_tracking_service.get_quota_remaining",
-                                return_value=0,
-                            ):
-                                with patch("app.services.cost_control.executor.requests.get") as mock_get:
-                                    req = CostGateRequest(
-                                        db=db,
-                                        user=user,
-                                        provider=ExternalApiProvider.GOOGLE_PLACES,
-                                        action="place_search",
-                                        credit_cost=12,
-                                        feature_key="lead_scan",
-                                        quota_units=1,
-                                    )
-                                    with pytest.raises(HTTPException) as exc:
-                                        with cost_gate_session(req):
-                                            execute_guarded_external(
-                                                ExternalApiProvider.GOOGLE_PLACES,
-                                                "place_search",
-                                                lambda: mock_get("https://maps.googleapis.com"),
-                                            )
-        assert exc.value.status_code == 429
-        detail = exc.value.detail
-        assert isinstance(detail, dict)
-        assert detail.get("code") == "quota_exceeded"
-        mock_get.assert_not_called()
+                with patch("app.services.cost_control.gate.user_has_software_access", return_value=True):
+                    with patch("app.services.saas_gate.user_has_software_access", return_value=True):
+                        with patch("app.services.saas_gate.enforce_saas_access", return_value="pro"):
+                            with patch("app.services.cost_control.gate.resolve_cau_ai_plan_slug", return_value="pro"):
+                                with patch("app.services.cost_control.gate.credits_enforced", return_value=True):
+                                    with patch(
+                                        "app.services.cost_control.gate.ensure_sufficient_credits",
+                                        return_value=(500, True),
+                                    ):
+                                        with patch(
+                                            "app.services.cost_control.gate.usage_tracking_service.get_quota_remaining",
+                                            return_value=0,
+                                        ):
+                                            with patch(
+                                                "app.services.saas_economics_guard.assert_expensive_api_allowed"
+                                            ):
+                                                with patch(
+                                                    "app.services.cost_control.caps.assert_user_credit_caps"
+                                                ):
+                                                    with patch(
+                                                        "app.services.cost_control.caps.assert_provider_daily_caps"
+                                                    ):
+                                                        with patch(
+                                                            "app.services.cost_control.gate.check_user_rate_limit"
+                                                        ):
+                                                            with patch(
+                                                                "app.services.cost_control.gate.check_user_concurrency"
+                                                            ):
+                                                                with patch(
+                                                                    "app.services.cost_control.gate.release_user_concurrency"
+                                                                ):
+                                                                    with patch(
+                                                                        "app.services.cost_control.executor.requests.get"
+                                                                    ) as mock_get:
+                                                                        req = CostGateRequest(
+                                                                            db=db,
+                                                                            user=user,
+                                                                            provider=ExternalApiProvider.GOOGLE_PLACES,
+                                                                            action="place_search",
+                                                                            credit_cost=12,
+                                                                            feature_key="lead_scan",
+                                                                            quota_units=1,
+                                                                        )
+                                                                        with pytest.raises(HTTPException) as exc:
+                                                                            with cost_gate_session(req):
+                                                                                execute_guarded_external(
+                                                                                    ExternalApiProvider.GOOGLE_PLACES,
+                                                                                    "place_search",
+                                                                                    lambda: mock_get(
+                                                                                        "https://maps.googleapis.com"
+                                                                                    ),
+                                                                                )
+                                                                        assert exc.value.status_code == 429
+                                                                        detail = exc.value.detail
+                                                                        assert isinstance(detail, dict)
+                                                                        assert detail.get("code") == "quota_exceeded"
+                                                                        mock_get.assert_not_called()
 
 
 # ── 03: UI billing không gọi API đắt ───────────────────────────────────────
@@ -189,33 +226,36 @@ class TestCheck04IdempotentUsageRecording:
 class TestCheck05CacheSkipsExternalApiAndCost:
     """Cache hit → không HTTP ngoài; credit giảm hoặc = 0."""
 
-    def test_lead_scan_cache_zero_credit(self) -> None:
+    def test_lead_scan_cache_discounted_credit(self) -> None:
+        live = quote_lead_basic_scan(mode="keyword", limit=100, from_cache=False)
         q = quote_lead_basic_scan(mode="keyword", limit=100, from_cache=True)
-        assert q["credit_required"] == 0
         assert q["from_cache"] == 1
+        assert q["credit_required"] < live["credit_required"]
 
     def test_cost_gate_cache_hit_raises_bypass(self) -> None:
         db = MagicMock()
         user = MagicMock(id=3)
         cached = {"items": []}
-        with patch("app.services.cost_control.executor.requests.post") as mock_post:
-            req = CostGateRequest(
-                db=db,
-                user=user,
-                provider=ExternalApiProvider.DATAFORSEO,
-                action="search_volume",
-                credit_cost=99,
-                cache_lookup=lambda: cached,
-            )
-            with cost_gate_session(req) as session:
-                assert session.cache_hit is True
-                with pytest.raises(CostControlBypassError):
-                    execute_guarded_external(
-                        ExternalApiProvider.DATAFORSEO,
-                        "search_volume",
-                        lambda: mock_post("https://api.dataforseo.com"),
+        with patch("app.services.cost_control.gate.user_has_software_access", return_value=True):
+            with patch("app.services.cost_control.gate.resolve_cau_ai_plan_slug", return_value="pro"):
+                with patch("app.services.cost_control.executor.requests.post") as mock_post:
+                    req = CostGateRequest(
+                        db=db,
+                        user=user,
+                        provider=ExternalApiProvider.DATAFORSEO,
+                        action="search_volume",
+                        credit_cost=99,
+                        cache_lookup=lambda: cached,
                     )
-        mock_post.assert_not_called()
+                    with cost_gate_session(req) as session:
+                        assert session.cache_hit is True
+                        with pytest.raises(CostControlBypassError):
+                            execute_guarded_external(
+                                ExternalApiProvider.DATAFORSEO,
+                                "search_volume",
+                                lambda: mock_post("https://api.dataforseo.com"),
+                            )
+                    mock_post.assert_not_called()
 
     @patch("app.services.dataforseo_billing_service.is_admin", return_value=False)
     @patch("app.services.dataforseo_billing_service.resolve_cau_ai_plan_slug", return_value="pro")
@@ -238,16 +278,16 @@ class TestCheck05CacheSkipsExternalApiAndCost:
 
 
 class TestCheck06LeadScanner100PhonesCreditRange:
-    """100 lead + lấy SĐT → ~1000–1200 credit theo registry (11/detail + scan pages)."""
+    """100 lead + lấy SĐT — scan pages × 42 + detail 22."""
 
     def test_100_leads_with_details_in_config_range(self) -> None:
         basic = quote_lead_basic_scan(mode="keyword", limit=100, from_cache=False)
         detail = quote_lead_detail(100)
         total = basic["credit_required"] + detail["credit_required"]
         per_detail = detail["detail_cost"] // detail["detail_calls"]
-        assert per_detail == 11
+        assert per_detail == 22
         assert basic["search_pages"] == 5
-        assert 1000 <= total <= 1200, f"total={total}, basic={basic}, detail={detail}"
+        assert 2300 <= total <= 2600, f"total={total}, basic={basic}, detail={detail}"
 
 
 # ── 07: Keyword DataForSEO credit ────────────────────────────────────────────
@@ -267,11 +307,16 @@ class TestCheck07KeywordResearchDataforseoCredits:
     @patch("app.services.dataforseo_billing_service.is_admin", return_value=False)
     @patch("app.services.dataforseo_billing_service.resolve_cau_ai_plan_slug", return_value="pro")
     @patch("app.services.dataforseo_billing_service.plan_feature", return_value=True)
+    @patch("app.services.volume_providers.google_ads.google_ads_configured", return_value=False)
+    @patch(
+        "app.services.keyword_ads_expand.peek_ads_ideas_cache_status",
+        return_value={"hits": 0, "misses": 1, "total": 1, "hit_seeds": [], "miss_keywords": ["a"]},
+    )
     @patch(
         "app.services.keyword_dataforseo_expand.peek_k4k_cache_status",
         return_value={"hits": 0, "misses": 1, "total": 1},
     )
-    def test_pro_live_30_credit(self, _k, _f, _s, _a) -> None:
+    def test_pro_live_30_credit(self, _k, _ads, _gads, _f, _s, _a) -> None:
         p = preview_research_billing(
             MagicMock(), SimpleNamespace(id=3), seeds=["a"], country="vn", language="vi"
         )

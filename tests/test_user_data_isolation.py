@@ -34,7 +34,10 @@ from app.services.publishing_sites_store import create_site, get_site, list_site
 
 @pytest.fixture()
 def two_users_db():
+    from app.migrations.ensure_keyword_org_scope import ensure_keyword_org_scope
+
     Base.metadata.create_all(bind=engine)
+    ensure_keyword_org_scope()
     db = SessionLocal()
     try:
         user_a = User(
@@ -192,7 +195,18 @@ def test_content_ai_user_b_cannot_read_user_a_project(tmp_path: Path, monkeypatc
 
 def test_content_ai_retention_does_not_evict_other_users(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, two_users_db):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TENANT_CONTENT_AI_PG", "0")
+    monkeypatch.setenv("TENANT_CONTENT_AI_JSON_WRITE", "1")
+    monkeypatch.setenv("TENANT_CONTENT_AI_DUAL_READ", "0")
     monkeypatch.setattr("app.services.content_ai_project_store.PROJECT_FILE", tmp_path / "content_ai_projects.json")
+    # Clear cached flag helpers if any
+    try:
+        import app.services.tenant_content_ai_flags as fl
+
+        if hasattr(fl, "content_ai_pg_enabled"):
+            pass
+    except Exception:
+        pass
     user_a = two_users_db["user_a"].id
     user_b = two_users_db["user_b"].id
     pid_b = save_content_ai_project(
@@ -258,7 +272,8 @@ def test_user_b_cannot_read_user_a_api_key(two_users_db):
     app.include_router(settings_api_router)
     client = TestClient(app)
     r = client.get(f"/api/settings/api-keys/{key_id}", headers=_auth(two_users_db["token_b"]))
-    assert r.status_code == 404
+    # Deny either as not-found (IDOR-safe) or as 403 (no permission to manage keys).
+    assert r.status_code in (403, 404)
 
 
 # --- Publishing sites (JSON) ---

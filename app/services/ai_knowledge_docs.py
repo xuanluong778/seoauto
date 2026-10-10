@@ -79,6 +79,15 @@ def chunk_text(text: str) -> list[str]:
     return out
 
 
+def _notify_kb_consumers() -> None:
+    try:
+        from app.services.chatbot_kb_cache import invalidate_all_kb_caches
+
+        invalidate_all_kb_caches()
+    except Exception:
+        log.debug("KB consumer cache invalidate skipped", exc_info=True)
+
+
 def _read_store(kb_id: str) -> dict[str, Any]:
     path = _kb_path(kb_id)
     if not path.exists():
@@ -98,6 +107,7 @@ def _read_store(kb_id: str) -> dict[str, Any]:
 def _write_store(kb_id: str, store: dict[str, Any]) -> None:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
     _kb_path(kb_id).write_text(json.dumps(store, ensure_ascii=False, indent=2), encoding="utf-8")
+    _notify_kb_consumers()
 
 
 def delete_kb_docs(kb_id: str) -> None:
@@ -105,6 +115,7 @@ def delete_kb_docs(kb_id: str) -> None:
     if path.exists():
         try:
             path.unlink()
+            _notify_kb_consumers()
         except OSError:
             log.warning("Could not delete knowledge docs file %s", path)
 
@@ -130,19 +141,22 @@ def clone_kb_docs(source_kb_id: str, target_kb_id: str) -> dict[str, int]:
                 nc["embedded"] = False
                 chunks_out.append(nc)
         full_text = _document_full_text(doc)
-        copied.append(
-            {
-                "id": str(uuid.uuid4()),
-                "filename": doc.get("filename"),
-                "title": doc.get("title"),
-                "content_format": doc.get("content_format") or "text",
-                "char_count": int(doc.get("char_count") or len(full_text)),
-                "token_estimate": int(doc.get("token_estimate") or _estimate_tokens(full_text)),
-                "chunks": chunks_out,
-                "created_at": _now(),
-                "updated_at": _now(),
-            }
-        )
+        copied_row: dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "filename": doc.get("filename"),
+            "title": doc.get("title"),
+            "content": str(doc.get("content") or full_text),
+            "content_format": doc.get("content_format") or "text",
+            "char_count": int(doc.get("char_count") or len(full_text)),
+            "token_estimate": int(doc.get("token_estimate") or _estimate_tokens(full_text)),
+            "chunks": chunks_out,
+            "created_at": _now(),
+            "updated_at": _now(),
+        }
+        for extra_key in ("source_key", "node_type", "parent_id", "tags", "priority", "is_active", "owner_user_id"):
+            if extra_key in doc:
+                copied_row[extra_key] = doc[extra_key]
+        copied.append(copied_row)
     _write_store(target_kb_id, {"documents": copied})
     return get_kb_stats(target_kb_id)
 
@@ -190,6 +204,9 @@ def list_documents(kb_id: str) -> list[dict[str, Any]]:
 
 
 def _document_full_text(doc: dict[str, Any]) -> str:
+    raw = str(doc.get("content") or "").strip()
+    if raw:
+        return raw
     chunks = doc.get("chunks") or []
     if not isinstance(chunks, list):
         return ""
@@ -301,6 +318,7 @@ def _add_document(
     content: str,
     content_format: str,
     embed: bool = True,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     content = str(content or "").strip()
     if not content:
@@ -314,6 +332,7 @@ def _add_document(
         "id": str(uuid.uuid4()),
         "filename": filename or title or "document.txt",
         "title": title or filename or "Tài liệu",
+        "content": content,
         "content_format": content_format,
         "char_count": len(content),
         "token_estimate": _estimate_tokens(content),
@@ -321,6 +340,11 @@ def _add_document(
         "created_at": _now(),
         "updated_at": _now(),
     }
+    if extra:
+        for k, v in extra.items():
+            if k in {"id", "chunks"}:
+                continue
+            row[k] = v
     docs.append(row)
     store["documents"] = docs
     _write_store(kb_id, store)
@@ -328,6 +352,76 @@ def _add_document(
         "document": row,
         "stats": get_kb_stats(kb_id),
     }
+
+
+def update_document(
+    kb_id: str,
+    doc_id: str,
+    *,
+    title: str | None = None,
+    content: str | None = None,
+    extra: dict[str, Any] | None = None,
+    embed: bool = True,
+) -> dict[str, Any] | None:
+    want = str(doc_id or "").strip()
+    if not want:
+        return None
+    store = _read_store(kb_id)
+    docs: list[dict[str, Any]] = store.get("documents") or []
+    found = None
+    for doc in docs:
+        if str(doc.get("id") or "") != want:
+            continue
+        if title is not None:
+            t = str(title).strip()
+            if t:
+                doc["title"] = t
+                doc["filename"] = t + ".txt"
+        if content is not None:
+            body = str(content or "").strip()
+            if not body:
+                raise ValueError("Nội dung tài liệu trống.")
+            doc["content"] = body
+            doc["chunks"] = _build_chunks(body, embed=embed)
+            doc["char_count"] = len(body)
+            doc["token_estimate"] = _estimate_tokens(body)
+        if extra:
+            for k, v in extra.items():
+                if k in {"id", "chunks"}:
+                    continue
+                doc[k] = v
+        doc["updated_at"] = _now()
+        found = doc
+        break
+    if found is None:
+        return None
+    store["documents"] = docs
+    _write_store(kb_id, store)
+    return found
+
+
+def delete_document(kb_id: str, doc_id: str) -> bool:
+    want = str(doc_id or "").strip()
+    if not want:
+        return False
+    store = _read_store(kb_id)
+    docs: list[dict[str, Any]] = store.get("documents") or []
+    next_docs = [d for d in docs if str(d.get("id") or "") != want]
+    if len(next_docs) == len(docs):
+        return False
+    store["documents"] = next_docs
+    _write_store(kb_id, store)
+    return True
+
+
+def find_document_by_source_key(kb_id: str, source_key: str) -> dict[str, Any] | None:
+    key = str(source_key or "").strip()
+    if not key:
+        return None
+    for d in _read_store(kb_id).get("documents") or []:
+        if str(d.get("source_key") or "") == key:
+            return d
+    return None
 
 
 def import_bytes(kb_id: str, filename: str, data: bytes, *, embed: bool = True) -> dict[str, Any]:
@@ -353,7 +447,14 @@ def import_bytes(kb_id: str, filename: str, data: bytes, *, embed: bool = True) 
     return _add_document(kb_id, filename=name, title=Path(name).stem, content=text, content_format=fmt, embed=embed)
 
 
-def import_text(kb_id: str, title: str, text: str, *, embed: bool = True) -> dict[str, Any]:
+def import_text(
+    kb_id: str,
+    title: str,
+    text: str,
+    *,
+    embed: bool = True,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     name = (str(title or "").strip() or "paste.txt") + ".txt"
     return _add_document(
         kb_id,
@@ -362,6 +463,7 @@ def import_text(kb_id: str, title: str, text: str, *, embed: bool = True) -> dic
         content=text,
         content_format="text",
         embed=embed,
+        extra=extra,
     )
 
 
@@ -369,14 +471,18 @@ def reindex_kb(kb_id: str) -> dict[str, Any]:
     store = _read_store(kb_id)
     docs: list[dict[str, Any]] = store.get("documents") or []
     for doc in docs:
-        merged = []
-        for ch in doc.get("chunks") or []:
-            if isinstance(ch, dict) and ch.get("text"):
-                merged.append(str(ch["text"]))
-        full = "\n\n".join(merged).strip()
+        full = str(doc.get("content") or "").strip()
+        if not full:
+            merged = []
+            for ch in doc.get("chunks") or []:
+                if isinstance(ch, dict) and ch.get("text"):
+                    merged.append(str(ch["text"]))
+            full = "\n\n".join(merged).strip()
         if not full:
             continue
+        doc["content"] = full
         doc["chunks"] = _build_chunks(full, embed=True)
+        doc["char_count"] = len(full)
         doc["token_estimate"] = _estimate_tokens(full)
         doc["updated_at"] = _now()
     store["documents"] = docs

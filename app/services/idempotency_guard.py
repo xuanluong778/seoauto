@@ -29,6 +29,45 @@ def job_fingerprint(payload: dict[str, Any]) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
 
 
+def technical_analyze_fingerprint(payload: dict[str, Any]) -> str:
+    """Stable hash for technical scan inputs (retry-safe idempotency)."""
+    key_data = {
+        "url": str(payload.get("url") or "").strip().lower().rstrip("/"),
+        "max_pages": int(payload.get("max_pages") or 25),
+        "use_gsc": bool(payload.get("use_gsc")),
+        "gsc_property": str(payload.get("gsc_property") or "").strip().lower(),
+        "gsc_date_range": str(payload.get("gsc_date_range") or "28d"),
+        "gsc_start_date": str(payload.get("gsc_start_date") or ""),
+        "gsc_end_date": str(payload.get("gsc_end_date") or ""),
+        "url_inspection_limit": int(payload.get("url_inspection_limit") or 10),
+    }
+    blob = json.dumps(key_data, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
+
+
+def url_seo_scoreboard_fingerprint(payload: dict[str, Any]) -> str:
+    """Stable hash for SEO Score URL inputs (retry-safe idempotency)."""
+    sec = payload.get("secondary_keywords")
+    if isinstance(sec, list):
+        sec_norm = sorted(str(x).strip().lower() for x in sec if str(x).strip())
+    else:
+        sec_norm = sorted(
+            x.strip().lower()
+            for x in str(sec or "").replace(";", ",").split(",")
+            if x.strip()
+        )
+    key_data = {
+        "url": str(payload.get("url") or "").strip().lower().rstrip("/"),
+        "keyword": str(payload.get("keyword") or "").strip().lower(),
+        "secondary_keywords": sec_norm,
+        "page_type": str(payload.get("page_type") or "").strip().lower(),
+        "search_volume": int(payload.get("search_volume") or 0),
+        "current_serp_position": int(payload.get("current_serp_position") or 0),
+    }
+    blob = json.dumps(key_data, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
+
+
 def find_usage_by_key(db: Session, idempotency_key: str) -> UsageEvent | None:
     key = str(idempotency_key or "").strip()[:128]
     if not key:

@@ -19,7 +19,7 @@
         kbNodes: [],
         kbMap: null,
         kbPreviewMessages: [],
-        pendingKbImport: false,
+        pendingConversationId: "",
     };
 
     function $(id) { return document.getElementById(id); }
@@ -43,6 +43,42 @@
         el.classList.add("is-visible");
         clearTimeout(showToast._t);
         showToast._t = setTimeout(function () { el.classList.remove("is-visible"); }, 3200);
+    }
+
+    function markCopyDone(btnEl) {
+        if (!btnEl) return;
+        var prev = btnEl.textContent;
+        btnEl.textContent = "Đã copy rồi";
+        btnEl.disabled = true;
+        setTimeout(function () {
+            btnEl.textContent = prev;
+            btnEl.disabled = false;
+        }, 2000);
+    }
+
+    function copyTextToClipboard(text) {
+        text = String(text || "");
+        if (!text) return Promise.reject(new Error("empty"));
+        if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+        return new Promise(function (resolve, reject) {
+            try {
+                var ta = document.createElement("textarea");
+                ta.value = text;
+                ta.setAttribute("readonly", "");
+                ta.style.position = "fixed";
+                ta.style.left = "-9999px";
+                document.body.appendChild(ta);
+                ta.select();
+                var ok = document.execCommand("copy");
+                document.body.removeChild(ta);
+                if (ok) resolve();
+                else reject(new Error("copy failed"));
+            } catch (e) {
+                reject(e);
+            }
+        });
     }
 
     function apiDetail(data) {
@@ -194,7 +230,21 @@
         });
     }
 
+    var SETTINGS_KB_URL = "/settings#ai-knowledge-base";
+
+    function isKbTab(tab) {
+        return String(tab || "").toLowerCase() === "kb";
+    }
+
+    function goToSettingsKnowledgeBase() {
+        window.location.replace(SETTINGS_KB_URL);
+    }
+
     function setTab(tab) {
+        if (isKbTab(tab)) {
+            goToSettingsKnowledgeBase();
+            return;
+        }
         state.tab = tab;
         document.querySelectorAll(".cskh-nav-item, .cskh-tab").forEach(function (btn) {
             var on = btn.getAttribute("data-cskh-tab") === tab;
@@ -210,7 +260,6 @@
             if (tab === "overview") loadOverview();
             if (tab === "bots") loadBots();
             if (tab === "sources") { loadBotsForSources(); }
-            if (tab === "kb") { loadBotsForKb(); }
             if (tab === "channels") loadChannels();
             if (tab === "conversations") { loadBotsForInbox(); }
             if (tab === "settings") loadSettings();
@@ -245,10 +294,6 @@
 
         if (upgrade) upgrade.hidden = true;
         if (app) app.hidden = false;
-        if (state.pendingKbImport && access.allowed) {
-            state.pendingKbImport = false;
-            setTimeout(function () { openKbImportModal(); }, 300);
-        }
         if (badge) {
             badge.hidden = false;
             var badgeText = "Gói: " + (access.plan_name || access.plan_slug || "—");
@@ -262,7 +307,21 @@
         }
         renderStateBanner();
         loadOverview();
+        maybeOpenPendingConversation();
     }
+
+    function maybeOpenPendingConversation() {
+        var id = String(state.pendingConversationId || "").trim();
+        if (!id || !state.access || !state.access.allowed) return;
+        state.pendingConversationId = "";
+        setTab("conversations");
+        openConversation(id);
+    }
+
+    window.DigiSeoCskhOpenConversation = function (id) {
+        state.pendingConversationId = String(id || "").trim();
+        if (state.access && state.access.allowed) maybeOpenPendingConversation();
+    };
 
     async function loadAccess() {
         try {
@@ -353,7 +412,7 @@
             });
             host.querySelectorAll("[data-bot-embed]").forEach(function (btn) {
                 btn.addEventListener("click", function () {
-                    showEmbedForBot(btn.getAttribute("data-bot-embed"));
+                    copyEmbedForBot(btn.getAttribute("data-bot-embed"), btn);
                 });
             });
         } catch (e) {
@@ -380,19 +439,33 @@
         }
     }
 
+    async function copyEmbedForBot(id, btnEl) {
+        try {
+            var res = await apiFetch("/bots/" + encodeURIComponent(id));
+            var b = res.data || {};
+            var code = String(b.embed_code || "");
+            if (!code) {
+                showToast("Chưa có mã nhúng.");
+                return;
+            }
+            showEmbedPanel(code);
+            await copyTextToClipboard(code);
+            markCopyDone(btnEl);
+        } catch (e) {
+            showToast(e.message || "Không copy được — chọn và copy thủ công.");
+        }
+    }
+
     function copyEmbedCode() {
         var pre = $("cskhEmbedCode");
         var text = pre ? pre.textContent : "";
         if (!text) { showToast("Chưa có mã nhúng."); return; }
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(function () {
-                showToast("Đã copy mã nhúng.");
-            }).catch(function () {
-                showToast("Không copy được — chọn và copy thủ công.");
-            });
-        } else {
-            showToast("Chọn mã và copy thủ công.");
-        }
+        var btn = $("cskhBtnCopyEmbed");
+        copyTextToClipboard(text).then(function () {
+            markCopyDone(btn);
+        }).catch(function () {
+            showToast("Không copy được — chọn và copy thủ công.");
+        });
     }
 
     async function createBot() {
@@ -558,8 +631,8 @@
         parentId = parentId == null ? null : parentId;
         var html = "";
         nodes.filter(function (n) {
-            var pid = n.parent_id == null ? null : Number(n.parent_id);
-            var want = parentId == null ? pid == null : pid === Number(parentId);
+            var pid = n.parent_id == null || n.parent_id === "" ? null : String(n.parent_id);
+            var want = parentId == null ? pid == null : pid === String(parentId);
             return want;
         }).forEach(function (n) {
             var indent = depth * 16;
@@ -688,7 +761,7 @@
             title: title,
             content: (($("cskhKbContent") || {}).value || "").trim(),
             node_type: ($("cskhKbNodeType") || {}).value || "node",
-            parent_id: parseInt(($("cskhKbParent") || {}).value || "0", 10) || null,
+            parent_id: (($("cskhKbParent") || {}).value || "").trim() || null,
             tags: collectKbTags(),
             priority: parseInt(($("cskhKbPriority") || {}).value || "0", 10) || 0,
             is_active: ($("cskhKbActive") || {}).checked !== false,
@@ -818,9 +891,7 @@
     function selectedImportParentId() {
         var el = $("cskhKbImportParent");
         var v = el ? String(el.value || "").trim() : "";
-        if (!v) return null;
-        var n = parseInt(v, 10);
-        return Number.isFinite(n) && n > 0 ? n : null;
+        return v || null;
     }
 
     function fillKbImportParentOptions() {
@@ -1570,6 +1641,11 @@
 
     async function openConversation(id) {
         state.activeConversationId = id;
+        try {
+            if (window.DigiSeoInboxNotify && typeof window.DigiSeoInboxNotify.onConversationOpened === "function") {
+                window.DigiSeoInboxNotify.onConversationOpened(id);
+            }
+        } catch (_) {}
         loadConversations();
         var host = $("cskhConversationDetail");
         if (!host) return;
@@ -1579,6 +1655,7 @@
             var c = res.data || {};
             var html = '<div class="cskh-chat-head"><strong>' + esc(c.visitor_name || c.visitor || "Khách") + "</strong>";
             if (c.visitor_phone) html += ' · <span class="cskh-muted">' + esc(c.visitor_phone) + "</span>";
+            if (c.visitor_email) html += ' · <span class="cskh-muted">' + esc(c.visitor_email) + "</span>";
             html += '<div class="cskh-hint">' + channelTag(c.channel) + " · " + esc(c.bot_name || "") + " · " + statusTag(c.status);
             if (c.channel_ref) html += " · " + esc(c.channel_ref);
             html += "</div>";
@@ -1594,7 +1671,8 @@
             if ((c.leads || []).length) {
                 var lead = c.leads[0];
                 html += '<div class="cskh-lead-panel"><h3 class="cskh-card-title">Lead</h3>' +
-                    "<p><strong>" + esc(lead.name || "—") + "</strong> · " + esc(lead.phone || "—") + "</p>" +
+                    "<p><strong>" + esc(lead.name || "—") + "</strong> · " + esc(lead.phone || "—") +
+                    (lead.email ? " · " + esc(lead.email) : "") + "</p>" +
                     "<p class=\"cskh-muted\">" + esc(lead.need || "—") + "</p>" +
                     '<label class="cskh-label">Trạng thái lead</label>' +
                     '<select class="cskh-select" id="cskhLeadStatusSelect" data-lead-id="' + esc(lead.lead_id || lead.id) + '">' +
@@ -1644,14 +1722,21 @@
                 host.innerHTML = '<p class="cskh-empty">Chưa có lead.</p>';
                 return;
             }
-            var html = '<div class="cskh-table-wrap"><table class="cskh-table"><thead><tr><th>Khách</th><th>SĐT</th><th>Nhu cầu</th><th>Trạng thái</th><th></th></tr></thead><tbody>';
+            var html = '<div class="cskh-table-wrap cskh-leads-wrap"><table class="cskh-table cskh-leads-table"><thead><tr><th>Khách</th><th>SĐT</th><th>Email</th><th>Nhu cầu</th><th>Trạng thái</th><th></th></tr></thead><tbody>';
             items.forEach(function (l) {
                 var lid = l.lead_id || l.id;
-                html += "<tr><td>" + esc(l.name || "—") + "</td><td>" + esc(l.phone || "—") + "</td><td>" + esc((l.need || "").slice(0, 80)) +
+                var needText = String(l.need || "");
+                var email = String(l.email || "");
+                if (email) {
+                    var prefix = "Email: " + email;
+                    if (needText.indexOf(prefix) === 0) needText = needText.slice(prefix.length).trim();
+                    else if (needText === email) needText = "";
+                }
+                html += "<tr><td>" + esc(l.name || "—") + "</td><td>" + esc(l.phone || "—") + "</td><td>" + esc(email || "—") + "</td><td>" + esc(needText.slice(0, 80) || "—") +
                     '</td><td><select class="cskh-select cskh-lead-status-select" data-lead-id="' + esc(lid) + '">' +
                     '<option value="new">Mới</option><option value="consulting">Đang tư vấn</option>' +
                     '<option value="won">Đã chốt</option><option value="no_potential">Không tiềm năng</option></select></td>' +
-                    '<td><button type="button" class="cskh-btn cskh-btn--ghost" data-open-conv="' + esc(l.conversation_id || "") + '">Xem chat</button></td></tr>';
+                    '<td><button type="button" class="cskh-btn cskh-btn--ghost cskh-btn--sm" data-open-conv="' + esc(l.conversation_id || "") + '">Xem chat</button></td></tr>';
             });
             html += "</tbody></table></div>";
             host.innerHTML = html;
@@ -1727,8 +1812,7 @@
             }
             var pick = items.find(function (b) { return String(b.status || "").toLowerCase() === "active"; }) || items[0];
             var id = pick.bot_id || pick.id;
-            await showEmbedForBot(id);
-            copyEmbedCode();
+            await copyEmbedForBot(id);
         } catch (e) {
             showToast(e.message);
         }
@@ -1849,18 +1933,6 @@
         document.querySelectorAll("[data-kb-preview-close]").forEach(function (el) {
             el.addEventListener("click", closeKbPreview);
         });
-        if (window.SeoautoChatbotKb) {
-            window.SeoautoChatbotKb.onChange(function (detail) {
-                var bid = parseInt(detail.bot_id, 10) || 0;
-                if (!bid || bid !== selectedKbBotId()) return;
-                if (state.tab === "kb") loadKb();
-            });
-        }
-        document.addEventListener("visibilitychange", function () {
-            if (document.visibilityState === "visible" && state.tab === "kb" && selectedKbBotId()) {
-                loadKb();
-            }
-        });
         var btnUpgrade = $("cskhBtnUpgrade");
         if (btnUpgrade) btnUpgrade.addEventListener("click", function () {
             window.location.href = "/pricing";
@@ -1887,10 +1959,20 @@
     function initFromQuery() {
         try {
             var q = new URLSearchParams(window.location.search || "");
-            var tab = q.get("tab");
+            var hash = String(window.location.hash || "").replace(/^#/, "").toLowerCase();
+            var tab = q.get("tab") || hash;
+            if (isKbTab(tab) || q.get("import") === "1") {
+                goToSettingsKnowledgeBase();
+                return;
+            }
             if (tab) setTab(tab);
+            var convId = q.get("conversation_id") || q.get("c");
+            if (convId) {
+                state.pendingConversationId = convId;
+                if (!tab) setTab("conversations");
+                maybeOpenPendingConversation();
+            }
             if (q.get("fb_connected") === "1") showToast("Đã kết nối Fanpage thành công.");
-            if (q.get("import") === "1") state.pendingKbImport = true;
         } catch (_e) {}
     }
 

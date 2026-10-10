@@ -25,7 +25,7 @@ from app.services.credits import (
     release_reservation,
     reserve_credits,
 )
-from app.services.rbac import is_admin
+from app.services.rbac import admin_skips_credit_deduction, is_admin
 
 
 @dataclass
@@ -70,9 +70,14 @@ def byok_billing_mode() -> str:
     return (os.getenv("CONTENT_AI_BYOK_BILLING_MODE", "quota_only") or "quota_only").strip().lower()
 
 
+def api_access_enabled_for(user: User | None) -> bool:
+    """Legacy BYOK flag kept for tests and older callers."""
+    return bool(getattr(user, "api_access_enabled", False))
+
+
 def resolve_billing_policy(*, user: User, use_system_llm: bool) -> dict[str, Any]:
-    """Mọi user thường dùng API hệ thống — luôn trừ credit khi có phí."""
-    if is_admin(user):
+    """System LLM always bills when credits are enforced (admin included unless ADMIN_FREE_CREDITS)."""
+    if admin_skips_credit_deduction(user):
         return {"charge_credits": False, "multiplier": 0.0, "mode": "admin"}
     return {"charge_credits": True, "multiplier": 1.0, "mode": "system_api"}
 
@@ -239,7 +244,12 @@ def quote_content_ai_write(
         subtotal = sum(int(x.get("credit_cost") or 0) for x in lines)
         mult = float(policy.get("multiplier") or 0.0) if policy.get("charge_credits") else 0.0
         total = max(0, int(round(subtotal * mult))) if mult > 0 else 0
-        charge = bool(policy.get("charge_credits")) and total > 0 and credits_enforced() and not is_admin(user)
+        charge = (
+            bool(policy.get("charge_credits"))
+            and total > 0
+            and credits_enforced()
+            and not admin_skips_credit_deduction(user)
+        )
     else:
         tier_action = "brief_suggest"
         base_cost = resolve_credit_cost("content_ai", tier_action, db=db, from_cache=from_cache)
@@ -255,7 +265,12 @@ def quote_content_ai_write(
         subtotal = base_cost
         mult = float(policy.get("multiplier") or 0.0) if policy.get("charge_credits") else 0.0
         total = max(0, int(round(subtotal * mult))) if mult > 0 else 0
-        charge = bool(policy.get("charge_credits")) and total > 0 and credits_enforced() and not is_admin(user)
+        charge = (
+            bool(policy.get("charge_credits"))
+            and total > 0
+            and credits_enforced()
+            and not admin_skips_credit_deduction(user)
+        )
 
     balance = int(get_available_balance(db, user.id)) if db is not None and credits_enforced() else 0
     req_id = new_request_id()
@@ -391,7 +406,7 @@ def _should_charge_quote(user: User, quote: dict[str, Any]) -> tuple[bool, int, 
     if not quote.get("charge_credits"):
         return False, 0, ""
     amount = int(quote.get("credit_cost") or 0)
-    if not credits_enforced() or amount <= 0 or is_admin(user):
+    if not credits_enforced() or amount <= 0 or admin_skips_credit_deduction(user):
         return False, 0, ""
     req_id = str(quote.get("request_id") or new_request_id())
     return True, amount, req_id
@@ -413,6 +428,8 @@ def reserve_content_ai_write(
     if not ok:
         return None
     quote["request_id"] = req_id
+    tier_action = str(quote.get("tier_action") or quote.get("action") or "article_medium")
+    ledger_module = str(quote.get("module") or "content_ai")
     res = reserve_credits(
         db,
         user_id=int(user.id),
@@ -422,6 +439,8 @@ def reserve_content_ai_write(
         idempotency_key=f"content_ai_write:{req_id}"[:128],
         reason=f"reserve:{reason}"[:64],
         note=_ledger_note(quote, field=requested),
+        module=ledger_module,
+        action=tier_action,
     )
     hold = ContentAiCreditHold(
         db=db,
@@ -507,13 +526,25 @@ def charge_content_ai_write(
     if not ok:
         return None
     quote["request_id"] = req_id
-    # Atomic reserve-then-commit (still safe vs double-spend via idempotency_key)
-    h = reserve_content_ai_write(db, user, quote, field=field)
-    if h is None:
-        return None
-    if h._done:
-        return {"request_id": h.request_id, "charged": h.amount, "mode": "idempotent"}
-    return h.commit()
+    requested = (field or "content").strip().lower()
+    tier_action = str(quote.get("tier_action") or "article_medium")
+    consume_credits(
+        db,
+        user_id=int(user.id),
+        amount=amount,
+        reason="content_ai_article" if requested == "content" else "content_ai_brief_suggest",
+        note=_ledger_note(quote, field=requested),
+        module="content_ai",
+        action=tier_action,
+        request_id=req_id,
+        idempotency_key=f"content_ai_write:{req_id}"[:128],
+    )
+    return {
+        "request_id": req_id,
+        "charged": amount,
+        "mode": "consume",
+        "action": tier_action,
+    }
 
 
 def charge_content_ai_from_html(
@@ -569,7 +600,7 @@ def refund_content_ai_write(
     note: str = "",
 ) -> bool:
     """Hoàn credit khi lỗi hệ thống sau khi đã trừ."""
-    if is_admin(user) or not credits_enforced():
+    if admin_skips_credit_deduction(user) or not credits_enforced():
         return False
     amt = max(0, int(amount))
     if amt <= 0:

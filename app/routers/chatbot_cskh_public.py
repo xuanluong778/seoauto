@@ -17,6 +17,7 @@ from app.services.chatbot_cskh_security import (
 )
 from app.services.chatbot_cskh_widget_service import (
     get_public_config,
+    get_public_history,
     process_public_message,
     submit_public_lead,
 )
@@ -49,12 +50,14 @@ def _request_ctx(request: Request) -> PublicRequestContext:
 class PublicMessageBody(BaseModel):
     bot_id: int = Field(..., ge=1)
     message: str = Field(..., min_length=1, max_length=2000)
+    visitor_id: str | None = Field(default=None, max_length=64)
     session_id: str | None = Field(default=None, max_length=64)
     page_url: str = Field(default="", max_length=2000)
 
 
 class PublicLeadBody(BaseModel):
     bot_id: int = Field(..., ge=1)
+    visitor_id: str | None = Field(default=None, max_length=64)
     session_id: str | None = Field(default=None, max_length=64)
     name: str = Field(default="", max_length=120)
     phone: str = Field(..., min_length=6, max_length=32)
@@ -65,6 +68,7 @@ class PublicLeadBody(BaseModel):
 @router.options("/public/message")
 @router.options("/public/lead")
 @router.options("/public/config")
+@router.options("/public/history")
 def public_preflight() -> JSONResponse:
     return JSONResponse(content={"ok": True}, headers=_CORS_HEADERS)
 
@@ -80,6 +84,30 @@ def public_config(
     if bid is None:
         return _cors_json({"ok": True, "blocked": True, "code": "invalid_bot", "message": "Chatbot không hợp lệ."})
     return _cors_json(get_public_config(db, bid, ctx=_request_ctx(request), page_url=page_url))
+
+
+@router.get("/public/history")
+def public_history(
+    request: Request,
+    bot_id: int = Query(..., ge=1),
+    visitor_id: str = Query(default=""),
+    session_id: str = Query(default=""),
+    page_url: str = Query(default=""),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    bid = validate_bot_id(bot_id)
+    if bid is None:
+        return _cors_json({"ok": True, "blocked": True, "code": "invalid_bot", "message": "Chatbot không hợp lệ."})
+    return _cors_json(
+        get_public_history(
+            db,
+            bid,
+            visitor_id=visitor_id or None,
+            session_id=session_id or None,
+            ctx=_request_ctx(request),
+            page_url=page_url,
+        )
+    )
 
 
 @router.post("/public/message")
@@ -100,6 +128,7 @@ def public_message(
         bot_id=bid,
         message=body.message,
         session_id=body.session_id,
+        visitor_id=body.visitor_id,
         page_url=body.page_url,
         ctx=_request_ctx(request),
     )
@@ -120,6 +149,7 @@ def public_lead(
         db,
         bot_id=bid,
         session_id=body.session_id,
+        visitor_id=body.visitor_id,
         name=body.name,
         phone=body.phone,
         need=body.need,

@@ -8,25 +8,33 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from app.services.keyword_research_cost import check_and_record_live_call, volume_batch_size
 from app.services.search_volume import _MONTH_KEYS
 
 _LOG = logging.getLogger(__name__)
 NA = "N/A"
 
 
-def competition_label_from_index(competition_index: Any) -> tuple[str, str]:
-    """Map DataForSEO competition_index → Low/Medium/High/Unknown + data_source."""
+def competition_label_from_index(competition_index: Any, *, provider: str | None = None) -> tuple[str, str]:
+    """Map competition_index or LOW/MEDIUM/HIGH → label + data_source."""
+    src = (provider or "").strip().lower()
+    if src not in ("google_ads", "dataforseo"):
+        src = "dataforseo"
     if competition_index is None or competition_index == "":
         return "Unknown", NA
+    if hasattr(competition_index, "name") and not isinstance(competition_index, (int, float, str, bytes)):
+        named = getattr(competition_index, "name", None)
+        if named:
+            competition_index = named
     if isinstance(competition_index, str):
-        s = competition_index.strip().lower()
+        s = competition_index.strip().lower().split(".")[-1]
+        if s in ("unspecified", "unknown", "none", "n/a"):
+            return "Unknown", NA
         if s in ("low", "thấp"):
-            return "Low", "dataforseo"
+            return "Low", src
         if s in ("medium", "med", "trung bình", "trung binh"):
-            return "Medium", "dataforseo"
+            return "Medium", src
         if s in ("high", "cao"):
-            return "High", "dataforseo"
+            return "High", src
         try:
             competition_index = float(s)
         except ValueError:
@@ -37,15 +45,41 @@ def competition_label_from_index(competition_index: Any) -> tuple[str, str]:
         return "Unknown", NA
     if x < 0:
         return "Unknown", NA
+    # Google Ads competition_index is 0–100 (1 = LOW). DataForSEO is often 0–1.
+    ads_100 = src == "google_ads" or x > 1
+    if ads_100:
+        if x == 0:
+            return "Unknown", NA
+        if x <= 33:
+            return "Low", src
+        if x <= 67:
+            return "Medium", src
+        return "High", src
     if x <= 0.33:
-        return "Low", "dataforseo"
+        return "Low", src
     if x <= 0.67:
-        return "Medium", "dataforseo"
-    return "High", "dataforseo"
+        return "Medium", src
+    return "High", src
+
+
+_MONTH_NAME_TO_NUM = {
+    "JANUARY": 1,
+    "FEBRUARY": 2,
+    "MARCH": 3,
+    "APRIL": 4,
+    "MAY": 5,
+    "JUNE": 6,
+    "JULY": 7,
+    "AUGUST": 8,
+    "SEPTEMBER": 9,
+    "OCTOBER": 10,
+    "NOVEMBER": 11,
+    "DECEMBER": 12,
+}
 
 
 def parse_monthly_search_values(monthly_searches: Any) -> list[int] | None:
-    """Parse DataForSEO monthly_searches into chronological volume list (last ≤12 months)."""
+    """Parse Ads/DataForSEO monthly_searches into chronological volume list (last ≤12 months)."""
     if not monthly_searches or not isinstance(monthly_searches, list):
         return None
     items: list[tuple[int, int, int]] = []
@@ -54,11 +88,23 @@ def parse_monthly_search_values(monthly_searches: Any) -> list[int] | None:
             continue
         try:
             y = int(m.get("year"))
-            mo = int(m.get("month"))
-            sv = int(m.get("search_volume"))
         except (TypeError, ValueError):
             continue
-        if mo < 1 or mo > 12:
+        mo_raw = m.get("month")
+        mo: int | None
+        try:
+            mo = int(mo_raw)
+            if mo == 13:
+                mo = 12
+        except (TypeError, ValueError):
+            token = str(mo_raw or "").upper().split(".")[-1]
+            mo = _MONTH_NAME_TO_NUM.get(token)
+        sv_raw = m.get("search_volume") if m.get("search_volume") is not None else m.get("monthly_searches")
+        try:
+            sv = int(sv_raw)
+        except (TypeError, ValueError):
+            continue
+        if mo is None or mo < 1 or mo > 12:
             continue
         items.append((y, mo, max(0, sv)))
     if len(items) < 2:
@@ -71,18 +117,27 @@ def normalize_volume_data_source(volume_source: str | None, *, from_cache: bool 
     src = (volume_source or NA).lower()
     if from_cache or src in ("api_cache", "cache"):
         return "cache"
-    if src in ("dataforseo", "api", "google_ads"):
+    if src in ("dataforseo", "api"):
         return "dataforseo"
+    if src == "google_ads":
+        return "google_ads"
     if src == "estimated":
         return "fallback"
     return NA
 
 
-def compute_trend(values: list[int] | None) -> dict[str, Any]:
+def compute_trend(values: list[int] | None, *, data_source: str | None = None) -> dict[str, Any]:
     """
     Trend from real monthly volumes: compare recent 3 months vs prior 3 months.
     Returns direction up/down/stable/unknown + pct_change + data_source.
     """
+    src = (data_source or "").strip().lower() if data_source else ""
+    if src in ("api", "api_cache"):
+        src = "dataforseo"
+    elif src == "cache":
+        src = "dataforseo"
+    elif src not in ("google_ads", "dataforseo"):
+        src = "dataforseo"
     if not values or len(values) < 4:
         return {"direction": "unknown", "pct_change": None, "data_source": NA}
 
@@ -97,7 +152,7 @@ def compute_trend(values: list[int] | None) -> dict[str, Any]:
     avg_prior = sum(prior) / max(1, len(prior))
     avg_recent = sum(recent) / max(1, len(recent))
     if avg_prior <= 0 and avg_recent <= 0:
-        return {"direction": "stable", "pct_change": 0.0, "data_source": "dataforseo"}
+        return {"direction": "stable", "pct_change": 0.0, "data_source": src}
     denom = avg_prior if avg_prior > 0 else max(avg_recent, 1.0)
     pct = round((avg_recent - avg_prior) / denom * 100.0, 1)
     if pct > 5.0:
@@ -106,7 +161,7 @@ def compute_trend(values: list[int] | None) -> dict[str, Any]:
         direction = "down"
     else:
         direction = "stable"
-    return {"direction": direction, "pct_change": pct, "data_source": "dataforseo"}
+    return {"direction": direction, "pct_change": pct, "data_source": src}
 
 
 def _chart_series_from_values(values: list[int]) -> list[dict[str, Any]]:
@@ -155,6 +210,7 @@ def build_search_volume_package(
     parsed = parse_monthly_search_values(monthly_searches)
     chart_series: list[dict[str, Any]] = []
     months: dict[str, int | None] = {m: None for m in _MONTH_KEYS}
+    is_estimated = vol_ds in ("fallback",)
 
     if parsed and len(parsed) >= 2:
         chart_vals = parsed[-12:]
@@ -174,7 +230,7 @@ def build_search_volume_package(
         "avg_monthly": display,
         "volume_source": vol_ds if vol_ds != NA else NA,
         "data_source": vol_ds,
-        "is_estimated": False,
+        "is_estimated": is_estimated,
         "chart_series": chart_series,
         "has_monthly_data": has_monthly,
         "updated_at": ts,
@@ -190,16 +246,12 @@ def refresh_volumes_from_search_volume_api(
     allow_api: bool = True,
     stats: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Overlay authoritative Google Ads search_volume/live on K4K/cache rows."""
+    """Overlay volume for keywords still missing real Ads/DFS data (partial, not full re-run)."""
     import os
 
     if os.getenv("VOLUME_API_ENABLED", "0").lower() not in ("1", "true", "yes"):
         return vol_by_kw
     if not allow_api:
-        return vol_by_kw
-    try:
-        from app.services.volume_providers.dataforseo import fetch_dataforseo_search_volume_batch
-    except Exception:
         return vol_by_kw
 
     cleaned: list[str] = []
@@ -212,60 +264,43 @@ def refresh_volumes_from_search_volume_api(
         if low in seen:
             continue
         seen.add(low)
+        prev = vol_by_kw.get(low) or {}
+        src = str(prev.get("volume_source") or prev.get("provider") or "").lower()
+        if src in ("google_ads", "dataforseo", "api", "api_cache") and not volume_metrics_gap(prev):
+            continue
         cleaned.append(s)
     if not cleaned:
         return vol_by_kw
 
-    batch_size = volume_batch_size()
+    from app.services.search_volume import _fetch_live_volumes_ads_then_dfs
+
     now = datetime.now(timezone.utc).isoformat()
+    fetched = _fetch_live_volumes_ads_then_dfs(
+        cleaned, country=country, language=language, stats=stats
+    )
     refreshed = 0
-    for i in range(0, len(cleaned), batch_size):
-        chunk = cleaned[i : i + batch_size]
+    for kw, r in fetched.items():
+        prev = dict(vol_by_kw.get(kw) or {})
+        vol = r.get("search_volume")
         try:
-            if stats is not None:
-                check_and_record_live_call(stats, label="search_volume_refresh")
-            rows = fetch_dataforseo_search_volume_batch(chunk, country=country, language=language)
-            if stats is not None:
-                stats["api_tasks"] = stats.get("api_tasks", 0) + 1
-                stats["keywords_api"] = stats.get("keywords_api", 0) + len(chunk)
-        except Exception as exc:
-            _LOG.warning("search_volume batch failed: %s", exc)
+            vol_i = int(vol) if vol is not None else None
+        except (TypeError, ValueError):
+            vol_i = None
+        if vol_i is None:
             continue
-        for r in rows or []:
-            kw = str(r.get("keyword") or "").strip()
-            if not kw:
-                continue
-            low = kw.lower()
-            prev = dict(vol_by_kw.get(low) or {})
-            vol = r.get("search_volume")
-            try:
-                vol_i = int(vol) if vol is not None else None
-            except (TypeError, ValueError):
-                vol_i = None
-            if vol_i is None:
-                continue
-            merged = {
-                **prev,
-                "keyword": kw,
-                "search_volume": vol_i,
-                "volume_source": "dataforseo",
-                "fetched_at": now,
-                "updated_at": now,
-            }
-            if r.get("cpc_avg") is not None and float(r.get("cpc_avg") or 0) > 0:
-                merged["cpc_avg"] = float(r["cpc_avg"])
-                merged["cpc_min"] = float(r.get("cpc_min") or r["cpc_avg"])
-                merged["cpc_max"] = float(r.get("cpc_max") or r["cpc_avg"])
-            vol_by_kw[low] = merged
-            refreshed += 1
-            if prev.get("search_volume") is not None and int(prev["search_volume"]) != vol_i:
-                _LOG.info(
-                    "volume_refresh keyword=%s canonical=%s raw_old=%s raw_new=%s source=dataforseo",
-                    kw,
-                    low,
-                    prev.get("search_volume"),
-                    vol_i,
-                )
+        src = str(r.get("volume_source") or r.get("provider") or "dataforseo")
+        merged = {
+            **prev,
+            **r,
+            "keyword": r.get("keyword") or kw,
+            "search_volume": vol_i,
+            "volume_source": src,
+            "provider": str(r.get("provider") or src),
+            "fetched_at": now,
+            "updated_at": now,
+        }
+        vol_by_kw[kw] = merged
+        refreshed += 1
     _LOG.info("volume_refresh_done count=%s keywords=%s", refreshed, len(cleaned))
     return vol_by_kw
 
@@ -299,12 +334,76 @@ def cpc_package(
 ) -> tuple[float | None, float | None, float | None, str]:
     """Return CPC triplet + data_source; no fake CPC when missing."""
     src = (volume_source or "").lower()
-    if cpc_avg is not None and float(cpc_avg) > 0 and src in ("dataforseo", "api", "google_ads", "api_cache", "cache"):
-        lo = float(cpc_min) if cpc_min is not None else float(cpc_avg)
-        hi = float(cpc_max) if cpc_max is not None else float(cpc_avg)
-        ds = "cache" if from_cache or src in ("api_cache", "cache") else "dataforseo"
-        return float(cpc_avg), lo, hi, ds
-    return None, None, None, NA
+    avg = None
+    lo = None
+    hi = None
+    try:
+        if cpc_avg is not None and float(cpc_avg) > 0:
+            avg = float(cpc_avg)
+    except (TypeError, ValueError):
+        avg = None
+    try:
+        if cpc_min is not None and float(cpc_min) > 0:
+            lo = float(cpc_min)
+    except (TypeError, ValueError):
+        lo = None
+    try:
+        if cpc_max is not None and float(cpc_max) > 0:
+            hi = float(cpc_max)
+    except (TypeError, ValueError):
+        hi = None
+    if avg is None and (lo or hi):
+        vals = [x for x in (lo, hi) if x]
+        avg = round(sum(vals) / len(vals), 4) if vals else None
+    if avg is None:
+        return None, None, None, NA
+    if lo is None:
+        lo = avg
+    if hi is None:
+        hi = avg
+    if src in ("dataforseo", "api", "google_ads", "api_cache", "cache"):
+        ds = "cache" if from_cache or src in ("api_cache", "cache") else ("google_ads" if src == "google_ads" else "dataforseo")
+        return avg, lo, hi, ds
+    return avg, lo, hi, NA
+
+
+def _volume_metric_flags(row: dict[str, Any]) -> tuple[bool, bool, bool]:
+    has_cpc = False
+    for key in ("cpc_avg", "cpc_min", "cpc_max"):
+        try:
+            if row.get(key) is not None and float(row.get(key)) > 0:
+                has_cpc = True
+                break
+        except (TypeError, ValueError):
+            continue
+    has_monthly = parse_monthly_search_values(row.get("monthly_searches")) is not None
+    label, _ds = competition_label_from_index(
+        row.get("competition") if row.get("competition") not in (None, "") else row.get("competition_index"),
+        provider=str(row.get("provider") or row.get("volume_source") or "") or None,
+    )
+    has_comp = label != "Unknown"
+    return has_cpc, has_monthly, has_comp
+
+
+def volume_metrics_gap(row: dict[str, Any] | None) -> bool:
+    """True when CPC / 12-month series / competition still missing on a volume row."""
+    if not row:
+        return True
+    has_cpc, has_monthly, has_comp = _volume_metric_flags(row)
+    return not (has_cpc and has_monthly and has_comp)
+
+
+def volume_cpc_only_gap(row: dict[str, Any] | None) -> bool:
+    """True when a real provider already has volume + monthly + competition, but CPC/bid is missing."""
+    if not row:
+        return False
+    src = str(row.get("provider") or row.get("volume_source") or "").lower()
+    if src not in ("google_ads", "dataforseo", "api", "api_cache"):
+        return False
+    if row.get("search_volume") is None:
+        return False
+    has_cpc, has_monthly, has_comp = _volume_metric_flags(row)
+    return (not has_cpc) and has_monthly and has_comp
 
 
 def build_data_warnings(

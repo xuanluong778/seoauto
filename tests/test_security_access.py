@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.api.auth import router as auth_router
 from app.core.runtime import is_production
-from app.core.security import create_access_token, hash_password
+from app.core.security import hash_password
+from app.services.auth_tokens import create_auth_token_for_user
 from app.db import Base, SessionLocal, engine
 from app.middleware.security import SecurityMiddleware
 from app.models import knowledge as knowledge_models  # noqa: F401
@@ -54,7 +55,7 @@ def test_regular_user_cannot_list_admin_users(api_client: TestClient):
     db = SessionLocal()
     try:
         user = _create_user(db, "sec_regular@example.com", role="user")
-        token = create_access_token(user_id=user.id)
+        token = create_auth_token_for_user(user.id)
     finally:
         db.close()
     r = api_client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})

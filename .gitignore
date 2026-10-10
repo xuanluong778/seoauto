@@ -7,64 +7,117 @@ __pycache__/
 venv/
 env/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Environment files - không đưa API key/mật khẩu lên Git
+# Environment / secrets — never commit real values
 .env
+.env.*
+!.env.example
 env.local
-.env.local
 env.local.*
+*.pem
+*.key
+!*.key.example
+id_rsa
+id_rsa.pub
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+secrets/
+.secret*
 
-# Database local - không đưa dữ liệu user lên Git
+# Local databases
 *.db
+*.db-*
 *.sqlite
 *.sqlite3
-*.db.*
 *.sqlite.bak
+*.db.bak
 
-# Logs / runtime
+# Logs / runtime locks
 *.log
 logs/
 var/
 *.lock
 *.active_port
 
-# Local backups / scratch
+# Backups / dumps / archives with data
 _backup_*/
+backups/
 *.bak
+*.bak.*
 *.corrupt.bak.*
+*.dump
+*.sql.gz
+*.pgdump
+*.tar.gz
+*.zip
+!static/downloads/**/*.zip
 
 # OS / Editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+*.swp
+*~
 
-# Node / frontend nếu có
+# Node / frontend build
 node_modules/
 .next/
 dist/
 build/
 
-# Upload/cache nếu có
+# Upload / cache / temp
 uploads/
 cache/
 tmp/
 temp/
+.playwright/
+playwright/
+
+# Production runtime data under data/ (keep only allowlisted samples in git)
+data/*
+!data/examples/
+!data/examples/**
+!data/Technical-SEO.txt
+!data/checklist-technical-seo-so-do-tri-thuc.txt
+!data/digiseo-pricing-knowledge.txt
+!data/technical_audit_catalog.json
+!data/knowledge_docs/
+!data/knowledge_docs/**
+!data/checklist_evidence_detail.json
+!data/action_plan_notes.json
+!data/ai_knowledge_bases.json
+!data/ai_provider_prefs.json
+!data/gsc_evidence_images.json
+!data/gsc_indexing_counts.json
+
+# Explicit blocks (defense in depth)
+data/api_keys.json
+data/publishing_sites.json
+data/content_ai_projects.json
+data/technical_audits.json
+data/user_system_settings.json
 data/google_oauth.json
 data/*oauth*.json
 data/*token*.json
-data/api_keys.json
-data/publishing_sites.json
 data/backups/
 data/users/
 data/logs/
+data/serp_snapshots/
 data/social_auto_facebook_pages.json
 data/social_auto_web20_accounts.json
 data/social_auto_*_logs.json
 data/content_auto_update_*.json
 data/cau_seo_fix_cache.json
 data/rank_tracking_*.json
+app.db
 
-*.bak.*
-*.bak.
-
+:memory:
+celerybeat-schedule*
+*.bak_premerge

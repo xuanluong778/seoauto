@@ -111,6 +111,50 @@ def job_owner_user_id(payload: dict[str, Any] | None) -> int:
 
 
 def assert_job_access(payload: dict[str, Any] | None, user_id: int) -> None:
+    """Legacy helper — prefer get_job_for_user / assert_job_owned."""
     owner = job_owner_user_id(payload)
     if not owner or owner != int(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy job.")
+
+
+def assert_job_owned(
+    job: Any | None,
+    user_id: int,
+    *,
+    organization_id: int | None = None,
+    detail: str = "Không tìm thấy job.",
+) -> Any:
+    """Require job ownership via JobState columns or dict, never id alone."""
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+    uid = int(user_id or 0)
+    if uid <= 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+    from app.services.tenant_org import OrganizationForbiddenError, resolve_organization_id
+
+    try:
+        org_id = resolve_organization_id(uid, organization_id)
+    except OrganizationForbiddenError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from None
+
+    job_uid = getattr(job, "user_id", None)
+    job_org = getattr(job, "organization_id", None)
+    if job_uid is None and isinstance(job, dict):
+        try:
+            job_uid = int(job.get("user_id") or 0) or None
+        except (TypeError, ValueError):
+            job_uid = None
+        try:
+            job_org = int(job.get("organization_id") or 0) or None
+        except (TypeError, ValueError):
+            job_org = None
+    if job_uid is None and getattr(job, "payload", None):
+        try:
+            job_uid = int((job.payload or {}).get("user_id") or 0) or None
+        except (TypeError, ValueError):
+            job_uid = None
+    if job_uid is None or int(job_uid) != uid:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+    if job_org is not None and int(job_org) != int(org_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+    return job

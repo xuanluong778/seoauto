@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -38,6 +37,11 @@ from app.services.chatbot_cskh_security import (
     check_public_rate_limit,
     sanitize_public_payload,
     validate_request_origin,
+)
+from app.services.chatbot_cskh_visitor_session import (
+    get_or_create_visitor_conversation,
+    load_public_history,
+    resolve_visitor_id,
 )
 SITE_BASE = (os.getenv("APP_BASE_URL") or "https://seoauto.vn").rstrip("/")
 AVATAR_URL = f"{SITE_BASE}/static/chatbot/cskh-launcher.png?v=1"
@@ -160,32 +164,72 @@ def enrich_bot_dict(bot_dict: dict[str, Any]) -> dict[str, Any]:
     return bot_dict
 
 
-def _normalize_session_id(session_id: str | None) -> str:
-    s = str(session_id or "").strip()
-    if len(s) >= 8 and len(s) <= 64:
-        return s
-    return uuid.uuid4().hex
 
-
-def _get_or_create_conversation(db: Session, bot: ChatbotBot, session_id: str) -> ChatbotConversation:
-    row = db.execute(
-        select(ChatbotConversation).where(
-            ChatbotConversation.bot_id == bot.id,
-            ChatbotConversation.session_id == session_id,
+def get_public_history(
+    db: Session,
+    bot_id: int,
+    *,
+    visitor_id: str | None = None,
+    session_id: str | None = None,
+    ctx: PublicRequestContext | None = None,
+    page_url: str = "",
+) -> dict[str, Any]:
+    if ctx is not None:
+        allowed, rate_msg = check_public_rate_limit(
+            endpoint="history", bot_id=bot_id, ctx=ctx, session_id=visitor_id or session_id
         )
-    ).scalar_one_or_none()
-    if row:
-        return row
-    row = ChatbotConversation(
-        bot_id=bot.id,
-        user_id=bot.user_id,
-        session_id=session_id,
-        status="open",
+        if not allowed:
+            log_widget_error(bot_id=bot_id, code="rate_limited", client_ip=ctx.client_ip, detail=rate_msg)
+            return sanitize_public_payload({
+                "ok": True,
+                "blocked": True,
+                "code": "rate_limited",
+                "message": rate_msg,
+            })
+
+    state = evaluate_public_bot(db, bot_id, ctx=ctx, page_url=page_url)
+    bot = _get_bot_row(db, bot_id)
+    if bot is None:
+        return sanitize_public_payload({
+            "ok": True,
+            "blocked": True,
+            "code": "not_found",
+            "message": _BLOCKED_MESSAGES["not_found"],
+        })
+
+    vid = resolve_visitor_id(visitor_id, session_id)
+    hist = load_public_history(db, bot=bot, visitor_id=vid)
+    greeting = (bot.greeting or "").strip() or default_greeting(
+        bot.bot_name, bot.business_name or "", bot.consultation_tone or "friendly"
     )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return row
+
+    if not state.get("allowed"):
+        return sanitize_public_payload({
+            "ok": True,
+            "blocked": True,
+            "code": state.get("code"),
+            "message": state.get("message"),
+            "visitor_id": vid,
+            "session_id": vid,
+            "messages": [],
+            "greeting": greeting,
+            "avatar_url": AVATAR_URL,
+        })
+
+    return sanitize_public_payload({
+        "ok": True,
+        "blocked": False,
+        "visitor_id": hist["visitor_id"],
+        "session_id": hist["session_id"],
+        "expired": bool(hist.get("expired")),
+        "messages": hist.get("messages") or [],
+        "has_conversation": bool(hist.get("has_conversation")),
+        "greeting": greeting,
+        "bot_name": bot.bot_name,
+        "avatar_url": AVATAR_URL,
+        "show_lead_form": bool(hist.get("show_lead_form")),
+        "lead_submitted": bool(hist.get("lead_submitted")),
+    })
 
 
 def process_public_message(
@@ -194,12 +238,14 @@ def process_public_message(
     bot_id: int,
     message: str,
     session_id: str | None,
+    visitor_id: str | None = None,
     page_url: str = "",
     ctx: PublicRequestContext | None = None,
 ) -> dict[str, Any]:
+    vid_for_rate = visitor_id or session_id
     if ctx is not None:
         allowed, rate_msg = check_public_rate_limit(
-            endpoint="message", bot_id=bot_id, ctx=ctx, session_id=session_id
+            endpoint="message", bot_id=bot_id, ctx=ctx, session_id=vid_for_rate
         )
         if not allowed:
             log_widget_error(bot_id=bot_id, code="rate_limited", client_ip=ctx.client_ip, detail=rate_msg)
@@ -231,8 +277,8 @@ def process_public_message(
             "reply": _BLOCKED_MESSAGES["not_found"],
         })
 
-    sid = _normalize_session_id(session_id)
-    conv = _get_or_create_conversation(db, bot, sid)
+    sid = resolve_visitor_id(visitor_id, session_id)
+    conv, sid, _expired_reset = get_or_create_visitor_conversation(db, bot, sid)
     user_text = str(message or "").strip()[:2000]
     if not user_text:
         return sanitize_public_payload({
@@ -241,15 +287,23 @@ def process_public_message(
             "reply": "Vui lòng nhập nội dung tin nhắn.",
         })
 
-    db.add(
-        ChatbotMessage(
-            conversation_id=conv.id,
-            user_id=bot.user_id,
-            role="user",
-            message=user_text,
-        )
+    inbound = ChatbotMessage(
+        conversation_id=conv.id,
+        user_id=bot.user_id,
+        role="user",
+        message=user_text,
     )
+    db.add(inbound)
+    conv.last_user_message_at = datetime.now(timezone.utc)
+    if conv.organization_id is None:
+        from app.services.tenant_org import personal_organization_id
+
+        conv.organization_id = personal_organization_id(int(bot.user_id))
     db.commit()
+    db.refresh(inbound)
+    from app.services.chatbot_cskh_email_notify import hook_inbound_saved
+
+    hook_inbound_saved(db, conv, inbound)
 
     upsert_detected_lead(db, bot=bot, conversation=conv, text=user_text, page_url=page_url)
 
@@ -287,6 +341,7 @@ def process_public_message(
             "ok": True,
             "blocked": True,
             "code": "credit_exhausted",
+            "visitor_id": sid,
             "session_id": sid,
             "message": reply,
             "reply": reply,
@@ -297,6 +352,11 @@ def process_public_message(
 
     reply = str(ai_result.get("reply") or NO_DATA_REPLY)
     show_lead = bool(ai_result.get("show_lead"))
+    from app.services.chatbot_cskh_lead_detect import detect_lead_from_text
+
+    detected_contact = detect_lead_from_text(user_text)
+    if detected_contact.get("phone") or detected_contact.get("email"):
+        show_lead = True
     debug = ai_result.get("debug") if isinstance(ai_result.get("debug"), dict) else {}
     if show_lead:
         mark_conversation_needs_staff(db, conv)
@@ -318,6 +378,7 @@ def process_public_message(
     payload = sanitize_public_payload({
         "ok": True,
         "blocked": False,
+        "visitor_id": sid,
         "session_id": sid,
         "reply": reply,
         # Widget shows a CTA button; form opens only when visitor clicks.
@@ -386,15 +447,17 @@ def submit_public_lead(
     *,
     bot_id: int,
     session_id: str | None,
+    visitor_id: str | None = None,
     name: str,
     phone: str,
     need: str = "",
     page_url: str = "",
     ctx: PublicRequestContext | None = None,
 ) -> dict[str, Any]:
+    vid_for_rate = visitor_id or session_id
     if ctx is not None:
         allowed, rate_msg = check_public_rate_limit(
-            endpoint="lead", bot_id=bot_id, ctx=ctx, session_id=session_id
+            endpoint="lead", bot_id=bot_id, ctx=ctx, session_id=vid_for_rate
         )
         if not allowed:
             log_widget_error(bot_id=bot_id, code="rate_limited", client_ip=ctx.client_ip, detail=rate_msg)
@@ -405,8 +468,8 @@ def submit_public_lead(
     if bot is None:
         return {"ok": False, "message": _BLOCKED_MESSAGES["not_found"]}
 
-    sid = _normalize_session_id(session_id)
-    conv = _get_or_create_conversation(db, bot, sid)
+    sid = resolve_visitor_id(visitor_id, session_id)
+    conv, sid, _expired_reset = get_or_create_visitor_conversation(db, bot, sid)
     lead = ChatbotLead(
         bot_id=bot.id,
         conversation_id=conv.id,
@@ -429,4 +492,4 @@ def submit_public_lead(
     if not state.get("allowed"):
         thank_you = "Cảm ơn bạn! Thông tin đã được ghi nhận."
 
-    return sanitize_public_payload({"ok": True, "message": thank_you, "session_id": sid})
+    return sanitize_public_payload({"ok": True, "message": thank_you, "visitor_id": sid, "session_id": sid})

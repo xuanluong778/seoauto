@@ -687,6 +687,7 @@
 
 .cskh-toast.is-visible {
     opacity: 1;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 /* —— Upgrade wall —— */
@@ -1134,4 +1135,88 @@
         display: grid;
         grid-template-columns: 1fr;
     }
+}
+
+/* Bảng CSKH nền sáng (digiseo-tables) — chữ/badge/nút/select đọc được */
+.page-chatbot-cskh .cskh-table tbody td,
+.page-chatbot-cskh .cskh-table tbody td strong {
+    color: #000 !important;
+}
+
+.page-chatbot-cskh .cskh-table .cskh-btn:not(.cskh-btn--primary):not(.cskh-btn--danger) {
+    color: #000 !important;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.page-chatbot-cskh .cskh-table .cskh-btn:not(.cskh-btn--primary):not(.cskh-btn--danger):hover {
+    background: #e2e8f0;
+}
+
+.page-chatbot-cskh .cskh-table .cskh-btn--danger {
+    color: #b91c1c !important;
+    background: #fff;
+    border-color: #f87171;
+}
+
+.page-chatbot-cskh .cskh-table .cskh-select {
+    color: #000 !important;
+    background: #fff;
+    border-color: #cbd5e1;
+}
+
+.page-chatbot-cskh .cskh-table .cskh-badge--draft { background: #e2e8f0; color: #334155 !important; }
+.page-chatbot-cskh .cskh-table .cskh-badge--active,
+.page-chatbot-cskh .cskh-table .cskh-badge--ready { background: #bbf7d0; color: #166534 !important; }
+.page-chatbot-cskh .cskh-table .cskh-badge--paused { background: #fef3c7; color: #92400e !important; }
+.page-chatbot-cskh .cskh-table .cskh-badge--error,
+.page-chatbot-cskh .cskh-table .cskh-badge--failed { background: #fee2e2; color: #991b1b !important; }
+.page-chatbot-cskh .cskh-table .cskh-badge--pending { background: #e0f2fe; color: #0369a1 !important; }
+.page-chatbot-cskh .cskh-table .cskh-badge--disabled { background: #f1f5f9; color: #475569 !important; }
+
+/* Danh sách lead: vừa khung, không thanh trượt ngang */
+.page-chatbot-cskh #cskhLeadsList,
+.page-chatbot-cskh #cskhLeadsList .cskh-table-wrap,
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-wrap {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table th,
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table td {
+    padding: 8px 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table th:nth-child(1),
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table td:nth-child(1) { width: 20%; }
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table th:nth-child(2),
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table td:nth-child(2) { width: 13%; }
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table th:nth-child(3),
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table td:nth-child(3) { width: 20%; }
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table th:nth-child(4),
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table td:nth-child(4) { width: 16%; }
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table th:nth-child(5),
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table td:nth-child(5) { width: 16%; }
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table th:nth-child(6),
+.page-chatbot-cskh #cskhLeadsList .cskh-leads-table td:nth-child(6) { width: 15%; }
+
+.page-chatbot-cskh #cskhLeadsList .cskh-lead-status-select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+
+.page-chatbot-cskh #cskhLeadsList .cskh-btn--sm {
+    white-space: nowrap;
+    width: 100%;
 }

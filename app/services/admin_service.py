@@ -450,6 +450,13 @@ def update_user_role(
         raise HTTPException(status_code=400, detail="Không thể hạ quyền admin cuối cùng.")
     user.role = role
     db.commit()
+    from app.services.session_auth_rollout import server_sessions_enabled
+
+    if server_sessions_enabled():
+        from app.services.user_session_service import revoke_all_user_sessions
+
+        revoke_all_user_sessions(db, user_id=int(user.id), reason="role_change")
+        db.commit()
     db.refresh(user)
     return user_to_summary(db, user)
 
@@ -473,6 +480,14 @@ def update_user_status(
         raise HTTPException(status_code=400, detail="Không thể khóa admin cuối cùng.")
     user.status = st
     db.commit()
+    if st != "active":
+        from app.services.session_auth_rollout import server_sessions_enabled
+
+        if server_sessions_enabled():
+            from app.services.user_session_service import revoke_all_user_sessions
+
+            revoke_all_user_sessions(db, user_id=int(user.id), reason="account_disabled")
+            db.commit()
     db.refresh(user)
     return user_to_summary(db, user)
 

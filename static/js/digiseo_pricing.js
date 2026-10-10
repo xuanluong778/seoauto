@@ -46,7 +46,7 @@
     ];
 
     const LEGACY_PLANS = [
-        { id: "starter", name: "Basic", popular: false, priceMonthly: 399000, billingCycle: "monthly", limits: [], legacy: true, articles: "30 bài AI/tháng", projects: "3 website/project", devices: "1 user", gsc: true, priority: false },
+        { id: "starter", name: "Basic", popular: false, priceMonthly: 499000, billingCycle: "monthly", limits: [], legacy: true, articles: "30 bài AI/tháng", projects: "3 website/project", devices: "1 user", gsc: true, priority: false },
         { id: "pro", name: "Pro", popular: true, priceMonthly: 799000, billingCycle: "monthly", limits: [], legacy: true, articles: "80 bài AI/tháng", projects: "8 website/project", devices: "3 user", gsc: true, priority: false },
         { id: "agency", name: "Agency", popular: false, priceMonthly: 1690000, billingCycle: "monthly", limits: [], legacy: true, articles: "200 bài AI/tháng", projects: "20 website/project", devices: "5 user", gsc: true, priority: true },
         { id: "business", name: "Business", popular: false, priceMonthly: 3490000, billingCycle: "monthly", limits: [], legacy: true, articles: "500 bài AI/tháng", projects: "50 website/project", devices: "10 user", gsc: true, priority: true },

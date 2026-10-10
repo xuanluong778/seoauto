@@ -1,7 +1,9 @@
 .adm-eco-wrap {
-    max-width: 1200px;
+    width: 90%;
+    max-width: 90%;
     margin: 0 auto;
     padding: 0 1rem 3rem;
+    box-sizing: border-box;
 }
 
 .adm-eco-blocked {

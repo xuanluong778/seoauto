@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import os
 import time
@@ -16,6 +18,7 @@ from fastapi import HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.runtime import is_production
 from app.core.secrets_crypto import decrypt_secret, encrypt_secret
 from app.core.security import create_cskh_facebook_oauth_state, decode_cskh_facebook_oauth_state
 from app.models.chatbot_cskh import ChatbotBot, ChatbotConversation, ChatbotFacebookPage, ChatbotMessage
@@ -66,7 +69,45 @@ def oauth_configured() -> bool:
 
 
 def webhook_verify_token() -> str:
-    return str(os.getenv("CSKH_FB_WEBHOOK_VERIFY_TOKEN") or os.getenv("FACEBOOK_WEBHOOK_VERIFY_TOKEN") or "seoauto_cskh_fb").strip()
+    """
+    Meta webhook subscribe token.
+
+    Production: fail-closed — no hardcoded default (must set env).
+    Non-prod: allow local default for developer subscribe tests only.
+    """
+    token = str(
+        os.getenv("CSKH_FB_WEBHOOK_VERIFY_TOKEN") or os.getenv("FACEBOOK_WEBHOOK_VERIFY_TOKEN") or ""
+    ).strip()
+    if token:
+        return token
+    if is_production():
+        return ""
+    return "seoauto_cskh_fb"
+
+
+def verify_facebook_webhook_signature(*, raw_body: bytes, signature_header: str | None) -> bool:
+    """
+    Meta X-Hub-Signature-256: sha256=<hmac_hex> over raw POST body with FACEBOOK_APP_SECRET.
+
+    Fail-closed when app secret missing (production or any env with webhook enabled).
+    """
+    secret = _app_secret()
+    if not secret:
+        _LOG.warning("facebook_webhook_sig_rejected reason=missing_app_secret")
+        return False
+    header = str(signature_header or "").strip()
+    if not header.lower().startswith("sha256="):
+        _LOG.warning("facebook_webhook_sig_rejected reason=bad_header")
+        return False
+    provided = header.split("=", 1)[1].strip()
+    if not provided or len(provided) > 128:
+        _LOG.warning("facebook_webhook_sig_rejected reason=empty_digest")
+        return False
+    digest = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    ok = hmac.compare_digest(digest, provided)
+    if not ok:
+        _LOG.warning("facebook_webhook_sig_rejected reason=signature_mismatch")
+    return ok
 
 
 def _redirect_uri(request: Request) -> str:
@@ -382,6 +423,7 @@ def _get_or_create_fb_conversation(
         external_user_id=str(psid)[:64],
         channel_ref=str(page_id)[:64],
         status="open",
+        organization_id=int(bot.user_id),
     )
     db.add(row)
     db.commit()
@@ -467,15 +509,18 @@ def _handle_messaging_event(
     conv.channel_ref = str(fb_page.page_name or fb_page.page_id)[:128]
     conv.last_user_message_at = _now()
     conv.updated_at = _now()
-    db.add(
-        ChatbotMessage(
-            conversation_id=conv.id,
-            user_id=bot.user_id,
-            role="user",
-            message=text[:2000],
-        )
+    inbound = ChatbotMessage(
+        conversation_id=conv.id,
+        user_id=bot.user_id,
+        role="user",
+        message=text[:2000],
     )
+    db.add(inbound)
     db.commit()
+    db.refresh(inbound)
+    from app.services.chatbot_cskh_email_notify import hook_inbound_saved
+
+    hook_inbound_saved(db, conv, inbound)
 
     upsert_detected_lead(db, bot=bot, conversation=conv, text=text, page_url=f"facebook:{fb_page.page_id}")
 

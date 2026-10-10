@@ -1,0 +1,54 @@
+{
+  "wave": 6,
+  "phase": "before",
+  "captured_at": "2026-09-02T04:56:08.202436+00:00",
+  "profiled_flow": "middleware → JWT/Auth → DB/PgBouncer → Redis → external I/O",
+  "endpoints": [
+    "/auth/me",
+    "/api/audit/mine",
+    "/api/report",
+    "/pricing",
+    "/projects",
+    "/content-ai/projects"
+  ],
+  "root_causes": [
+    {
+      "endpoint": "/auth/me",
+      "issue": "Double User DB lookup (middleware + get_current_user); get_available_balance(sync=True) writes on every read",
+      "symptom": "Cold ~1100ms, unnecessary DB writes per request"
+    },
+    {
+      "endpoint": "/content-ai/projects",
+      "issue": "Full-table fetch, loads content column, N+1 on payload_json",
+      "symptom": "List latency grows with project count"
+    },
+    {
+      "endpoint": "/api/audit/mine",
+      "issue": "Over-fetches 200 rows with full row_to_dict parse",
+      "symptom": "High DB + CPU per list request"
+    },
+    {
+      "endpoint": "/api/report",
+      "issue": "Full file parse every request, no cache",
+      "symptom": "Repeated disk I/O on hot path"
+    },
+    {
+      "endpoint": "/pricing",
+      "issue": "4× DB queries + possible writes every request",
+      "symptom": "Unnecessary DB load on public page"
+    },
+    {
+      "endpoint": "/projects",
+      "issue": "Unpaginated .all()",
+      "symptom": "Payload and query scale with all projects"
+    }
+  ],
+  "before_metrics_estimate": {
+    "auth_me_cold_ms": 1095,
+    "audit_mine_cold_ms": 208,
+    "content_ai_projects_cold_ms": 97,
+    "pricing_cold_ms": 137,
+    "load_100_client_p95_ms": 3006,
+    "load_100_server_p95_ms": 121
+  }
+}

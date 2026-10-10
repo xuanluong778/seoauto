@@ -242,6 +242,7 @@ def seo_score_ai_fix_gate(
     *,
     action: str = "ai_fix",
     llm_cfg: LlmConfig | None = None,
+    skip_credit_check: bool | None = None,
 ) -> Iterator[CostGateSession]:
     """Gate trước LLM sửa từng trường SEO Score (registry: seo_score/ai_fix)."""
     from app.services.content_ai_entitlement import bypass_entitlement
@@ -262,6 +263,8 @@ def seo_score_ai_fix_gate(
         cost = 0
         skip_credit = True
         require_paid = True
+    if skip_credit_check is not None:
+        skip_credit = bool(skip_credit_check)
 
     provider = llm_provider_for_config(llm_cfg)
     req = CostGateRequest(
@@ -275,6 +278,35 @@ def seo_score_ai_fix_gate(
         require_paid_plan=require_paid,
         skip_credit_check=skip_credit,
         single_flight_key=f"seo_score_ai_fix:{user.id}:{action}",
+    )
+    with cost_gate_session(req) as session:
+        yield session
+
+
+@contextmanager
+def email_ai_composer_gate(
+    db: Session,
+    user: User,
+    *,
+    action: str = "chat_completion",
+    llm_cfg: LlmConfig | None = None,
+) -> Iterator[CostGateSession]:
+    """Gate LLM cho Email AI Composer.
+
+    Credit/quota đã xử lý qua saas_action_gate ở router — gate này chỉ mở
+    active cost context để execute_guarded_external cho phép openai/anthropic.
+    """
+    provider = llm_provider_for_config(llm_cfg)
+    req = CostGateRequest(
+        db=db,
+        user=user,
+        provider=provider,
+        action=action,
+        credit_cost=0,
+        feature_key=None,
+        skip_credit_check=True,
+        require_paid_plan=False,
+        single_flight_key=f"email_ai:{user.id}:{action}",
     )
     with cost_gate_session(req) as session:
         yield session

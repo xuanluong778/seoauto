@@ -283,6 +283,59 @@ def test_shopify_connection(
     }
 
 
+def list_shopify_blogs_as_categories(
+    *,
+    shop_url: str,
+    client_id: str,
+    secrets_blob: str,
+) -> dict[str, Any]:
+    try:
+        token, ver, _ = ensure_access_token(
+            shop_url=shop_url,
+            client_id=client_id,
+            secrets_blob=secrets_blob,
+        )
+    except ValueError as exc:
+        return {"ok": False, "items": [], "message": str(exc)}
+    try:
+        r = _admin_request(
+            shop_url=shop_url,
+            access_token=token,
+            api_version=ver,
+            path="/blogs.json?limit=250",
+        )
+    except requests.RequestException as exc:
+        return {"ok": False, "items": [], "message": f"Không gọi được Shopify: {exc}"}
+    if r.status_code >= 400:
+        return {
+            "ok": False,
+            "items": [],
+            "message": f"Shopify blogs HTTP {r.status_code}.",
+        }
+    try:
+        blogs = r.json().get("blogs") or []
+    except (ValueError, AttributeError):
+        blogs = []
+    if not isinstance(blogs, list):
+        blogs = []
+    items: list[dict[str, Any]] = []
+    for row in blogs:
+        if not isinstance(row, dict):
+            continue
+        items.append(
+            {
+                "id": row.get("id"),
+                "name": row.get("title") or row.get("handle") or row.get("name"),
+                "parent": 0,
+            }
+        )
+    return {
+        "ok": True,
+        "items": items,
+        "message": f"Đã tải {len(items)} danh mục.",
+    }
+
+
 def sync_shopify_blogs(
     *,
     shop_url: str,

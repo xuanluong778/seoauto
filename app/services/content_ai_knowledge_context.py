@@ -85,8 +85,6 @@ _STOP = {
     "một",
     "bài",
     "việc",
-    "dịch",
-    "vụ",
 }
 
 
@@ -104,9 +102,17 @@ def _norm_site(url: str) -> str:
         return raw.lower().rstrip("/")
 
 
+_SNIPPET_CHARS = 2000
+_MAX_CHUNK_HITS = 40
+
+
 def _tokenize(text: str) -> set[str]:
     words = re.findall(r"[a-z0-9àáạảãâầấậẫăằắặẵèéẹẻẽêềếệểìíịỉĩòóọỏõôồốộổơờớợỡùúụủũưừứựừừửữđ]+", str(text or "").lower())
-    return {w for w in words if len(w) >= 2 and w not in _STOP}
+    tokens = {w for w in words if len(w) >= 2 and w not in _STOP}
+    phrase = re.sub(r"\s+", " ", str(text or "").strip().lower())
+    if phrase:
+        tokens.add(phrase)
+    return tokens
 
 
 def _match_section_key(title: str) -> str:
@@ -336,14 +342,14 @@ def _is_pricing_document(doc: dict[str, Any], full_text: str) -> bool:
 
 
 def _score_chunk(text: str, query_tokens: set[str], keyword: str) -> int:
-    if not query_tokens:
-        return 0
     body = str(text or "").lower()
     kw = str(keyword or "").lower()
+    if not body.strip():
+        return 0
     score = 0
     for tok in query_tokens:
-        if tok in body:
-            score += body.count(tok)
+        if tok and tok in body:
+            score += body.count(tok) if len(tok) < 80 else 8
     if kw and kw in body:
         score += 10
     if "faq" in kw and "faq" in body:
@@ -351,14 +357,18 @@ def _score_chunk(text: str, query_tokens: set[str], keyword: str) -> int:
     return score
 
 
-def _search_kb_chunks(kb_id: str, keyword: str, *, limit: int = 16) -> list[dict[str, Any]]:
+def _search_kb_chunks(kb_id: str, keyword: str, *, limit: int = 20) -> list[dict[str, Any]]:
     docs = _read_store(kb_id).get("documents") or []
     q_tokens = _tokenize(keyword)
     hits: list[dict[str, Any]] = []
+    matched_docs: set[str] = set()
     for doc in docs:
         if not isinstance(doc, dict):
             continue
+        if doc.get("is_active") is False:
+            continue
         title = str(doc.get("title") or doc.get("filename") or "")
+        doc_id = str(doc.get("id") or "")
         for ch in doc.get("chunks") or []:
             if not isinstance(ch, dict):
                 continue
@@ -368,27 +378,60 @@ def _search_kb_chunks(kb_id: str, keyword: str, *, limit: int = 16) -> list[dict
             sc = _score_chunk(text, q_tokens, keyword)
             if sc <= 0 and not q_tokens.intersection(_tokenize(title)):
                 continue
+            matched_docs.add(doc_id)
             hits.append(
                 {
                     "document_id": doc.get("id"),
                     "document_title": title,
                     "chunk_index": ch.get("index"),
-                    "snippet": text[:480],
+                    "snippet": text[:_SNIPPET_CHARS],
                     "score": sc,
                     "section_key": _match_section_key(text[:120]),
+                    "kb_id": kb_id,
+                }
+            )
+        full = _document_full_text(doc)
+        doc_score = _score_chunk(full, q_tokens, keyword)
+        if doc_score > 0 and doc_id not in matched_docs:
+            matched_docs.add(doc_id)
+            hits.append(
+                {
+                    "document_id": doc.get("id"),
+                    "document_title": title,
+                    "chunk_index": 0,
+                    "snippet": full[:_SNIPPET_CHARS],
+                    "score": doc_score,
+                    "section_key": _match_section_key(title) or "general",
+                    "kb_id": kb_id,
                 }
             )
     hits.sort(key=lambda x: (-int(x.get("score") or 0), x.get("document_title") or ""))
-    return hits[: max(1, min(limit, 24))]
+    return hits[: max(1, min(limit, _MAX_CHUNK_HITS))]
 
 
-def _fallback_all_kb_chunks(kb_id: str, *, limit: int = 16) -> list[dict[str, Any]]:
+def _fallback_all_kb_chunks(kb_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
     """Khi từ khóa không khớp chunk — vẫn lấy ngữ cảnh KB theo website."""
     hits: list[dict[str, Any]] = []
     for doc in _read_store(kb_id).get("documents") or []:
         if not isinstance(doc, dict):
             continue
+        if doc.get("is_active") is False:
+            continue
         title = str(doc.get("title") or doc.get("filename") or "")
+        full = _document_full_text(doc)
+        if full.strip():
+            hits.append(
+                {
+                    "document_id": doc.get("id"),
+                    "document_title": title,
+                    "chunk_index": 0,
+                    "snippet": full[:_SNIPPET_CHARS],
+                    "score": 1,
+                    "section_key": _match_section_key(title) or "general",
+                    "kb_id": kb_id,
+                }
+            )
+            continue
         for ch in doc.get("chunks") or []:
             if not isinstance(ch, dict):
                 continue
@@ -400,12 +443,33 @@ def _fallback_all_kb_chunks(kb_id: str, *, limit: int = 16) -> list[dict[str, An
                     "document_id": doc.get("id"),
                     "document_title": title,
                     "chunk_index": ch.get("index"),
-                    "snippet": text[:480],
+                    "snippet": text[:_SNIPPET_CHARS],
                     "score": 1,
                     "section_key": _match_section_key(text[:120]) or "general",
+                    "kb_id": kb_id,
                 }
             )
-    return hits[: max(1, min(limit, 24))]
+    return hits[: max(1, min(limit, _MAX_CHUNK_HITS))]
+
+
+def _merge_sections_from_kb_ids(kb_ids: list[str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    seen_ids: set[str] = set()
+    for kid in kb_ids:
+        if not kid or kid in seen_ids:
+            continue
+        seen_ids.add(kid)
+        sec = _merge_sections_from_docs(kid)
+        for key, body in sec.items():
+            body = str(body or "").strip()
+            if not body:
+                continue
+            if key in out:
+                if body not in out[key]:
+                    out[key] = (out[key] + "\n\n" + body).strip()
+            else:
+                out[key] = body
+    return out
 
 
 def _merge_sections_from_docs(kb_id: str) -> dict[str, str]:
@@ -413,6 +477,10 @@ def _merge_sections_from_docs(kb_id: str) -> dict[str, str]:
     pricing_docs: list[str] = []
     for doc in _read_store(kb_id).get("documents") or []:
         if not isinstance(doc, dict):
+            continue
+        if doc.get("is_active") is False:
+            continue
+        if str(doc.get("node_type") or "node") == "group":
             continue
         full = _document_full_text(doc)
         if not full.strip():
@@ -448,11 +516,13 @@ def _merge_sections_from_docs(kb_id: str) -> dict[str, str]:
         for doc in _read_store(kb_id).get("documents") or []:
             if not isinstance(doc, dict):
                 continue
+            if doc.get("is_active") is False:
+                continue
             full = _document_full_text(doc)
             if full.strip():
                 joined.append(full.strip())
         if joined:
-            out["general"] = _truncate("\n\n".join(joined), 12000)
+            out["general"] = _truncate("\n\n".join(joined), 24000)
     elif out.get("pricing") and _kb_text_has_price_numbers(out["pricing"]):
         # Ghi đè hướng dẫn «không bịa giá» khi KB đã có bảng giá số thật.
         out["pricing"] = (
@@ -554,7 +624,17 @@ def get_relevant_knowledge_for_keyword(
     uid = _resolve_user_id(user_id)
     host = _norm_site(target_website)
     kb = resolve_kb_for_target(target_website, user_id=uid)
-    if not kb:
+    from app.services.shared_knowledge import list_consumer_kb_groups
+
+    own_ids: list[str] = []
+    inherited_ids: list[str] = []
+    if uid is not None:
+        own_ids, inherited_ids = list_consumer_kb_groups(uid)
+    if not kb and own_ids:
+        from app.services.ai_knowledge_store import get_base
+
+        kb = get_base(own_ids[0], user_id=uid) or get_default_base(user_id=uid)
+    if not kb and not own_ids and not inherited_ids:
         reason = "no_kb_match"
         if not uid:
             reason = "missing_user_id"
@@ -570,25 +650,43 @@ def get_relevant_knowledge_for_keyword(
         empty["kb_resolve_reason"] = reason
         return empty
 
-    kb_id = str(kb.get("id") or "")
-    hits = _search_kb_chunks(kb_id, pk, limit=limit_hits) if pk else []
+    kb_id = str((kb or {}).get("id") or (own_ids[0] if own_ids else (inherited_ids[0] if inherited_ids else "")))
+    ordered_ids: list[str] = []
+    if kb_id:
+        ordered_ids.append(kb_id)
+    for kid in own_ids + inherited_ids:
+        if kid and kid not in ordered_ids:
+            ordered_ids.append(kid)
+    inherited_set = set(inherited_ids)
+    hit_limit = max(8, min(int(limit_hits or 14), _MAX_CHUNK_HITS))
+    hits: list[dict[str, Any]] = []
+    seen_hits: set[tuple[Any, Any, str]] = set()
+    for kid in ordered_ids:
+        extra = _search_kb_chunks(kid, pk, limit=hit_limit) if pk else []
+        for gh in extra:
+            key = (gh.get("document_id"), gh.get("chunk_index"), kid)
+            if key in seen_hits:
+                continue
+            seen_hits.add(key)
+            row = dict(gh)
+            if kid in inherited_set:
+                row["score"] = int(row.get("score") or 0) // 2
+                row["source"] = "inherited"
+            hits.append(row)
+    hits.sort(key=lambda x: (-int(x.get("score") or 0), x.get("document_title") or ""))
+    hits = hits[:hit_limit]
     if not hits:
-        hits = _fallback_all_kb_chunks(kb_id, limit=limit_hits)
-    sections = _merge_sections_from_docs(kb_id)
-    # Bổ sung ngữ cảnh từ KB global kế thừa (ưu tiên thấp hơn KB riêng).
-    if uid is not None:
-        for gb in list_bases(user_id=uid):
-            if not gb.get("enabled", True) or not gb.get("is_inherited"):
-                continue
-            gid = str(gb.get("id") or "")
-            if not gid or gid == kb_id:
-                continue
-            for gh in _search_kb_chunks(gid, pk, limit=max(4, limit_hits // 2)):
-                hits.append({**gh, "score": int(gh.get("score") or 0) // 2, "source": "inherited"})
-            gsec = _merge_sections_from_docs(gid)
-            for key, body in gsec.items():
-                if key not in sections:
-                    sections[key] = body
+        for kid in ordered_ids:
+            for gh in _fallback_all_kb_chunks(kid, limit=hit_limit):
+                key = (gh.get("document_id"), gh.get("chunk_index"), kid)
+                if key in seen_hits:
+                    continue
+                seen_hits.add(key)
+                hits.append(gh)
+            if len(hits) >= hit_limit:
+                break
+        hits = hits[:hit_limit]
+    sections = _merge_sections_from_kb_ids(ordered_ids)
     if not hits and not sections:
         _LOG.warning(
             "content_ai_kb_empty_docs kb_id=%s keyword=%s user_id=%s",
@@ -599,7 +697,7 @@ def get_relevant_knowledge_for_keyword(
         empty["kb_resolve_reason"] = "kb_has_no_documents"
         return empty
 
-    brand = str(kb.get("brand_name") or kb.get("name") or "").strip()
+    brand = str((kb or {}).get("brand_name") or (kb or {}).get("name") or "").strip()
     outline_type = _classify_outline_type(pk)
     if hits and not sections:
         for h in hits:
@@ -629,7 +727,7 @@ def get_relevant_knowledge_for_keyword(
     _LOG.info(
         "content_ai_kb_hit kb_id=%s kb_name=%s user_id=%s host=%s sections=%s",
         kb_id,
-        kb.get("name"),
+        kb.get("name") if kb else "",
         uid,
         host,
         used_sections,
@@ -639,9 +737,9 @@ def get_relevant_knowledge_for_keyword(
         "found": True,
         "keyword": pk,
         "kb_id": kb_id,
-        "kb_name": str(kb.get("name") or ""),
+        "kb_name": str((kb or {}).get("name") or ""),
         "brand_name": brand,
-        "website_url": str(kb.get("website_url") or ""),
+        "website_url": str((kb or {}).get("website_url") or ""),
         "outline_type": outline_type,
         "sections": sections,
         "hits": hits,
@@ -663,7 +761,7 @@ def get_relevant_knowledge_for_keyword(
     }
 
 
-def build_outline_context_from_knowledge(knowledge: dict[str, Any], *, max_chars: int = 9000) -> str:
+def build_outline_context_from_knowledge(knowledge: dict[str, Any], *, max_chars: int = 18000) -> str:
     """Compact SOURCE block for outline / content LLM."""
     if not knowledge or not knowledge.get("found"):
         return ""
@@ -698,12 +796,12 @@ def build_outline_context_from_knowledge(knowledge: dict[str, Any], *, max_chars
         if not body:
             continue
         label = key.replace("_", " ").upper()
-        cap = 5800 if key == "pricing" else 2200
+        cap = 8000 if key == "pricing" else 4500
         parts.append(f"=== {label} ===\n{_truncate(body, cap)}")
     if knowledge.get("semantic_keywords"):
         parts.append("=== SEMANTIC KEYWORDS (gợi ý) ===\n" + ", ".join(knowledge["semantic_keywords"][:25]))
     blob = "\n\n".join(parts).strip()
-    cap = max(max_chars, 14000) if sec.get("pricing") else max_chars
+    cap = max(max_chars, 20000) if sec.get("pricing") else max_chars
     return _truncate(blob, cap)
 
 

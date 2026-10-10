@@ -73,11 +73,53 @@ def _noop_seo_score_ai_fix_gate(*_args, **_kwargs):
 
 
 @contextmanager
+def _noop_saas_action_gate(*_args, **_kwargs):
+    class _Ctx:
+        reserved_amount = 0
+        committed = False
+
+        def commit(self):
+            self.committed = True
+
+        def release(self, **_kw):
+            return None
+
+        def record_usage(self, **_kw):
+            return None
+
+    yield _Ctx()
+
+
+@contextmanager
+def _noop_billing_session(*_args, **_kwargs):
+    from app.services.seo_score_ai_fix import SeoScoreAiFixBillingCtx
+
+    class _Sgate:
+        committed = False
+
+        def commit(self):
+            self.committed = True
+
+        def release(self, **_kw):
+            return None
+
+        def record_usage(self, **_kw):
+            return None
+
+    yield SeoScoreAiFixBillingCtx(sgate=_Sgate(), credit_cost=0, billable=False)
+
+
+@contextmanager
 def _patch_api_ai_fix_router():
     with ExitStack() as stack:
         stack.enter_context(patch("app.routers.seo_score.assert_public_http_url"))
-        stack.enter_context(patch("app.routers.seo_score.load_llm_config", return_value=None))
-        stack.enter_context(patch("app.routers.seo_score.seo_score_ai_fix_gate", _noop_seo_score_ai_fix_gate))
+        stack.enter_context(patch("app.routers.seo_score.load_llm_config_for_request", return_value=None))
+        stack.enter_context(
+            patch("app.services.seo_score_ai_fix.seo_score_ai_fix_billing_session", _noop_billing_session)
+        )
+        stack.enter_context(
+            patch("app.services.cost_control.module_gates.seo_score_ai_fix_gate", _noop_seo_score_ai_fix_gate)
+        )
         yield
 
 
@@ -162,11 +204,12 @@ def test_rule_fix_rejects_empty_image_alt():
         )
 
 
-def test_credit_not_charged_when_billing_disabled(client):
+def test_credit_not_charged_when_billing_disabled(client, monkeypatch):
+    monkeypatch.setenv("SEO_SCORE_AI_FIX_BILLING_ENABLED", "0")
     tc, db, user = client
     token = create_access_token(user_id=user.id)
     with _patch_api_ai_fix_router(), patch(
-        "app.routers.seo_score.run_seo_score_ai_fix"
+        "app.services.seo_score_ai_fix.run_seo_score_ai_fix"
     ) as mock_run:
         mock_run.return_value = {
             "before": "x",
@@ -231,7 +274,7 @@ def test_api_ai_fix_title_meta_image_alt(client):
     ]
     for body_extra in cases:
         with _patch_api_ai_fix_router(), patch(
-            "app.routers.seo_score.run_seo_score_ai_fix"
+            "app.services.seo_score_ai_fix.run_seo_score_ai_fix"
         ) as mock_run:
             pf = body_extra["page_field"]
             if pf == "title":
@@ -264,7 +307,7 @@ def test_api_ai_error_no_credit_charge(client):
     tc, db, user = client
     token = create_access_token(user_id=user.id)
     with _patch_api_ai_fix_router(), patch(
-        "app.routers.seo_score.run_seo_score_ai_fix", side_effect=SeoScoreAiFixError("AI lỗi")
+        "app.services.seo_score_ai_fix.run_seo_score_ai_fix", side_effect=SeoScoreAiFixError("AI lỗi")
     ):
         res = tc.post(
             "/api/seo-score/ai-fix",

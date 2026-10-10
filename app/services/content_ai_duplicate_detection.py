@@ -1382,8 +1382,190 @@ def _wp_fetch_rows(
     return []
 
 
+def _wp_title_text(title_field: Any) -> str:
+    """Normalize WP REST title field (plain string or {rendered: ...})."""
+    if isinstance(title_field, dict):
+        raw = str(title_field.get("rendered") or "")
+    else:
+        raw = str(title_field or "")
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if not raw:
+        return ""
+    try:
+        from bs4 import BeautifulSoup
+
+        return re.sub(r"\s+", " ", BeautifulSoup(raw, "html.parser").get_text(" ", strip=True)).strip()
+    except Exception:
+        return re.sub(r"<[^>]+>", " ", raw).strip()
+
+
+def _resolve_wp_site_credentials(user_id: int, site_base: str) -> dict[str, str] | None:
+    """Legacy alias — publishing credentials for a site base URL."""
+    return _resolve_publishing_wp_credentials(user_id, site_base)
+
+
+def _wp_rest_fetch_posts(
+    *,
+    user_id: int,
+    site_base: str,
+    max_pages: int = 1,
+    per_page: int = 20,
+) -> list[ExistingArticleRef]:
+    """Fetch published posts via public/authenticated WP REST (legacy helper API)."""
+    from app.services.wp_connect import normalize_wp_base_url, wp_get_json
+
+    base = normalize_wp_base_url(str(site_base or "").strip())
+    if not base:
+        return []
+    creds = _resolve_wp_site_credentials(user_id, base)
+    headers: dict[str, str] = {}
+    auth = None
+    if creds:
+        headers = _wp_auth_headers(creds["username"], creds["app_password"])
+        auth = (creds["username"], creds["app_password"])
+    refs: list[ExistingArticleRef] = []
+    pages = max(1, min(int(max_pages or 1), 5))
+    for page in range(1, pages + 1):
+        resp, _ = wp_get_json(
+            "/wp-json/wp/v2/posts",
+            url=base,
+            params={"per_page": min(100, per_page), "page": page, "status": "publish"},
+            headers=headers or None,
+            auth=auth,
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            break
+        rows = resp.json()
+        if not isinstance(rows, list):
+            break
+        for post in rows:
+            if not isinstance(post, dict):
+                continue
+            title = _wp_title_text(post.get("title"))
+            if title:
+                post = dict(post)
+                post["title"] = title
+            ref = _wp_post_to_ref(post, site_base=base)
+            if ref:
+                refs.append(ref)
+                slug_kw = _slug_norm(str(post.get("slug") or ""))
+                if slug_kw and normalize_keyword(slug_kw) != normalize_keyword(ref.keyword):
+                    refs.append(
+                        ExistingArticleRef(
+                            keyword=slug_kw,
+                            title=ref.title,
+                            url=ref.url,
+                            slug=ref.slug,
+                            source=ref.source,
+                            target_website=ref.target_website,
+                            wp_post_id=ref.wp_post_id,
+                        )
+                    )
+        if len(rows) < per_page:
+            break
+    return refs
+
+
+def _collect_il_published_articles(
+    *,
+    user_id: int,
+    db: Any | None,
+    target_website: str = "",
+    role: str = "user",
+) -> list[ExistingArticleRef]:
+    """Internal-linking published corpus."""
+    if db is None:
+        return []
+    try:
+        from app.services.internal_linking.models import InternalLinkArticle
+    except Exception as exc:
+        _LOG.debug("IL corpus imports failed: %s", exc)
+        return []
+
+    sites = _owned_site_bases(user_id, target_website=target_website, role=role)
+    if not sites:
+        return []
+
+    out: list[ExistingArticleRef] = []
+    seen_urls: set[str] = set()
+    try:
+        from sqlalchemy import select
+
+        for site in sites[:20]:
+            rows = db.execute(
+                select(InternalLinkArticle.title, InternalLinkArticle.url)
+                .where(
+                    InternalLinkArticle.wp_site == site,
+                    InternalLinkArticle.is_published.is_(True),
+                )
+                .order_by(InternalLinkArticle.id.desc())
+                .limit(300)
+            ).all()
+            for art in rows:
+                title = str(getattr(art, "title", None) or (art[0] if len(art) > 0 else "") or "").strip()
+                url = str(getattr(art, "url", None) or (art[1] if len(art) > 1 else "") or "").strip()
+                if not title or not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                out.append(
+                    ExistingArticleRef(
+                        keyword=title,
+                        title=title,
+                        url=url,
+                        source="published",
+                        target_website=site,
+                    )
+                )
+    except Exception as exc:
+        _LOG.debug("IL article corpus skipped: %s", exc)
+        return []
+    return out
+
+
+def _enrich_corpus_with_wp_keyword_search(
+    existing: list[ExistingArticleRef],
+    keywords: list[str],
+    *,
+    user_id: int,
+    target_website: str = "",
+    role: str = "user",
+) -> list[ExistingArticleRef]:
+    """Add WP REST hits for keywords not already in corpus."""
+    sites = _owned_site_bases(user_id, target_website=target_website, role=role)
+    extra: list[ExistingArticleRef] = []
+    for site in sites[:5]:
+        extra.extend(_wp_rest_fetch_posts(user_id=user_id, site_base=site, max_pages=1))
+    if not extra:
+        extra = _collect_wp_rest_site_articles(
+            user_id=user_id,
+            target_website=target_website,
+            search_keywords=keywords,
+            role=role,
+        )
+    return _merge_corpus_refs(existing, extra)
+
+
+def _ref_substring_title_match(kw: str, ref: ExistingArticleRef) -> bool:
+    """Keyword is a substantial substring of an existing title → same intent."""
+    title = str(ref.title or ref.keyword or "").strip()
+    if not title:
+        return False
+    nk = normalize_keyword(kw)
+    nt = normalize_keyword(title)
+    if not nk or len(nk) < 12 or nk == nt:
+        return False
+    fold_kw = _fold(kw)
+    fold_title = _fold(title)
+    if fold_kw not in fold_title and nk not in nt:
+        return False
+    if len(nk) < max(12, int(len(nt) * 0.35)):
+        return False
+    return classify_content_purpose(kw) == classify_content_purpose(title)
+
+
 def _wp_post_to_ref(post: dict[str, Any], *, site_base: str) -> ExistingArticleRef | None:
-    title = str(post.get("title") or "").strip()
+    title = _wp_title_text(post.get("title"))
     url = str(post.get("link") or "").strip()
     slug = str(post.get("slug") or "").strip()
     post_id = int(post.get("id") or post.get("post_id") or 0)
@@ -1643,7 +1825,11 @@ def _collect_sitemap_site_articles(
 
     try:
         sm_url = f"{base.rstrip('/')}/sitemap.xml"
-        resp = requests.get(sm_url, timeout=12, headers={"User-Agent": "Mozilla/5.0 (compatible; ContentAI/1.0)"})
+        from app.services.url_safety import safe_requests_get
+
+        resp = safe_requests_get(
+            sm_url, timeout=12, headers={"User-Agent": "Mozilla/5.0 (compatible; ContentAI/1.0)"}
+        )
         if resp.status_code != 200 or not resp.text:
             return []
         root = ET.fromstring(resp.text)
@@ -1734,53 +1920,29 @@ def _collect_connected_site_articles(
     target_website: str = "",
     role: str = "user",
 ) -> list[ExistingArticleRef]:
-    """Published WP posts from IL corpus on sites the user owns."""
-    if db is None:
-        return []
-    try:
-        from app.services.internal_linking.models import InternalLinkArticle
-    except Exception as exc:
-        _LOG.debug("IL corpus imports failed: %s", exc)
-        return []
+    """Published posts from IL corpus, falling back to WP REST on owned sites."""
+    il_refs = _collect_il_published_articles(
+        user_id=user_id,
+        db=db,
+        target_website=target_website,
+        role=role,
+    )
+    if il_refs:
+        return il_refs
 
     sites = _owned_site_bases(user_id, target_website=target_website, role=role)
     if not sites:
         return []
 
     out: list[ExistingArticleRef] = []
-    seen_urls: set[str] = set()
-    try:
-        from sqlalchemy import select
-
-        for site in sites[:20]:
-            rows = db.execute(
-                select(InternalLinkArticle.title, InternalLinkArticle.url)
-                .where(
-                    InternalLinkArticle.wp_site == site,
-                    InternalLinkArticle.is_published.is_(True),
-                )
-                .order_by(InternalLinkArticle.id.desc())
-                .limit(300)
-            ).all()
-            for art in rows:
-                title = str(getattr(art, "title", None) or (art[0] if len(art) > 0 else "") or "").strip()
-                url = str(getattr(art, "url", None) or (art[1] if len(art) > 1 else "") or "").strip()
-                if not title or not url or url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                # Use title as keyword proxy for published posts without Content AI keyword.
-                out.append(
-                    ExistingArticleRef(
-                        keyword=title,
-                        title=title,
-                        url=url,
-                        source="published",
-                        target_website=site,
-                    )
-                )
-    except Exception as exc:
-        _LOG.debug("IL article corpus skipped: %s", exc)
-        return []
+    seen: set[str] = set()
+    for site in sites[:20]:
+        for ref in _wp_rest_fetch_posts(user_id=user_id, site_base=site, max_pages=1):
+            key = _ref_dedupe_key(ref)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(ref)
     return out
 
 
@@ -1812,6 +1974,13 @@ def invalidate_duplicate_corpus_cache(user_id: int | None = None) -> None:
         prefix = f"{int(user_id)}|"
         for k in [k for k in _CORPUS_CACHE if k.startswith(prefix)]:
             _CORPUS_CACHE.pop(k, None)
+    if user_id is not None:
+        try:
+            from app.services.embedding_cache import bump_tenant_cache_version
+
+            bump_tenant_cache_version(str(int(user_id)))
+        except Exception:
+            pass
 
 
 def _store_corpus_cache(key: str, items: list[ExistingArticleRef]) -> list[ExistingArticleRef]:
@@ -1884,6 +2053,15 @@ def collect_existing_articles(
                 seen.add(key)
                 items.append(ref)
 
+    if include_connected_sites and str(target_website or "").strip():
+        items = _enrich_corpus_with_wp_keyword_search(
+            items,
+            [],
+            user_id=user_id,
+            target_website=target_website,
+            role=role,
+        )
+
     if use_cache:
         return _store_corpus_cache(cache_key, items)
     return items
@@ -1944,6 +2122,25 @@ def find_duplicates_for_keyword(
         return out
 
     intent = parse_keyword_intent(kw)
+
+    # Substring title match (short keyword inside long published title).
+    for ref in existing:
+        if not _ref_substring_title_match(kw, ref):
+            continue
+        key = _ref_dedupe_key(ref)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            DuplicateMatch(
+                match_type="same_intent",
+                message=MSG_SAME_INTENT,
+                existing=ref,
+                score=0.95,
+            )
+        )
+        if len(out) >= cap:
+            return out
 
     # 2) Structural same-intent — hard-filtered by entity + primaryProblem for info intent.
     for ref in existing:
@@ -2286,7 +2483,9 @@ def check_keywords_for_duplicates(
     live_site: list[ExistingArticleRef] = []
     if include_connected_sites and str(target_website or "").strip():
         search_kws = list(dict.fromkeys(k for k in cleaned if k))
-        live_site = _collect_live_site_articles(
+        from app.services.duplicate_wp_corpus_cache import get_live_site_articles_cached
+
+        live_site = get_live_site_articles_cached(
             user_id=user_id,
             target_website=target_website,
             search_keywords=search_kws,
@@ -2303,6 +2502,14 @@ def check_keywords_for_duplicates(
         include_connected_sites=False,
         use_cache=use_cache,
     )
+    if include_connected_sites and tw:
+        light = _enrich_corpus_with_wp_keyword_search(
+            light,
+            cleaned,
+            user_id=user_id,
+            target_website=tw,
+            role=role,
+        )
     if live_site:
         light = _merge_corpus_refs(light, live_site)
     light = _filter_corpus_for_keywords(light, cleaned)
@@ -2393,7 +2600,7 @@ def check_keywords_for_duplicates(
     emb: dict[str, np.ndarray] = {}
     if to_embed:
         try:
-            emb = embed_keywords(to_embed, use_cache=True)
+            emb = embed_keywords(to_embed, use_cache=True, tenant_scope=str(int(user_id)))
         except Exception as exc:
             _LOG.warning("embed_keywords failed for duplicate check: %s", exc)
             emb = {}

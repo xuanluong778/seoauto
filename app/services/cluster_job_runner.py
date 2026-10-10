@@ -7,6 +7,28 @@ import traceback
 from typing import Any, Callable
 
 
+def _finalize_cluster_credits(payload: dict[str, Any], *, success: bool) -> None:
+    uid = int(payload.get("billing_user_id") or payload.get("user_id") or 0)
+    jid = str(payload.get("credit_job_id") or "").strip()
+    if uid <= 0 or not jid:
+        return
+    from app.db import SessionLocal
+    from app.services.credits import commit_reservation_by_job_id, release_reservation_by_job_id
+
+    db = SessionLocal()
+    try:
+        if success:
+            commit_reservation_by_job_id(db, user_id=uid, job_id=jid)
+        else:
+            release_reservation_by_job_id(db, user_id=uid, job_id=jid, reason="cluster_job_failed")
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def run_cluster_job(
     job_id: str,
     payload: dict[str, Any],
@@ -40,5 +62,10 @@ def run_cluster_job(
             progress_hook=hook,
         )
         finish_job(job_id, result=res)
+        _finalize_cluster_credits(payload, success=True)
     except Exception:
+        try:
+            _finalize_cluster_credits(payload, success=False)
+        except Exception:
+            pass
         fail_job(job_id, error=traceback.format_exc())

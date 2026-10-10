@@ -1,0 +1,118 @@
+[
+  {
+    "check": "auth_401",
+    "no_token": 401,
+    "bad_token": 401,
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/auth/me",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "dict",
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/content-ai/projects?limit=5",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "dict",
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/content-ai/usage",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "dict",
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/content-ai/llm-providers",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "dict",
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/content-ai/bulk-jobs/ping",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "dict",
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/settings/publishing-sites",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "dict",
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/audit/mine?limit=8",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "dict",
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/report",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "dict",
+    "ok": true
+  },
+  {
+    "method": "GET",
+    "path": "/pricing",
+    "status": 200,
+    "expect": 200,
+    "missing_fields": [],
+    "pagination_ok": true,
+    "body_type": "NoneType",
+    "ok": true
+  },
+  {
+    "check": "draft_validation_error",
+    "status": 422,
+    "ok": true
+  },
+  {
+    "check": "frontend_auth_me_render_fields",
+    "ok": true,
+    "keys": [
+      "api_access_enabled",
+      "created_at",
+      "credit_balance",
+      "email",
+      "id",
+      "role",
+      "show_admin_nav",
+      "status",
+      "use_admin_api_pool"
+    ]
+  }
+]

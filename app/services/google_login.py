@@ -175,5 +175,13 @@ def login_or_register_google_user(email: str, db: Session) -> tuple[User, bool]:
     return user, True
 
 
-def issue_login_token(user: User) -> str:
+def issue_login_token(user: User, db: Session | None = None, request=None) -> str:
+    from app.services.session_auth_rollout import server_sessions_enabled
+
+    if server_sessions_enabled() and db is not None:
+        from app.services.user_session_service import create_user_session
+
+        tokens = create_user_session(db, user=user, request=request)
+        db.commit()
+        return tokens.access_token
     return create_access_token(user_id=user.id)

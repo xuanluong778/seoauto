@@ -102,6 +102,8 @@ class ChatbotConversation(Base):
     external_user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     channel_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_user_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_email_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     visitor_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     visitor_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'open'"))
@@ -134,6 +136,7 @@ class ChatbotMessage(Base):
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -225,3 +228,89 @@ class ChatbotFacebookPage(Base):
     )
 
     bot: Mapped[ChatbotBot] = relationship("ChatbotBot", back_populates="facebook_pages")
+
+
+class ChatbotEmailNotifyJob(Base):
+    """Delayed inbox-email job: one pending row per organization + conversation."""
+
+    __tablename__ = "chatbot_email_notify_jobs"
+    __table_args__ = (
+        Index("ix_cskh_notify_org_conv", "organization_id", "conversation_id"),
+        Index("ix_cskh_notify_status_run", "status", "run_after"),
+        Index("ix_cskh_notify_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    organization_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    conversation_id: Mapped[int] = mapped_column(
+        ForeignKey("chatbot_conversations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    bot_id: Mapped[int] = mapped_column(
+        ForeignKey("chatbot_bots.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(24), nullable=False, server_default=text("'pending'"))
+    celery_task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    run_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_inbound_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    skip_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class ChatbotEmailNotifySetting(Base):
+    """Per-tenant Chatbot CSKH email-notification preferences."""
+
+    __tablename__ = "chatbot_email_notify_settings"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user_id", name="uq_cskh_notify_setting_org_user"),
+        Index("ix_cskh_notify_setting_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    organization_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    notify_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    delay_seconds: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("120"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class ChatbotEmailNotifyLog(Base):
+    """Audit log for notify outcomes — never store API keys."""
+
+    __tablename__ = "chatbot_email_notify_logs"
+    __table_args__ = (
+        Index("ix_cskh_notify_log_org_created", "organization_id", "created_at"),
+        Index("ix_cskh_notify_log_conv", "conversation_id"),
+        Index("ix_cskh_notify_log_job", "job_id"),
+        Index("ix_cskh_notify_log_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    organization_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    conversation_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    detail: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    recipient: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

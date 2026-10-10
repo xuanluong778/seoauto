@@ -358,11 +358,24 @@ def test_v2_priority_issues_status_filter():
     assert len(dash["priority_issues"]) <= 10
 
 
-def test_v2_issue_is_publishable_requires_evidence_or_urls():
-    assert _v2_issue_is_publishable({"evidence": [{"kind": "description", "text": "x"}], "affected_urls": []})
-    assert _v2_issue_is_publishable({"evidence": [], "affected_urls": ["https://example.com/a"]})
+def test_v2_issue_is_publishable_requires_technical_evidence_and_urls():
+    """Không publish khi chỉ có mô tả, hoặc chỉ có URL mà không có evidence kỹ thuật."""
+    assert not _v2_issue_is_publishable({"evidence": [{"kind": "description", "text": "x"}], "affected_urls": []})
+    assert not _v2_issue_is_publishable({"evidence": [], "affected_urls": ["https://example.com/a"]})
     assert not _v2_issue_is_publishable({"evidence": [], "affected_urls": []})
     assert not _v2_issue_is_publishable({"evidence": [{}], "affected_urls": []})
+    assert _v2_issue_is_publishable(
+        {
+            "evidence": [{"kind": "http_status", "value": 404}],
+            "affected_urls": ["https://example.com/a"],
+        }
+    )
+    assert _v2_issue_is_publishable(
+        {
+            "evidence": [{"kind": "domain_scope", "domain": "example.com", "text": "robots"}],
+            "affected_urls": [],
+        }
+    )
 
 
 def test_build_technical_dashboard_v2_shape():

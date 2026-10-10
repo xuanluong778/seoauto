@@ -1,0 +1,17 @@
+{
+  "wave": 4,
+  "label": "pre-wave4-baseline",
+  "uvicorn_schedulers": [
+    "content_ai_publish_worker_loop (20s poll thread in lifespan)",
+    "_schedule_due_publish per-row daemon timers"
+  ],
+  "celery": {
+    "execute_publish_job": "wordpress queue — plugin publish",
+    "beat_wp_tick": false
+  },
+  "risks": [
+    "Dual scheduler: Uvicorn poll + Celery for same schedule",
+    "PM2 restart could arm duplicate timers",
+    "Lost Celery message for queued wordpress_publish_jobs not recovered"
+  ]
+}

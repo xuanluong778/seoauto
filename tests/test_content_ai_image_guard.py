@@ -58,16 +58,41 @@ def test_build_figure_rejects_invalid_url():
         pass
 
 
-def test_validate_insert_rejects_unreachable():
-    with patch(
-        "app.services.content_ai_image_guard.probe_image_url",
-        return_value={"ok": False, "status_code": 404, "error": "HTTP 404"},
-    ):
-        try:
-            validate_image_url_for_insert("https://example.com/missing.jpg", source="test")
-            assert False, "expected ValueError"
-        except ValueError as exc:
-            assert "404" in str(exc) or "tải" in str(exc).lower()
+def test_validate_insert_keeps_user_files_off_customer_website():
+    """Regression: target_website must not rewrite /api/user-files → customer domain."""
+    url = "/api/user-files/1/content-ai/general/google-image-abc.jpg"
+    out = validate_image_url_for_insert(
+        url,
+        source="test",
+        site_base="https://itsieuviet.com",
+        probe_remote=True,
+    )
+    assert out == url
+    assert "itsieuviet.com" not in out
+
+    rewritten_bad = "https://itsieuviet.com/api/user-files/1/content-ai/general/google-image-abc.jpg"
+    out2 = validate_image_url_for_insert(
+        rewritten_bad,
+        source="test",
+        site_base="https://itsieuviet.com",
+        probe_remote=True,
+    )
+    assert out2 == "/api/user-files/1/content-ai/general/google-image-abc.jpg"
+
+
+def test_normalize_never_prefixes_app_media():
+    from app.services.content_ai_image_guard import normalize_content_image_src, rehydrate_app_media_src
+
+    assert (
+        normalize_content_image_src(
+            "/api/user-files/1/a.jpg", site_base="https://itsieuviet.com"
+        )
+        == "/api/user-files/1/a.jpg"
+    )
+    assert (
+        rehydrate_app_media_src("https://itsieuviet.com/api/user-files/1/a.jpg?token=x")
+        == "/api/user-files/1/a.jpg"
+    )
 
 
 def test_sanitize_adds_lazy_and_alt():

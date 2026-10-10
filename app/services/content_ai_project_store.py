@@ -8,27 +8,24 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import logging
+
 from app.services.json_atomic import mutate_json_list, read_json_list, write_json_list
+from app.services.tenant_content_ai_flags import (
+    content_ai_dual_read,
+    content_ai_json_write,
+    content_ai_pg_enabled,
+)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_FILE = _PROJECT_ROOT / "data" / "content_ai_projects.json"
 MAX_PROJECTS_PER_USER = 120
 _PROJECTS_FILE_CACHE: tuple[float, list[dict[str, Any]]] | None = None
+_LOG = logging.getLogger(__name__)
 
 
 def _read_projects() -> list[dict[str, Any]]:
-    from app.services.user_data_pg.config import pg_fallback_json_enabled, pg_read_enabled
-
-    if pg_read_enabled("content_ai_projects"):
-        try:
-            from app.services.user_data_pg import content_ai_projects as pg_store
-
-            rows = pg_store.list_all_entries()
-            if rows or not pg_fallback_json_enabled():
-                return rows
-        except Exception:
-            if not pg_fallback_json_enabled():
-                raise
+    """JSON-only fallback list. Never unscoped PG full-table scan."""
     global _PROJECTS_FILE_CACHE
     try:
         mtime = PROJECT_FILE.stat().st_mtime if PROJECT_FILE.exists() else 0.0
@@ -47,18 +44,12 @@ def _invalidate_projects_cache() -> None:
 
 
 def _write_projects(projects: list[dict[str, Any]]) -> None:
+    """JSON write only when flag on (rollback). PostgreSQL is write authority."""
+    if not content_ai_json_write():
+        _invalidate_projects_cache()
+        return
     write_json_list(PROJECT_FILE, projects)
     _invalidate_projects_cache()
-    try:
-        from app.services.user_data_pg.config import pg_dual_write_enabled
-
-        if pg_dual_write_enabled("content_ai_projects"):
-            from app.services.user_data_pg import content_ai_projects as pg_store
-
-            pg_store.replace_all_entries(projects)
-    except Exception:
-        pass
-
 
 def _project_owner_id(entry: dict[str, Any]) -> int | None:
     if "user_id" not in entry:
@@ -118,8 +109,19 @@ def _ensure_legacy_migrated(projects: list[dict[str, Any]]) -> None:
 
 
 def _read_projects_scoped(user_id: int) -> list[dict[str, Any]]:
+    if content_ai_pg_enabled():
+        try:
+            from app.services.content_ai_projects_pg import list_entries_pg
+
+            rows = list_entries_pg(user_id=int(user_id))
+            if rows or not content_ai_dual_read():
+                return rows
+        except Exception:
+            _LOG.exception("content_ai_projects pg scoped list failed")
+            if not content_ai_dual_read():
+                raise
     projects = _read_projects()
-    if _needs_legacy_migration(projects):
+    if _needs_legacy_migration(projects) and content_ai_json_write():
         def _mutate(projs: list[dict[str, Any]]) -> None:
             _migrate_legacy_project_owners(projs)
             return None
@@ -127,8 +129,9 @@ def _read_projects_scoped(user_id: int) -> list[dict[str, Any]]:
         mutate_json_list(PROJECT_FILE, _mutate)
         _invalidate_projects_cache()
         projects = _read_projects()
+    elif _needs_legacy_migration(projects):
+        _migrate_legacy_project_owners(projects)
     return projects
-
 
 def _projects_for_user(projects: list[dict[str, Any]], user_id: int, *, role: str = "user") -> list[dict[str, Any]]:
     if is_admin_role(role):
@@ -147,6 +150,8 @@ def _new_project_entry(
     entry: dict[str, Any] = {
         "id": project_id,
         "user_id": int(user_id),
+        "organization_id": int(user_id),
+        "created_by": int(user_id),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "title": str(draft_payload.get("title") or source_payload.get("title") or ""),
         "slug": str(draft_payload.get("slug") or ""),
@@ -185,23 +190,37 @@ def save_content_ai_project(
     draft_payload: dict[str, Any],
 ) -> str:
     project_id = str(uuid.uuid4())
+    entry = _new_project_entry(
+        project_id=project_id,
+        user_id=user_id,
+        source_payload=source_payload,
+        draft_payload=draft_payload,
+    )
+    if content_ai_pg_enabled():
+        from app.services.content_ai_projects_pg import insert_entry_pg, trim_retention_pg
+
+        insert_entry_pg(entry, user_id=int(user_id))
+        trim_retention_pg(user_id=int(user_id), max_projects=MAX_PROJECTS_PER_USER)
+        if content_ai_json_write():
+            def _mutate(projects: list[dict[str, Any]]) -> str:
+                _ensure_legacy_migrated(projects)
+                projects.insert(0, entry)
+                _trim_retention_for_user(projects, user_id)
+                return project_id
+
+            try:
+                mutate_json_list(PROJECT_FILE, _mutate)
+            except Exception:
+                _LOG.exception("content_ai_projects optional json mirror failed")
+        return project_id
 
     def _mutate(projects: list[dict[str, Any]]) -> str:
         _ensure_legacy_migrated(projects)
-        projects.insert(
-            0,
-            _new_project_entry(
-                project_id=project_id,
-                user_id=user_id,
-                source_payload=source_payload,
-                draft_payload=draft_payload,
-            ),
-        )
+        projects.insert(0, entry)
         _trim_retention_for_user(projects, user_id)
         return project_id
 
     return mutate_json_list(PROJECT_FILE, _mutate)
-
 
 def _strip_html_text(html: str) -> str:
     s = re.sub(r"<[^>]+>", " ", html or "")
@@ -319,6 +338,21 @@ def find_project_by_site_keyword(
     pk = _normalize_keyword(primary_keyword)
     if not site or not pk:
         return None
+    if content_ai_pg_enabled():
+        try:
+            from app.services.content_ai_projects_pg import find_by_site_keyword_pg
+
+            hit = find_by_site_keyword_pg(
+                user_id=int(user_id),
+                target_website=target_website,
+                primary_keyword=primary_keyword,
+            )
+            if hit is not None or not content_ai_dual_read():
+                return hit
+        except Exception:
+            _LOG.exception("content_ai find site/keyword pg failed")
+            if not content_ai_dual_read():
+                raise
     for p in _projects_for_user(_read_projects_scoped(user_id), user_id):
         if _normalize_target_site(str(p.get("target_website") or "")) != site:
             continue
@@ -326,7 +360,6 @@ def find_project_by_site_keyword(
             continue
         return p
     return None
-
 
 def upsert_bulk_setup_projects(
     *,
@@ -338,6 +371,8 @@ def upsert_bulk_setup_projects(
     site = str(target_website or "").strip()
     if not site or not items:
         return []
+    if content_ai_pg_enabled():
+        return _upsert_bulk_setup_projects_pg(user_id=user_id, target_website=site, items=items)
     projects = _read_projects_scoped(user_id)
     results: list[dict[str, str]] = []
     changed = False
@@ -485,15 +520,216 @@ def upsert_bulk_setup_projects(
     return results
 
 
+def _upsert_bulk_setup_projects_pg(
+    *,
+    user_id: int,
+    target_website: str,
+    items: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    from app.services.content_ai_projects_pg import (
+        find_by_site_keyword_pg,
+        insert_entry_pg,
+        replace_entry_pg,
+        trim_retention_pg,
+    )
+
+    site = str(target_website or "").strip()
+    results: list[dict[str, str]] = []
+    for raw in items:
+        kw = re.sub(r"\s+", " ", str(raw.get("keyword") or "").strip())
+        if not kw:
+            continue
+        title = _first_line(str(raw.get("custom_title") or "")) or kw
+        meta = _first_line(str(raw.get("custom_description") or ""))
+        outline = str(raw.get("custom_outline") or "").strip()
+        try:
+            sv = int(raw.get("search_volume") or 0)
+        except (TypeError, ValueError):
+            sv = 0
+        try:
+            twc = int(raw.get("target_word_count") or 0)
+        except (TypeError, ValueError):
+            twc = 0
+        twc = max(200, min(8000, twc)) if twc >= 200 else 1000
+        sec_list: list[str] = []
+        sk = raw.get("secondary_keywords")
+        if isinstance(sk, list):
+            sec_list = [str(x).strip() for x in sk if str(x).strip()]
+        elif isinstance(sk, str):
+            sec_list = [x.strip() for x in re.split(r"[,;\n\r]+", sk) if x.strip()]
+        try:
+            wpc_raw = int(raw.get("wp_category_id") or 0)
+        except (TypeError, ValueError):
+            wpc_raw = 0
+        if wpc_raw < 0:
+            wpc_raw = 0
+
+        existing = find_by_site_keyword_pg(
+            user_id=int(user_id), target_website=site, primary_keyword=kw
+        )
+        if existing:
+            entry = dict(existing)
+            created = False
+            has_content = bool(_resolve_project_content(entry))
+            entry["title"] = title
+            entry["primary_keyword"] = kw
+            entry["target_website"] = site
+            entry["meta_description"] = meta
+            entry["outline_content"] = outline
+            entry["custom_title"] = str(raw.get("custom_title") or "").strip()
+            entry["custom_description"] = str(raw.get("custom_description") or "").strip()
+            entry["custom_outline"] = outline
+            entry["search_volume"] = sv
+            entry["content_type"] = str(raw.get("content_type") or "").strip()
+            entry["competitor_url"] = str(raw.get("competitor_url") or "").strip()
+            entry["target_word_count"] = twc
+            entry["secondary_keywords"] = sec_list
+            entry["wp_category_id"] = wpc_raw
+            if not has_content:
+                entry["origin"] = "bulk_setup"
+                entry["content"] = ""
+                draft = entry.get("draft_output")
+                if isinstance(draft, dict):
+                    draft = dict(draft)
+                    draft.update(
+                        {
+                            "title": title,
+                            "content": "",
+                            "meta_description": meta,
+                            "primary_keyword": kw,
+                            "outline_content": outline,
+                            "target_website": site,
+                            "secondary_keywords": sec_list,
+                        }
+                    )
+                    if wpc_raw > 0:
+                        draft["categories"] = [wpc_raw]
+                    else:
+                        draft.pop("categories", None)
+                    entry["draft_output"] = draft
+            replace_entry_pg(entry, user_id=int(user_id))
+        else:
+            draft = {
+                "title": title,
+                "content": "",
+                "slug": "",
+                "tags": [],
+                "meta_description": meta,
+                "target_website": site,
+                "primary_keyword": kw,
+                "secondary_keywords": sec_list,
+                "outline_content": outline,
+            }
+            if wpc_raw > 0:
+                draft["categories"] = [wpc_raw]
+            entry = {
+                "id": str(uuid.uuid4()),
+                "user_id": int(user_id),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "title": title,
+                "slug": "",
+                "target_website": site,
+                "primary_keyword": kw,
+                "secondary_keywords": sec_list,
+                "outline_content": outline,
+                "meta_description": meta,
+                "tags": [],
+                "content": "",
+                "featured_image": "",
+                "gallery_images": [],
+                "scheduled_at": "",
+                "wp_category_id": wpc_raw,
+                "custom_title": str(raw.get("custom_title") or "").strip(),
+                "custom_description": str(raw.get("custom_description") or "").strip(),
+                "custom_outline": outline,
+                "search_volume": sv,
+                "content_type": str(raw.get("content_type") or "").strip(),
+                "competitor_url": str(raw.get("competitor_url") or "").strip(),
+                "target_word_count": twc,
+                "origin": "bulk_setup",
+                "draft_output": draft,
+            }
+            insert_entry_pg(entry, user_id=int(user_id))
+            created = True
+        results.append(
+            {"id": str(entry["id"]), "keyword": kw, "action": "created" if created else "updated"}
+        )
+    trim_retention_pg(user_id=int(user_id), max_projects=MAX_PROJECTS_PER_USER)
+    return results
+
+
 def save_or_update_written_bulk_project(
     *,
     user_id: int,
     source_payload: dict[str, Any],
     draft_payload: dict[str, Any],
+    db=None,
 ) -> str:
     """Ghi bài bulk đã có content — cập nhật nháp setup cùng keyword/domain nếu có."""
     site = _normalize_target_site(str(source_payload.get("target_website") or ""))
     pk = _normalize_keyword(str(source_payload.get("primary_keyword") or ""))
+
+    if content_ai_pg_enabled():
+        from app.services.content_ai_projects_pg import (
+            find_by_site_keyword_pg,
+            insert_entry_pg,
+            replace_entry_pg,
+            trim_retention_pg,
+        )
+
+        existing = find_by_site_keyword_pg(
+            user_id=int(user_id),
+            target_website=str(source_payload.get("target_website") or ""),
+            primary_keyword=str(source_payload.get("primary_keyword") or ""),
+            db=db,
+        )
+        if existing is None:
+            project_id = str(uuid.uuid4())
+            insert_entry_pg(
+                _new_project_entry(
+                    project_id=project_id,
+                    user_id=user_id,
+                    source_payload=source_payload,
+                    draft_payload=draft_payload,
+                    origin="bulk",
+                ),
+                user_id=int(user_id),
+                db=db,
+            )
+            trim_retention_pg(user_id=int(user_id), max_projects=MAX_PROJECTS_PER_USER, db=db)
+            return project_id
+        entry = dict(existing)
+        for key in (
+            "title",
+            "slug",
+            "target_website",
+            "primary_keyword",
+            "secondary_keywords",
+            "outline_content",
+            "meta_description",
+            "tags",
+            "content",
+            "custom_title",
+            "custom_description",
+            "custom_outline",
+            "search_volume",
+            "content_type",
+            "competitor_url",
+            "target_word_count",
+            "wp_category_id",
+            "seo_score",
+            "seo_issues",
+            "seo_status",
+            "seo_issue_count",
+            "actual_word_count",
+        ):
+            if key in source_payload:
+                entry[key] = source_payload[key]
+        entry["content"] = str(draft_payload.get("content") or source_payload.get("content") or "")
+        entry["draft_output"] = draft_payload
+        entry["origin"] = "bulk"
+        replace_entry_pg(entry, user_id=int(user_id), db=db)
+        return str(entry.get("id") or "")
 
     def _mutate(projects: list[dict[str, Any]]) -> str:
         _ensure_legacy_migrated(projects)
@@ -557,7 +793,6 @@ def save_or_update_written_bulk_project(
 
     return mutate_json_list(PROJECT_FILE, _mutate)
 
-
 def _resolve_project_content(p: dict[str, Any]) -> str:
     content = str(p.get("content") or "").strip()
     if content:
@@ -578,6 +813,9 @@ def _project_list_row(p: dict[str, Any]) -> dict[str, Any]:
     thumb = str(p.get("featured_image") or "").strip()
     stats = _content_stats(content)
     wc = int(stats["word_count"])
+    awc = int(p.get("actual_word_count") or 0)
+    if wc <= 0 and awc > 0:
+        wc = awc
     has_section = bool(re.search(r"^#{2,3}\s", outline, flags=re.MULTILINE))
     has_research = bool(pk)
     has_outline = bool(outline)
@@ -634,12 +872,33 @@ def _project_sort_ts(p: dict[str, Any]) -> float:
         return 0.0
 
 
-def list_content_ai_projects(*, user_id: int, limit: int = 30) -> list[dict[str, Any]]:
+def list_content_ai_projects(
+    *,
+    user_id: int,
+    limit: int = 30,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    cap = max(1, min(int(limit or 30), 500))
+    start = max(0, int(offset or 0))
+    if content_ai_pg_enabled():
+        try:
+            from app.services.content_ai_projects_pg import list_entries_pg
+
+            rows = list_entries_pg(
+                user_id=int(user_id),
+                limit=cap,
+                offset=start,
+                list_only=True,
+            )
+            if rows or not content_ai_dual_read():
+                return [_project_list_row(p) for p in rows]
+        except Exception:
+            _LOG.exception("content_ai_projects pg list failed")
+            if not content_ai_dual_read():
+                raise
     owned = _projects_for_user(_read_projects_scoped(user_id), user_id)
     owned.sort(key=_project_sort_ts, reverse=True)
-    cap = max(1, min(int(limit or 30), 500))
-    return [_project_list_row(p) for p in owned[:cap]]
-
+    return [_project_list_row(p) for p in owned[start : start + cap]]
 
 def _project_matches_website_filter(
     project: dict[str, Any],
@@ -799,10 +1058,21 @@ def get_content_ai_projects_by_ids(
     *,
     user_id: int,
 ) -> dict[str, dict[str, Any]]:
-    """Batch-load projects by id (single JSON read)."""
+    """Batch-load projects by id (org-scoped)."""
     want = {str(x).strip() for x in (project_ids or []) if str(x).strip()}
     if not want:
         return {}
+    if content_ai_pg_enabled():
+        try:
+            from app.services.content_ai_projects_pg import get_entries_by_ids_pg
+
+            out = get_entries_by_ids_pg(list(want), user_id=int(user_id))
+            if out or not content_ai_dual_read():
+                return out
+        except Exception:
+            _LOG.exception("content_ai batch get pg failed")
+            if not content_ai_dual_read():
+                raise
     out: dict[str, dict[str, Any]] = {}
     for p in _projects_for_user(_read_projects_scoped(user_id), user_id):
         pid = str(p.get("id") or "").strip()
@@ -811,7 +1081,6 @@ def get_content_ai_projects_by_ids(
             if len(out) >= len(want):
                 break
     return out
-
 
 def list_written_project_ids_for_website(
     *,
@@ -843,8 +1112,19 @@ def list_board_website_options(*, user_id: int, limit: int = 80) -> list[dict[st
 
 def get_content_ai_project(project_id: str, *, user_id: int) -> dict[str, Any] | None:
     pid = str(project_id or "").strip()
-    if not pid:
+    if not pid or int(user_id or 0) <= 0:
         return None
+    if content_ai_pg_enabled():
+        try:
+            from app.services.content_ai_projects_pg import get_entry_pg
+
+            row = get_entry_pg(pid, user_id=int(user_id))
+            if row is not None or not content_ai_dual_read():
+                return row
+        except Exception:
+            _LOG.exception("content_ai get pg failed")
+            if not content_ai_dual_read():
+                raise
     for p in _read_projects_scoped(user_id):
         if str(p.get("id") or "") == pid and _belongs_to_user(p, user_id) and not is_legacy_orphan(p):
             return p
@@ -858,7 +1138,7 @@ def update_content_ai_project_fields(
     user_id: int,
 ) -> dict[str, Any] | None:
     pid = str(project_id or "").strip()
-    if not pid or not fields:
+    if not pid or not fields or int(user_id or 0) <= 0:
         return None
     allowed = {
         "title",
@@ -884,30 +1164,30 @@ def update_content_ai_project_fields(
         "wp_publish_status",
         "image_assets",
     }
+    patch = {k: v for k, v in fields.items() if k in allowed}
+    if not patch:
+        return None
+
+    if content_ai_pg_enabled():
+        from app.services.content_ai_projects_pg import update_entry_pg
+
+        found = update_entry_pg(pid, patch, user_id=int(user_id))
+        if found is None and content_ai_dual_read():
+            pass  # fall through to JSON path
+        elif found is None:
+            return None
+        else:
+            if content_ai_json_write():
+                try:
+                    mutate_json_list(PROJECT_FILE, lambda projects: _json_update_project(projects, pid, user_id, patch))
+                except Exception:
+                    _LOG.exception("content_ai update json mirror failed")
+            return _project_list_row(found)
+
     holder: dict[str, Any] = {"found": None}
 
     def _mutate(projects: list[dict[str, Any]]) -> dict[str, Any] | None:
-        _ensure_legacy_migrated(projects)
-        for i, p in enumerate(projects):
-            if str(p.get("id") or "") != pid:
-                continue
-            if not _belongs_to_user(p, user_id):
-                continue
-            entry = dict(p)
-            for key, val in fields.items():
-                if key not in allowed:
-                    continue
-                entry[key] = val
-            draft = entry.get("draft_output")
-            if isinstance(draft, dict):
-                draft = dict(draft)
-                for key, val in fields.items():
-                    if key in allowed:
-                        draft[key] = val
-                entry["draft_output"] = draft
-            projects[i] = entry
-            holder["found"] = entry
-            break
+        holder["found"] = _json_update_project(projects, pid, user_id, patch)
         return holder["found"]
 
     found = mutate_json_list(PROJECT_FILE, _mutate)
@@ -916,10 +1196,59 @@ def update_content_ai_project_fields(
     return _project_list_row(found)
 
 
+def _json_update_project(
+    projects: list[dict[str, Any]],
+    pid: str,
+    user_id: int,
+    fields: dict[str, Any],
+) -> dict[str, Any] | None:
+    _ensure_legacy_migrated(projects)
+    for i, p in enumerate(projects):
+        if str(p.get("id") or "") != pid:
+            continue
+        if not _belongs_to_user(p, user_id):
+            continue
+        entry = dict(p)
+        for key, val in fields.items():
+            entry[key] = val
+        draft = entry.get("draft_output")
+        if isinstance(draft, dict):
+            draft = dict(draft)
+            for key, val in fields.items():
+                draft[key] = val
+            entry["draft_output"] = draft
+        projects[i] = entry
+        return entry
+    return None
+
+
 def delete_content_ai_project(project_id: str, *, user_id: int) -> bool:
     pid = str(project_id or "").strip()
-    if not pid:
+    if not pid or int(user_id or 0) <= 0:
         return False
+
+    if content_ai_pg_enabled():
+        from app.services.content_ai_projects_pg import delete_entry_pg
+
+        ok = delete_entry_pg(pid, user_id=int(user_id))
+        if ok and content_ai_json_write():
+
+            def _mutate(projects: list[dict[str, Any]]) -> bool:
+                _ensure_legacy_migrated(projects)
+                before = len(projects)
+                projects[:] = [
+                    p
+                    for p in projects
+                    if not (str(p.get("id") or "") == pid and _belongs_to_user(p, user_id))
+                ]
+                return len(projects) < before
+
+            try:
+                mutate_json_list(PROJECT_FILE, _mutate)
+            except Exception:
+                _LOG.exception("content_ai delete json mirror failed")
+        if ok or not content_ai_dual_read():
+            return ok
 
     def _mutate(projects: list[dict[str, Any]]) -> bool:
         _ensure_legacy_migrated(projects)

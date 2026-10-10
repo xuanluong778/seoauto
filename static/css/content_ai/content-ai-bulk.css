@@ -1033,14 +1033,17 @@ body.bulk-v2-delete-open {
 }
 .bulk-v2-setup-row { margin-bottom: 10px; }
 .bulk-v2-mini-toolbar { margin: 8px 0; }
-.bulk-v2-run-hero {
-    padding: 14px;
-    border-radius: 12px;
-    border: 2px solid #000;
-    background: rgba(16, 185, 129, 0.06);
-    margin-bottom: 12px;
+#bulkPanelRun {
+    display: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    min-height: 0 !important;
 }
-.bulk-v2-run-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.bulk-v2-run-hero,
+.bulk-v2-run-btns {
+    display: none !important;
+}
 .bulk-v2-board {
     margin-top: 0;
     border-radius: 0;

@@ -6,6 +6,7 @@ import logging
 
 from app.db import SessionLocal
 from app.models.plan import Plan
+from app.models.subscription import Subscription  # noqa: F401 — mapper dependency for Plan
 from app.models.usage_limit import UsageLimit
 from app.services.plan_quota_registry import iter_usage_limits
 

@@ -8,18 +8,14 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.user import User
 from app.services.auth import get_current_user
-from app.services.rbac import can_write
+from app.services.permissions import PERM_WORKSPACE_WRITE, assert_permission
 
 
 def require_active_trial(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> User:
-    if not can_write(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Tài khoản chỉ xem — không có quyền tạo nội dung.",
-        )
+    assert_permission(current_user, PERM_WORKSPACE_WRITE)
     from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
 
     if resolve_cau_ai_plan_slug(db, current_user):

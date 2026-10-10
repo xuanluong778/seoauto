@@ -442,7 +442,7 @@
         if (!leadState.activeScanId) { ctx.showToast("Chưa có kết quả."); return; }
         if (!ctx.authToken || !ctx.authToken()) { ctx.showToast("Đăng nhập để xuất."); return; }
         var exportCost = (leadState.config && leadState.config.costs && leadState.config.costs.export) || 0;
-        if (exportCost > 0 && !window.confirm("Xuất " + fmt.toUpperCase() + " tốn " + exportCost + " credit. Tiếp tục?")) return;
+        // Không hiện confirm credit — backend/export API vẫn enforce credit nếu có.
         var q = "/scans/" + encodeURIComponent(leadState.activeScanId) + "/export?format=" + encodeURIComponent(fmt);
         if (leadState.filter) q += "&filter=" + encodeURIComponent(leadState.filter);
         fetch(API + q, { headers: { Authorization: "Bearer " + ctx.authToken() } })

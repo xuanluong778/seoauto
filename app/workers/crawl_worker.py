@@ -260,6 +260,24 @@ def process_crawl_job(
         job.status = "completed"
         db.commit()
         crawl_event("crawl_job_completed", job_id=job.id, worker_id=wid, pages=len(pages))
+        try:
+            from app.services.cost_usage_logger import record_infra_cost_usage
+
+            record_infra_cost_usage(
+                db,
+                user_id=job.user_id,
+                organization_id=job.organization_id,
+                feature_key="crawl_job",
+                quantity=max(1, len(pages) or 1),
+                provider="crawl",
+                request_id=f"crawl:{job.id}:{retry_count}",
+                credits_used=0,
+                extra={"job_type": job.job_type, "distributed_job_id": job.id},
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            _LOG.exception("crawl cost usage log failed job_id=%s", job.id)
         return last_summary or {
             "url": url,
             "crawl_status": "success",

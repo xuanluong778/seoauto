@@ -32,11 +32,99 @@ def is_saas_enforcement_enabled() -> bool:
 
 
 def resolve_effective_plan(db: Session, user: User) -> str | None:
+    """
+    SSOT plan slug from active subscription (paid or trialing trial_3d).
+
+    Priority for access is enforced by check_feature / resolve_effective_plan_state:
+    paid active > free_usage > saas trial > none.
+    Credits never imply a plan.
+    """
     sub = subscription_service.get_active_subscription(db, user.id)
     if sub is None:
         return None
     plan = plan_service.get_plan_by_id(db, sub.plan_id)
     return plan.slug if plan else None
+
+
+def resolve_effective_plan_state(db: Session, user: User) -> dict[str, Any]:
+    """
+    Single source of truth for UI banners + permission messaging.
+
+    Paid ACTIVE (non-trial slug, not expired) always wins over trial_used /
+    trial_expires_at. Trial-expired banners must never show for paid users.
+    """
+    if is_admin(user):
+        return {
+            "effective_plan_slug": "admin",
+            "source": "admin",
+            "has_paid_plan": True,
+            "subscription_status": "active",
+            "trial_active": False,
+            "trial_used": bool(getattr(user, "trial_used", False)),
+            "show_trial_expired_banner": False,
+            "show_upgrade_banner": False,
+            "free_usage_active": False,
+        }
+
+    free_usage = has_active_free_usage(db, user.id)
+    sub, plan = _active_subscription_plan(db, user)
+    slug = str(plan.slug or "").lower() if plan else ""
+    trial_active = is_saas_trial_active(user)
+    trial_used = bool(getattr(user, "trial_used", False))
+
+    if plan is not None and slug and slug not in {TRIAL_PLAN_SLUG, *_LEGACY_PAID_SLUGS}:
+        return {
+            "effective_plan_slug": slug,
+            "source": "paid_subscription",
+            "has_paid_plan": True,
+            "subscription_status": str(getattr(sub, "status", None) or "active"),
+            "trial_active": False,
+            "trial_used": trial_used,
+            "show_trial_expired_banner": False,
+            "show_upgrade_banner": False,
+            "free_usage_active": free_usage,
+            "subscription_id": int(sub.id) if sub else None,
+            "current_period_end": getattr(sub, "current_period_end", None),
+        }
+
+    if free_usage:
+        return {
+            "effective_plan_slug": None,
+            "source": "free_usage",
+            "has_paid_plan": False,
+            "subscription_status": None,
+            "trial_active": False,
+            "trial_used": trial_used,
+            "show_trial_expired_banner": False,
+            "show_upgrade_banner": False,
+            "free_usage_active": True,
+        }
+
+    if trial_active and (plan is None or slug == TRIAL_PLAN_SLUG or slug in _LEGACY_PAID_SLUGS):
+        return {
+            "effective_plan_slug": TRIAL_PLAN_SLUG,
+            "source": "saas_trial",
+            "has_paid_plan": False,
+            "subscription_status": "trialing",
+            "trial_active": True,
+            "trial_used": True,
+            "show_trial_expired_banner": False,
+            "show_upgrade_banner": False,
+            "free_usage_active": False,
+        }
+
+    source = "trial_expired" if trial_used else "none"
+    return {
+        "effective_plan_slug": None,
+        "source": source,
+        "has_paid_plan": False,
+        "subscription_status": "expired" if trial_used else None,
+        "trial_active": False,
+        "trial_used": trial_used,
+        "show_trial_expired_banner": bool(trial_used),
+        "show_upgrade_banner": True,
+        "free_usage_active": False,
+    }
 
 
 def _credit_cost_for_feature(feature_key: str, quantity: int = 1) -> int:

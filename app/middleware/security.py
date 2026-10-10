@@ -20,7 +20,7 @@ _SECURITY_HEADERS = {
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.tiny.cloud; "
         "img-src 'self' data: blob: https:; "
         "font-src 'self' data: https://cdn.jsdelivr.net; "
-        "connect-src 'self' https:; "
+        "connect-src 'self' https: wss: ws:; "
         "frame-ancestors 'self'; "
         "base-uri 'self'; "
         "form-action 'self'"
@@ -31,13 +31,19 @@ _DOC_PATHS = frozenset({"/docs", "/redoc", "/openapi.json"})
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
         if is_production() and path in _DOC_PATHS:
             return JSONResponse(status_code=404, content={"detail": "Not found"})
 
-        ok, rule = check_request_rate_limit(path, _client_ip(request))
+        ok, rule = check_request_rate_limit(path, _client_ip(request), method=request.method)
         if not ok:
             if rule == "/auth/otp/send":
                 detail = (
@@ -53,9 +59,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             )
 
         if request.method == "OPTIONS" and cors_allowed_origins():
-            origin = request.headers.get("origin", "")
-            if origin and origin not in cors_allowed_origins():
-                return JSONResponse(status_code=403, content={"detail": "CORS origin denied"})
+            if not path.startswith("/api/chatbot/public"):
+                origin = request.headers.get("origin", "")
+                if origin and origin not in cors_allowed_origins():
+                    return JSONResponse(status_code=403, content={"detail": "CORS origin denied"})
 
         response: Response = await call_next(request)
         for k, v in _SECURITY_HEADERS.items():

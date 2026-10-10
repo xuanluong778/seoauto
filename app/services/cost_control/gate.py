@@ -21,13 +21,20 @@ from app.services.cost_control.context import (
 )
 from app.services.cost_control.runtime import (
   SingleFlightGuard,
+  check_user_concurrency,
   check_user_rate_limit,
   ensure_not_cooldown,
+  release_user_concurrency,
 )
-from app.services.cost_control.settings import cost_control_enforced, default_user_rate_per_min
+from app.services.cost_control.settings import (
+  cost_control_enforced,
+  default_user_concurrency,
+  default_user_rate_per_min,
+)
 from app.services.cost_control.types import ExternalApiProvider
 from app.services.credits import credits_enforced, ensure_sufficient_credits
 from app.services.rbac import is_admin
+from app.services.software_access_service import user_has_software_access
 
 _LOG = logging.getLogger("cost_control.gate")
 
@@ -91,7 +98,6 @@ def _check_plan(db: Session, user: User, *, require_paid_plan: bool) -> str | No
   if is_admin(user):
     return "admin"
   from app.services.saas_ui_messages import resolve_ai_access_state
-  from app.services.software_access_service import user_has_software_access
 
   if require_paid_plan and not user_has_software_access(db, user.id):
     ui = resolve_ai_access_state(db, user)
@@ -110,7 +116,6 @@ def _check_plan(db: Session, user: User, *, require_paid_plan: bool) -> str | No
 def _check_quota(db: Session, user: User, *, feature_key: str, units: int) -> int | None:
   from app.services.plan_quota_service import quota_exceeded_detail
   from app.services.entitlement_service import resolve_effective_plan
-  from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
 
   remaining = usage_tracking_service.get_quota_remaining(db, user.id, feature_key)
   if remaining is None:
@@ -208,6 +213,7 @@ def cost_gate_session(req: CostGateRequest) -> Iterator[CostGateSession]:
   flight = SingleFlightGuard(flight_key)
   flight.__enter__()
   session._flight = flight
+  conc_held = False
 
   gate_token: object | None = None
   try:
@@ -220,6 +226,12 @@ def cost_gate_session(req: CostGateRequest) -> Iterator[CostGateSession]:
         user_id=req.user.id,
         limit_per_min=int(rate),
       )
+      check_user_concurrency(
+        scope=req.provider.value,
+        user_id=req.user.id,
+        limit=default_user_concurrency(req.provider.value),
+      )
+      conc_held = True
       if req.cooldown_key:
         ensure_not_cooldown(req.cooldown_key, message=req.cooldown_message)
 
@@ -235,11 +247,22 @@ def cost_gate_session(req: CostGateRequest) -> Iterator[CostGateSession]:
       )
 
     if cost_control_enforced() and not is_admin(req.user):
+      from app.services.cost_control.caps import assert_provider_daily_caps, assert_user_credit_caps
       from app.services.saas_economics_guard import assert_expensive_api_allowed
 
+      # Product SSOT: wallet + entitlement. No per-category premium_llm hard cap.
+      # Keep anti-abuse daily/monthly burn caps + emergency platform economics guard.
+      assert_user_credit_caps(req.db, req.user, extra_credits=session.credit_required)
+      assert_provider_daily_caps(req.db, req.user, provider=req.provider.value)
       assert_expensive_api_allowed(req.db, user=req.user, provider=req.provider)
 
-    if not req.skip_credit_check and cost_control_enforced() and not is_admin(req.user):
+    from app.services.rbac import admin_skips_credit_deduction
+
+    if (
+        not req.skip_credit_check
+        and cost_control_enforced()
+        and not admin_skips_credit_deduction(req.user)
+    ):
       balance, sufficient = _check_credits(req.db, req.user, credit_cost=session.credit_required)
       session.credit_balance = balance
       if not sufficient:
@@ -262,6 +285,11 @@ def cost_gate_session(req: CostGateRequest) -> Iterator[CostGateSession]:
     session._gate_token = gate_token
     yield session
   finally:
+    if conc_held:
+      try:
+        release_user_concurrency(scope=req.provider.value, user_id=req.user.id)
+      except Exception:
+        _LOG.exception("cost_gate concurrency release failed")
     if gate_token is not None:
       reset_active_cost_gate(gate_token)
     if session._flight is not None and session._flight.acquired:

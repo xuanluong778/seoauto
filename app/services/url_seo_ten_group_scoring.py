@@ -1,44 +1,30 @@
 """
-Chấm điểm SEO 1 URL theo 10 nhóm (tổng 100 điểm).
-Bổ sung cho url_seo_scoreboard — không thay thế 12 trụ legacy.
+Chấm điểm SEO 1 URL theo 10 nhóm (tổng 100 điểm) — SSOT main score.
+Legacy 12 trụ / 15 checklist không ảnh hưởng total_score ở đây.
 """
 
 from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
+from app.services.seo_score_intent import analyze_search_intent
+from app.services.seo_score_link_analyzer import analyze_page_links
+from app.services.seo_score_schema_checks import evaluate_schema_for_page
+from app.services.seo_score_ssot import (
+    GROUP_LABELS,
+    GROUP_WEIGHTS,
+    SCORING_VERSION,
+    compute_ssot_total,
+    count_checks_by_status,
+    group_score_from_checks,
+    make_check,
+)
+
 _LINK_PARTIAL_WARNING = "Chưa đủ dữ liệu để đánh giá link"
-_SKIP_HREF_PREFIXES = ("javascript:", "mailto:", "tel:", "data:")
-
-GROUP_WEIGHTS: dict[str, float] = {
-    "indexability": 15.0,
-    "title_meta_slug": 12.0,
-    "heading": 8.0,
-    "keyword_semantic": 12.0,
-    "search_intent": 12.0,
-    "content_quality": 12.0,
-    "links": 8.0,
-    "image_seo": 6.0,
-    "schema": 7.0,
-    "ux_mobile_speed": 8.0,
-}
-
-GROUP_LABELS: dict[str, str] = {
-    "indexability": "Indexability",
-    "title_meta_slug": "Title / Meta / Slug",
-    "heading": "Heading",
-    "keyword_semantic": "Keyword / Semantic",
-    "search_intent": "Search Intent",
-    "content_quality": "Content Quality",
-    "links": "Internal / External Link",
-    "image_seo": "Image SEO",
-    "schema": "Schema",
-    "ux_mobile_speed": "UX / Mobile / Speed",
-}
 
 PENALTY_CAPS: dict[str, float] = {
     "http_404_500": 40.0,
@@ -50,38 +36,14 @@ PENALTY_CAPS: dict[str, float] = {
 }
 
 
-def _check(
-    *,
-    check_id: str,
-    title: str,
-    status: str,
-    score: float,
-    max_score: float,
-    problem: str = "",
-    impact: str = "",
-    fix: str = "",
-) -> dict[str, Any]:
-    st = status if status in ("passed", "warning", "failed") else "warning"
-    return {
-        "id": check_id,
-        "title": title,
-        "status": st,
-        "score": round(max(0.0, min(max_score, float(score))), 1),
-        "max_score": round(float(max_score), 1),
-        "problem": problem or "—",
-        "impact": impact or "—",
-        "fix": fix or "—",
-    }
-
-
-def _group_score_from_checks(checks: list[dict[str, Any]]) -> float:
-    if not checks:
-        return 0.0
-    earned = sum(float(c.get("score") or 0) for c in checks)
-    max_total = sum(float(c.get("max_score") or 0) for c in checks)
-    if max_total <= 0:
-        return 0.0
-    return round(min(100.0, earned / max_total * 100.0), 1)
+def _check(**kwargs: Any) -> dict[str, Any]:
+    """Backward-compatible alias — maps legacy passed/warning/failed to SSOT statuses."""
+    st = str(kwargs.pop("status", "warning"))
+    legacy_map = {"passed": "PASS", "warning": "WARNING", "failed": "FAIL"}
+    if st in legacy_map:
+        st = legacy_map[st]
+    fix = kwargs.pop("fix", "")
+    return make_check(status=st, fix=fix, recommendation=fix, **kwargs)
 
 
 def _slug_from_url(url: str) -> str:
@@ -134,131 +96,17 @@ def analyze_page_links(
     *,
     soup: BeautifulSoup | None = None,
     parsed_links: list[dict[str, Any]] | None = None,
+    verify_http: bool = True,
 ) -> dict[str, Any]:
-    """Phân tích internal/external/anchor/nofollow cho nhóm links."""
-    if not str(html or "").strip():
-        out = _empty_link_profile()
-        out["link_opportunities"] = ["Không có HTML — không thể đánh giá cấu trúc link."]
-        return out
+    from app.services.seo_score_link_analyzer import analyze_page_links as _impl
 
-    try:
-        if soup is None:
-            soup = BeautifulSoup((html or "")[:400_000], "html.parser")
-    except Exception:
-        out = _empty_link_profile()
-        out["link_opportunities"] = ["Không parse được HTML để đọc thẻ <a>."]
-        return out
-
-    host = _page_host_key(base_url or "")
-    rows: list[dict[str, Any]] = []
-    broken: list[dict[str, Any]] = []
-    anchor_counts: dict[str, int] = {}
-
-    for anchor in soup.find_all("a", href=True):
-        href_raw = str(anchor.get("href") or "").strip()
-        if not href_raw:
-            broken.append({"href": "", "anchor": anchor.get_text(" ", strip=True)[:200], "reason": "href rỗng"})
-            continue
-        if href_raw.startswith(_SKIP_HREF_PREFIXES):
-            continue
-        if href_raw == "#" or (href_raw.startswith("#") and len(href_raw) <= 2):
-            broken.append(
-                {
-                    "href": href_raw,
-                    "anchor": anchor.get_text(" ", strip=True)[:200],
-                    "reason": "Chỉ trỏ fragment (#) — không phải URL crawl được",
-                }
-            )
-            continue
-
-        abs_href = href_raw
-        if base_url and not href_raw.startswith(("http://", "https://", "//")):
-            try:
-                abs_href = urljoin(base_url, href_raw)
-            except Exception:
-                abs_href = href_raw
-
-        anchor_text = anchor.get_text(" ", strip=True)[:300]
-        rel = _rel_tokens(anchor.get("rel"))
-        is_nofollow = "nofollow" in rel or "ugc" in rel or "sponsored" in rel
-        is_internal = True
-        if abs_href.startswith(("http://", "https://")) and host:
-            link_host = _page_host_key(abs_href)
-            is_internal = bool(link_host) and (link_host == host or link_host.endswith("." + host))
-        elif abs_href.startswith("//") and host:
-            try:
-                link_host = _page_host_key("https:" + abs_href)
-                is_internal = bool(link_host) and (link_host == host or link_host.endswith("." + host))
-            except Exception:
-                is_internal = False
-
-        key = anchor_text.lower().strip() or "(trống)"
-        anchor_counts[key] = anchor_counts.get(key, 0) + 1
-
-        rows.append(
-            {
-                "href": abs_href[:500],
-                "anchor": anchor_text,
-                "is_internal": is_internal,
-                "is_nofollow": is_nofollow,
-                "rel": sorted(rel),
-            }
-        )
-
-    if parsed_links and not rows:
-        for item in parsed_links:
-            if not isinstance(item, dict):
-                continue
-            rows.append(
-                {
-                    "href": str(item.get("href") or "")[:500],
-                    "anchor": str(item.get("anchor") or "")[:300],
-                    "is_internal": bool(item.get("is_internal")),
-                    "is_nofollow": bool(item.get("is_nofollow")),
-                    "rel": list(item.get("rel") or []),
-                }
-            )
-
-    internal_count = sum(1 for r in rows if r.get("is_internal"))
-    external_count = sum(1 for r in rows if not r.get("is_internal"))
-    nofollow_count = sum(1 for r in rows if r.get("is_nofollow"))
-    dofollow_count = max(0, len(rows) - nofollow_count)
-    anchor_texts = [
-        {"text": text, "count": count}
-        for text, count in sorted(anchor_counts.items(), key=lambda x: (-x[1], x[0]))[:30]
-    ]
-
-    opportunities: list[str] = []
-    if internal_count < 3:
-        opportunities.append("Thêm 3–8 internal link contextual tới pillar/cluster liên quan.")
-    if external_count == 0:
-        opportunities.append("Thêm 1–2 external link tới nguồn uy tín (E-E-A-T).")
-    unique_anchors = len(anchor_counts)
-    if len(rows) >= 4 and unique_anchors <= max(1, len(rows) // 3):
-        opportunities.append("Đa dạng anchor text — tránh lặp cùng một cụm trên nhiều link.")
-    if nofollow_count and internal_count and nofollow_count >= internal_count // 2:
-        opportunities.append("Rà soát internal link bị nofollow — thường nên dofollow trừ trang policy.")
-
-    partial_data = False
-    warning = None
-    if not rows and not broken:
-        partial_data = True
-        warning = _LINK_PARTIAL_WARNING
-        opportunities.append("Trang không có thẻ <a href> hợp lệ để phân tích.")
-
-    return {
-        "internal_links_count": internal_count,
-        "external_links_count": external_count,
-        "total_links_count": len(rows),
-        "broken_links": broken[:20],
-        "anchor_texts": anchor_texts,
-        "nofollow_count": nofollow_count,
-        "dofollow_count": dofollow_count,
-        "links": rows[:80],
-        "link_opportunities": opportunities[:8],
-        "partial_data": partial_data,
-        "warning": warning,
-    }
+    return _impl(
+        html,
+        base_url,
+        soup=soup,
+        parsed_links=parsed_links,
+        verify_http=verify_http,
+    )
 
 
 def _anchor_diversity_score(rows: list[dict[str, Any]]) -> tuple[str, float, float, str]:
@@ -366,6 +214,8 @@ def build_ten_group_scoreboard(
     legacy_issues: list[dict[str, Any]],
     serp_intent_pkg: dict[str, Any] | None,
     link_profile: dict[str, Any] | None = None,
+    serp_rows: list[dict[str, Any]] | None = None,
+    schema_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build 10-group score payload for API + UI."""
     status = int(fetch.get("status") or 0)
@@ -391,7 +241,7 @@ def build_ten_group_scoreboard(
         soup = BeautifulSoup((html or "")[:400_000], "html.parser")
 
     if link_profile is None:
-        link_profile = analyze_page_links(html, normalized_url or url, soup=soup)
+        link_profile = analyze_page_links(html, normalized_url or url, soup=soup, verify_http=True)
     internal_links = int(link_profile.get("internal_links_count") or 0)
     external_links = int(link_profile.get("external_links_count") or 0)
     links_partial = bool(link_profile.get("partial_data"))
@@ -804,76 +654,76 @@ def build_ten_group_scoreboard(
         )
     )
 
-    # --- Search Intent ---
+    # --- Search Intent (SERP Top 10 evidence) ---
     si_checks: list[dict[str, Any]] = []
-    page_intent = (breakdown.get("intent") or {}).get("page_intent") or {}
-    pi = str(page_intent.get("intent") or "unknown")
-    serp_i = str((serp_intent_pkg or {}).get("serp_intent") or "unknown")
-    match = pi == serp_i or pi == "unknown" or serp_i == "unknown"
-    if pk and serp_intent_pkg:
-        si_checks.append(
-            _check(
-                check_id="intent_match",
-                title="Khớp intent SERP",
-                status="passed" if match else "failed",
-                score=50 if match else 10,
-                max_score=50,
-                problem="" if match else f"Trang {pi} vs SERP {serp_i}.",
-                impact="Không khớp intent → khó top 10.",
-                fix="Điều chỉnh format nội dung theo SERP (blog/landing/list)." if not match else "—",
-            )
+    intent_pkg = analyze_search_intent(
+        keyword=pk or None,
+        page_type=ptype,
+        title=title,
+        body_text=body_text,
+        serp_rows=serp_rows,
+        page_intent_breakdown=(breakdown.get("intent") or {}).get("page_intent"),
+    )
+    ist = str(intent_pkg.get("status") or "UNKNOWN")
+    ic_conf = float(intent_pkg.get("confidence") or 0.0)
+    ic_score = 50 if ist == "PASS" else (30 if ist == "WARNING" else 15)
+    si_checks.append(
+        make_check(
+            check_id="intent_match",
+            title="Khớp intent SERP Top 10",
+            status=ist if pk else "UNKNOWN",
+            score=ic_score if pk else 10,
+            max_score=50,
+            confidence=ic_conf if pk else 0.2,
+            evidence=intent_pkg.get("evidence") or {},
+            problem=str(intent_pkg.get("mismatch_reason") or ""),
+            impact="Intent lệch SERP → khó top 10." if intent_pkg.get("mismatch") else "Intent phù hợp SERP.",
+            recommendation="Điều chỉnh format nội dung theo SERP winners." if intent_pkg.get("mismatch") else "—",
         )
-    elif pk:
+    )
+    if ptype != "unknown":
         si_checks.append(
-            _check(
-                check_id="intent_match",
-                title="Khớp intent SERP",
-                status="warning",
+            make_check(
+                check_id="page_type",
+                title=f"Page type: {ptype}",
+                status="PASS",
                 score=25,
-                max_score=50,
-                problem="Chưa có dữ liệu SERP.",
-                impact="Không xác nhận intent.",
-                fix="Bật phân tích SERP (API key).",
+                max_score=25,
+                confidence=0.7,
+                evidence={"page_type": ptype},
+                problem="",
+                impact="Đối chiếu checklist theo loại trang.",
+                recommendation="—",
             )
         )
     else:
         si_checks.append(
-            _check(
-                check_id="intent_match",
-                title="Search intent",
-                status="warning",
-                score=20,
-                max_score=50,
-                problem="Chưa có keyword → không phân loại intent.",
-                impact="—",
-                fix="Nhập keyword chính.",
-            )
-        )
-
-    if ptype != "unknown":
-        si_checks.append(
-            _check(
+            make_check(
                 check_id="page_type",
-                title=f"Page type: {ptype}",
-                status="passed",
-                score=25,
+                title="Page type",
+                status="UNKNOWN",
+                score=10,
                 max_score=25,
-                problem="",
-                impact="Đối chiếu checklist theo loại trang.",
-                fix="—",
+                confidence=0.35,
+                evidence={},
+                problem="Chưa chọn loại trang.",
+                impact="—",
+                recommendation="Chọn page type để so khớp SERP chính xác hơn.",
             )
         )
-
+    has_cta = bool(re.search(r"(mua|đăng ký|liên hệ|contact|buy|order)", body_text, re.I))
     si_checks.append(
-        _check(
+        make_check(
             check_id="cta_intent",
             title="CTA / conversion signals",
-            status="passed" if re.search(r"(mua|đăng ký|liên hệ|contact|buy|order)", body_text, re.I) else "warning",
-            score=25,
+            status="PASS" if has_cta else "WARNING",
+            score=25 if has_cta else 12,
             max_score=25,
-            problem="",
-            impact="Phù hợp commercial intent.",
-            fix="Thêm CTA rõ nếu landing/commercial.",
+            confidence=0.55 if has_cta else 0.4,
+            evidence={"cta_detected": has_cta},
+            problem="" if has_cta else "Chưa thấy CTA rõ.",
+            impact="Commercial/transactional intent.",
+            recommendation="Thêm CTA rõ nếu landing/commercial.",
         )
     )
 
@@ -922,15 +772,17 @@ def build_ten_group_scoreboard(
     )
 
     cq_checks.append(
-        _check(
+        make_check(
             check_id="uniqueness",
             title="Nội dung độc đáo",
-            status="warning",
-            score=15,
+            status="UNKNOWN",
+            score=0,
             max_score=30,
-            problem="Chưa so sánh duplicate (cần crawl đối thủ).",
+            confidence=0.0,
+            evidence={"method": "heuristic_unavailable"},
+            problem="Chưa có crawl đối thủ / fingerprint để xác minh uniqueness.",
             impact="—",
-            fix="Tránh copy; bổ sung insight riêng.",
+            recommendation="Tránh copy; bổ sung insight riêng (không khẳng định duplicate).",
         )
     )
 
@@ -1034,28 +886,32 @@ def build_ten_group_scoreboard(
         broken = list(link_profile.get("broken_links") or [])
         if broken:
             lk_checks.append(
-                _check(
+                make_check(
                     check_id="broken_links",
-                    title="Link lỗi / không crawl được",
-                    status="warning",
-                    score=10,
+                    title="Broken links (HTTP evidence)",
+                    status="FAIL" if len(broken) >= 2 else "WARNING",
+                    score=5 if broken else 20,
                     max_score=20,
-                    problem=f"{len(broken)} link có href rỗng hoặc chỉ fragment.",
-                    impact="Bot và người dùng khó đi theo link.",
-                    fix="Thay href=# bằng URL thật hoặc button.",
+                    confidence=0.85,
+                    evidence={"broken": broken[:5], "http_verified": link_profile.get("http_verified")},
+                    problem=f"{len(broken)} URL trả HTTP lỗi/không truy cập.",
+                    impact="Bot và người dùng gặp dead-end.",
+                    recommendation="Sửa hoặc gỡ link trỏ tới URL lỗi.",
                 )
             )
         else:
             lk_checks.append(
-                _check(
+                make_check(
                     check_id="broken_links",
-                    title="Link lỗi / không crawl được",
-                    status="passed",
-                    score=20,
+                    title="Broken links (HTTP evidence)",
+                    status="PASS" if link_profile.get("http_verified") else "UNKNOWN",
+                    score=20 if link_profile.get("http_verified") else 12,
                     max_score=20,
-                    problem="",
-                    impact="Không phát hiện href rỗng/fragment-only.",
-                    fix="—",
+                    confidence=0.8 if link_profile.get("http_verified") else 0.4,
+                    evidence={"http_verified": link_profile.get("http_verified")},
+                    problem="" if link_profile.get("http_verified") else "Chưa kiểm tra HTTP (hoặc không có URL tuyệt đối).",
+                    impact="Không phát hiện broken link có bằng chứng HTTP.",
+                    recommendation="—",
                 )
             )
 
@@ -1127,146 +983,117 @@ def build_ten_group_scoreboard(
         )
     )
 
-    # --- Schema ---
+    # --- Schema (syntax + page-type fit) ---
     sch_checks: list[dict[str, Any]] = []
-    if ld_blocks:
-        types = []
-        for b in ld_blocks:
-            t = b.get("@type")
-            if isinstance(t, list):
-                types.extend(t)
-            elif t:
-                types.append(str(t))
-        sch_checks.append(
-            _check(
-                check_id="structured_data",
-                title="Structured data",
-                status="passed",
-                score=50,
-                max_score=50,
-                problem="",
-                impact=f"Types: {', '.join(types[:5]) or 'JSON-LD'}.",
-                fix="—",
-            )
-        )
-        sch_checks.append(
-            _check(
-                check_id="schema_valid",
-                title="Schema hợp lệ",
-                status="passed",
-                score=30,
-                max_score=30,
-                problem="",
-                impact="Rich results eligibility.",
-                fix="—",
-            )
-        )
-    else:
-        sch_checks.append(
-            _check(
-                check_id="structured_data",
-                title="Structured data",
-                status="failed",
-                score=0,
-                max_score=50,
-                problem="Không có JSON-LD.",
-                impact="Mất rich results.",
-                fix="Thêm Article/Product/Organization schema.",
-            )
-        )
-        sch_checks.append(
-            _check(
-                check_id="schema_valid",
-                title="Schema hợp lệ",
-                status="failed",
-                score=0,
-                max_score=30,
-                problem="—",
-                impact="—",
-                fix="—",
-            )
-        )
-
+    schema_eval = evaluate_schema_for_page(ld_blocks, page_type=ptype, validation=schema_validation)
+    sch_pct = float(schema_eval.get("score_percent") or 0)
+    sch_st = str(schema_eval.get("status") or "UNKNOWN")
     sch_checks.append(
-        _check(
+        make_check(
+            check_id="structured_data",
+            title="Structured data (JSON-LD)",
+            status=sch_st if ld_blocks else "FAIL",
+            score=round(sch_pct * 0.5, 1),
+            max_score=50,
+            confidence=float(schema_eval.get("confidence") or 0.5),
+            evidence=schema_eval.get("evidence") or {},
+            problem=str(schema_eval.get("problem") or ""),
+            impact="Rich results eligibility.",
+            recommendation="Thêm/sửa JSON-LD đúng page type." if not schema_eval.get("type_match") else "—",
+        )
+    )
+    sch_checks.append(
+        make_check(
+            check_id="schema_valid",
+            title="Schema validation",
+            status="PASS" if schema_eval.get("valid") else ("FAIL" if ld_blocks else "FAIL"),
+            score=round(min(30.0, sch_pct * 0.3), 1),
+            max_score=30,
+            confidence=float(schema_eval.get("confidence") or 0.5),
+            evidence={"errors": (schema_eval.get("errors") or [])[:5], "types": schema_eval.get("types")},
+            problem="; ".join((schema_eval.get("errors") or [])[:3]) or "—",
+            impact="Invalid schema không giúp rich results.",
+            recommendation="Sửa lỗi JSON-LD và required fields.",
+        )
+    )
+    needs_local = ptype in ("landing", "homepage") or "local" in str(intent_pkg.get("dominant_intent") or "")
+    sch_checks.append(
+        make_check(
             check_id="local_business",
             title="Local Business (nếu cần)",
-            status="warning",
-            score=20,
+            status="UNKNOWN" if not needs_local else ("PASS" if "LocalBusiness" in (schema_eval.get("types") or []) else "WARNING"),
+            score=20 if "LocalBusiness" in (schema_eval.get("types") or []) else (8 if needs_local else 12),
             max_score=20,
-            problem="Chưa xác minh LocalBusiness.",
+            confidence=0.45,
+            evidence={"needs_local": needs_local, "types": schema_eval.get("types")},
+            problem="" if "LocalBusiness" in (schema_eval.get("types") or []) else "Chưa xác minh LocalBusiness.",
             impact="Local pack.",
-            fix="Thêm LocalBusiness nếu có địa chỉ.",
+            recommendation="Thêm LocalBusiness nếu có địa chỉ.",
         )
     )
 
-    # --- UX / Mobile / Speed ---
+    # --- UX / Mobile / Speed (no fake CWV PASS) ---
     ux_checks: list[dict[str, Any]] = []
     viewport = bool(soup.find("meta", attrs={"name": "viewport"})) if soup else False
     ux_checks.append(
-        _check(
-            check_id="viewport",
-            title="Mobile viewport",
-            status="passed" if viewport else "failed",
-            score=30 if viewport else 0,
-            max_score=30,
-            problem="" if viewport else "Thiếu meta viewport.",
-            impact="Mobile-friendly.",
-            fix='Thêm <meta name="viewport" content="width=device-width, initial-scale=1">.' if not viewport else "—",
-        )
-    )
-
-    speed_proxy = float((breakdown.get("speed_mobile") or {}).get("score") or 70)
-    if speed_proxy >= 70:
-        ux_checks.append(
-            _check(
-                check_id="speed_proxy",
-                title="Tốc độ (proxy)",
-                status="passed",
-                score=35,
-                max_score=35,
-                problem="",
-                impact="HTML weight / HTTPS OK.",
-                fix="—",
-            )
-        )
-    else:
-        ux_checks.append(
-            _check(
-                check_id="speed_proxy",
-                title="Tốc độ (proxy)",
-                status="warning",
-                score=18,
-                max_score=35,
-                problem="HTML nặng hoặc tài nguyên chặn.",
-                impact="CWV & ranking mobile.",
-                fix="Giảm JS/CSS, bật cache, CDN.",
-            )
-        )
-
-    ux_checks.append(
-        _check(
-            check_id="readability",
-            title="Khả năng đọc",
-            status="passed",
-            score=20,
-            max_score=20,
-            problem="",
-            impact="UX engagement.",
-            fix="—",
-        )
-    )
-
-    ux_checks.append(
-        _check(
-            check_id="cwv_lab",
-            title="Core Web Vitals",
-            status="warning",
-            score=15,
+        make_check(
+            check_id="mobile_viewport",
+            title="Mobile compatibility (viewport)",
+            status="PASS" if viewport else "FAIL",
+            score=15 if viewport else 0,
             max_score=15,
-            problem="Cần PageSpeed/Lighthouse để đo LCP/CLS.",
+            confidence=0.9 if viewport else 0.85,
+            evidence={"viewport_present": viewport},
+            problem="" if viewport else "Thiếu meta viewport.",
+            impact="Mobile-friendly baseline.",
+            recommendation='Thêm <meta name="viewport" content="width=device-width, initial-scale=1">.' if not viewport else "—",
+        )
+    )
+
+    speed_proxy = float((breakdown.get("speed_mobile") or {}).get("score") or 0)
+    has_perf_signal = speed_proxy > 0 and ok
+    ux_checks.append(
+        make_check(
+            check_id="performance_proxy",
+            title="Performance signals (HTML proxy)",
+            status="WARNING" if has_perf_signal else "UNKNOWN",
+            score=min(20.0, speed_proxy * 0.2) if has_perf_signal else 0,
+            max_score=20,
+            confidence=0.45 if has_perf_signal else 0.0,
+            evidence={"proxy_score": speed_proxy, "method": "html_weight_heuristic"},
+            problem="" if has_perf_signal else "Chưa có PSI/CrUX — chỉ ước tính thô.",
+            impact="Không thay thế lab/field CWV.",
+            recommendation="Chạy PageSpeed Insights để đo LCP/INP/CLS thật.",
+        )
+    )
+
+    ux_checks.append(
+        make_check(
+            check_id="readability",
+            title="Readability (heuristic)",
+            status="UNKNOWN",
+            score=8,
+            max_score=15,
+            confidence=0.35,
+            evidence={"method": "sentence_length_proxy"},
+            problem="Heuristic — chưa có readability lab.",
+            impact="UX engagement.",
+            recommendation="Rút gọn câu dài, thêm subheading.",
+        )
+    )
+
+    ux_checks.append(
+        make_check(
+            check_id="cwv_lab",
+            title="Core Web Vitals (field/lab)",
+            status="UNKNOWN",
+            score=0,
+            max_score=15,
+            confidence=0.0,
+            evidence={"psi_available": False, "crux_available": False},
+            problem="Không có dữ liệu PSI/CrUX trong SEO Score.",
             impact="—",
-            fix="Chạy PSI cho URL.",
+            recommendation="Chạy PSI/Lighthouse; không suy diễn PASS từ viewport.",
         )
     )
 
@@ -1289,11 +1116,12 @@ def build_ten_group_scoreboard(
     weight_sum = sum(GROUP_WEIGHTS.values())
 
     for gid, checks in groups_raw.items():
-        gscore = _group_score_from_checks(checks)
+        gscore = group_score_from_checks(checks)
         w = GROUP_WEIGHTS.get(gid, 0.0)
         wp = round(gscore * w / 100.0, 2)
         weighted_total += wp
         group_scores[gid] = gscore
+        counts = count_checks_by_status(checks)
         groups.append(
             {
                 "id": gid,
@@ -1304,9 +1132,10 @@ def build_ten_group_scoreboard(
                 "weighted_points": wp,
                 "contribution": wp,
                 "checks": checks,
-                "checks_passed": sum(1 for c in checks if c["status"] == "passed"),
-                "checks_warning": sum(1 for c in checks if c["status"] == "warning"),
-                "checks_failed": sum(1 for c in checks if c["status"] == "failed"),
+                "checks_passed": counts["pass"],
+                "checks_warning": counts["warning"],
+                "checks_failed": counts["fail"],
+                "checks_unknown": counts["unknown"],
                 **(
                     {
                         "link_data": link_profile,
@@ -1321,10 +1150,10 @@ def build_ten_group_scoreboard(
 
     groups = ensure_ten_groups_complete(groups)
     group_scores = {str(g["id"]): float(g["score"]) for g in groups}
-    weighted_total = round(sum(float(g.get("weighted_points") or 0) for g in groups), 2)
-    total_score = round(weighted_total, 1)
     penalties_applied: list[dict[str, Any]] = []
 
+    ssot = compute_ssot_total(groups)
+    total_score = float(ssot["total_score"])
     if status in (404, 410, 500, 502, 503):
         cap = PENALTY_CAPS["http_404_500"]
         if total_score > cap:
@@ -1355,8 +1184,8 @@ def build_ten_group_scoreboard(
         if total_score > cap:
             penalties_applied.append({"code": "spam", "cap": cap, "reason": "keyword stuffing"})
             total_score = cap
-
     total_score = max(0.0, min(100.0, round(total_score, 1)))
+    ssot["total_score"] = total_score
 
     strengths: list[str] = []
     weaknesses: list[str] = []
@@ -1364,14 +1193,15 @@ def build_ten_group_scoreboard(
         if g["score"] >= 80:
             strengths.append(f"{g['label']}: {g['score']}/100 — {g['checks_passed']} checks passed")
         elif g["score"] < 55:
-            failed = [c for c in g["checks"] if c["status"] == "failed"]
+            failed = [c for c in g["checks"] if c.get("status") in ("FAIL", "failed")]
             hint = failed[0]["title"] if failed else g["label"]
             weaknesses.append(f"{g['label']}: {g['score']}/100 — cần cải thiện ({hint})")
 
     priority_fixes: list[dict[str, Any]] = []
     for g in sorted(groups, key=lambda x: x["score"]):
         for c in g["checks"]:
-            if c["status"] == "failed":
+            st = c.get("status")
+            if st in ("FAIL", "failed"):
                 priority_fixes.append(
                     {
                         "group": g["id"],
@@ -1379,11 +1209,11 @@ def build_ten_group_scoreboard(
                         "check_id": c["id"],
                         "title": c["title"],
                         "problem": c["problem"],
-                        "fix": c["fix"],
+                        "fix": c.get("recommendation") or c.get("fix"),
                         "priority": "high",
                     }
                 )
-            elif c["status"] == "warning" and len(priority_fixes) < 12:
+            elif st in ("WARNING", "warning", "UNKNOWN") and len(priority_fixes) < 12:
                 priority_fixes.append(
                     {
                         "group": g["id"],
@@ -1391,7 +1221,7 @@ def build_ten_group_scoreboard(
                         "check_id": c["id"],
                         "title": c["title"],
                         "problem": c["problem"],
-                        "fix": c["fix"],
+                        "fix": c.get("recommendation") or c.get("fix"),
                         "priority": "medium",
                     }
                 )
@@ -1400,7 +1230,7 @@ def build_ten_group_scoreboard(
     ai_suggestions: list[str] = []
     if pk:
         ai_suggestions.append(
-            f"Tối ưu title/meta để chứa «{pk}» và khớp intent {serp_i}."
+            f"Tối ưu title/meta để chứa «{pk}» và khớp intent {intent_pkg.get('serp_intent') or 'SERP'}."
         )
     if thin:
         ai_suggestions.append(f"Mở rộng nội dung từ ~{wc} lên ít nhất 800–1200 từ cho query informational.")
@@ -1427,4 +1257,7 @@ def build_ten_group_scoreboard(
         "page_type": ptype,
         "weights": GROUP_WEIGHTS,
         "group_labels": GROUP_LABELS,
+        "scoring_version": SCORING_VERSION,
+        "intent_analysis": intent_pkg,
+        "ssot": ssot,
     }

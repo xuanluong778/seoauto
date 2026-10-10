@@ -15,19 +15,20 @@
 
                 <div class="cau-panel active" data-cau-panel="select">
                     <div class="cau-card">
-                        <h3>Kết nối WordPress</h3>
-                        <div class="cau-grid2">
+                        <h3>Website WordPress</h3>
+                        <p class="cau-hint">Dùng website đã kết nối tại <a href="/settings#publishing">Cài đặt → Xuất bản</a>. Không nhập lại URL / Application Password tại đây.</p>
+                        <div class="cau-grid2" hidden>
                             <label>URL site<input type="url" id="cauSiteUrl" placeholder="https://example.com"></label>
                             <label>Username<input type="text" id="cauSiteUser" autocomplete="off"></label>
                             <label>Application Password<input type="password" id="cauSitePass" autocomplete="off"></label>
                             <label>Tên gợi nhớ<input type="text" id="cauSiteLabel" placeholder="Site chính"></label>
                         </div>
-                        <div class="cau-btn-row">
+                        <div class="cau-btn-row" hidden>
                             <button type="button" class="btn" id="btnCauConnect">Kết nối site</button>
                             <button type="button" class="mini-btn" id="btnCauTestSite">Kiểm tra</button>
                         </div>
                         <div class="cau-hint" id="cauConnectHint" role="status" aria-live="polite"></div>
-                        <label>Site đã lưu<select id="cauSiteSelect"><option value="">— Chọn site —</option></select></label>
+                        <label>Site đã kết nối<select id="cauSiteSelect"><option value="">— Chọn site —</option></select></label>
                     </div>
                     <div class="cau-card cau-scan-card">
                         <div class="cau-scan-head">
@@ -69,6 +70,7 @@
                                     </select>
                                 </label>
                                 <div class="cau-scan-actions cau-scan-actions--scope">
+                                    <span class="cau-scan-field-label cau-scan-field-label--spacer" aria-hidden="true">&nbsp;</span>
                                     <button type="button" class="btn btn-secondary" id="btnCauScanCategories">Tải danh mục</button>
                                 </div>
                             </div>
@@ -279,84 +281,127 @@
                             <a id="cauSeoModalSuccessLink" href="#" target="_blank" rel="noopener">Mở bài trên website</a>
                         </div>
 
+                        <nav class="cau-main-tabs" role="tablist" aria-label="Sửa SEO">
+                            <button type="button" class="cau-main-tab active" role="tab" aria-selected="true" data-cau-main-tab="overview">Tổng quan</button>
+                            <button type="button" class="cau-main-tab" role="tab" aria-selected="false" data-cau-main-tab="content">Nội dung</button>
+                            <button type="button" class="cau-main-tab" role="tab" aria-selected="false" data-cau-main-tab="seo">SEO</button>
+                            <button type="button" class="cau-main-tab" role="tab" aria-selected="false" data-cau-main-tab="links">Liên kết</button>
+                            <button type="button" class="cau-main-tab" role="tab" aria-selected="false" data-cau-main-tab="images">Hình ảnh</button>
+                            <button type="button" class="cau-main-tab" role="tab" aria-selected="false" data-cau-main-tab="history">Lịch sử</button>
+                        </nav>
+
+                        <!-- Legacy editor-tab contracts (hidden; driven by main tabs) -->
+                        <div class="cau-editor-tabs cau-editor-tabs--legacy" hidden aria-hidden="true">
+                            <button type="button" class="cau-editor-tab active" role="tab" aria-selected="true" data-cau-editor-tab="content">Nội dung</button>
+                            <button type="button" class="cau-editor-tab" role="tab" aria-selected="false" data-cau-editor-tab="outline">Cấu trúc bài viết</button>
+                            <button type="button" class="cau-editor-tab" role="tab" aria-selected="false" data-cau-editor-tab="internal">Internal link</button>
+                            <button type="button" class="cau-editor-tab" role="tab" aria-selected="false" data-cau-editor-tab="images">Ảnh</button>
+                            <button type="button" class="cau-editor-tab" role="tab" aria-selected="false" data-cau-editor-tab="changes">Thay đổi</button>
+                        </div>
+
                         <div class="cau-seo-modal__scroll" id="cauSeoModalScroll">
                             <div class="cau-seo-modal__body" id="cauSeoModalBody">
                                 <div class="cau-seo-modal__col cau-seo-modal__col--editor">
                                     <div class="cau-seo-modal__section">
-                                        <h4 class="cau-seo-modal__section-title">Chỉnh sửa bài viết</h4>
-                                        <div class="cau-field-head">
-                                            <span class="cau-seo-field cau-seo-field--head">Title</span>
-                                            <button type="button" class="cau-ai-btn" data-cau-ai-field="title">Gợi ý AI</button>
+                                        <div class="cau-main-panel" data-cau-main-panel="overview" role="tabpanel">
+                                            <h4 class="cau-seo-modal__section-title">Tổng quan SEO</h4>
+                                            <p class="cau-overview-lead">Kiểm tra điểm SEO, sửa lỗi ưu tiên bằng AI, rồi cập nhật WordPress khi sẵn sàng. AI chỉ áp dụng vào bản nháp — không tự publish.</p>
+                                            <div class="cau-overview-score">
+                                                <span class="cau-overview-score__label">Điểm SEO hiện tại</span>
+                                                <span class="cau-overview-score__value"><strong id="cauOverviewScore">—</strong><small>/100</small></span>
+                                            </div>
+                                            <div class="cau-overview-steps">
+                                                <ol>
+                                                    <li>Xem lỗi ưu tiên ở cột SEO Assistant → bấm <strong>Phân tích SEO</strong>.</li>
+                                                    <li>Chỉnh Title / Meta ở tab <strong>SEO</strong>, nội dung ở tab <strong>Nội dung</strong>.</li>
+                                                    <li><strong>Lưu nháp</strong> khi cần, rồi <strong>Cập nhật WordPress</strong> (nút chính ở thanh dưới).</li>
+                                                </ol>
+                                            </div>
+                                            <div class="cau-overview-actions">
+                                                <button type="button" class="mini-btn" data-cau-goto-tab="seo">Mở tab SEO</button>
+                                                <button type="button" class="mini-btn" data-cau-goto-tab="content">Mở nội dung</button>
+                                                <button type="button" class="mini-btn" id="btnCauModalPreview">Xem trước bài</button>
+                                            </div>
+                                            <div class="cau-hint" id="cauOverviewHint" role="status"></div>
                                         </div>
-                                        <input type="text" class="cau-seo-input" id="cauModalTitle" autocomplete="off" aria-label="Title">
-                                        <p class="cau-hint cau-hint--field" id="cauHint-title" role="status"></p>
-                                        <div class="cau-seo-modal__row2">
-                                            <label class="cau-seo-field">Slug
-                                                <input type="text" id="cauModalSlug" autocomplete="off">
-                                            </label>
-                                            <label class="cau-seo-field">Focus keyword
-                                                <input type="text" id="cauModalKeyword" autocomplete="off" placeholder="Từ khóa chính">
-                                            </label>
-                                        </div>
-                                        <div class="cau-field-head">
-                                            <span class="cau-seo-field cau-seo-field--head">Meta description</span>
-                                            <button type="button" class="cau-ai-btn" data-cau-ai-field="meta_description">Gợi ý AI</button>
-                                        </div>
-                                        <input type="text" class="cau-seo-input" id="cauModalExcerpt" autocomplete="off" placeholder="Mô tả meta cho SEO" aria-label="Meta description">
-                                        <p class="cau-hint cau-hint--field" id="cauHint-meta_description" role="status"></p>
-                                        <div class="cau-field-head">
-                                            <span class="cau-seo-field cau-seo-field--head">Từ khóa phụ</span>
-                                            <button type="button" class="cau-ai-btn" data-cau-ai-field="secondary_keywords">Gợi ý AI</button>
-                                        </div>
-                                        <input type="text" class="cau-seo-input" id="cauModalSecondaryKw" autocomplete="off" placeholder="kw1, kw2, kw3" aria-label="Từ khóa phụ">
-                                        <p class="cau-hint cau-hint--field" id="cauHint-secondary_keywords" role="status"></p>
 
-                                        <nav class="cau-editor-tabs" role="tablist" aria-label="Công cụ chỉnh sửa">
-                                            <button type="button" class="cau-editor-tab active" role="tab" aria-selected="true" data-cau-editor-tab="content">Nội dung</button>
-                                            <button type="button" class="cau-editor-tab" role="tab" aria-selected="false" data-cau-editor-tab="outline">Cấu trúc bài viết</button>
-                                            <button type="button" class="cau-editor-tab" role="tab" aria-selected="false" data-cau-editor-tab="internal">Internal link</button>
-                                            <button type="button" class="cau-editor-tab" role="tab" aria-selected="false" data-cau-editor-tab="images">Ảnh</button>
-                                            <button type="button" class="cau-editor-tab" role="tab" aria-selected="false" data-cau-editor-tab="changes">Thay đổi</button>
-                                        </nav>
+                                        <div class="cau-main-panel" data-cau-main-panel="seo" role="tabpanel" hidden>
+                                            <h4 class="cau-seo-modal__section-title">Title · Slug · Meta</h4>
+                                            <div class="cau-field-head">
+                                                <span class="cau-seo-field cau-seo-field--head">Title</span>
+                                                <button type="button" class="cau-ai-btn" data-cau-ai-field="title">Gợi ý AI</button>
+                                            </div>
+                                            <input type="text" class="cau-seo-input" id="cauModalTitle" autocomplete="off" aria-label="Title">
+                                            <p class="cau-hint cau-hint--field" id="cauHint-title" role="status"></p>
+                                            <div class="cau-seo-modal__row2">
+                                                <label class="cau-seo-field">Slug
+                                                    <input type="text" id="cauModalSlug" autocomplete="off">
+                                                </label>
+                                                <label class="cau-seo-field">Focus keyword
+                                                    <input type="text" id="cauModalKeyword" autocomplete="off" placeholder="Từ khóa chính">
+                                                </label>
+                                            </div>
+                                            <div class="cau-field-head">
+                                                <span class="cau-seo-field cau-seo-field--head">Meta description</span>
+                                                <button type="button" class="cau-ai-btn" data-cau-ai-field="meta_description">Gợi ý AI</button>
+                                            </div>
+                                            <textarea class="cau-seo-input cau-seo-input--meta" id="cauModalExcerpt" rows="3" autocomplete="off" placeholder="Mô tả meta cho SEO (plain text)" aria-label="Meta description"></textarea>
+                                            <p class="cau-hint cau-hint--field" id="cauHint-meta_description" role="status"></p>
+                                            <div class="cau-field-head">
+                                                <span class="cau-seo-field cau-seo-field--head">Từ khóa phụ</span>
+                                                <button type="button" class="cau-ai-btn" data-cau-ai-field="secondary_keywords">Gợi ý AI</button>
+                                            </div>
+                                            <input type="text" class="cau-seo-input" id="cauModalSecondaryKw" autocomplete="off" placeholder="kw1, kw2, kw3" aria-label="Từ khóa phụ">
+                                            <p class="cau-hint cau-hint--field" id="cauHint-secondary_keywords" role="status"></p>
+                                        </div>
 
-                                        <div class="cau-editor-panels">
-                                            <div class="cau-editor-panel" data-cau-editor-panel="content" role="tabpanel">
-                                                <div class="cau-be-mount" id="cauBlockEditorMount" aria-label="Block editor nội dung"></div>
-                                                <!-- Legacy contenteditable kept for fallback JS only — always hidden (block editor is primary) -->
-                                                <div class="cau-content-editor" id="cauModalContentEditor" hidden aria-hidden="true" style="display:none!important"></div>
-                                                <textarea id="cauModalContent" hidden aria-hidden="true" tabindex="-1"></textarea>
-                                                <details class="cau-seo-advanced" id="cauModalAdvanced">
-                                                    <summary class="cau-seo-advanced__toggle">Nâng cao / HTML source</summary>
-                                                    <textarea id="cauModalContentHtml" class="cau-seo-advanced__html" spellcheck="false" rows="8" aria-label="HTML source"></textarea>
+                                        <div class="cau-main-panel" data-cau-main-panel="content" role="tabpanel" hidden>
+                                            <h4 class="cau-seo-modal__section-title">Nội dung bài viết</h4>
+                                            <div class="cau-editor-panels">
+                                                <div class="cau-editor-panel" data-cau-editor-panel="content" role="tabpanel">
+                                                    <div class="cau-be-mount" id="cauBlockEditorMount" aria-label="Block editor nội dung"></div>
+                                                    <!-- Legacy contenteditable kept for fallback JS only — always hidden (block editor is primary) -->
+                                                    <div class="cau-content-editor" id="cauModalContentEditor" hidden aria-hidden="true" style="display:none!important"></div>
+                                                    <textarea id="cauModalContent" hidden aria-hidden="true" tabindex="-1"></textarea>
+                                                    <details class="cau-seo-advanced" id="cauModalAdvanced">
+                                                        <summary class="cau-seo-advanced__toggle">Nâng cao / HTML source</summary>
+                                                        <textarea id="cauModalContentHtml" class="cau-seo-advanced__html" spellcheck="false" rows="8" aria-label="HTML source"></textarea>
+                                                    </details>
+                                                </div>
+
+                                                <details class="cau-seo-advanced cau-structure-acc" id="cauStructureAcc">
+                                                    <summary class="cau-seo-advanced__toggle">Cấu trúc bài viết / Outline (nâng cao)</summary>
+                                                    <div class="cau-editor-panel cau-editor-panel--nested" data-cau-editor-panel="outline" role="tabpanel">
+                                                        <div class="cau-struct-mount" id="cauStructureMount" aria-label="Cấu trúc bài viết"></div>
+                                                        <details class="cau-seo-advanced" id="cauOutlineLegacyWrap">
+                                                            <summary class="cau-seo-advanced__toggle">Outline text (tuỳ chọn / đối thủ)</summary>
+                                                            <div class="cau-field-head">
+                                                                <span class="cau-seo-field cau-seo-field--head">Outline content</span>
+                                                                <button type="button" class="cau-ai-btn" data-cau-ai-field="outline_content">Gợi ý AI</button>
+                                                            </div>
+                                                            <div class="cau-outline-tools">
+                                                                <input type="url" id="cauModalCompetitorUrl" class="cau-seo-input" placeholder="Link đối thủ (tham khảo outline)">
+                                                                <button type="button" class="mini-btn" id="btnCauOutlineReference">Outline tham khảo</button>
+                                                            </div>
+                                                            <p class="cau-hint cau-hint--field" id="cauHint-competitor" role="status"></p>
+                                                            <div class="cau-outline-replace-tools">
+                                                                <input type="text" id="cauModalReplaceFrom" class="cau-seo-input" placeholder="Từ cần thay (vd: Vua Web Digi)" autocomplete="off">
+                                                                <input type="text" id="cauModalReplaceTo" class="cau-seo-input" placeholder="Thay bằng (vd: Thế Giới Digi)" autocomplete="off">
+                                                                <button type="button" class="mini-btn" id="btnCauModalReplaceAll">Replace All</button>
+                                                                <button type="button" class="mini-btn" id="btnCauModalRefreshOutline">Làm mới Outline</button>
+                                                            </div>
+                                                            <p class="cau-hint cau-hint--field" id="cauHint-outline-actions" role="status"></p>
+                                                            <textarea id="cauModalOutline" class="cau-outline-ta" rows="8" placeholder="## H2 đầu tiên&#10;- Ý chính 1&#10;- Ý chính 2"></textarea>
+                                                            <p class="cau-hint cau-hint--field" id="cauHint-outline_content" role="status"></p>
+                                                        </details>
+                                                    </div>
                                                 </details>
                                             </div>
+                                        </div>
 
-                                            <div class="cau-editor-panel" data-cau-editor-panel="outline" role="tabpanel" hidden>
-                                                <div class="cau-struct-mount" id="cauStructureMount" aria-label="Cấu trúc bài viết"></div>
-                                                <details class="cau-seo-advanced" id="cauOutlineLegacyWrap">
-                                                    <summary class="cau-seo-advanced__toggle">Outline text (tuỳ chọn / đối thủ)</summary>
-                                                    <div class="cau-field-head">
-                                                        <span class="cau-seo-field cau-seo-field--head">Outline content</span>
-                                                        <button type="button" class="cau-ai-btn" data-cau-ai-field="outline_content">Gợi ý AI</button>
-                                                    </div>
-                                                    <div class="cau-outline-tools">
-                                                        <input type="url" id="cauModalCompetitorUrl" class="cau-seo-input" placeholder="Link đối thủ (tham khảo outline)">
-                                                        <button type="button" class="mini-btn" id="btnCauOutlineReference">Outline tham khảo</button>
-                                                    </div>
-                                                    <p class="cau-hint cau-hint--field" id="cauHint-competitor" role="status"></p>
-                                                    <div class="cau-outline-replace-tools">
-                                                        <input type="text" id="cauModalReplaceFrom" class="cau-seo-input" placeholder="Từ cần thay (vd: Vua Web Digi)" autocomplete="off">
-                                                        <input type="text" id="cauModalReplaceTo" class="cau-seo-input" placeholder="Thay bằng (vd: Thế Giới Digi)" autocomplete="off">
-                                                        <button type="button" class="mini-btn" id="btnCauModalReplaceAll">Replace All</button>
-                                                        <button type="button" class="mini-btn" id="btnCauModalRefreshOutline">Làm mới Outline</button>
-                                                    </div>
-                                                    <p class="cau-hint cau-hint--field" id="cauHint-outline-actions" role="status"></p>
-                                                    <textarea id="cauModalOutline" class="cau-outline-ta" rows="8" placeholder="## H2 đầu tiên&#10;- Ý chính 1&#10;- Ý chính 2"></textarea>
-                                                    <p class="cau-hint cau-hint--field" id="cauHint-outline_content" role="status"></p>
-                                                </details>
-                                            </div>
-
-                                            <div class="cau-editor-panel" data-cau-editor-panel="internal" role="tabpanel" hidden>
+                                        <div class="cau-main-panel" data-cau-main-panel="links" role="tabpanel" hidden>
+                                            <h4 class="cau-seo-modal__section-title">Liên kết nội bộ</h4>
+                                            <div class="cau-editor-panel" data-cau-editor-panel="internal" role="tabpanel">
                                                 <div class="cau-il-context">
                                                     <span><strong>Website:</strong> <span id="cauModalIlSite">—</span></span>
                                                     <span><strong>Từ khóa:</strong> <span id="cauModalIlKw">—</span></span>
@@ -368,8 +413,11 @@
                                                 <p class="cau-hint cau-hint--field" id="cauHint-internal-links" role="status">Bấm «Tìm link liên quan» để gợi ý bài nội bộ.</p>
                                                 <div id="cauModalIlCandidates" class="cau-il-candidates" role="list"></div>
                                             </div>
+                                        </div>
 
-                                            <div class="cau-editor-panel" data-cau-editor-panel="images" role="tabpanel" hidden>
+                                        <div class="cau-main-panel" data-cau-main-panel="images" role="tabpanel" hidden>
+                                            <h4 class="cau-seo-modal__section-title">Hình ảnh</h4>
+                                            <div class="cau-editor-panel" data-cau-editor-panel="images" role="tabpanel">
                                                 <div class="cau-media-search-row">
                                                     <input type="text" id="cauModalImageQuery" class="cau-seo-input" placeholder="Gợi ý thêm (để trống = AI tự tạo truy vấn theo bài)">
                                                     <select id="cauModalImageNum" aria-label="Số ảnh">
@@ -382,13 +430,24 @@
                                                 <p class="cau-hint cau-hint--field" id="cauHint-images" role="status">Tìm ảnh minh họa và bấm «Chèn» để thêm vào bài.</p>
                                                 <div id="cauModalImageResults" class="cau-image-grid" role="list"></div>
                                             </div>
+                                        </div>
 
-                                            <div class="cau-editor-panel" data-cau-editor-panel="changes" role="tabpanel" hidden>
+                                        <div class="cau-main-panel" data-cau-main-panel="history" role="tabpanel" hidden>
+                                            <h4 class="cau-seo-modal__section-title">Lịch sử &amp; Backup</h4>
+                                            <div class="cau-modal-backup-actions cau-modal-backup-actions--history">
+                                                <button type="button" class="mini-btn" id="btnCauModalViewBackup">Xem backup</button>
+                                                <button type="button" class="mini-btn" id="btnCauModalRestoreBackup">Restore bản cũ</button>
+                                            </div>
+                                            <div class="cau-editor-panel" data-cau-editor-panel="changes" role="tabpanel">
                                                 <div class="cau-changes-toolbar">
                                                     <button type="button" class="mini-btn" id="btnCauUndoAllPatches">Hoàn tác tất cả</button>
                                                 </div>
                                                 <p class="cau-hint cau-hint--field" id="cauHint-changes" role="status">Danh sách patch đã áp dụng — hoàn tác từng cái hoặc tất cả.</p>
                                                 <div id="cauModalChangesList" class="cau-changes-list" role="list"></div>
+                                            </div>
+                                            <h5 class="cau-seo-subtitle">Lịch sử AI phiên này</h5>
+                                            <div id="cauAsstHistoryList" class="cau-asst-history" role="list">
+                                                <p class="cau-factor-empty">Chưa có lịch sử AI trong phiên này.</p>
                                             </div>
                                         </div>
 
@@ -399,96 +458,98 @@
 
                                 <div class="cau-seo-modal__col cau-seo-modal__col--assistant">
                                     <div class="cau-seo-modal__aside-inner">
-                                        <h4 class="cau-seo-modal__section-title">AI SEO Assistant</h4>
+                                        <h4 class="cau-seo-modal__section-title">SEO Assistant</h4>
                                         <div class="cau-seo-score-card">
-                                            <span class="cau-seo-score-card__label">Điểm SEO hiện tại</span>
+                                            <span class="cau-seo-score-card__label">SEO Score</span>
                                             <span class="cau-seo-score-card__value"><strong id="cauModalScore">—</strong><small>/100</small></span>
                                         </div>
                                         <div class="cau-seo-counts" id="cauModalSeoCounts"></div>
 
-                                        <nav class="cau-asst-tabs" role="tablist" aria-label="AI SEO Assistant">
-                                            <button type="button" class="cau-asst-tab active" role="tab" aria-selected="true" data-cau-asst-tab="suggest">Gợi ý AI</button>
-                                            <button type="button" class="cau-asst-tab" role="tab" aria-selected="false" data-cau-asst-tab="core30">SEO Core 30</button>
-                                            <button type="button" class="cau-asst-tab" role="tab" aria-selected="false" data-cau-asst-tab="history">Lịch sử</button>
-                                        </nav>
-
-                                        <div class="cau-asst-panel" data-cau-asst-panel="suggest" role="tabpanel">
-                                            <div class="cau-asst-context" id="cauAsstContext">
-                                                <h5 class="cau-seo-subtitle">Trợ lý AI</h5>
-                                                <p class="cau-asst-context__row"><span class="cau-asst-context__label">Đang chọn:</span> <span id="cauAsstCtxBlock">Chưa chọn block nào — bấm vào một khối trong bài.</span></p>
-                                                <p class="cau-asst-context__row" id="cauAsstCtxReasonWrap" hidden><span class="cau-asst-context__label">Nên làm:</span> <span id="cauAsstCtxReason"></span></p>
-                                                <p class="cau-asst-context__row" id="cauAsstCtxSeoWrap" hidden><span class="cau-asst-context__label">Gợi ý SEO:</span> <span id="cauAsstCtxSeo"></span></p>
-                                                <div class="cau-asst-context__preview" id="cauAsstCtxPreviewWrap" hidden>
-                                                    <span class="cau-asst-context__label">Xem trước nội dung sắp chèn:</span>
-                                                    <div class="cau-asst-context__preview-body" id="cauAsstCtxPreview"></div>
-                                                </div>
-                                            </div>
-                                            <div class="cau-modal-fix-actions">
-                                                <button type="button" class="mini-btn" id="btnCauModalAnalyze">AI phân tích SEO</button>
-                                                <button type="button" class="mini-btn" id="btnCauModalFixAll" title="Sửa song song các lỗi độc lập">Sửa tất cả lỗi</button>
-                                            </div>
-                                            <div class="cau-modal-content-ai-actions">
-                                                <button type="button" class="mini-btn" data-cau-content-action="refresh" id="btnCauRefreshContent">Làm mới Content</button>
-                                                <button type="button" class="mini-btn" data-cau-content-action="append">Tự thêm heading mới</button>
-                                            </div>
-                                            <div class="cau-modal-backup-actions">
-                                                <button type="button" class="mini-btn" id="btnCauModalViewBackup">Xem backup</button>
-                                                <button type="button" class="mini-btn" id="btnCauModalRestoreBackup">Restore bản cũ</button>
-                                            </div>
-                                            <div class="cau-modal-headings-input" id="cauModalHeadingsInputWrap" hidden>
-                                                <label class="cau-seo-label" for="cauModalNewHeadings">Heading mới (tùy chọn — mỗi dòng 1 H2/H3)</label>
-                                                <p class="cau-hint cau-hint--field">Để trống: AI tự phân tích bài và đề xuất 1–3 heading còn thiếu. Có nhập: chỉ viết thêm cho heading đó, không sửa phần cũ.</p>
-                                                <textarea id="cauModalNewHeadings" class="cau-seo-input cau-modal-headings-input__ta" rows="4" placeholder="Để trống để AI tự đề xuất heading&#10;Hoặc nhập từng dòng, ví dụ:&#10;Lưu ý khi dùng máy in để tránh lỗi"></textarea>
-                                                <div class="cau-modal-headings-input__actions">
-                                                    <button type="button" class="mini-btn" id="btnCauModalRunAppendHeadings">Bắt đầu viết</button>
-                                                    <button type="button" class="mini-btn" id="btnCauModalCancelAppendHeadings">Hủy</button>
-                                                </div>
-                                            </div>
-                                            <div class="cau-heading-actions" id="cauHeadingActions" hidden>
-                                                <h5 class="cau-seo-subtitle">Hành động theo heading</h5>
-                                                <div class="cau-heading-actions__grid" id="cauHeadingActionsGrid"></div>
-                                            </div>
-                                            <div class="cau-patch-queue" id="cauPatchQueue" aria-live="polite"></div>
-                                            <div class="cau-seo-modal__suggestions" id="cauModalSuggestionGroups">
-                                                <p class="cau-factor-empty">Bấm «AI phân tích SEO» để nhận gợi ý theo nhóm.</p>
-                                            </div>
-                                            <div class="cau-internal-links" id="cauModalInternalLinks" hidden>
-                                                <h5 class="cau-seo-subtitle">Gợi ý internal link</h5>
-                                                <ul class="cau-internal-links__list" id="cauModalInternalLinksList"></ul>
-                                            </div>
+                                        <div class="cau-seo-top-issues cau-seo-top-issues--priority">
+                                            <h5 class="cau-seo-subtitle">Lỗi theo mức độ</h5>
+                                            <ul class="cau-factor-list cau-factor-list--fail" id="cauModalTopIssues">
+                                                <li class="cau-factor-empty">Chưa có dữ liệu SEO.</li>
+                                            </ul>
                                         </div>
 
-                                        <div class="cau-asst-panel" data-cau-asst-panel="core30" role="tabpanel" hidden>
-                                            <div class="cau-seo-top-issues">
-                                                <h5 class="cau-seo-subtitle">Ưu tiên sửa</h5>
-                                                <ul class="cau-factor-list cau-factor-list--fail" id="cauModalTopIssues">
-                                                    <li class="cau-factor-empty">Chưa có dữ liệu SEO.</li>
-                                                </ul>
-                                            </div>
-                                            <details class="cau-seo-factors-acc" id="cauModalFactorsAcc">
-                                                <summary class="cau-seo-factors-acc__toggle">Xem tất cả 30 yếu tố</summary>
-                                                <div class="cau-seo-factors-acc__body">
-                                                    <div>
-                                                        <h5 class="cau-seo-subtitle">Chưa đạt</h5>
-                                                        <ul class="cau-factor-list" id="cauModalFailedList"></ul>
-                                                    </div>
-                                                    <div>
-                                                        <h5 class="cau-seo-subtitle">Cảnh báo</h5>
-                                                        <ul class="cau-factor-list cau-factor-list--warn" id="cauModalWarningList"></ul>
-                                                    </div>
-                                                    <div>
-                                                        <h5 class="cau-seo-subtitle">Đạt</h5>
-                                                        <ul class="cau-factor-list cau-factor-list--ok" id="cauModalPassedList"></ul>
-                                                    </div>
-                                                </div>
-                                            </details>
+                                        <div class="cau-modal-fix-actions cau-modal-fix-actions--primary">
+                                            <button type="button" class="mini-btn" id="btnCauModalAnalyze">Phân tích SEO</button>
+                                            <button type="button" class="mini-btn" id="btnCauModalOptimizeSelected" title="Sửa yếu tố/block đang chọn">Tối ưu mục đã chọn</button>
                                         </div>
 
-                                        <div class="cau-asst-panel" data-cau-asst-panel="history" role="tabpanel" hidden>
-                                            <div id="cauAsstHistoryList" class="cau-asst-history" role="list">
-                                                <p class="cau-factor-empty">Chưa có lịch sử AI trong phiên này.</p>
+                                        <details class="cau-seo-advanced cau-asst-advanced" id="cauAsstAdvanced">
+                                            <summary class="cau-seo-advanced__toggle">Nâng cao</summary>
+                                            <nav class="cau-asst-tabs" role="tablist" aria-label="AI SEO Assistant nâng cao">
+                                                <button type="button" class="cau-asst-tab active" role="tab" aria-selected="true" data-cau-asst-tab="suggest">Gợi ý AI</button>
+                                                <button type="button" class="cau-asst-tab" role="tab" aria-selected="false" data-cau-asst-tab="core30">SEO Core 30</button>
+                                                <button type="button" class="cau-asst-tab" role="tab" aria-selected="false" data-cau-asst-tab="history" hidden aria-hidden="true">Lịch sử</button>
+                                            </nav>
+
+                                            <div class="cau-asst-panel" data-cau-asst-panel="suggest" role="tabpanel">
+                                                <div class="cau-asst-context" id="cauAsstContext">
+                                                    <h5 class="cau-seo-subtitle">Trợ lý AI</h5>
+                                                    <p class="cau-asst-context__row"><span class="cau-asst-context__label">Đang chọn:</span> <span id="cauAsstCtxBlock">Chưa chọn block nào — bấm vào một khối trong bài.</span></p>
+                                                    <p class="cau-asst-context__row" id="cauAsstCtxReasonWrap" hidden><span class="cau-asst-context__label">Nên làm:</span> <span id="cauAsstCtxReason"></span></p>
+                                                    <p class="cau-asst-context__row" id="cauAsstCtxSeoWrap" hidden><span class="cau-asst-context__label">Gợi ý SEO:</span> <span id="cauAsstCtxSeo"></span></p>
+                                                    <div class="cau-asst-context__preview" id="cauAsstCtxPreviewWrap" hidden>
+                                                        <span class="cau-asst-context__label">Xem trước nội dung sắp chèn:</span>
+                                                        <div class="cau-asst-context__preview-body" id="cauAsstCtxPreview"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="cau-modal-fix-actions">
+                                                    <button type="button" class="mini-btn" id="btnCauModalFixAll" title="Sửa song song các lỗi độc lập">Sửa tất cả lỗi</button>
+                                                </div>
+                                                <div class="cau-modal-content-ai-actions">
+                                                    <button type="button" class="mini-btn" data-cau-content-action="refresh" id="btnCauRefreshContent">Làm mới Content</button>
+                                                    <button type="button" class="mini-btn" data-cau-content-action="append">Tự thêm heading mới</button>
+                                                </div>
+                                                <div class="cau-modal-headings-input" id="cauModalHeadingsInputWrap" hidden>
+                                                    <label class="cau-seo-label" for="cauModalNewHeadings">Heading mới (tùy chọn — mỗi dòng 1 H2/H3)</label>
+                                                    <p class="cau-hint cau-hint--field">Để trống: AI tự phân tích bài và đề xuất 1–3 heading còn thiếu. Có nhập: chỉ viết thêm cho heading đó, không sửa phần cũ.</p>
+                                                    <textarea id="cauModalNewHeadings" class="cau-seo-input cau-modal-headings-input__ta" rows="4" placeholder="Để trống để AI tự đề xuất heading&#10;Hoặc nhập từng dòng, ví dụ:&#10;Lưu ý khi dùng máy in để tránh lỗi"></textarea>
+                                                    <div class="cau-modal-headings-input__actions">
+                                                        <button type="button" class="mini-btn" id="btnCauModalRunAppendHeadings">Bắt đầu viết</button>
+                                                        <button type="button" class="mini-btn" id="btnCauModalCancelAppendHeadings">Hủy</button>
+                                                    </div>
+                                                </div>
+                                                <div class="cau-heading-actions" id="cauHeadingActions" hidden>
+                                                    <h5 class="cau-seo-subtitle">Hành động theo heading</h5>
+                                                    <div class="cau-heading-actions__grid" id="cauHeadingActionsGrid"></div>
+                                                </div>
+                                                <div class="cau-patch-queue" id="cauPatchQueue" aria-live="polite"></div>
+                                                <div class="cau-seo-modal__suggestions" id="cauModalSuggestionGroups">
+                                                    <p class="cau-factor-empty">Bấm «Phân tích SEO» để nhận gợi ý theo nhóm.</p>
+                                                </div>
+                                                <div class="cau-internal-links" id="cauModalInternalLinks" hidden>
+                                                    <h5 class="cau-seo-subtitle">Gợi ý internal link</h5>
+                                                    <ul class="cau-internal-links__list" id="cauModalInternalLinksList"></ul>
+                                                </div>
                                             </div>
-                                        </div>
+
+                                            <div class="cau-asst-panel" data-cau-asst-panel="core30" role="tabpanel" hidden>
+                                                <details class="cau-seo-factors-acc" id="cauModalFactorsAcc" open>
+                                                    <summary class="cau-seo-factors-acc__toggle">Xem tất cả 30 yếu tố</summary>
+                                                    <div class="cau-seo-factors-acc__body">
+                                                        <div>
+                                                            <h5 class="cau-seo-subtitle">Chưa đạt</h5>
+                                                            <ul class="cau-factor-list" id="cauModalFailedList"></ul>
+                                                        </div>
+                                                        <div>
+                                                            <h5 class="cau-seo-subtitle">Cảnh báo</h5>
+                                                            <ul class="cau-factor-list cau-factor-list--warn" id="cauModalWarningList"></ul>
+                                                        </div>
+                                                        <div>
+                                                            <h5 class="cau-seo-subtitle">Đạt</h5>
+                                                            <ul class="cau-factor-list cau-factor-list--ok" id="cauModalPassedList"></ul>
+                                                        </div>
+                                                    </div>
+                                                </details>
+                                            </div>
+
+                                            <div class="cau-asst-panel" data-cau-asst-panel="history" role="tabpanel" hidden>
+                                                <p class="cau-hint">Lịch sử AI và backup nằm ở tab <strong>Lịch sử</strong>.</p>
+                                            </div>
+                                        </details>
 
                                         <div class="cau-hint" id="cauModalAssistantHint" role="status"></div>
                                     </div>
@@ -504,12 +565,11 @@
                             </div>
                         </div>
 
-                        <footer class="cau-seo-modal__footer">
-                            <button type="button" class="mini-btn" id="btnCauModalPreview">Xem trước</button>
+                        <footer class="cau-seo-modal__footer cau-seo-modal__footer--actions">
                             <button type="button" class="mini-btn" id="btnCauModalUndo">Hoàn tác</button>
-                            <button type="button" class="btn btn-secondary" id="btnCauModalSaveSession">Lưu phiên sửa</button>
                             <button type="button" class="btn btn-secondary" id="btnCauModalViewChanges">Xem thay đổi</button>
-                            <button type="button" class="btn" id="btnCauModalUpdate">Cập nhật WordPress</button>
+                            <button type="button" class="btn btn-secondary" id="btnCauModalSaveSession">Lưu nháp</button>
+                            <button type="button" class="btn cau-btn-primary-wp" id="btnCauModalUpdate">Cập nhật WordPress</button>
                         </footer>
 
                         <div class="cau-wp-confirm" id="cauWpConfirmModal" hidden role="dialog" aria-modal="true" aria-labelledby="cauWpConfirmTitle">

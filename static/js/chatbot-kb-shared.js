@@ -1,6 +1,6 @@
 /**
- * Shared Chatbot KB client — single API source for CSKH + Settings.
- * Data lives in DB (/api/chatbot/kb/*); no localStorage for KB content.
+ * Shared Chatbot KB client — CSKH tree UI.
+ * Data lives in the shared AI Knowledge Base (/api/chatbot/kb/* now proxies that store).
  */
 (function (global) {
     "use strict";

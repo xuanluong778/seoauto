@@ -20,6 +20,10 @@ class KeywordClusterJob(Base):
     # Examples: "keyword_cluster", "wp_bulk_update"
     job_type: Mapped[str] = mapped_column(String(32), nullable=False, default="generic", index=True)
 
+    # Tenant ownership (never trust payload alone)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    organization_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
     state: Mapped[str] = mapped_column(String(16), nullable=False, default="QUEUED")
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     message: Mapped[str] = mapped_column(String(500), nullable=False, default="Queued")

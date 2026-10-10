@@ -22,6 +22,15 @@
                     <button type="button" class="ca-hstep-item" data-ca-step="bulk-setup" data-ca-scroll="#bulkTargetWebsite"><span class="ca-hstep-num">2</span><span class="ca-hstep-label">Cài đặt</span></button>
                     <span class="ca-vstep-arrow" aria-hidden="true"></span>
                     <button type="button" class="ca-hstep-item" data-ca-step="bulk-run" data-ca-scroll="#btnBulkWriteStart"><span class="ca-hstep-num">3</span><span class="ca-hstep-label">Bắt đầu viết</span></button>
+                    <div class="ca-bulk-write-box" id="caBulkSidebarWriteBox">
+                        <button type="button" class="btn ca-bulk-write-start" id="btnBulkWriteStart" data-idle-label="Bắt đầu viết" data-busy-label="Đang viết...">Bắt đầu viết</button>
+                        <button type="button" class="btn secondary ca-bulk-write-stop" id="btnBulkWriteStopPoll" disabled>Dừng viết</button>
+                        <div class="ca-bulk-write-progress" id="bulkJobProgress" hidden>
+                            <div id="bulkJobStatus">Đang chờ…</div>
+                            <div class="bar" hidden aria-hidden="true"><div class="fill" id="bulkJobProgressFill"></div></div>
+                            <div class="hint" id="bulkJobPct" hidden>0%</div>
+                        </div>
+                    </div>
                     <span class="ca-vstep-arrow" aria-hidden="true"></span>
                     <button type="button" class="ca-hstep-item" data-ca-step="bulk-review" data-ca-scroll="#caBulkStatusWrap"><span class="ca-hstep-num">4</span><span class="ca-hstep-label">Review</span></button>
                 </nav>
@@ -35,6 +44,7 @@
                 </button>
 
                 <div class="ca-sidebar-foot">
+                    <button class="btn ca-sidebar-create" type="button" id="btnCreateContent">Tạo content</button>
                     <button class="btn reset-btn ca-sidebar-reset" type="button" id="btnResetForm">Làm mới form</button>
                 </div>
             </div>

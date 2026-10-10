@@ -46,7 +46,8 @@
     <input id="targetWordCount" type="number" inputmode="numeric" min="200" step="50" value="1000" />
     <div class="hint" id="hint-target_word_count">Chọn preset, nhập tùy chỉnh, hoặc <strong>AI tự quyết</strong> — hệ thống xác định độ dài phù hợp theo chủ đề, từ khóa và mục đích bài (sai lệch tối đa ±10%).</div>
     <div class="word-count-status" id="wordCountStatus" hidden aria-live="polite"></div>
-    <div class="field-head" style="margin-top:8px;"><label for="singleWpCategoryId">Danh mục WordPress khi đăng</label></div>
+    <div class="js-pub-cat-block">
+    <div class="field-head" style="margin-top:8px;"><label class="js-pub-cat-label" for="singleWpCategoryId">Danh mục</label></div>
     <div class="row" style="align-items: flex-end; gap: 10px; flex-wrap: wrap;">
         <div style="flex: 1; min-width: 200px;">
             <select id="singleWpCategoryId">
@@ -55,5 +56,6 @@
         </div>
         <button class="btn secondary" type="button" id="btnSingleLoadWpCategories">Tải danh mục</button>
     </div>
-    <div class="hint" id="hint-singleWpCategory">Nhập Target website trùng site đã lưu (Thêm site đăng bài), rồi bấm Tải danh mục — gắn category khi publish.</div>
+    <div class="hint" id="hint-singleWpCategory">Danh mục tự tải theo website đã kết nối. Đổi website để xem đúng danh mục, không cần tải lại.</div>
+    </div>
 </div>

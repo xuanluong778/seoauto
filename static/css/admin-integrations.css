@@ -1,7 +1,9 @@
 .adm-wrap {
-    max-width: 920px;
+    width: 90%;
+    max-width: 90%;
     margin: 0 auto;
     padding: 16px 20px 40px;
+    box-sizing: border-box;
 }
 
 .adm-int-card {

@@ -338,13 +338,15 @@ def try_llm_refine_patch(
 
     system = (
         "Bạn là biên tập SEO. Chỉ trả HTML đoạn cần chèn/thay (không trả cả bài, "
-        "không markdown fence). Giữ thẻ HTML hợp lệ, không xóa link/ảnh nếu có trong input."
+        "không markdown fence). Giữ thẻ HTML hợp lệ, không xóa link/ảnh nếu có trong input. "
+        "Chia nội dung thành nhiều <p> ngắn (ưu tiên 2–4 câu/đoạn), không viết một đoạn quá dài."
     )
     user = (
         f"Action: {patch.action}\nKeyword: {keyword}\n"
         f"OLD HTML:\n{patch.old_html[:4000]}\n\n"
         f"DRAFT NEW HTML:\n{patch.new_html[:4000]}\n\n"
-        "Hãy cải thiện DRAFT NEW HTML, ngắn gọn, tự nhiên bằng tiếng Việt."
+        "Hãy cải thiện DRAFT NEW HTML, ngắn gọn, tự nhiên bằng tiếng Việt. "
+        "Mỗi đoạn <p> khoảng 2–4 câu."
     )
     try:
         raw = _cau_modal_llm_chat(

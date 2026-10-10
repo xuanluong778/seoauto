@@ -37,6 +37,7 @@ def create_project(
 
 @router.get("/projects", response_model=list[ProjectResponse])
 def list_projects(
+    limit: int = Query(default=200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[ProjectResponse]:
@@ -44,6 +45,7 @@ def list_projects(
         db.query(Project)
         .filter(Project.user_id == current_user.id)
         .order_by(Project.created_at.desc())
+        .limit(int(limit))
         .all()
     )
     return [ProjectResponse.model_validate(project) for project in projects]

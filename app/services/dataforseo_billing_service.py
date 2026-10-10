@@ -37,6 +37,8 @@ class DataforseoStats:
     cache_hits: int = 0
     keywords_total: int = 0
     keywords_api: int = 0
+    dataforseo_calls: int = 0
+    google_ads_calls: int = 0
 
     def merge(self, other: dict[str, Any] | "DataforseoStats | None") -> None:
         if not other:
@@ -46,11 +48,15 @@ class DataforseoStats:
             self.cache_hits += int(other.cache_hits)
             self.keywords_total = max(self.keywords_total, int(other.keywords_total))
             self.keywords_api += int(other.keywords_api)
+            self.dataforseo_calls += int(other.dataforseo_calls)
+            self.google_ads_calls += int(other.google_ads_calls)
             return
         self.api_tasks += int(other.get("api_tasks") or 0)
         self.cache_hits += int(other.get("cache_hits") or 0)
         self.keywords_total = max(self.keywords_total, int(other.get("keywords_total") or 0))
         self.keywords_api += int(other.get("keywords_api") or 0)
+        self.dataforseo_calls += int(other.get("dataforseo_calls") or 0)
+        self.google_ads_calls += int(other.get("google_ads_calls") or 0)
 
 
 def user_may_use_dataforseo_live(db: Session, user: User) -> bool:
@@ -127,11 +133,34 @@ def preview_research_billing(
     country: str | None,
     language: str | None,
 ) -> ResearchBillingPreview:
+    import os
+
+    from app.services.keyword_ads_expand import peek_ads_ideas_cache_status
     from app.services.keyword_dataforseo_expand import peek_k4k_cache_status
+    from app.services.volume_providers.google_ads import google_ads_configured
 
     allow_live = user_may_use_dataforseo_live(db, user) if db is not None else False
     k4k = peek_k4k_cache_status(seeds, country=country, language=language)
-    all_cached = k4k["misses"] == 0 and k4k["hits"] > 0
+    ads = peek_ads_ideas_cache_status(seeds, country=country, language=language)
+    seed_list = [str(s).strip() for s in (seeds or []) if str(s).strip()]
+    seed_keys = [s.lower() for s in seed_list]
+
+    def _hit_set(peek: dict[str, Any]) -> set[str]:
+        if "hit_seeds" in peek:
+            return {str(s).strip().lower() for s in (peek.get("hit_seeds") or []) if str(s).strip()}
+        if int(peek.get("misses") or 0) == 0 and int(peek.get("hits") or 0) > 0:
+            return set(seed_keys)
+        return set()
+
+    covered = _hit_set(ads) | _hit_set(k4k)
+    union_hits = sum(1 for k in seed_keys if k in covered)
+    union_misses = sum(1 for k in seed_keys if k not in covered)
+    all_cached = union_misses == 0 and union_hits > 0
+    ads_primary = google_ads_configured() and os.getenv("VOLUME_API_ENABLED", "0").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     if is_admin(user):
         return ResearchBillingPreview(
@@ -139,8 +168,8 @@ def preview_research_billing(
             api_mode="admin",
             cache_hit=all_cached,
             allow_live=True,
-            k4k_cache_hits=k4k["hits"],
-            k4k_api_tasks=k4k["misses"],
+            k4k_cache_hits=union_hits,
+            k4k_api_tasks=union_misses,
         )
 
     if all_cached:
@@ -150,7 +179,7 @@ def preview_research_billing(
             api_mode="cache",
             cache_hit=True,
             allow_live=allow_live,
-            k4k_cache_hits=k4k["hits"],
+            k4k_cache_hits=union_hits,
             k4k_api_tasks=0,
         )
 
@@ -161,7 +190,18 @@ def preview_research_billing(
             api_mode="basic",
             cache_hit=False,
             allow_live=False,
-            k4k_cache_hits=k4k["hits"],
+            k4k_cache_hits=union_hits,
+            k4k_api_tasks=0,
+        )
+
+    if ads_primary:
+        cost = cost_research_cache(db=db)
+        return ResearchBillingPreview(
+            credit_cost=cost,
+            api_mode="cache",
+            cache_hit=False,
+            allow_live=True,
+            k4k_cache_hits=union_hits,
             k4k_api_tasks=0,
         )
 
@@ -171,8 +211,8 @@ def preview_research_billing(
         api_mode="live",
         cache_hit=False,
         allow_live=True,
-        k4k_cache_hits=k4k["hits"],
-        k4k_api_tasks=k4k["misses"],
+        k4k_cache_hits=union_hits,
+        k4k_api_tasks=union_misses,
     )
 
 
@@ -267,7 +307,7 @@ def charge_research_credits(
     if is_admin(user) or not credits_enforced():
         return 0
 
-    used_live = stats.api_tasks > 0
+    used_live = int(stats.dataforseo_calls or 0) > 0
     if used_live:
         amount = cost_dataforseo_live(db=db)
         action = "dataforseo_live"
@@ -315,9 +355,13 @@ def charge_volume_batch_credits(
     if is_admin(user) or not credits_enforced():
         return 0
 
-    api_kw = int(stats.keywords_api or preview.api_keywords or 0)
-    if api_kw > 0:
-        amount = volume_batch_charge(api_kw, db=db, from_cache=False)
+    dfs_n = int(stats.dataforseo_calls or 0)
+    if dfs_n > 0:
+        amount = volume_batch_charge(
+            int(stats.keywords_api or preview.api_keywords or 0) or preview.total_keywords,
+            db=db,
+            from_cache=False,
+        )
         action = "volume_batch_100"
         source = "api"
     else:
@@ -331,7 +375,8 @@ def charge_volume_batch_credits(
     note = json.dumps(
         {
             "keywords": preview.total_keywords,
-            "api_keywords": api_kw,
+            "api_keywords": int(preview.api_keywords or 0),
+            "dataforseo_calls": dfs_n,
             "api_tasks": stats.api_tasks,
             "cache_hits": stats.cache_hits,
         },
@@ -349,6 +394,45 @@ def charge_volume_batch_credits(
         source=source,
     )
     return amount
+
+
+def maybe_log_dataforseo_usage(
+    db: Session,
+    *,
+    stats: dict[str, Any] | DataforseoStats | None,
+    user_id: int | None,
+    action: str,
+    endpoint: str = "",
+    api_mode: str = "cache",
+    credit_charged: int = 0,
+    cache_hit: int = 0,
+    keyword_count: int = 0,
+    plan_slug: str | None = None,
+    note: str | None = None,
+) -> None:
+    """Write DFS usage only when DataForSEO was actually called."""
+    if isinstance(stats, DataforseoStats):
+        dfs_n = int(stats.dataforseo_calls or 0)
+        hits = int(stats.cache_hits or cache_hit or 0)
+    else:
+        dfs_n = int((stats or {}).get("dataforseo_calls") or 0)
+        hits = int((stats or {}).get("cache_hits") or cache_hit or 0)
+    if dfs_n <= 0:
+        return
+    log_dataforseo_usage(
+        db,
+        user_id=user_id,
+        action=action,
+        endpoint=endpoint,
+        api_mode=api_mode if api_mode and api_mode != "cache" else "live",
+        tasks_count=dfs_n,
+        credit_charged=credit_charged,
+        cache_hit=hits,
+        api_called=dfs_n,
+        keyword_count=keyword_count,
+        plan_slug=plan_slug,
+        note=note,
+    )
 
 
 def log_dataforseo_usage(

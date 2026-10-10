@@ -107,6 +107,28 @@
 </div>
 <script>
 (function () {
+    function getSeoToken() {
+        if (typeof window.DigiSeoGetAuthToken === "function") {
+            return window.DigiSeoGetAuthToken() || "";
+        }
+        try {
+            var t = (localStorage.getItem("seo_token") || "").trim();
+            if (t) return t;
+            t = (sessionStorage.getItem("seo_token") || "").trim();
+            if (t) return t;
+        } catch (_e) {}
+        try {
+            var m = document.cookie.match(/(?:^|;\s*)seo_token=([^;]*)/);
+            return m ? decodeURIComponent(m[1].replace(/\+/g, " ")).trim() : "";
+        } catch (_e2) { return ""; }
+    }
+    function authHeaders(json) {
+        var h = {};
+        if (json) h["Content-Type"] = "application/json";
+        var t = getSeoToken();
+        if (t) h["Authorization"] = "Bearer " + t;
+        return h;
+    }
     const btn = document.getElementById("btnRun");
     const msg = document.getElementById("msg");
     function showErr(t) { msg.textContent = t || ""; }
@@ -129,11 +151,15 @@
         try {
             const r = await fetch("/api/keyword-intelligence", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: authHeaders(true),
                 body: JSON.stringify(body),
             });
             const data = await r.json();
-            if (!r.ok) throw new Error(data.detail || r.statusText);
+            if (!r.ok) {
+                var detail = data.detail;
+                if (detail && typeof detail === "object" && detail.message) throw new Error(detail.message);
+                throw new Error(typeof detail === "string" ? detail : r.statusText);
+            }
             render(data);
         } catch (e) {
             showErr(String(e.message || e));

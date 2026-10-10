@@ -8,9 +8,9 @@
     <link rel="stylesheet" href="/static/css/seo-tool-responsive.css?v=7">
     <link rel="stylesheet" href="/static/css/seo-tool-desktop.css?v=7">
     <link rel="stylesheet" href="/static/css/seo-tool-template-overrides.css?v=1">
-    <link rel="stylesheet" href="/static/css/seo-tool-page.css?v=16">
-    <link rel="stylesheet" href="/static/css/seo-tool-sidebar-v2.css?v=5">
-    <link rel="stylesheet" href="/static/css/seo-tool-dashboard-v2.css?v=7">
+    <link rel="stylesheet" href="/static/css/seo-tool-page.css?v=17">
+    <link rel="stylesheet" href="/static/css/seo-tool-sidebar-v2.css?v=6">
+    <link rel="stylesheet" href="/static/css/seo-tool-dashboard-v2.css?v=11">
     <link rel="stylesheet" href="/static/css/digiseo-auth-modal.css?v=3">
 </head>
 <body class="page-tool seo-tool-page">
@@ -40,19 +40,14 @@
                     <ul class="tech-nav-list-v2" role="list" id="techNavCategoryList">
                         <li role="none"><button type="button" class="tech-nav-head is-active" data-tech-nav="overview" id="techNavOverview"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Tổng quan</span></button></li>
                         <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="priority"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Việc cần sửa</span><span class="tech-nav-stats neutral" data-tech-badge="priority"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="indexability"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Index Google</span><span class="tech-nav-stats neutral" data-tech-badge="indexability"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="crawlability"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Crawlability</span><span class="tech-nav-stats neutral" data-tech-badge="crawlability"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="onpage"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">On-page SEO</span><span class="tech-nav-stats neutral" data-tech-badge="onpage"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="internal_links"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Liên kết nội bộ</span><span class="tech-nav-stats neutral" data-tech-badge="internal_links"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="performance"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Performance</span><span class="tech-nav-stats neutral" data-tech-badge="performance"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="structured_data"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Schema</span><span class="tech-nav-stats neutral" data-tech-badge="structured_data"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="security_http"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">HTTPS &amp; Security</span><span class="tech-nav-stats neutral" data-tech-badge="security_http"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="ux_mobile"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Mobile UX</span><span class="tech-nav-stats neutral" data-tech-badge="ux_mobile"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="gsc"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Google Search Console</span><span class="tech-nav-stats neutral" data-tech-badge="gsc"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
-                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="history"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Lịch sử Audit</span></button></li>
+                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="index_crawl"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Index &amp; Crawl</span><span class="tech-nav-stats neutral" data-tech-badge="index_crawl"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
+                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="onpage"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">On-page</span><span class="tech-nav-stats neutral" data-tech-badge="onpage"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
+                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="perf_security"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Performance &amp; Security</span><span class="tech-nav-stats neutral" data-tech-badge="perf_security"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
+                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="gsc"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">GSC</span><span class="tech-nav-stats neutral" data-tech-badge="gsc"><span class="tech-nav-count-pill neutral">0</span></span></button></li>
+                        <li role="none"><button type="button" class="tech-nav-row" data-tech-nav="history"><span class="tech-nav-ico" aria-hidden="true"></span><span class="tech-nav-label">Lịch sử</span></button></li>
                     </ul>
                 </div>
-                <div class="tech-sidebar-recent-panel" id="techSidebarRecentBlock">
+                <div class="tech-sidebar-recent-panel" id="techSidebarRecentBlock" hidden>
                     <div class="tech-sidebar-recent-panel-head">
                         <span class="tech-nav-ico" aria-hidden="true"></span>
                         <span>Recent Audits</span>
@@ -69,21 +64,24 @@
             <div class="seo-tool-content container">
                 <header class="seo-tool-hero">
                     <h1>Kiểm tra Technical SEO</h1>
-                    <p class="sub seo-tool-hero-desc">Quét lỗi index, sitemap, robots.txt, schema, hình ảnh, tốc độ, bảo mật và khả năng crawl.</p>
+                    <p class="sub seo-tool-hero-desc">Nhập URL, quét, rồi sửa các lỗi quan trọng nhất.</p>
                 </header>
 
                 <section class="card seo-tool-card seo-tool-scan-card">
-                    <h2 class="seo-tool-card-title">Technical Health Scan</h2>
+                    <h2 class="seo-tool-card-title">Quét website</h2>
                     <p class="seo-tool-card-hint seo-tool-auth-hint">Chỉ tài khoản đã đăng nhập mới được nhập URL và quét technical.</p>
                     <div class="tech-scan-header-row">
-                        <label class="tech-scan-field-url" for="url">URL website
-                            <input type="url" id="url" placeholder="https://example.com">
-                        </label>
-                        <label class="tech-scan-gsc-inline" for="chkUseGscAudit">
-                            <input type="checkbox" id="chkUseGscAudit" checked>
-                            <span>Bật GSC</span>
-                        </label>
-                        <button type="button" id="btnTechnical" class="seo-tool-primary-btn" disabled>Quét Technical</button>
+                        <div class="tech-scan-field-url">
+                            <label class="tech-scan-url-label" for="url">URL website</label>
+                            <div class="tech-scan-controls-row">
+                                <input type="url" id="url" placeholder="https://example.com" autocomplete="url">
+                                <label class="tech-scan-gsc-inline" for="chkUseGscAudit">
+                                    <input type="checkbox" id="chkUseGscAudit" checked>
+                                    <span>Bật GSC</span>
+                                </label>
+                                <button type="button" id="btnTechnical" class="seo-tool-primary-btn" disabled>Quét Technical</button>
+                            </div>
+                        </div>
                     </div>
                     <details class="seo-tool-advanced">
                         <summary>Tùy chọn nâng cao</summary>
@@ -160,23 +158,23 @@
                 <header id="seoToolResultsHeader" class="tech-dash-page-header" hidden>
                     <div class="tech-dash-page-header-main">
                         <div class="tech-dash-page-header-titles">
-                            <h2 class="tech-dash-page-title">Technical SEO Overview</h2>
+                            <h2 class="tech-dash-page-title">Tổng quan</h2>
                             <span class="seo-tool-status-badge tech-dash-status-badge" id="seoResultsStatusBadge">Hoàn thành</span>
                         </div>
                         <p class="tech-dash-page-subtitle" id="seoResultsHeaderMeta">—</p>
                         <p class="tech-dash-page-url" id="seoResultsHeaderUrl">—</p>
                     </div>
                     <div class="tech-dash-page-header-actions">
-                        <button type="button" class="tech-dash-header-btn" id="btnTechShareReport">
+                        <button type="button" class="tech-dash-header-btn" id="btnTechShareReport" hidden>
                             <span class="tech-dash-btn-ico" aria-hidden="true">⎘</span> Chia sẻ báo cáo
                         </button>
-                        <button type="button" class="tech-dash-header-btn" id="btnTechDownloadPdf" disabled>
+                        <button type="button" class="tech-dash-header-btn" id="btnTechDownloadPdf" disabled hidden>
                             <span class="tech-dash-btn-ico" aria-hidden="true">↓</span> Tải xuống PDF
                         </button>
-                        <button type="button" class="tech-dash-header-btn" id="btnTechCompare">
+                        <button type="button" class="tech-dash-header-btn" id="btnTechCompare" hidden>
                             <span class="tech-dash-btn-ico" aria-hidden="true">⇄</span> So sánh
                         </button>
-                        <label class="tech-dash-date-range">
+                        <label class="tech-dash-date-range" hidden>
                             <span class="tech-dash-btn-ico" aria-hidden="true">📅</span>
                             <select id="techDashDateRange" aria-label="Khoảng thời gian">
                                 <option value="28d" selected>28 ngày qua</option>
@@ -213,52 +211,38 @@
                             <p class="tech-dash-kpi-hint" id="saasHealthScoreHint">—</p>
                         </article>
                         <article class="tech-dash-kpi tech-dash-kpi-critical">
-                            <span class="tech-dash-kpi-icon tech-dash-kpi-icon-critical" aria-hidden="true"></span>
-                            <span class="tech-dash-kpi-label">Lỗi nghiêm trọng</span>
+                            <span class="tech-dash-kpi-label">Critical</span>
                             <strong class="tech-dash-kpi-value" id="saasCountCritical">—</strong>
-                            <span class="tech-dash-kpi-foot" id="techDashKpiCriticalFoot"></span>
                         </article>
                         <article class="tech-dash-kpi tech-dash-kpi-warning">
-                            <span class="tech-dash-kpi-icon tech-dash-kpi-icon-warning" aria-hidden="true"></span>
-                            <span class="tech-dash-kpi-label">Cảnh báo</span>
+                            <span class="tech-dash-kpi-label">Warning</span>
                             <strong class="tech-dash-kpi-value" id="saasCountWarning">—</strong>
-                            <span class="tech-dash-kpi-foot" id="techDashKpiWarningFoot"></span>
                         </article>
                         <article class="tech-dash-kpi tech-dash-kpi-opportunity">
-                            <span class="tech-dash-kpi-icon tech-dash-kpi-icon-opportunity" aria-hidden="true"></span>
-                            <span class="tech-dash-kpi-label">Cơ hội tối ưu</span>
+                            <span class="tech-dash-kpi-label">Opportunity</span>
                             <strong class="tech-dash-kpi-value" id="saasCountOpportunity">—</strong>
-                            <span class="tech-dash-kpi-foot" id="techDashKpiOpportunityFoot"></span>
                         </article>
                         <article class="tech-dash-kpi tech-dash-kpi-pages">
-                            <span class="tech-dash-kpi-icon tech-dash-kpi-icon-pages" aria-hidden="true"></span>
                             <span class="tech-dash-kpi-label">Pages Crawled</span>
                             <strong class="tech-dash-kpi-value" id="saasPagesCrawled">—</strong>
-                            <span class="tech-dash-kpi-foot" id="techDashKpiPagesFoot"></span>
-                        </article>
-                        <article class="tech-dash-kpi tech-dash-kpi-time">
-                            <span class="tech-dash-kpi-icon tech-dash-kpi-icon-time" aria-hidden="true"></span>
-                            <span class="tech-dash-kpi-label">Thời gian quét</span>
-                            <strong class="tech-dash-kpi-value tech-dash-kpi-value-sm" id="techDashKpiScanTime">—</strong>
-                            <span class="tech-dash-kpi-foot" id="techDashKpiScanTimeSub">—</span>
                         </article>
                     </div>
 
                     <div class="tech-dash-mid-row">
                         <section class="tech-dash-card tech-dash-card-priority" id="seoToolPriorityFixesSection">
                             <header class="tech-dash-card-head">
-                                <h3 class="tech-dash-card-title">Việc cần làm hôm nay <span class="tech-dash-card-badge" id="techDashPriorityCount">—</span></h3>
+                                <h3 class="tech-dash-card-title">5 lỗi cần sửa nhất</h3>
                                 <button type="button" class="tech-dash-card-link" id="techDashPriorityViewAll">Xem tất cả</button>
                             </header>
                             <div class="tech-dash-table-wrap">
-                                <table class="tech-dash-table">
+                                <table class="tech-dash-table tech-simple-issue-table">
                                     <thead>
                                         <tr>
-                                            <th>Vấn đề</th>
                                             <th>Mức độ</th>
-                                            <th>Tác động SEO</th>
-                                            <th>URL bị ảnh hưởng</th>
-                                            <th></th>
+                                            <th>Lỗi</th>
+                                            <th>URL ảnh hưởng</th>
+                                            <th>Tác động</th>
+                                            <th>Xem chi tiết</th>
                                         </tr>
                                     </thead>
                                     <tbody id="techDashPriorityTbody"></tbody>
@@ -267,31 +251,11 @@
                             </div>
                             <div id="seoToolPriorityFixesList" class="seo-tool-priority-list" hidden aria-hidden="true"></div>
                         </section>
-
-                        <section class="tech-dash-card tech-dash-card-gsc" id="techDashGscCard">
-                            <header class="tech-dash-card-head">
-                                <h3 class="tech-dash-card-title">Google Search Console</h3>
-                                <button type="button" class="tech-dash-card-link" id="techDashGscViewTab" hidden>Mở tab GSC</button>
-                            </header>
-                            <div id="techDashGscStatus" class="tech-gsc-status-bar"></div>
-                            <div class="tech-dash-gsc-mini" id="techDashGscMiniStats"></div>
-                            <div id="techDashGscAlert" class="tech-gsc-alert" hidden role="status"></div>
-                            <div id="techDashGscTablesCompact" class="tech-gsc-tables-compact"></div>
-                            <p class="tech-dash-empty" id="techDashGscEmpty">Kết nối GSC và bật quét hybrid để xem traffic, index và cơ hội tối ưu.</p>
-                        </section>
                     </div>
 
                     <div class="tech-dash-bottom-row">
-                        <section class="tech-dash-card tech-dash-card-index" id="techDashIndexCard">
-                            <h3 class="tech-dash-card-title">Index &amp; Crawl Status</h3>
-                            <div class="tech-dash-index-body" id="techDashIndexBody">
-                                <div class="tech-dash-donut-wrap" id="techDashIndexChart" aria-hidden="true"></div>
-                                <ul class="tech-dash-index-legend" id="techDashIndexLegend"></ul>
-                            </div>
-                            <p class="tech-dash-empty" id="techDashIndexEmpty" hidden>Chưa có dữ liệu index/crawl từ GSC hoặc URL Inspection.</p>
-                        </section>
                         <section class="tech-dash-card tech-dash-card-perf" id="techDashPerfCard">
-                            <h3 class="tech-dash-card-title">Performance / Core Web Vitals</h3>
+                            <h3 class="tech-dash-card-title">Core Web Vitals</h3>
                             <div class="tech-dash-cwv-grid" id="techDashCwvGrid">
                                 <div class="tech-dash-cwv-item">
                                     <span class="tech-dash-cwv-label">LCP</span>
@@ -309,26 +273,36 @@
                                     <span class="tech-dash-cwv-status" id="techDashCwvClsStatus">—</span>
                                 </div>
                             </div>
-                            <p class="tech-dash-empty" id="techDashPerfEmpty" hidden>Chưa phát hiện dữ liệu CWV trong lần quét này.</p>
+                            <p class="tech-dash-empty" id="techDashPerfEmpty" hidden>Chưa có dữ liệu CWV trong lần quét này.</p>
                         </section>
-                        <section class="tech-dash-card tech-dash-card-mobile" id="techDashMobileCard">
-                            <h3 class="tech-dash-card-title">Mobile UX</h3>
-                            <div class="tech-dash-mobile-body" id="techDashMobileBody">
-                                <div class="tech-dash-mobile-score" id="techDashMobileScore">—</div>
-                                <ul class="tech-dash-mobile-checks" id="techDashMobileChecks"></ul>
-                            </div>
-                            <p class="tech-dash-empty" id="techDashMobileEmpty" hidden>Chưa có dữ liệu mobile UX từ lần quét.</p>
+                        <section class="tech-dash-card tech-dash-card-trend" id="techDashScoreTrendCard">
+                            <h3 class="tech-dash-card-title">Xu hướng điểm</h3>
+                            <div id="techDashScoreTrend" class="tech-dash-score-trend"></div>
                         </section>
                     </div>
 
-                    <section class="tech-dash-card tech-dash-card-ai" id="techDashAiCard">
-                        <header class="tech-dash-card-head tech-dash-ai-head">
-                            <h3 class="tech-dash-card-title"><span class="tech-dash-ai-ico" aria-hidden="true">✦</span> Gợi ý từ AI SEO <span class="tech-dash-beta">Beta</span></h3>
-                            <button type="button" class="tech-dash-card-link" id="techDashAiViewAll">Xem tất cả gợi ý</button>
-                        </header>
-                        <ul class="tech-dash-ai-list" id="techDashAiSuggestions"></ul>
-                        <p class="tech-dash-empty" id="techDashAiEmpty" hidden>Chưa có gợi ý — hoàn tất quét technical để nhận đề xuất ưu tiên.</p>
-                    </section>
+                    <div hidden aria-hidden="true">
+                        <span id="techDashPriorityCount">0</span>
+                        <span id="techDashKpiScanTime">—</span>
+                        <span id="techDashKpiScanTimeSub">—</span>
+                        <span id="techDashGscStatus"></span>
+                        <span id="techDashGscMiniStats"></span>
+                        <span id="techDashGscAlert"></span>
+                        <span id="techDashGscTablesCompact"></span>
+                        <span id="techDashGscEmpty"></span>
+                        <span id="techDashGscViewTab"></span>
+                        <span id="techDashIndexBody"></span>
+                        <span id="techDashIndexChart"></span>
+                        <span id="techDashIndexLegend"></span>
+                        <span id="techDashIndexEmpty"></span>
+                        <span id="techDashMobileBody"></span>
+                        <span id="techDashMobileScore"></span>
+                        <span id="techDashMobileChecks"></span>
+                        <span id="techDashMobileEmpty"></span>
+                        <span id="techDashAiSuggestions"></span>
+                        <span id="techDashAiEmpty"></span>
+                        <span id="techDashAiViewAll"></span>
+                    </div>
 
                     <section class="card seo-tool-card tech-nav-group-summaries" id="seoToolNavGroupSummaries" hidden aria-hidden="true">
                         <div id="seoToolNavGroupGrid" class="tech-nav-group-grid"></div>
@@ -381,7 +355,7 @@
                     </div>
                 </div>
 
-                <section class="card seo-tool-card seo-tool-projects-card">
+                <section class="card seo-tool-card seo-tool-projects-card" hidden>
                     <div class="tech-sidebar-projects" id="techSidebarProjectsBlock">
                         <h3 class="sb-projects-title">Lần quét gần đây</h3>
                         <p class="sb-hint sb-hint-projects">Mỗi domain chỉ hiển thị <strong>bản quét mới nhất</strong> (tối đa 8). Bấm một dòng (không phải nút) để tải checklist lên trang.</p>
@@ -418,6 +392,7 @@
                 <section class="card seo-tool-card tech-content-history" id="techContentHistory" hidden>
                     <h3 class="seo-tool-issues-title">Lịch sử Audit</h3>
                     <p class="seo-tool-card-hint">Các lần quét technical gần đây — chọn để mở lại kết quả.</p>
+                    <div id="techAuditCompareHost" class="tech-audit-compare-host" hidden></div>
                     <div id="techAuditHistoryHost" class="tech-audit-history-host"></div>
                     <ul id="sidebarHistoryList" class="tech-content-history-list" hidden aria-hidden="true"></ul>
                 </section>
@@ -457,13 +432,13 @@
                 <div class="card" id="issuesCard" hidden>
                     <div class="seo-tool-issues-toolbar" id="seoToolIssuesToolbar">
                         <div class="seo-tool-issues-toolbar-top">
-                            <h3 class="seo-tool-issues-title" id="issuesCardHeading">Issue Explorer</h3>
-                            <div class="seo-tool-issues-view-toggle" id="seoToolIssuesViewToggle" role="group" aria-label="Chế độ hiển thị">
-                                <button type="button" class="is-active" data-issues-view="cards">Card View</button>
-                                <button type="button" data-issues-view="table">Table View</button>
+                            <h3 class="seo-tool-issues-title" id="issuesCardHeading">Danh sách lỗi</h3>
+                            <div class="seo-tool-issues-view-toggle" id="seoToolIssuesViewToggle" hidden role="group" aria-label="Chế độ hiển thị">
+                                <button type="button" data-issues-view="cards">Card View</button>
+                                <button type="button" class="is-active" data-issues-view="table">Table View</button>
                             </div>
                         </div>
-                        <div class="seo-tool-issues-controls-row">
+                        <div class="seo-tool-issues-controls-row" hidden>
                             <div class="seo-tool-issues-search-row">
                                 <label class="seo-tool-issues-search-label" for="seoToolIssuesSearch">Tìm kiếm</label>
                                 <input type="search" id="seoToolIssuesSearch" class="seo-tool-issues-search" placeholder="Tìm theo title hoặc URL…" autocomplete="off" />
@@ -477,7 +452,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="seo-tool-issues-filters" id="seoToolIssuesFilters" role="group" aria-label="Lọc severity">
+                        <div class="seo-tool-issues-filters" id="seoToolIssuesFilters" hidden role="group" aria-label="Lọc severity">
                             <button type="button" class="is-active" data-tech-filter="all">All</button>
                             <button type="button" data-tech-filter="critical">Critical</button>
                             <button type="button" data-tech-filter="warning">Warning</button>
@@ -486,7 +461,7 @@
                             <button type="button" data-tech-filter="medium">Medium</button>
                             <button type="button" data-tech-filter="low">Low</button>
                         </div>
-                        <div class="seo-tool-issues-v2-filters" id="seoToolIssuesV2Filters">
+                        <div class="seo-tool-issues-v2-filters" id="seoToolIssuesV2Filters" hidden>
                             <label>Category
                                 <select id="seoToolFilterCategory" aria-label="Lọc category">
                                     <option value="all">Tất cả</option>
@@ -576,33 +551,7 @@
                     <div class="issues-scroll" id="issuesScroll" tabindex="0" aria-label="Kết quả kiểm tra technical">
                         <div id="issuesPillarView" class="issues-pillar-view" hidden></div>
                         <div id="issuesCardsView" class="seo-tool-issues-cards-grid" aria-label="Issue cards"></div>
-                        <div id="issuesTableWrap" class="issues-table-wrap digiseo-table-scroll" hidden>
-                        <table class="issues-matrix" id="issuesTable">
-                            <colgroup>
-                                <col class="col-g-checklist" />
-                                <col class="col-g-severity" />
-                                <col class="col-g-evidence" />
-                                <col class="col-g-solution" />
-                                <col class="col-g-ref" />
-                                <col class="col-g-hientrang" />
-                                <col class="col-g-deploy" />
-                                <col class="col-g-note" />
-                            </colgroup>
-                            <thead>
-                                <tr>
-                                    <th scope="col" class="col-tool-checklist-head">CHECKLIST</th>
-                                    <th scope="col">ĐÁNH GIÁ</th>
-                                    <th scope="col">DẪN CHỨNG CHI TIẾT</th>
-                                    <th scope="col" class="col-tool-solution-head">GIẢI PHÁP</th>
-                                    <th scope="col" class="col-tool-ref-head">LINK THAM KHẢO</th>
-                                    <th scope="col">HIỆN TRẠNG</th>
-                                    <th scope="col">LINK TRIỂN KHAI</th>
-                                    <th scope="col">NOTE</th>
-                                </tr>
-                            </thead>
-                            <tbody id="issuesTbody"></tbody>
-                        </table>
-                        </div>
+                        <div id="issuesTableWrap" hidden style="display:none!important"></div>
                     </div>
                 </div>
             </div>
@@ -624,48 +573,48 @@
             <button type="button" id="techIssueDrawerClose" class="tech-issue-drawer-close" aria-label="Đóng">×</button>
         </div>
         <div class="tech-issue-drawer-body">
-            <div class="tech-drawer-meta-grid">
-                <div class="tech-drawer-meta-item"><span>Mức độ</span><strong id="techIssueDrawerSeverity">—</strong></div>
-                <div class="tech-drawer-meta-item"><span>Độ tin cậy</span><strong id="techIssueDrawerConfidence">—</strong></div>
-                <div class="tech-drawer-meta-item"><span>Nguồn phát hiện</span><strong id="techIssueDrawerSource">—</strong></div>
-                <div class="tech-drawer-meta-item"><span>Nhóm</span><strong id="techIssueDrawerCategory">—</strong></div>
-            </div>
             <div class="tech-drawer-section">
-                <h4>Lỗi là gì?</h4>
+                <h4>Vấn đề</h4>
                 <p id="techIssueDrawerWhat" class="tech-drawer-lead">—</p>
             </div>
             <div class="tech-drawer-section">
-                <h4>Ảnh hưởng SEO</h4>
+                <h4>Tại sao quan trọng</h4>
                 <p id="techIssueDrawerWhy">—</p>
+            </div>
+            <div class="tech-drawer-section">
+                <h4>Evidence</h4>
+                <div id="techIssueDrawerEvidence"></div>
+            </div>
+            <div class="tech-drawer-section">
+                <h4>URL lỗi</h4>
+                <div id="techIssueDrawerUrls"></div>
             </div>
             <div class="tech-drawer-section tech-drawer-section-fix">
                 <h4>Cách sửa</h4>
                 <p id="techIssueDrawerFix">—</p>
             </div>
+            <div class="tech-drawer-meta-grid" hidden>
+                <div class="tech-drawer-meta-item"><span>Mức độ</span><strong id="techIssueDrawerSeverity">—</strong></div>
+                <div class="tech-drawer-meta-item"><span>Độ tin cậy</span><strong id="techIssueDrawerConfidence">—</strong></div>
+                <div class="tech-drawer-meta-item"><span>Nguồn phát hiện</span><strong id="techIssueDrawerSource">—</strong></div>
+                <div class="tech-drawer-meta-item"><span>Nhóm</span><strong id="techIssueDrawerCategory">—</strong></div>
+            </div>
             <div class="tech-drawer-section" id="techIssueDrawerGscSection" hidden>
                 <h4>Dữ liệu Google Search Console</h4>
                 <div id="techIssueDrawerGsc" class="tech-drawer-gsc-grid"></div>
-            </div>
-            <div class="tech-drawer-section">
-                <h4>Evidence kỹ thuật</h4>
-                <div id="techIssueDrawerEvidence"></div>
-            </div>
-            <div class="tech-drawer-section">
-                <h4>Danh sách URL lỗi</h4>
-                <div id="techIssueDrawerUrls"></div>
             </div>
         </div>
     </aside>
 
     <script type="application/json" id="seoChecklistTitleViData">{{ checklist_title_vi | default({}) | tojson }}</script>
     <script type="application/json" id="technicalAuditCatalogData">{{ technical_audit_catalog | default({}) | tojson }}</script>
-    <script src="/static/js/seo-tool-sidebar-v2.js?v=6"></script>
-    <script src="/static/js/seo-tool-dashboard-v2.js?v=8"></script>
-    <script src="/static/js/seo_tool/seo-tool-page-core.js?v=3"></script>
-    <script src="/static/js/seo_tool/seo-tool-page-issues.js?v=2"></script>
-    <script src="/static/js/seo_tool/seo-tool-page-nav.js?v=2"></script>
-    <script src="/static/js/seo_tool/seo-tool-page-audit.js?v=2"></script>
-    <script src="/static/js/seo_tool/seo-tool-page-init.js?v=3"></script>
+    <script src="/static/js/seo-tool-sidebar-v2.js?v=7"></script>
+    <script src="/static/js/seo-tool-dashboard-v2.js?v=12"></script>
+    <script src="/static/js/seo_tool/seo-tool-page-core.js?v=4"></script>
+    <script src="/static/js/seo_tool/seo-tool-page-issues.js?v=4"></script>
+    <script src="/static/js/seo_tool/seo-tool-page-nav.js?v=4"></script>
+    <script src="/static/js/seo_tool/seo-tool-page-audit.js?v=4"></script>
+    <script src="/static/js/seo_tool/seo-tool-page-init.js?v=12"></script>
 {% include "partials/digiseo_i18n.html" %}
 {% include "partials/digiseo_pricing_bundle.html" %}
 </body>

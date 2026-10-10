@@ -53,6 +53,18 @@ RULE_CHECKLIST: dict[str, str] = {
     "multiple_h1": "Onpage",
     "thin_content": "Onpage",
     "images_missing_alt": "Images",
+    "title_too_short": "Onpage",
+    "meta_description_too_long": "Onpage",
+    "missing_viewport": "Onpage",
+    "images_broken_src": "Images",
+    "duplicate_h1": "Onpage",
+    "duplicate_meta_description": "Onpage",
+    "hreflang_invalid_code": "International",
+    "hreflang_missing_self": "International",
+    "hreflang_missing_href": "International",
+    "internal_link_redirect": "GSC",
+    "orphan_page": "GSC",
+    "crawl_depth_deep": "GSC",
     "soft_404_heuristic": "GSC",
     "weak_heading_structure": "Onpage",
     "canonical_points_to_non_indexable": "GSC",
@@ -66,6 +78,13 @@ RULE_CHECKLIST: dict[str, str] = {
     "serp_gap_keyword_coverage": "Onpage",
     "serp_gap_semantic_depth": "Onpage",
     "serp_gap_generic": "Onpage",
+    "crawl_http_3xx": "GSC",
+    "crawl_http_4xx": "GSC",
+    "crawl_http_5xx": "GSC",
+    "crawl_timeout": "GSC",
+    "crawl_connection_error": "GSC",
+    "redirect_loop": "GSC",
+    "crawled_url_robots_blocked": "Robots",
 }
 
 SOFT_404_PATTERNS: tuple[str, ...] = (
@@ -78,8 +97,15 @@ SOFT_404_PATTERNS: tuple[str, ...] = (
 
 
 def _is_soft_404_text(visible_text: str, title: str) -> bool:
+    return _soft_404_matched_pattern(visible_text, title) is not None
+
+
+def _soft_404_matched_pattern(visible_text: str, title: str) -> str | None:
     content = f"{visible_text or ''} {title or ''}".lower()
-    return any(p in content for p in SOFT_404_PATTERNS)
+    for p in SOFT_404_PATTERNS:
+        if p in content:
+            return p
+    return None
 
 
 def _norm_host(url: str) -> str:
@@ -109,8 +135,18 @@ def _issue(
     causes: list[str],
     fixes: list[str],
     validation: list[str],
+    url: str | None = None,
+    evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return {
+    ev: list[dict[str, Any]] = [dict(x) for x in (evidence or []) if isinstance(x, dict)]
+    page_url = str(url or "").strip()
+    if page_url and not any(e.get("url") == page_url for e in ev):
+        ev.append({"kind": "url", "url": page_url})
+    if not ev:
+        for field in detected_from or []:
+            if field:
+                ev.append({"kind": "detected_from", "text": str(field)})
+    out: dict[str, Any] = {
         "rule_id": rule_id,
         "issue": issue,
         "severity": severity,
@@ -121,7 +157,12 @@ def _issue(
         "possible_causes": causes,
         "how_to_fix": fixes,
         "validation_steps": validation,
+        "evidence": ev,
     }
+    if page_url:
+        out["url"] = page_url
+        out["affected_urls"] = [page_url]
+    return out
 
 
 def build_page_rule_context(
@@ -208,6 +249,7 @@ def evaluate_indexability_blocked(d: dict[str, Any]) -> dict[str, Any] | None:
     if _policy_like_url(url):
         severity = "low"
     conf = float(idx.get("indexability_confidence") or 0.85)
+    reason = str(idx.get("indexability_reason") or "")
     return _issue(
         "indexability_blocked",
         "URL không được đánh giá là có thể index (indexable = false).",
@@ -231,6 +273,13 @@ def evaluate_indexability_blocked(d: dict[str, Any]) -> dict[str, Any] | None:
         validation=[
             "Mở URL với Googlebot UA (hoặc GSC URL Inspection) và kiểm tra HTML + response headers.",
             "So khớp bản raw vs rendered trong audit debug.",
+        ],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "http_status", "value": int(d.get("status") or 0)},
+            {"kind": "indexability_reason", "value": reason[:300]},
+            {"kind": "indexable", "value": False},
         ],
     )
 
@@ -259,6 +308,11 @@ def evaluate_meta_robots_noindex(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["CMS staging", "Plugin SEO bật noindex nhầm", "Template <head> copy nhầm"],
         fixes=["Gỡ noindex/none khỏi meta robots nếu URL cần index.", "Kiểm tra plugin SEO và môi trường production."],
         validation=["View source / rendered HTML <head>.", "GSC URL Inspection → Indexing allowed?"],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "meta_robots", "value": meta},
+        ],
     )
 
 
@@ -295,6 +349,11 @@ def evaluate_x_robots_tag_noindex(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["CDN/WAF header", "Server config Apache/Nginx", "Plugin cache header"],
         fixes=["Gỡ noindex khỏi X-Robots-Tag trên response 200.", "Đồng bộ header với meta robots intent."],
         validation=["curl -I URL và kiểm tra X-Robots-Tag.", "GSC Live test."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "x_robots_tag", "value": xr},
+        ],
     )
 
 
@@ -303,21 +362,32 @@ def evaluate_indexability_signal_conflict(d: dict[str, Any]) -> dict[str, Any] |
     fin = d.get("final_indexability_resolved", idx.get("indexable", True))
     if not fin:
         return None
-    conf = float(idx.get("indexability_confidence") or 1.0)
-    reason = (idx.get("indexability_reason") or "").lower()
-    if conf >= 0.78 and "không đồng nhất" not in reason and "khác nhau" not in reason:
+    meta = str(idx.get("meta_robots_text") or (d.get("parsed") or {}).get("robots_meta") or "")
+    rs = d.get("resolved_signals") or {}
+    xr = str(rs.get("x_robots_tag_document") or idx.get("x_robots_tag") or "")
+    meta_ni = _has_noindex_directive(meta)
+    xr_ni = _has_noindex_directive(xr)
+    # Chỉ báo khi có bằng chứng mâu thuẫn cụ thể (meta vs header), không đoán từ confidence thấp.
+    if meta_ni == xr_ni:
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "indexability_signal_conflict",
-        "Tín hiệu indexability không nhất quán (meta vs header hoặc raw vs rendered).",
+        "Tín hiệu indexability không nhất quán (meta vs X-Robots-Tag).",
         "medium",
-        min(0.92, 1.15 - conf),
+        0.82,
         "indexability",
-        why="Tín hiệu mơ hồ làm khó Google và công cụ audit — dễ false positive/negative trong GSC.",
-        detected_from=["indexability.indexability_confidence", "indexability.indexability_reason"],
-        causes=["CDN trả header khác theo path", "A/B hoặc edge cache", "Sửa meta nhưng header cũ còn sót"],
-        fixes=["Chuẩn hóa một nguồn sự thật: meta hoặc header (ưu tiên thống nhất với CMS/CDN)."],
-        validation=["So sánh response headers raw vs Playwright trong thư mục debug.", "GSC Live test."],
+        why="Tín hiệu mơ hồ làm khó Google — meta và header phải cùng intent index/noindex.",
+        detected_from=["indexability.meta_robots_text", "indexability.x_robots_tag"],
+        causes=["CDN trả header khác theo path", "Plugin SEO ghi meta, server còn header cũ"],
+        fixes=["Chuẩn hóa một nguồn sự thật: meta và X-Robots-Tag cùng cho phép hoặc cùng noindex."],
+        validation=["So sánh response headers và <meta name=robots> trên cùng URL."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "meta_robots", "value": meta or ""},
+            {"kind": "x_robots_tag", "value": xr or ""},
+        ],
     )
 
 
@@ -328,6 +398,7 @@ def evaluate_http_status_non_200(d: dict[str, Any]) -> dict[str, Any] | None:
     fin = d.get("final_indexability_resolved", d["indexability"].get("indexable", True))
     if not fin:
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "http_status_non_200",
         f"Tài liệu trả HTTP {st} nhưng indexability vẫn true — kiểm tra logic indexability.",
@@ -339,6 +410,12 @@ def evaluate_http_status_non_200(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["Dữ liệu indexability thiếu hoặc lỗi pipeline.", "Redirect trung gian không được ghi nhận."],
         fixes=["Rà lại crawler và indexability engine cho URL này."],
         validation=["Kiểm tra chain redirect và status cuối trong crawl record."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "http_status", "value": st},
+            {"kind": "indexable", "value": True},
+        ],
     )
 
 
@@ -350,6 +427,7 @@ def evaluate_canonical_cross_host(d: dict[str, Any]) -> dict[str, Any] | None:
         return None
     if _norm_host(str(c)) == _norm_host(str(fe)):
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "canonical_cross_host",
         "Canonical trỏ sang host khác với URL hiệu dụng (cross-domain / property khác).",
@@ -361,6 +439,12 @@ def evaluate_canonical_cross_host(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["CDN mirror", "Sai domain trong CMS", "Href tuyệt đối copy nhầm"],
         fixes=["Nếu đây là bản chính thức của nội dung, canonical nên trỏ về cùng host hoặc URL được chọn rõ ràng trong GSC."],
         validation=["URL Inspection với user-declared canonical trong GSC.", "So sánh host sau www-strip."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "canonical_url", "url": str(c)},
+            {"kind": "final_effective_url", "url": str(fe)},
+        ],
     )
 
 
@@ -382,6 +466,12 @@ def evaluate_canonical_self_mismatch(d: dict[str, Any]) -> dict[str, Any] | None
         causes=["Tham số tracking", "Slug cũ / www vs non-www đã chuẩn hóa khác parser"],
         fixes=["Chuẩn hóa canonical về URL ưu tiên (thường self sau redirect 301)."],
         validation=["Kiểm tra URL sau redirect == canonical không.", "Screaming Frog Canonicals report."],
+        url=str(d.get("url") or ""),
+        evidence=[
+            {"kind": "url", "url": str(d.get("url") or "")},
+            {"kind": "canonical_url", "url": str(c)},
+            {"kind": "final_effective_url", "url": str(fe)},
+        ],
     )
 
 
@@ -405,6 +495,12 @@ def evaluate_canonical_missing_high_value(d: dict[str, Any]) -> dict[str, Any] |
         causes=["Theme không in canonical", "SPA inject sau render — parser đã dùng rendered HTML"],
         fixes=["Thêm <link rel=\"canonical\" href=\"URL ưu tiên\"> trong HTML ổn định (không chỉ client-only)."],
         validation=["Xem canonical.json trong debug run.", "So với URL Inspection."],
+        url=str(d.get("url") or ""),
+        evidence=[
+            {"kind": "url", "url": str(d.get("url") or "")},
+            {"kind": "canonical_url", "value": ""},
+            {"kind": "page_type", "value": d["page_type"]},
+        ],
     )
 
 
@@ -489,6 +585,7 @@ def evaluate_robots_meta_noindex_contradiction(d: dict[str, Any]) -> dict[str, A
     fin = d.get("final_indexability_resolved", d["indexability"].get("indexable", True))
     if not fin:
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "robots_meta_noindex_contradiction",
         "Meta robots có noindex/none nhưng layer indexability vẫn đánh dấu indexable — mâu thuẫn tín hiệu.",
@@ -500,6 +597,12 @@ def evaluate_robots_meta_noindex_contradiction(d: dict[str, Any]) -> dict[str, A
         causes=["Indexability chỉ đọc header, meta ở trang con iframe", "Lỗi parse hoặc cache"],
         fixes=["Đồng bộ meta robots với X-Robots-Tag và HTTP; kiểm tra canonical chain."],
         validation=["Đọc rendered.html toàn bộ <head>.", "GSC live test."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "meta_robots", "value": robots},
+            {"kind": "indexable", "value": True},
+        ],
     )
 
 
@@ -508,6 +611,7 @@ def evaluate_missing_title(d: dict[str, Any]) -> dict[str, Any] | None:
         return None
     if int(d["status"] or 0) != 200:
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "missing_title",
         "Thiếu thẻ <title> sau render.",
@@ -519,6 +623,8 @@ def evaluate_missing_title(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["Xóa nhầm", "JS chưa hydrate"],
         fixes=["Thêm <title> duy nhất, mô tả rõ trang."],
         validation=["Kiểm tra rendered.html.", "GSC Enhancement."],
+        url=url,
+        evidence=[{"kind": "url", "url": url}, {"kind": "title", "value": ""}],
     )
 
 
@@ -526,6 +632,7 @@ def evaluate_title_too_long(d: dict[str, Any]) -> dict[str, Any] | None:
     t = (d["parsed"].get("title") or "").strip()
     if not t or len(t) <= 60:
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "title_too_long",
         f"Title dài {len(t)} ký tự — SERP thường cắt ~60 ký tự hiển thị.",
@@ -537,6 +644,12 @@ def evaluate_title_too_long(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["CMS auto-append", "A/B dài"],
         fixes=["Rút gọn; đặt từ khóa chính phía trước."],
         validation=["SERP simulator / GSC preview."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "title", "value": t[:180]},
+            {"kind": "title_length", "value": len(t)},
+        ],
     )
 
 
@@ -547,6 +660,7 @@ def evaluate_missing_meta_description(d: dict[str, Any]) -> dict[str, Any] | Non
         return None
     sev = "high" if d["page_type"] in ("article", "homepage", "landing") else "medium"
     conf = 0.86 if sev == "high" else 0.48
+    url = str(d.get("url") or "")
     return _issue(
         "missing_meta_description",
         "Thiếu meta description (hoặc og:description).",
@@ -558,6 +672,12 @@ def evaluate_missing_meta_description(d: dict[str, Any]) -> dict[str, Any] | Non
         causes=["Theme thiếu field", "SPA"],
         fixes=["Thêm meta description độc nhất, phản ánh intent trang."],
         validation=["Kiểm tra parsed.json."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "meta_description", "value": ""},
+            {"kind": "page_type", "value": d["page_type"]},
+        ],
     )
 
 
@@ -578,6 +698,7 @@ def evaluate_missing_h1(d: dict[str, Any]) -> dict[str, Any] | None:
         sev, conf = "medium", 0.55
     else:
         sev, conf = "low", 0.38
+    url = str(d.get("url") or "")
     return _issue(
         "missing_h1",
         "Không có H1 sau render.",
@@ -589,6 +710,12 @@ def evaluate_missing_h1(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["Hero dùng div", "H1 inject JS"],
         fixes=["Một H1 mô tả chủ đề chính; các mục dùng H2."],
         validation=["Outline heading trong SF.", "Accessibility tree."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "h1_count", "value": h1_rendered},
+            {"kind": "page_type", "value": d["page_type"]},
+        ],
     )
 
 
@@ -598,6 +725,8 @@ def evaluate_multiple_h1(d: dict[str, Any]) -> dict[str, Any] | None:
         return None
     if int(d["status"] or 0) != 200:
         return None
+    url = str(d.get("url") or "")
+    h1_texts = d["parsed"].get("h1") or []
     return _issue(
         "multiple_h1",
         f"Có {h1c} thẻ H1 — dễ làm loãng tín hiệu heading.",
@@ -609,6 +738,12 @@ def evaluate_multiple_h1(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["Component lặp", "Template"],
         fixes=["Giữ một H1 chính; đổi phần còn lại sang H2."],
         validation=["Kiểm tra DOM sau render."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "h1_count", "value": h1c},
+            {"kind": "h1_texts", "value": list(h1_texts)[:6]},
+        ],
     )
 
 
@@ -640,6 +775,7 @@ def evaluate_images_missing_alt(d: dict[str, Any]) -> dict[str, Any] | None:
     n = int(d["parsed"].get("images_missing_alt") or 0)
     if n <= 0:
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "images_missing_alt",
         f"{n} ảnh thiếu alt (hoặc alt rỗng không decorative).",
@@ -651,6 +787,117 @@ def evaluate_images_missing_alt(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["CMS không bắt buộc alt", "Lấy ảnh ngoài không map"],
         fixes=["Thêm alt mô tả; alt=\"\" cho trang trí."],
         validation=["Lighthouse / axe."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "images_missing_alt", "value": n},
+            {"kind": "images_total", "value": int(d["parsed"].get("images_total") or 0)},
+        ],
+    )
+
+
+def evaluate_title_too_short(d: dict[str, Any]) -> dict[str, Any] | None:
+    t = (d["parsed"].get("title") or "").strip()
+    if not t or len(t) >= 20:
+        return None
+    if int(d["status"] or 0) != 200:
+        return None
+    url = str(d.get("url") or "")
+    return _issue(
+        "title_too_short",
+        f"Title ngắn {len(t)} ký tự — khó mô tả chủ đề trên SERP: {t}",
+        "low",
+        0.62,
+        "content",
+        why="Title quá ngắn thường thiếu ngữ cảnh và dễ trùng thương hiệu suông.",
+        detected_from=["parsed.title"],
+        causes=["Chỉ tên brand", "CMS cắt title"],
+        fixes=["Mở rộng title (thường 20–60 ký tự) với chủ đề trang."],
+        validation=["Xem SERP preview."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "title", "value": t},
+            {"kind": "title_length", "value": len(t)},
+        ],
+    )
+
+
+def evaluate_meta_description_too_long(d: dict[str, Any]) -> dict[str, Any] | None:
+    m = (d["parsed"].get("meta_description") or "").strip()
+    if not m or len(m) <= 160:
+        return None
+    if int(d["status"] or 0) != 200:
+        return None
+    url = str(d.get("url") or "")
+    return _issue(
+        "meta_description_too_long",
+        f"Meta description dài {len(m)} ký tự — snippet thường cắt ~155–160 ký tự.",
+        "low",
+        0.58,
+        "content",
+        why="Phần cuối description có thể không hiện trên SERP.",
+        detected_from=["parsed.meta_description"],
+        causes=["Template dài", "Nhồi keyword"],
+        fixes=["Rút còn khoảng 120–160 ký tự, CTA rõ ở đầu."],
+        validation=["SERP simulator."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "meta_description", "value": m[:200]},
+            {"kind": "meta_length", "value": len(m)},
+        ],
+    )
+
+
+def evaluate_missing_viewport(d: dict[str, Any]) -> dict[str, Any] | None:
+    if int(d["status"] or 0) != 200:
+        return None
+    vp = str((d["parsed"] or {}).get("viewport") or "").strip()
+    if vp:
+        return None
+    url = str(d.get("url") or "")
+    return _issue(
+        "missing_viewport",
+        f"Thiếu meta viewport — ảnh hưởng mobile: {url}",
+        "medium",
+        0.9,
+        "technical",
+        why="Không có viewport khiến Google/mobile render sai chiều rộng.",
+        detected_from=["parsed.viewport"],
+        causes=["Theme thiếu", "AMP/SPA không in meta"],
+        fixes=['Thêm <meta name="viewport" content="width=device-width, initial-scale=1">.'],
+        validation=["View source <head>.", "Mobile-Friendly Test."],
+        url=url,
+        evidence=[{"kind": "url", "url": url}, {"kind": "viewport", "value": ""}],
+    )
+
+
+def evaluate_images_broken_src(d: dict[str, Any]) -> dict[str, Any] | None:
+    n = int((d["parsed"] or {}).get("images_broken_src") or 0)
+    if n <= 0:
+        return None
+    if int(d["status"] or 0) != 200:
+        return None
+    url = str(d.get("url") or "")
+    samples = list((d["parsed"] or {}).get("images_broken_samples") or [])[:8]
+    return _issue(
+        "images_broken_src",
+        f"{n} ảnh có src trống hoặc không hợp lệ trên {url}",
+        "medium",
+        0.86,
+        "content",
+        why="src rỗng/javascript: làm ảnh lỗi và tốn crawl tới resource vô nghĩa.",
+        detected_from=["parsed.images_broken_src"],
+        causes=["Placeholder chưa thay", "JS gắn src muộn nhưng crawler thấy trống"],
+        fixes=["Gán URL ảnh tĩnh hợp lệ hoặc xóa thẻ img hỏng."],
+        validation=["Kiểm tra DOM img[src]."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "images_broken_src", "value": n},
+            {"kind": "broken_src_samples", "value": samples},
+        ],
     )
 
 
@@ -663,7 +910,8 @@ def evaluate_soft_404_heuristic(d: dict[str, Any]) -> dict[str, Any] | None:
         return None
     title = str(d["parsed"].get("title") or "")
     visible_text = str(d["parsed"].get("visible_text") or "")
-    if not _is_soft_404_text(visible_text, title):
+    matched = _soft_404_matched_pattern(visible_text, title)
+    if not matched:
         return None
     return _issue(
         "soft_404_heuristic",
@@ -676,6 +924,14 @@ def evaluate_soft_404_heuristic(d: dict[str, Any]) -> dict[str, Any] | None:
         causes=["Template lỗi trả 200", "Trang không tồn tại nhưng không trả 404/410 thật"],
         fixes=["Trả 404/410 cho trang không tồn tại; hoặc bổ sung nội dung thực sự hữu ích nếu trang cần index."],
         validation=["URL Inspection trong GSC.", "Kiểm tra response thật bằng curl và nội dung visible text."],
+        url=str(d.get("url") or ""),
+        evidence=[
+            {"kind": "url", "url": str(d.get("url") or "")},
+            {"kind": "http_status", "value": status},
+            {"kind": "word_count", "value": wc},
+            {"kind": "title", "value": title[:180]},
+            {"kind": "soft_404_pattern", "value": matched},
+        ],
     )
 
 
@@ -688,6 +944,8 @@ def evaluate_canonical_points_to_non_indexable(d: dict[str, Any]) -> dict[str, A
         return None  # canonical_points_to_bad_status xử lý
     if cta.get("target_indexable", True):
         return None
+    url = str(d.get("url") or "")
+    canonical = str((d.get("canonical_resolution") or {}).get("canonical_url") or (d.get("parsed") or {}).get("canonical") or "")
     return _issue(
         "canonical_points_to_non_indexable",
         "Canonical trỏ tới URL đích không indexable (HTTP/robots/meta) — Google khó hợp nhất cluster theo canonical này.",
@@ -703,6 +961,13 @@ def evaluate_canonical_points_to_non_indexable(d: dict[str, Any]) -> dict[str, A
         causes=["Sai URL trong CMS", "Staging/noindex trên bản đích", "Soft-404 trên canonical"],
         fixes=["Sửa canonical về URL indexable thật hoặc self-canonical đúng intent.", "Kiểm tra robots + status đích."],
         validation=["Mở canonical đích bằng Googlebot UA.", "URL Inspection cho URL đích."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "canonical_url", "url": canonical},
+            {"kind": "target_indexable", "value": False},
+            {"kind": "http_status", "value": st},
+        ],
     )
 
 
@@ -740,6 +1005,12 @@ def evaluate_canonical_points_to_bad_status(d: dict[str, Any]) -> dict[str, Any]
         causes=["URL đích đã xóa/redirect", "Staging URL trong canonical", "Sai slug trong CMS"],
         fixes=["Sửa canonical về URL trả 200 indexable.", "Redirect 301 đích cũ về URL chính thức trước khi canonical."],
         validation=["Fetch canonical đích bằng curl.", "GSC URL Inspection canonical đích."],
+        url=str(d.get("url") or ""),
+        evidence=[
+            {"kind": "url", "url": str(d.get("url") or "")},
+            {"kind": "canonical_url", "url": canonical},
+            {"kind": "http_status", "value": st},
+        ],
     )
 
 
@@ -756,6 +1027,7 @@ def evaluate_canonical_scheme_mismatch(d: dict[str, Any]) -> dict[str, Any] | No
         return None
     if pc.scheme.lower() == pf.scheme.lower():
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "canonical_scheme_mismatch",
         f"Canonical dùng scheme khác URL hiệu dụng ({pc.scheme} vs {pf.scheme}): {c}",
@@ -767,6 +1039,13 @@ def evaluate_canonical_scheme_mismatch(d: dict[str, Any]) -> dict[str, Any] | No
         causes=["Mixed content redirect chưa hoàn tất", "CMS hard-code http trong canonical"],
         fixes=["Chuẩn hóa canonical về https (hoặc scheme chính thức).", "301 toàn site sang HTTPS."],
         validation=["So sánh scheme sau redirect cuối.", "GSC property http vs https."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "canonical_url", "url": c},
+            {"kind": "final_effective_url", "url": fe},
+            {"kind": "scheme_mismatch", "value": f"{pc.scheme} vs {pf.scheme}"},
+        ],
     )
 
 
@@ -785,6 +1064,7 @@ def evaluate_canonical_trailing_slash_mismatch(d: dict[str, Any]) -> dict[str, A
         return None
     if pc.path == pf.path:
         return None
+    url = str(d.get("url") or "")
     return _issue(
         "canonical_trailing_slash_mismatch",
         f"Canonical khác trailing slash so với URL hiệu dụng: {c} vs {fe}",
@@ -796,6 +1076,12 @@ def evaluate_canonical_trailing_slash_mismatch(d: dict[str, Any]) -> dict[str, A
         causes=["CMS thêm/bỏ slash", "Server rewrite không thống nhất"],
         fixes=["Chọn một convention (có hoặc không slash) và 301 + canonical thống nhất."],
         validation=["curl -I cả hai biến thể slash.", "Screaming Frog canonical report."],
+        url=url,
+        evidence=[
+            {"kind": "url", "url": url},
+            {"kind": "canonical_url", "url": c},
+            {"kind": "final_effective_url", "url": fe},
+        ],
     )
 
 
@@ -935,11 +1221,15 @@ RULES: list[IssueFn] = [
     evaluate_robots_meta_noindex_contradiction,
     evaluate_missing_title,
     evaluate_title_too_long,
+    evaluate_title_too_short,
     evaluate_missing_meta_description,
+    evaluate_meta_description_too_long,
     evaluate_missing_h1,
     evaluate_multiple_h1,
     evaluate_thin_content,
     evaluate_images_missing_alt,
+    evaluate_images_broken_src,
+    evaluate_missing_viewport,
     evaluate_soft_404_heuristic,
     evaluate_weak_heading_structure,
 ]
@@ -1013,8 +1303,12 @@ def issues_to_legacy_api_issues(issues: list[dict[str, Any]], page_type: str) ->
     for it in issues:
         rid = str(it.get("rule_id") or "decision")
         fixes = it.get("how_to_fix") or []
-        legacy.append(
-            {
+        evidence = list(it.get("evidence") or [])
+        if not evidence:
+            for field in it.get("detected_from") or []:
+                if field:
+                    evidence.append({"kind": "detected_from", "text": str(field)})
+        row = {
                 "type": rid,
                 "severity": it.get("severity"),
                 "message": it.get("issue"),
@@ -1031,6 +1325,14 @@ def issues_to_legacy_api_issues(issues: list[dict[str, Any]], page_type: str) ->
                 "decision_source": it.get("decision_source"),
                 "suppressed": it.get("suppressed", False),
                 "suppression_reason": it.get("suppression_reason"),
-            }
-        )
+        }
+        if evidence:
+            row["evidence"] = evidence
+        if it.get("url"):
+            row["url"] = it.get("url")
+        if it.get("affected_urls"):
+            row["affected_urls"] = list(it.get("affected_urls") or [])
+        elif it.get("url"):
+            row["affected_urls"] = [it.get("url")]
+        legacy.append(row)
     return legacy

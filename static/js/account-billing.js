@@ -1325,6 +1325,90 @@
             return Number(plan.yearly_total_credit) || 0;
         }
 
+        function fmtQuotaNum(n) {
+            return Number(n || 0).toLocaleString("vi-VN");
+        }
+
+        function highlightValue(plan, labelMatch) {
+            const needle = String(labelMatch || "").toLowerCase();
+            const row = (plan.highlights || []).find((h) => String(h.label || "").toLowerCase().includes(needle));
+            return row ? String(row.value || "") : "";
+        }
+
+        function buildPlanFeatureGroups(plan) {
+            const c = plan.compare || {};
+            const kw = c.keyword_research_quota != null
+                ? `${fmtQuotaNum(c.keyword_research_quota)}/tháng`
+                : (highlightValue(plan, "keyword research") || "—");
+            const cluster = c.keyword_cluster_quota != null
+                ? `${fmtQuotaNum(c.keyword_cluster_quota)}/tháng`
+                : (highlightValue(plan, "gom nhóm") || "—");
+            const articles = c.content_ai_per_month != null
+                ? fmtQuotaNum(c.content_ai_per_month)
+                : "—";
+            const indexSubmit = c.index_submit_quota != null
+                ? `${fmtQuotaNum(c.index_submit_quota)} URL/tháng`
+                : "—";
+            const credits = c.credits_month != null
+                ? fmtQuotaNum(c.credits_month)
+                : (highlightValue(plan, "credit") || "—");
+            const projects = c.platform_projects != null
+                ? fmtQuotaNum(c.platform_projects)
+                : "—";
+            const users = c.platform_users != null
+                ? fmtQuotaNum(c.platform_users)
+                : "—";
+            let chatbot = "Từ gói Pro";
+            if (c.chatbot_enabled) {
+                const bots = c.chatbot_bots != null ? fmtQuotaNum(c.chatbot_bots) : "—";
+                const replies = c.chatbot_reply_monthly != null ? fmtQuotaNum(c.chatbot_reply_monthly) : "—";
+                chatbot = `${bots} bot · ${replies} reply`;
+            }
+
+            // Same row order on every card so features align horizontally across plans.
+            return [
+                [
+                    { label: "Keyword Research", value: kw, emphasize: true },
+                    { label: "Gom nhóm từ khóa", value: cluster, emphasize: true },
+                ],
+                [
+                    { label: "Bài AI", value: articles },
+                    { label: "Submit Index", value: indexSubmit },
+                    { label: "Check Index", free: true },
+                    { label: "Technical", free: true },
+                    { label: "SEO Score", free: true },
+                    { label: "Schema", free: true },
+                ],
+                [
+                    { label: "Credit Premium", value: credits },
+                    { label: "AI Chatbot", value: chatbot, muted: !c.chatbot_enabled, chatbot: true },
+                ],
+                [
+                    { label: "Website / Project", value: projects },
+                    { label: "User / Team", value: users },
+                ],
+            ];
+        }
+
+        function renderFeatureRow(row) {
+            if (row.free) {
+                return `<li class="ab-plan-feat is-free">
+                    <span class="ab-plan-feat-label">${esc(row.label)}</span>
+                    <span class="ab-plan-feat-value ab-plan-feat-free"><span class="ab-plan-check" aria-hidden="true">✓</span> Miễn phí</span>
+                </li>`;
+            }
+            const cls = [
+                "ab-plan-feat",
+                row.emphasize ? "is-emphasis" : "",
+                row.muted ? "is-muted" : "",
+                row.chatbot ? "is-chatbot" : "",
+            ].filter(Boolean).join(" ");
+            return `<li class="${cls}">
+                <span class="ab-plan-feat-label">${esc(row.label)}</span>
+                <span class="ab-plan-feat-value">${esc(row.value || "—")}</span>
+            </li>`;
+        }
+
         function renderPlanCards() {
             if (!grid || !billingCatalog) return;
             const plans = billingCatalog.plans || [];
@@ -1339,18 +1423,21 @@
                 const price = planDisplayPrice(p);
                 const semiCredit = isSemi ? planSemiCreditTotal(p) : 0;
                 const yearlyCredit = isYearly ? planYearlyCreditTotal(p) : 0;
-                const feats = (p.features || []).slice(0, 5).map((f) =>
-                    `<li><strong>${esc(f.label || "")}</strong>: ${esc(f.value || "")}</li>`
-                ).join("");
-                const btnClass = action.kind === "upgrade" && p.is_popular ? "ab-btn" : "ab-btn secondary";
+                const groups = buildPlanFeatureGroups(p);
+                const sectionsHtml = groups.map((rows, idx) => `
+                    ${idx > 0 ? '<div class="ab-plan-divider" role="presentation"></div>' : ""}
+                    <ul class="ab-plan-feats">${rows.map(renderFeatureRow).join("")}</ul>
+                `).join("");
+                const btnClass = (action.kind === "upgrade" && p.is_popular)
+                    ? "ab-btn ab-plan-btn is-primary"
+                    : "ab-btn secondary ab-plan-btn";
                 const featured = p.is_popular ? " is-featured" : "";
                 const current = action.kind === "current" ? " is-current" : "";
-                const semiBadge = isSemi
-                    ? '<div class="ab-plan-semi-badge">Tặng thêm 1 tháng credit</div>'
-                    : "";
-                const yearlyBadge = isYearly
-                    ? '<div class="ab-plan-semi-badge ab-plan-yearly-badge">Tặng 2 tháng sử dụng + 2 tháng credit</div>'
-                    : "";
+                const cycleNote = isSemi
+                    ? '<div class="ab-plan-cycle-chip">Tặng thêm 1 tháng credit</div>'
+                    : (isYearly
+                        ? '<div class="ab-plan-cycle-chip">Tặng 2 tháng sử dụng + 2 tháng credit</div>'
+                        : "");
                 const creditRow = isSemi
                     ? `<p class="ab-plan-credit-total">Tổng credit 6 tháng: <strong>${esc(Number(semiCredit).toLocaleString("vi-VN"))}</strong></p>`
                     : (isYearly
@@ -1358,25 +1445,30 @@
                         : "");
                 return `
                     <article class="ab-plan-card${featured}${current}" data-plan="${esc(p.slug)}">
-                        ${p.is_popular ? '<div class="ab-plan-pop">Phổ biến</div>' : ""}
-                        ${semiBadge}
-                        ${yearlyBadge}
-                        <h4>${esc(p.name)}</h4>
-                        <div class="ab-plan-price">
-                            <span class="ab-plan-amount">${esc(fmtVnd(price))}</span>
-                            <span class="ab-plan-unit">${esc(unit)}</span>
+                        ${p.is_popular ? '<div class="ab-plan-pop">Phổ biến nhất</div>' : ""}
+                        <div class="ab-plan-card-body">
+                            <header class="ab-plan-header">
+                                <h4 class="ab-plan-name">${esc(p.name)}</h4>
+                                <div class="ab-plan-price">
+                                    <span class="ab-plan-amount">${esc(fmtVnd(price))}</span>
+                                    <span class="ab-plan-unit">${esc(unit)}</span>
+                                </div>
+                                ${cycleNote}
+                                ${creditRow}
+                                <p class="ab-plan-fit">${esc(p.fit || "")}</p>
+                                <p class="ab-plan-vat">Giá chưa VAT</p>
+                            </header>
+                            <div class="ab-plan-sections">${sectionsHtml}</div>
                         </div>
-                        ${creditRow}
-                        <p class="ab-plan-fit">${esc(p.fit || "")}</p>
-                        <p class="ab-plan-vat">Giá chưa VAT</p>
-                        <ul class="ab-plan-feats">${feats}</ul>
-                        <button type="button"
-                            class="${btnClass} ab-plan-btn"
-                            data-plan-action="${esc(p.slug)}"
-                            data-action-kind="${esc(action.kind)}"
-                            ${action.disabled ? "disabled" : ""}>
-                            ${esc(action.label)}
-                        </button>
+                        <footer class="ab-plan-footer">
+                            <button type="button"
+                                class="${btnClass}"
+                                data-plan-action="${esc(p.slug)}"
+                                data-action-kind="${esc(action.kind)}"
+                                ${action.disabled ? "disabled" : ""}>
+                                ${esc(action.label)}
+                            </button>
+                        </footer>
                     </article>
                 `;
             }).join("");
@@ -1399,6 +1491,67 @@
                     showToast("Vui lòng liên hệ hỗ trợ để thay đổi hoặc hạ gói.");
                 });
             });
+        }
+
+        function formatCompareCell(v) {
+            if (v === true) return '<span class="ab-cmp-yes">✓</span>';
+            if (v === false || v == null || v === "") return '<span class="ab-cmp-no">—</span>';
+            if (typeof v === "number") return `<span class="ab-cmp-val">${esc(Number(v).toLocaleString("vi-VN"))}</span>`;
+            const s = String(v);
+            if (s.toUpperCase() === "FREE") return '<span class="ab-cmp-free">FREE</span>';
+            return `<span class="ab-cmp-val">${esc(s)}</span>`;
+        }
+
+        function renderPlansCompareModal() {
+            const body = byId("abPlansCompareBody");
+            if (!body || !billingCatalog) return;
+            const plans = billingCatalog.plans || [];
+            const rows = billingCatalog.compare_rows || [];
+            if (!plans.length || !rows.length) {
+                body.innerHTML = '<p class="ab-muted-text">Chưa có dữ liệu so sánh.</p>';
+                return;
+            }
+            const head = `<tr><th class="ab-cmp-feature">Hạng mục</th>${plans.map((p) =>
+                `<th class="ab-cmp-plan${p.is_popular ? " is-pro" : ""}">${esc(p.name)}${p.is_popular ? '<span class="ab-cmp-badge">Phổ biến nhất</span>' : ""}</th>`
+            ).join("")}</tr>`;
+            const tbody = rows.map((r) => {
+                const cells = plans.map((p) => {
+                    const v = (p.compare || {})[r.key];
+                    return `<td class="ab-cmp-plan${p.is_popular ? " is-pro" : ""}">${formatCompareCell(v)}</td>`;
+                }).join("");
+                return `<tr><td class="ab-cmp-feature">${esc(r.label || r.key)}</td>${cells}</tr>`;
+            }).join("");
+            const mobile = plans.map((p) => {
+                const items = rows.map((r) => {
+                    const v = (p.compare || {})[r.key];
+                    return `<div class="ab-cmp-mrow"><span>${esc(r.label || r.key)}</span><span>${formatCompareCell(v)}</span></div>`;
+                }).join("");
+                return `<div class="ab-cmp-mcard${p.is_popular ? " is-pro" : ""}"><div class="ab-cmp-mhead">${esc(p.name)}${p.is_popular ? ' <em>Phổ biến nhất</em>' : ""}</div>${items}</div>`;
+            }).join("");
+            body.innerHTML = `
+                <div class="ab-cmp-table-wrap">
+                    <table class="ab-cmp-table">
+                        <thead>${head}</thead>
+                        <tbody>${tbody}</tbody>
+                    </table>
+                </div>
+                <div class="ab-cmp-mobile">${mobile}</div>
+            `;
+        }
+
+        function openPlansCompareModal() {
+            const modal = byId("abPlansCompareModal");
+            if (!modal) return;
+            renderPlansCompareModal();
+            modal.hidden = false;
+            modal.classList.add("is-open");
+        }
+
+        function closePlansCompareModal() {
+            const modal = byId("abPlansCompareModal");
+            if (!modal) return;
+            modal.hidden = true;
+            modal.classList.remove("is-open");
         }
 
         function renderAddons() {
@@ -1504,6 +1657,24 @@
                 btn.dataset.abBillingWired = "1";
                 btn.addEventListener("click", () => setPlansBilling(btn.getAttribute("data-ab-billing")));
             });
+
+            const openCompare = byId("abOpenPlansCompare");
+            if (openCompare && !openCompare.dataset.wired) {
+                openCompare.dataset.wired = "1";
+                openCompare.addEventListener("click", () => openPlansCompareModal());
+            }
+            const closeCompare = byId("abClosePlansCompare");
+            if (closeCompare && !closeCompare.dataset.wired) {
+                closeCompare.dataset.wired = "1";
+                closeCompare.addEventListener("click", () => closePlansCompareModal());
+            }
+            const compareModal = byId("abPlansCompareModal");
+            if (compareModal && !compareModal.dataset.wired) {
+                compareModal.dataset.wired = "1";
+                compareModal.addEventListener("click", (ev) => {
+                    if (ev.target === compareModal) closePlansCompareModal();
+                });
+            }
 
             const buyCredit = byId("btnAbBuyCredit");
             if (buyCredit) {

@@ -40,26 +40,26 @@ def download_image_bytes(url: str, *, max_bytes: int = 8 * 1024 * 1024) -> bytes
     if not u.lower().startswith(("http://", "https://")):
         raise ValueError("URL ảnh không hợp lệ.")
     try:
-        r = requests.get(
+        from app.services.url_safety import safe_http_get_bytes, validate_public_http_url
+
+        blocked = validate_public_http_url(u)
+        if blocked:
+            raise ValueError(f"URL ảnh không an toàn ({blocked}).")
+        data, err, _meta = safe_http_get_bytes(
             u,
-            timeout=30,
-            stream=True,
+            timeout_s=30,
+            max_bytes=max_bytes,
             headers={
                 "User-Agent": "Mozilla/5.0 (compatible; SEOAuto/1.0)",
                 "Accept": "image/jpeg,image/webp,image/*,*/*;q=0.8",
             },
         )
+        if err:
+            raise ValueError(f"Không tải được ảnh: {err}")
+    except ValueError:
+        raise
     except Exception as exc:
         raise ValueError(f"Không tải được ảnh: {exc}") from exc
-    if r.status_code != 200:
-        raise ValueError(f"Không tải được ảnh (HTTP {r.status_code}).")
-    data = b""
-    for chunk in r.iter_content(65536):
-        if not chunk:
-            continue
-        data += chunk
-        if len(data) > max_bytes:
-            raise ValueError("Ảnh nguồn quá lớn.")
     if len(data) < 400:
         raise ValueError("Ảnh tải về không hợp lệ.")
     return data

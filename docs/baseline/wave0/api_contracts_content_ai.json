@@ -1,0 +1,350 @@
+{
+  "snapshot_at": "2026-09-01T16:34:42.558350+00:00",
+  "contracts": [
+    {
+      "method": "POST",
+      "path": "/content-ai/suggest",
+      "present": true,
+      "operationId": "content_ai_suggest_content_ai_suggest_post",
+      "summary": "Content Ai Suggest",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentSuggestRequest"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/content-ai/suggest-stream",
+      "present": true,
+      "operationId": "content_ai_suggest_stream_content_ai_suggest_stream_post",
+      "summary": "Content Ai Suggest Stream",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentSuggestRequest"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/content-ai/draft",
+      "present": true,
+      "operationId": "content_ai_draft_content_ai_draft_post",
+      "summary": "Content Ai Draft",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentDraftRequest"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/content-ai/duplicate-check",
+      "present": true,
+      "operationId": "content_ai_duplicate_check_content_ai_duplicate_check_post",
+      "summary": "Content Ai Duplicate Check",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiDuplicateCheckRequest"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/content-ai/credit-quote",
+      "present": true,
+      "operationId": "content_ai_credit_quote_content_ai_credit_quote_post",
+      "summary": "Content Ai Credit Quote",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentSuggestRequest"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/bulk-jobs/ping",
+      "present": true,
+      "operationId": "content_ai_bulk_jobs_ping_content_ai_bulk_jobs_ping_get",
+      "summary": "Content Ai Bulk Jobs Ping",
+      "requestBody": null,
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/content-ai/bulk-jobs/start",
+      "present": true,
+      "operationId": "content_ai_bulk_jobs_start_content_ai_bulk_jobs_start_post",
+      "summary": "Content Ai Bulk Jobs Start",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContentAiBulkStartRequest"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/content-ai/publish-draft",
+      "present": true,
+      "operationId": "content_ai_publish_draft_content_ai_publish_draft_post",
+      "summary": "Content Ai Publish Draft",
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/WordpressDraftPublishRequest"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/projects",
+      "present": true,
+      "operationId": "content_ai_projects_content_ai_projects_get",
+      "summary": "Content Ai Projects",
+      "requestBody": null,
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/usage",
+      "present": true,
+      "operationId": "content_ai_usage_content_ai_usage_get",
+      "summary": "Content Ai Usage",
+      "requestBody": null,
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentAiUsageResponse"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/llm-providers",
+      "present": true,
+      "operationId": "content_ai_llm_providers_list_content_ai_llm_providers_get",
+      "summary": "Content Ai Llm Providers List",
+      "requestBody": null,
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "missing": [],
+  "gate": "PASS"
+}

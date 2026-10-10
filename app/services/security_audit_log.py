@@ -9,17 +9,13 @@ from fastapi import Request
 
 from app.db import SessionLocal
 from app.models.security_audit_log import SecurityAuditLog
+from app.services.trusted_proxy import resolve_client_ip
 
 
 def _client_ip(request: Request | None) -> str:
     if request is None:
         return ""
-    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-    if forwarded:
-        return forwarded[:64]
-    if request.client:
-        return str(request.client.host or "")[:64]
-    return ""
+    return resolve_client_ip(request)
 
 
 def log_audit_event(

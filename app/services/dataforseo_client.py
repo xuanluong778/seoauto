@@ -93,8 +93,23 @@ def google_serp_live_advanced(
         }
     ]
     url = f"{_base_url()}{SERP_ENDPOINT}"
+    timeout = max(5, min(60, int(os.getenv("DATAFORSEO_TIMEOUT_SECONDS", "35"))))
     try:
-        resp = requests.post(url, json=payload, auth=auth, timeout=90)
+        from app.services.circuit_breaker import CircuitOpenError, call_with_circuit
+
+        def _post():
+            return requests.post(url, json=payload, auth=auth, timeout=timeout)
+
+        try:
+            resp = call_with_circuit("dataforseo:serp", _post)
+        except CircuitOpenError as exc:
+            return {
+                "keyword": kw,
+                "items": _mock_organic_items(kw, depth),
+                "mock": True,
+                "error": f"circuit_open:{exc.retry_after_sec:.0f}s",
+                "fallback_mock": True,
+            }
         data = resp.json() if resp.content else {}
     except Exception as exc:
         return {

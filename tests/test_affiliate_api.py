@@ -25,6 +25,7 @@ def client():
     import app.models.usage_limit  # noqa: F401
     import app.models.subscription  # noqa: F401
     import app.models.payment_transaction  # noqa: F401
+    import app.models.payment_order  # noqa: F401
     import app.models.affiliate  # noqa: F401
 
     engine = create_engine(

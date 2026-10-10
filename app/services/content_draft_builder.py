@@ -180,7 +180,11 @@ def _fetch_related_internal_posts_for_injection(
     if len(related) < 3:
         try:
             sm_url = base + "/sitemap.xml"
-            r = requests.get(sm_url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+            from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+            if validate_public_http_url(sm_url):
+                raise ValueError("sitemap blocked")
+            r = safe_requests_get(sm_url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
             if r.status_code == 200 and r.text:
                 root = ET.fromstring(r.text)
                 locs: list[str] = []
@@ -257,6 +261,15 @@ def _inject_related_internal_links(
         return html_content
 
     soup = BeautifulSoup(html_content, "html.parser")
+
+    from app.services.content_ai_output_postprocess import has_related_articles_box
+
+    if has_related_articles_box(str(soup)):
+        html_content = str(soup)
+        # Still normalize placeholders below, but skip injecting another related box.
+        placeholders_only = True
+    else:
+        placeholders_only = False
 
     max_inline_links_total = 3
 
@@ -350,6 +363,9 @@ def _inject_related_internal_links(
             a.replace_with(span)
 
         return str(soup)
+
+    if placeholders_only:
+        return html_content
 
     # Insert a new blockquote before FAQ if possible
     anchor = None
@@ -809,6 +825,8 @@ def _strip_markdown_code_fence(s: str) -> str:
 def extract_clean_html_fragment(raw: str) -> str:
     """
     Keep only the HTML fragment: drop preamble/postamble prose outside tags.
+    Never drop mid-sentence trailing text that belongs to an unclosed last tag
+    (that truncation must remain visible for incomplete-tail repair).
     """
     s = str(raw or "").strip()
     if not s:
@@ -824,7 +842,14 @@ def extract_clean_html_fragment(raw: str) -> str:
     if last_gt >= 0:
         tail = s[last_gt + 1 :].strip()
         if tail and "<" not in tail:
-            s = s[: last_gt + 1]
+            # Drop only obvious model preambles/postambles — keep truncated body text.
+            if re.match(
+                r"^(here is|below is|dưới đây|sau đây|output|note:|lưu ý:|giải thích)\b",
+                tail,
+                flags=re.I,
+            ):
+                s = s[: last_gt + 1]
+            # else: keep tail (unclosed truncated content)
     return s.strip()
 
 
@@ -908,6 +933,9 @@ def _finalize_content_html(s: str) -> str:
     out = postprocess_content_blockquotes(out)
     out = strip_publish_checklist_from_html(out)
     out = enhance_tables_in_html(out)
+    from app.services.content_ai_output_postprocess import postprocess_content_ai_output
+
+    out = postprocess_content_ai_output(out)
     return repair_content_html_images(out, source="finalize_content_html", probe_remote=False)
 
 
@@ -1883,6 +1911,9 @@ def build_draft_payload(
         )
     except Exception:
         pass
+    from app.services.content_ai_output_postprocess import postprocess_content_ai_output
+
+    optimized_html = postprocess_content_ai_output(optimized_html)
     out_slug = _build_slug_url(slug or "", t, target_website or "", primary_kw)
     meta_seed = meta_description
     if not meta_seed and primary_kw:

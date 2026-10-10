@@ -51,6 +51,8 @@ def _row_to_entry(row: UserApiKey) -> dict[str, Any]:
     return {
         "id": row.id,
         "user_id": row.user_id,
+        "organization_id": getattr(row, "organization_id", None),
+        "created_by": getattr(row, "created_by", None) or row.user_id,
         "name": row.name,
         "provider": row.provider,
         "api_key": decrypt_secret(row.api_key_encrypted),
@@ -66,8 +68,27 @@ def _row_to_entry(row: UserApiKey) -> dict[str, Any]:
     }
 
 
+def _active_keys(db: Session, *, user_id: int, organization_id: int | None = None):
+    from sqlalchemy import or_
+
+    from app.services.tenant_org import resolve_organization_id
+
+    org_id = resolve_organization_id(user_id, organization_id, db=db)
+    q = db.query(UserApiKey).filter(UserApiKey.user_id == int(user_id))
+    # Require org match; allow null only as migrate transitional (then quarantine rules apply)
+    q = q.filter(
+        or_(
+            UserApiKey.organization_id == int(org_id),
+            UserApiKey.organization_id.is_(None),
+        )
+    )
+    if hasattr(UserApiKey, "deleted_at"):
+        q = q.filter(UserApiKey.deleted_at.is_(None))
+    return q, org_id
+
+
 def import_legacy_json_keys(db: Session) -> int:
-    """One-time import from data/api_keys.json into user_api_keys."""
+    """Import from data/api_keys.json; undetermined user_id → quarantine path via migrate script."""
     if not KEYS_FILE.exists():
         return 0
     try:
@@ -76,6 +97,8 @@ def import_legacy_json_keys(db: Session) -> int:
         return 0
     if not isinstance(raw, list):
         return 0
+    from app.services.tenant_org import ensure_personal_organization
+
     imported = 0
     for item in raw:
         if not isinstance(item, dict):
@@ -87,7 +110,8 @@ def import_legacy_json_keys(db: Session) -> int:
         if uid <= 0:
             continue
         kid = str(item.get("id") or uuid.uuid4())
-        if db.get(UserApiKey, kid):
+        existing = db.get(UserApiKey, kid)
+        if existing is not None:
             continue
         plain = decrypt_secret(str(item.get("api_key") or ""))
         if not plain:
@@ -95,9 +119,15 @@ def import_legacy_json_keys(db: Session) -> int:
         provider = str(item.get("provider") or "openai").strip().lower()
         if provider not in PROVIDERS:
             provider = "openai"
+        try:
+            org_id = ensure_personal_organization(db, uid)
+        except ValueError:
+            continue
         row = UserApiKey(
             id=kid,
             user_id=uid,
+            organization_id=org_id,
+            created_by=uid,
             name=str(item.get("name") or "").strip(),
             provider=provider,
             api_key_encrypted=encrypt_secret(plain),
@@ -117,29 +147,30 @@ def import_legacy_json_keys(db: Session) -> int:
     return imported
 
 
-def list_keys_db(db: Session, *, user_id: int) -> list[dict[str, Any]]:
-    rows = (
-        db.query(UserApiKey)
-        .filter(UserApiKey.user_id == int(user_id))
-        .order_by(UserApiKey.priority.asc(), UserApiKey.created_at.asc())
-        .all()
-    )
+def list_keys_db(
+    db: Session, *, user_id: int, organization_id: int | None = None
+) -> list[dict[str, Any]]:
+    q, _ = _active_keys(db, user_id=user_id, organization_id=organization_id)
+    rows = q.order_by(UserApiKey.priority.asc(), UserApiKey.created_at.asc()).all()
     return [_public(_row_to_entry(r)) for r in rows]
 
 
-def list_enabled_keys_db(db: Session, user_id: int) -> list[dict[str, Any]]:
-    rows = (
-        db.query(UserApiKey)
-        .filter(UserApiKey.user_id == int(user_id), UserApiKey.enabled.is_(True))
-        .order_by(UserApiKey.priority.asc(), UserApiKey.created_at.asc())
-        .all()
-    )
+def list_enabled_keys_db(
+    db: Session, user_id: int, organization_id: int | None = None
+) -> list[dict[str, Any]]:
+    q, _ = _active_keys(db, user_id=user_id, organization_id=organization_id)
+    rows = q.filter(UserApiKey.enabled.is_(True)).order_by(
+        UserApiKey.priority.asc(), UserApiKey.created_at.asc()
+    ).all()
     out = [_row_to_entry(r) for r in rows]
     return [x for x in out if str(x.get("api_key") or "").strip()]
 
 
-def get_stats_db(db: Session, *, user_id: int) -> dict[str, int]:
-    rows = db.query(UserApiKey).filter(UserApiKey.user_id == int(user_id)).all()
+def get_stats_db(
+    db: Session, *, user_id: int, organization_id: int | None = None
+) -> dict[str, int]:
+    q, _ = _active_keys(db, user_id=user_id, organization_id=organization_id)
+    rows = q.all()
     total = len(rows)
     active = sum(1 for r in rows if r.enabled)
     used_today = sum(int(r.used_today or 0) for r in rows)
@@ -152,8 +183,23 @@ def get_stats_db(db: Session, *, user_id: int) -> dict[str, int]:
     }
 
 
-def create_key_db(db: Session, payload: dict[str, Any], *, user_id: int) -> dict[str, Any]:
-    count = db.query(UserApiKey).filter(UserApiKey.user_id == int(user_id)).count()
+def create_key_db(
+    db: Session,
+    payload: dict[str, Any],
+    *,
+    user_id: int,
+    organization_id: int | None = None,
+) -> dict[str, Any]:
+    from app.services.tenant_org import ensure_personal_organization, personal_organization_id, resolve_organization_id
+
+    if organization_id is None:
+        org_id = ensure_personal_organization(db, user_id)
+    else:
+        org_id = resolve_organization_id(user_id, organization_id, db=db)
+        if org_id == personal_organization_id(user_id):
+            org_id = ensure_personal_organization(db, user_id)
+    q, _ = _active_keys(db, user_id=user_id, organization_id=org_id)
+    count = q.count()
     if count >= MAX_KEYS:
         raise ValueError(f"Tối đa {MAX_KEYS} khóa API.")
     name = str(payload.get("name") or "").strip()
@@ -177,6 +223,8 @@ def create_key_db(db: Session, payload: dict[str, Any], *, user_id: int) -> dict
     row = UserApiKey(
         id=str(uuid.uuid4()),
         user_id=int(user_id),
+        organization_id=org_id,
+        created_by=int(user_id),
         name=name,
         provider=provider,
         api_key_encrypted=encrypt_secret(plain),
@@ -189,15 +237,20 @@ def create_key_db(db: Session, payload: dict[str, Any], *, user_id: int) -> dict
     db.add(row)
     db.commit()
     db.refresh(row)
-    return _public(_row_to_entry(row), reveal_key=True)
+    # Never return full secret to API clients
+    return _public(_row_to_entry(row), reveal_key=False)
 
 
-def update_key_db(db: Session, key_id: str, patch: dict[str, Any], *, user_id: int) -> dict[str, Any] | None:
-    row = (
-        db.query(UserApiKey)
-        .filter(UserApiKey.id == str(key_id), UserApiKey.user_id == int(user_id))
-        .first()
-    )
+def update_key_db(
+    db: Session,
+    key_id: str,
+    patch: dict[str, Any],
+    *,
+    user_id: int,
+    organization_id: int | None = None,
+) -> dict[str, Any] | None:
+    q, _ = _active_keys(db, user_id=user_id, organization_id=organization_id)
+    row = q.filter(UserApiKey.id == str(key_id)).first()
     if not row:
         return None
     if patch.get("name") is not None:
@@ -222,29 +275,41 @@ def update_key_db(db: Session, key_id: str, patch: dict[str, Any], *, user_id: i
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
-    reveal = bool(patch.get("api_key"))
-    return _public(_row_to_entry(row), reveal_key=reveal)
+    return _public(_row_to_entry(row), reveal_key=False)
 
 
-def delete_key_db(db: Session, key_id: str, *, user_id: int) -> bool:
-    row = (
-        db.query(UserApiKey)
-        .filter(UserApiKey.id == str(key_id), UserApiKey.user_id == int(user_id))
-        .first()
-    )
+def delete_key_db(
+    db: Session,
+    key_id: str,
+    *,
+    user_id: int,
+    organization_id: int | None = None,
+) -> bool:
+    q, _ = _active_keys(db, user_id=user_id, organization_id=organization_id)
+    row = q.filter(UserApiKey.id == str(key_id)).first()
     if not row:
         return False
-    db.delete(row)
-    db.commit()
+    if hasattr(row, "deleted_at"):
+        row.deleted_at = datetime.now(timezone.utc)
+        db.commit()
+    else:
+        db.delete(row)
+        db.commit()
     return True
 
 
-def get_key_db(db: Session, key_id: str, *, user_id: int, reveal_key: bool = False) -> dict[str, Any] | None:
-    row = (
-        db.query(UserApiKey)
-        .filter(UserApiKey.id == str(key_id), UserApiKey.user_id == int(user_id))
-        .first()
-    )
+def get_key_db(
+    db: Session,
+    key_id: str,
+    *,
+    user_id: int,
+    reveal_key: bool = False,
+    organization_id: int | None = None,
+) -> dict[str, Any] | None:
+    """Id alone is not enough — org + user scope required."""
+    q, _ = _active_keys(db, user_id=user_id, organization_id=organization_id)
+    row = q.filter(UserApiKey.id == str(key_id)).first()
     if not row:
         return None
+    # API path must not reveal; server-side LLM may pass reveal_key=True only internally
     return _public(_row_to_entry(row), reveal_key=reveal_key)

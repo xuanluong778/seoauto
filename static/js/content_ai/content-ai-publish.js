@@ -879,9 +879,11 @@
     if (targetWebsiteEl) {
         targetWebsiteEl.addEventListener("input", () => {
             syncSlugFromPrimary();
+            try { scheduleSingleWpCategoriesLoad(); } catch (_) {}
         });
         targetWebsiteEl.addEventListener("change", () => {
             rememberTargetWebsite(targetWebsiteEl.value);
+            try { scheduleSingleWpCategoriesLoad(); } catch (_) {}
         });
     }
     const checkDupBtn = byId("btnCheckDuplicate");
@@ -1557,7 +1559,7 @@
             byId("content").scrollIntoView({ behavior: "smooth", block: "center" });
             saveFormState();
         } catch (e) {
-            if (e && e.name === "AbortError") {
+            if (_contentWriteSession.userAborted) {
                 showCaToast("Đã dừng viết.", "info");
                 msg.textContent = "Đã dừng viết.";
                 saveFormState();
@@ -1642,7 +1644,7 @@
     if (btnSingleLoadWpCategories) {
         btnSingleLoadWpCategories.addEventListener("click", () => {
             btnSingleLoadWpCategories.disabled = true;
-            void loadSingleWpCategories().finally(() => {
+            void loadSingleWpCategories({ forceRefresh: true }).finally(() => {
                 btnSingleLoadWpCategories.disabled = false;
             });
         });
@@ -1650,6 +1652,13 @@
     if (singleWpCategoryIdEl) {
         singleWpCategoryIdEl.addEventListener("change", () => {
             syncSingleWpCategoryFromSelect();
+            try {
+                _rememberWpCategorySelection(
+                    String(byId("targetWebsite")?.value || ""),
+                    "",
+                    String(singleWpCategoryIdEl.value || ""),
+                );
+            } catch (_) {}
             saveFormState();
         });
     }
@@ -3173,6 +3182,11 @@
         contentEditable.addEventListener("input", () => {
             const ta = byId("content");
             if (ta) ta.value = String(contentEditable.innerHTML || "");
+            try {
+                if (typeof updateContentStatsFromHtml === "function") {
+                    updateContentStatsFromHtml(String(contentEditable.innerHTML || ""));
+                }
+            } catch (_) {}
             schedulePreview();
             schedulePublishChecklist();
             scheduleSaveFormState();

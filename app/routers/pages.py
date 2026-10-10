@@ -40,6 +40,7 @@ from app.services.content_ai_entitlement import (
 from app.services.cost_control.module_gates import content_ai_crawl_gate, content_ai_cse_gate, content_ai_llm_gate
 from app.schemas.saas import ContentAiUsageResponse
 from app.services.security_audit_log import log_audit_event
+from app.services.job_store import get_job_for_user
 from app.services.user_scope import assert_job_access
 from app.services.seoauto_pricing_catalog import (
     PRICING_COMPARE_ROWS,
@@ -386,10 +387,10 @@ def settings_page(
 ) -> HTMLResponse:
     """Trang cài đặt (tài khoản, API, AI, tích hợp…)."""
     from app.services.auth_request import optional_user_from_request
-    from app.services.user_api_access import may_manage_custom_api_keys
+    from app.services.user_api_access import can_see_api_keys_settings_tab
 
     user = optional_user_from_request(request, db)
-    can_manage_api_keys = bool(user and may_manage_custom_api_keys(db, user))
+    can_manage_api_keys = can_see_api_keys_settings_tab(user)
     resp = templates.TemplateResponse(
         request=request,
         name="settings.html",
@@ -457,7 +458,7 @@ def chatbot_embed_widget_js() -> FileResponse:
     return FileResponse(
         _WIDGET_JS,
         media_type="application/javascript",
-        headers={"Cache-Control": "public, max-age=3600"},
+        headers={"Cache-Control": "public, max-age=60, must-revalidate"},
     )
 
 
@@ -672,7 +673,7 @@ def content_ai_google_images_import(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Không tải được ảnh: {exc}") from exc
     name = Path(local_url).name
-    return JSONResponse(content={"url": local_url, "name": name})
+    return JSONResponse(content={"ok": True, "url": local_url, "name": name})
 
 
 @router.get("/content-ai/web-images/catalog")
@@ -820,6 +821,11 @@ class ContentAiBulkStartRequest(BaseModel):
     wp_category_id: int | None = None
 
 
+class ContentAiBulkRetryRequest(BaseModel):
+    keywords: list[str] | None = None
+    retry_all_failed: bool = False
+
+
 class ContentAiDuplicateCheckRequest(BaseModel):
     keyword: str | None = None
     keywords: list[str] | None = None
@@ -849,8 +855,8 @@ def content_ai_duplicate_check(
         build_duplicate_check_meta,
         check_keywords_for_duplicates,
         invalidate_duplicate_corpus_cache,
-        _collect_live_site_articles,
     )
+    from app.services.duplicate_wp_corpus_cache import get_live_site_articles_cached
 
     if payload.refresh:
         invalidate_duplicate_corpus_cache(int(current_user.id))
@@ -872,7 +878,7 @@ def content_ai_duplicate_check(
     if target_website:
         try:
             live_site_count = len(
-                _collect_live_site_articles(
+                get_live_site_articles_cached(
                     user_id=int(current_user.id),
                     target_website=target_website,
                     search_keywords=kws,
@@ -1022,6 +1028,7 @@ def content_ai_bulk_jobs_start(
         get_job,
         mark_stale_jobs_failed,
         mark_stale_queued_failed,
+        update_job,
     )
     from app.services.idempotency_guard import build_idempotency_key, job_fingerprint
 
@@ -1119,8 +1126,26 @@ def content_ai_bulk_jobs_start(
         job = existing
         reuse_job = True
     else:
-        job = create_job(job_type="content_ai_bulk", message="Đã xếp hàng — chờ viết bài", payload=job_payload)
+        job = create_job(job_type="content_ai_bulk", message="Đang viết...", payload=job_payload)
         reuse_job = False
+        seeded_items = [
+            {
+                "keyword": r.get("keyword"),
+                "status": "running" if i == 0 else "pending",
+            }
+            for i, r in enumerate(bulk_rows)
+        ]
+        update_job(
+            job.job_id,
+            message="Đang viết...",
+            result={
+                "total": len(keywords),
+                "success": 0,
+                "failed": 0,
+                "target_website": job_payload.get("target_website") or "",
+                "items": seeded_items,
+            },
+        )
     st = get_job(job.job_id)
     record_content_ai_usage(
         db,
@@ -1134,28 +1159,82 @@ def content_ai_bulk_jobs_start(
 
     import threading
 
-    inline = (os.getenv("CONTENT_AI_BULK_INLINE", "1") or "1").strip().lower() in {
+    # Wave 3: Celery is default. INLINE/thread only when CONTENT_AI_BULK_CELERY=0.
+    from app.workers.content_ai_bulk_tasks import (
+        content_ai_bulk_celery_enabled,
+        enqueue_content_ai_bulk,
+    )
+
+    celery_on = content_ai_bulk_celery_enabled()
+    inline = (os.getenv("CONTENT_AI_BULK_INLINE", "0") or "0").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
-    if inline and not reuse_job:
+    if celery_on and not reuse_job:
+        try:
+            enqueue_content_ai_bulk(job.job_id)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "content_ai_bulk_celery_enqueue_failed job_id=%s", job.job_id
+            )
+            # Inline fallback only when explicitly enabled — prevents Celery + inline double-run.
+            if inline:
+                from app.services.job_store import claim_job_by_id, fail_job
+
+                claimed = claim_job_by_id(job.job_id)
+
+                def _run_bulk_inline(jid: str, pl: dict[str, Any]) -> None:
+                    from app.services.content_ai_bulk_runner import run_content_ai_bulk_job
+
+                    try:
+                        run_content_ai_bulk_job(jid, pl)
+                    except Exception as exc:
+                        try:
+                            fail_job(jid, error=str(exc)[:2000])
+                        except Exception:
+                            pass
+
+                if claimed:
+                    threading.Thread(
+                        target=_run_bulk_inline,
+                        args=(job.job_id, job_payload),
+                        daemon=True,
+                        name=f"content-ai-bulk-{job.job_id[:8]}",
+                    ).start()
+            else:
+                from app.services.job_store import fail_job
+
+                fail_job(
+                    job.job_id,
+                    error="Celery enqueue failed; inline worker disabled (CONTENT_AI_BULK_INLINE=0).",
+                )
+    elif inline and not reuse_job:
+        from app.services.job_store import claim_job_by_id, fail_job
+
+        claimed = claim_job_by_id(job.job_id)
 
         def _run_bulk_inline(jid: str, pl: dict[str, Any]) -> None:
             from app.services.content_ai_bulk_runner import run_content_ai_bulk_job
-            from app.services.job_store import claim_job_by_id
 
-            claimed = claim_job_by_id(jid)
-            if claimed:
+            try:
                 run_content_ai_bulk_job(jid, pl)
+            except Exception as exc:
+                try:
+                    fail_job(jid, error=str(exc)[:2000])
+                except Exception:
+                    pass
 
-        threading.Thread(
-            target=_run_bulk_inline,
-            args=(job.job_id, job_payload),
-            daemon=True,
-            name=f"content-ai-bulk-{job.job_id[:8]}",
-        ).start()
+        if claimed:
+            threading.Thread(
+                target=_run_bulk_inline,
+                args=(job.job_id, job_payload),
+                daemon=True,
+                name=f"content-ai-bulk-{job.job_id[:8]}",
+            ).start()
 
     st = get_job(job.job_id)
     note = "Job chạy trên server — có thể tắt trình duyệt/máy cá nhân nếu server (Laragon) vẫn bật."
@@ -1184,21 +1263,13 @@ def content_ai_bulk_job_status(
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     from app.services.job_store import (
-        cleanup_expired,
         ensure_job_schema,
-        get_job,
-        mark_stale_jobs_failed,
-        mark_stale_queued_failed,
     )
 
     ensure_job_schema()
-    cleanup_expired(ttl_seconds=int(os.getenv("JOB_TTL_SECONDS", "86400")))
-    mark_stale_jobs_failed(stale_seconds=int(os.getenv("JOB_WATCHDOG_SECONDS", "900")))
-    mark_stale_queued_failed(stale_seconds=int(os.getenv("JOB_QUEUE_STALE_SECONDS", "180")))
-    st = get_job(job_id)
+    st = get_job_for_user(job_id, user_id=current_user.id)
     if not st:
-        raise HTTPException(status_code=404, detail="Không tìm thấy job.")
-    assert_job_access(st.payload or {}, current_user.id)
+        raise HTTPException(status_code=404, detail="Job not found")
     out: dict[str, Any] = {
         "job_id": st.job_id,
         "job_type": st.job_type,
@@ -1221,10 +1292,9 @@ def content_ai_bulk_job_cancel(
     from app.services.job_store import cancel_job, ensure_job_schema, get_job
 
     ensure_job_schema()
-    st = get_job(job_id)
+    st = get_job_for_user(job_id, user_id=current_user.id)
     if not st:
-        raise HTTPException(status_code=404, detail="Không tìm thấy job.")
-    assert_job_access(st.payload or {}, current_user.id)
+        raise HTTPException(status_code=404, detail="Job not found")
     cancelled = cancel_job(job_id, message="Đã dừng viết hàng loạt.")
     if not cancelled:
         raise HTTPException(status_code=404, detail="Không tìm thấy job.")
@@ -1237,6 +1307,91 @@ def content_ai_bulk_job_cancel(
     if cancelled.result is not None:
         out["result"] = cancelled.result
     return JSONResponse(content=out)
+
+
+@router.post("/content-ai/bulk-jobs/{job_id}/retry")
+def content_ai_bulk_job_retry(
+    job_id: str,
+    payload: ContentAiBulkRetryRequest,
+    current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    from app.services.content_ai_bulk_runner import reset_bulk_job_items_for_retry
+    from app.services.job_store import claim_job_by_id, ensure_job_schema, get_job
+    from app.workers.content_ai_bulk_tasks import (
+        content_ai_bulk_celery_enabled,
+        enqueue_content_ai_bulk,
+    )
+
+    ensure_job_schema()
+    st = get_job_for_user(job_id, user_id=current_user.id)
+    if not st:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if str(st.state or "").upper() in {"RUNNING", "QUEUED", "PENDING"}:
+        raise HTTPException(status_code=409, detail="Job đang chạy — không thể retry lúc này.")
+    kw_list: list[str] | None = None
+    if payload.retry_all_failed:
+        kw_list = None
+    elif payload.keywords:
+        kw_list = [str(k or "").strip() for k in payload.keywords if str(k or "").strip()]
+        if not kw_list:
+            raise HTTPException(status_code=400, detail="Cần ít nhất một từ khóa để retry.")
+    else:
+        raise HTTPException(status_code=400, detail="Chọn từ khóa hoặc bật retry_all_failed.")
+    retried = reset_bulk_job_items_for_retry(job_id, keywords=kw_list)
+    if not retried:
+        raise HTTPException(status_code=400, detail="Không có bài lỗi phù hợp để thử lại.")
+    # No extra bulk-start credit — per-article credit uses stable request_id bulk:job:idx.
+    pl = st.payload if isinstance(st.payload, dict) else {}
+    if celery_on := content_ai_bulk_celery_enabled():
+        try:
+            claimed = claim_job_by_id(job_id)
+            if not claimed:
+                raise HTTPException(status_code=409, detail="Không claim được job — thử lại sau.")
+            enqueue_content_ai_bulk(job_id)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            from app.services.job_store import fail_job
+
+            fail_job(job_id, error=f"Celery enqueue retry failed: {exc}")
+            raise HTTPException(status_code=503, detail="Không enqueue được worker retry.") from exc
+    else:
+        import threading
+
+        claimed = claim_job_by_id(job_id)
+
+        def _run_inline(jid: str, job_pl: dict[str, Any]) -> None:
+            from app.services.content_ai_bulk_runner import run_content_ai_bulk_job
+
+            try:
+                run_content_ai_bulk_job(jid, job_pl)
+            except Exception as exc:
+                from app.services.job_store import fail_job
+
+                try:
+                    fail_job(jid, error=str(exc)[:2000])
+                except Exception:
+                    pass
+
+        if claimed:
+            threading.Thread(
+                target=_run_inline,
+                args=(job_id, pl),
+                daemon=True,
+                name=f"content-ai-bulk-retry-{job_id[:8]}",
+            ).start()
+    st2 = get_job(job_id)
+    return JSONResponse(
+        content={
+            "job_id": job_id,
+            "retried_keywords": retried,
+            "state": st2.state if st2 else "QUEUED",
+            "progress": st2.progress if st2 else 0,
+            "message": st2.message if st2 else "Đang thử lại…",
+            "poll_url": f"/content-ai/bulk-jobs/{job_id}",
+        }
+    )
 
 
 @router.get("/content-ai/projects/{project_id}")
@@ -1459,31 +1614,56 @@ def content_ai_project_generate_thumbnail_ai(
     current_user: User = Depends(require_active_trial),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
+    from app.services.content_ai_openrouter_images import credit_cost_for_images, default_image_model
+    from app.services.credits import credits_enforced
     from app.services.llm_content_writer import load_llm_config_admin
+    from app.services.saas_gate import build_job_id, saas_action_gate
 
     assert_content_ai_feature(db, current_user, "image_generate", quantity=1)
+    model_id = default_image_model()
+    estimated = credit_cost_for_images(model=model_id, count=1)
+    job_id = build_job_id("thumbnail_ai", current_user.id, project_id)
     try:
-        with content_ai_llm_gate(
+        with saas_action_gate(
             db,
             current_user,
-            action="thumbnail_ai",
-            field="content",
-            use_system_llm=True,
-            llm_cfg=load_llm_config_admin(),
-            feature_key="image_generate",
-            skip_credit_check=True,
+            feature_code="image_generate",
+            credit_cost=estimated if credits_enforced() else 0,
+            quota_units=1,
+            job_id=job_id,
+            idempotency_key=job_id,
+            charge_mode="reserve",
+            auto_commit_on_success=True,
         ):
-            out = generate_and_attach_project_thumbnail(project_id, user_id=current_user.id)
+            with content_ai_llm_gate(
+                db,
+                current_user,
+                action="thumbnail_ai",
+                field="content",
+                use_system_llm=True,
+                llm_cfg=load_llm_config_admin(),
+                feature_key="image_generate",
+                skip_credit_check=True,
+            ):
+                out = generate_and_attach_project_thumbnail(
+                    project_id, user_id=current_user.id, model=model_id
+                )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Tạo thumbnail AI thất bại: {exc}") from exc
+
+    charged = estimated
+    if isinstance(out, dict):
+        out["credits_charged"] = charged
+        out["image_model"] = model_id
+
     record_content_ai_usage(
         db,
         current_user,
         "image_generate",
         quantity=1,
-        metadata={"project_id": project_id, "action": "thumbnail_ai"},
+        metadata={"project_id": project_id, "action": "thumbnail_ai", "credits_charged": charged},
     )
     db.commit()
     return JSONResponse(content=out)
@@ -1528,47 +1708,86 @@ def content_ai_images_generate_professional(
     current_user: User = Depends(require_active_trial),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
-    """AI Visual Content Studio — tạo 2–4 preview, không chèn vào bài."""
+    """AI Visual Content Studio — tạo 1–4 preview, không chèn vào bài. Trừ credit chỉ khi thành công."""
     assert_content_ai_feature(db, current_user, "image_generate", quantity=1)
+    from app.services.content_ai_openrouter_images import (
+        credit_cost_for_images,
+        normalize_image_model,
+    )
+    from app.services.credits import credits_enforced, refund_unused_reservation
     from app.services.llm_content_writer import load_llm_config_admin
+    from app.services.saas_gate import build_job_id, saas_action_gate
 
     try:
-        with content_ai_llm_gate(
+        model_id = normalize_image_model(payload.image_model)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    count = max(1, min(int(payload.count or 3), 4))
+    estimated = credit_cost_for_images(model=model_id, count=count)
+    job_id = build_job_id("studio_ai_image", current_user.id, payload.project_id or "", model_id, count)
+    try:
+        with saas_action_gate(
             db,
             current_user,
-            action="studio_generate",
-            field="content",
-            use_system_llm=True,
-            llm_cfg=load_llm_config_admin(),
-            feature_key="image_generate",
-            skip_credit_check=True,
-        ):
-            out = generate_professional_previews(
-            user_id=current_user.id,
-            title=payload.title,
-            primary_keyword=payload.primary_keyword,
-            secondary_keywords=payload.secondary_keywords,
-            content_html=payload.content_html,
-            outline_content=payload.outline_content,
-            section_heading=payload.section_heading,
-            h2_index=payload.h2_index,
-            h2_headings=payload.h2_headings,
-            h2_indices=payload.h2_indices,
-            target_audience=payload.target_audience,
-            industry=payload.industry,
-            brand_name=payload.brand_name,
-            brand_tone=payload.brand_tone,
-            image_type=payload.image_type,
-            style_preset=payload.style_preset,
-            aspect_ratio=payload.aspect_ratio,
-            custom_width=payload.custom_width,
-            custom_height=payload.custom_height,
-            count=max(2, min(int(payload.count or 3), 4)),
-            include_text=bool(payload.include_text),
-            text_hint=payload.text_hint,
-            project_id=payload.project_id,
-            image_model=payload.image_model,
-        )
+            feature_code="image_generate",
+            credit_cost=estimated if credits_enforced() else 0,
+            quota_units=max(1, count),
+            job_id=job_id,
+            idempotency_key=job_id,
+            charge_mode="reserve",
+        ) as sgate:
+            with content_ai_llm_gate(
+                db,
+                current_user,
+                action="studio_generate",
+                field="content",
+                use_system_llm=True,
+                llm_cfg=load_llm_config_admin(),
+                feature_key="image_generate",
+                skip_credit_check=True,
+            ):
+                out = generate_professional_previews(
+                    user_id=current_user.id,
+                    title=payload.title,
+                    primary_keyword=payload.primary_keyword,
+                    secondary_keywords=payload.secondary_keywords,
+                    content_html=payload.content_html,
+                    outline_content=payload.outline_content,
+                    section_heading=payload.section_heading,
+                    h2_index=payload.h2_index,
+                    h2_headings=payload.h2_headings,
+                    h2_indices=payload.h2_indices,
+                    target_audience=payload.target_audience,
+                    industry=payload.industry,
+                    brand_name=payload.brand_name,
+                    brand_tone=payload.brand_tone,
+                    image_type=payload.image_type,
+                    style_preset=payload.style_preset,
+                    aspect_ratio=payload.aspect_ratio,
+                    custom_width=payload.custom_width,
+                    custom_height=payload.custom_height,
+                    count=count,
+                    include_text=bool(payload.include_text),
+                    text_hint=payload.text_hint,
+                    project_id=payload.project_id,
+                    image_model=model_id,
+                )
+            previews = (out.get("previews") or []) if isinstance(out, dict) else []
+            success_n = len(previews)
+            charged = credit_cost_for_images(model=model_id, count=success_n)
+            if success_n <= 0:
+                sgate.release(reason="no_images")
+            else:
+                sgate.commit()
+                unused = max(0, int(sgate.reserved_amount or estimated) - charged)
+                if unused > 0 and sgate.reservation_id:
+                    refund_unused_reservation(
+                        db,
+                        reservation_id=int(sgate.reservation_id),
+                        user_id=int(current_user.id),
+                        unused=unused,
+                    )
     except ValueError as exc:
         msg = str(exc)
         code = 503
@@ -1581,16 +1800,25 @@ def content_ai_images_generate_professional(
         else:
             code = 400
         raise HTTPException(status_code=code, detail=msg) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Tạo ảnh AI thất bại: {exc}") from exc
+
+    if isinstance(out, dict):
+        out["credits_charged"] = charged if success_n else 0
+        out["credits_per_image"] = credit_cost_for_images(model=model_id, count=1)
+        out["image_model"] = model_id
+
     record_content_ai_usage(
         db,
         current_user,
         "image_generate",
-        quantity=1,
+        quantity=max(1, success_n),
         metadata={
-            "preview_count": len(out.get("previews") or []) if isinstance(out, dict) else 0,
-            "image_model": payload.image_model,
+            "preview_count": success_n,
+            "image_model": model_id,
+            "credits_charged": charged if success_n else 0,
         },
     )
     db.commit()
@@ -1606,6 +1834,8 @@ class ContentAiStudioInsertRequest(BaseModel):
     primary_keyword: str = ""
     section_heading: str = ""
     h2_index: int | None = None
+    h3_index: int | None = None
+    placement: str = ""
     alt: str = ""
     caption: str = ""
     output_format: str = ""
@@ -1630,6 +1860,8 @@ def content_ai_images_insert_selected(
             primary_keyword=payload.primary_keyword,
             section_heading=payload.section_heading,
             h2_index=payload.h2_index,
+            h3_index=payload.h3_index,
+            placement=payload.placement,
             alt=payload.alt,
             caption=payload.caption,
             output_format=payload.output_format,
@@ -1816,6 +2048,7 @@ class ContentSuggestRequest(BaseModel):
     target_word_count_mode: str | None = None
     billing: ContentAiBillingRequest | None = None
     ai_provider: str | None = "auto"
+    output_language: str | None = "vi"
 
 
 class ContentAiLlmProvidersAdminPatch(BaseModel):
@@ -2165,6 +2398,19 @@ def _norm_url_for_compare(url: str) -> str:
     return norm_url_for_compare(url)
 
 
+def _safe_wp_get(url: str, **kwargs):
+    """WordPress REST GET for user-configured base URLs — always SSRF-gated."""
+    from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+    blocked = validate_public_http_url(url)
+    if blocked:
+        raise ValueError(blocked)
+    headers = kwargs.pop("headers", None) or {"User-Agent": "Mozilla/5.0"}
+    timeout = kwargs.pop("timeout", 18)
+    params = kwargs.pop("params", None)
+    return safe_requests_get(url, headers=headers, timeout=float(timeout), params=params)
+
+
 def _fetch_wp_term_map(base: str, taxonomy: str, ids: set[int]) -> dict[int, str]:
     if not ids:
         return {}
@@ -2174,7 +2420,7 @@ def _fetch_wp_term_map(base: str, taxonomy: str, ids: set[int]) -> dict[int, str
         chunk.append(i)
         if len(chunk) >= 80:
             try:
-                r = requests.get(
+                r = _safe_wp_get(
                     f"{base}/wp-json/wp/v2/{taxonomy}",
                     params={"include": ",".join(str(x) for x in chunk), "per_page": len(chunk), "_fields": "id,name"},
                     timeout=15,
@@ -2193,7 +2439,7 @@ def _fetch_wp_term_map(base: str, taxonomy: str, ids: set[int]) -> dict[int, str
             chunk = []
     if chunk:
         try:
-            r = requests.get(
+            r = _safe_wp_get(
                 f"{base}/wp-json/wp/v2/{taxonomy}",
                 params={"include": ",".join(str(x) for x in chunk), "per_page": len(chunk), "_fields": "id,name"},
                 timeout=15,
@@ -2223,7 +2469,7 @@ def _fetch_related_posts_wp(base: str, keyword: str, *, limit: int = 10) -> list
     if keyword:
         params["search"] = keyword
     try:
-        r = requests.get(api, params=params, timeout=18, headers={"User-Agent": "Mozilla/5.0"})
+        r = _safe_wp_get(api, params=params, timeout=18, headers={"User-Agent": "Mozilla/5.0"})
         if r.status_code >= 400:
             return []
         data = r.json() if r.content else []
@@ -3957,6 +4203,7 @@ def content_ai_suggest(
                     user_id=int(current_user.id),
                     use_system_llm=bool(llm_gate.get("use_system_llm")),
                     ai_provider=ai_provider,
+                    output_language=payload.output_language,
                 )
                 llm_used = bool(str(suggestion or "").strip())
         except HTTPException:
@@ -4115,7 +4362,19 @@ def content_ai_suggest_stream(
     def _emit_sse_done() -> str:
         return "data: [DONE]\n\n"
 
-    def _emit_sse_error_payload(*, internal: str = "") -> str:
+    def _emit_sse_error_payload(*, internal: str = "", exc: Any = None) -> str:
+        mapped = None
+        if exc is not None:
+            mapped = exc if isinstance(exc, HTTPException) else _map_content_ai_exc_to_http(exc)
+        if isinstance(mapped, HTTPException):
+            detail = mapped.detail
+            if isinstance(detail, dict):
+                payload = dict(detail)
+                payload["ok"] = False
+                return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            msg = str(detail or "").strip()
+            if msg:
+                return f"data: {json.dumps({'ok': False, 'message': msg[:800]}, ensure_ascii=False)}\n\n"
         detail = _content_ai_llm_unavailable_detail(internal)
         return f"data: {json.dumps(detail, ensure_ascii=False)}\n\n"
 
@@ -4167,23 +4426,26 @@ def content_ai_suggest_stream(
             ai_provider = coerce_user_ai_provider(payload.ai_provider, plan_slug=plan_slug)
             if gate_snapshot is not None:
                 set_active_cost_gate(gate_snapshot)
-            html = generate_content_ai_suggestion(
-                field="content",
-                title=payload.title or "",
-                content=payload.content or "",
-                target_website=payload.target_website or "",
-                slug=payload.slug or "",
-                tags=payload.tags or "",
-                meta_description=payload.meta_description or "",
-                primary_keyword=payload.primary_keyword or "",
-                secondary_keywords=payload.secondary_keywords or "",
-                outline_content=payload.outline_content or "",
-                target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
-                user_id=int(current_user.id),
-                use_system_llm=bool(llm_gate.get("use_system_llm")),
-                ai_provider=ai_provider,
-            )
-            html = str(html or "").strip()
+            html = str(
+                generate_content_ai_suggestion(
+                    field="content",
+                    title=payload.title or "",
+                    content=payload.content or "",
+                    target_website=payload.target_website or "",
+                    slug=payload.slug or "",
+                    tags=payload.tags or "",
+                    meta_description=payload.meta_description or "",
+                    primary_keyword=payload.primary_keyword or "",
+                    secondary_keywords=payload.secondary_keywords or "",
+                    outline_content=payload.outline_content or "",
+                    target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
+                    user_id=int(current_user.id),
+                    use_system_llm=bool(llm_gate.get("use_system_llm")),
+                    ai_provider=ai_provider,
+                    output_language=payload.output_language,
+                )
+                or ""
+            ).strip()
             if not html:
                 raise ContentAiLlmUnavailableError("llm_empty_content_html")
             outline = str(payload.outline_content or "").strip()
@@ -4231,7 +4493,7 @@ def content_ai_suggest_stream(
             yield _emit_sse_done()
         except Exception as exc:
             internal = getattr(exc, "internal_reason", None) or str(exc)[:500]
-            yield _emit_sse_error_payload(internal=str(internal))
+            yield _emit_sse_error_payload(internal=str(internal), exc=exc)
         finally:
             if gate_cm is not None:
                 try:
@@ -4280,6 +4542,8 @@ def content_ai_suggest_stream(
             )
             gate_cm.__enter__()
             gate_snapshot = get_active_cost_gate()
+            if gate_snapshot is not None:
+                set_active_cost_gate(gate_snapshot)
             for delta in iter_content_ai_content_stream_deltas(
                 title=payload.title or "",
                 content=payload.content or "",
@@ -4293,6 +4557,7 @@ def content_ai_suggest_stream(
                 target_word_count=prompt_wc if requested == "content" else payload.target_word_count,
                 user_id=int(current_user.id),
                 use_system_llm=bool(llm_gate.get("use_system_llm")),
+                output_language=payload.output_language,
             ):
                 if gate_snapshot is not None:
                     set_active_cost_gate(gate_snapshot)
@@ -4344,7 +4609,7 @@ def content_ai_suggest_stream(
             yield _emit_sse_done()
         except Exception as exc:
             internal = getattr(exc, "internal_reason", None) or str(exc)[:500]
-            yield _emit_sse_error_payload(internal=str(internal))
+            yield _emit_sse_error_payload(internal=str(internal), exc=exc)
         finally:
             if gate_cm is not None:
                 try:
@@ -4364,6 +4629,50 @@ def content_ai_suggest_stream(
         if not llm_cfg or llm_mode == "off":
             yield _emit_sse_error_payload(internal="llm_not_configured")
             return
+        from app.services.content_ai_generation_service import (
+            should_use_async_stream,
+            sse_bridge_generation,
+            start_or_get_generation,
+        )
+
+        if should_use_async_stream(current_user, request):
+            reconnect_gid = (request.query_params.get("generation_id") or "").strip()
+            if reconnect_gid:
+                yield from sse_bridge_generation(
+                    db,
+                    generation_id=reconnect_gid,
+                    user=current_user,
+                    after_seq=int(request.query_params.get("after_seq") or 0),
+                    emit_delta=_emit_sse_delta,
+                    emit_replace=_emit_sse_replace_html,
+                    emit_wc=_emit_sse_word_count_meta,
+                    emit_ping=_emit_sse_ping,
+                    emit_error=_emit_sse_error_payload,
+                    emit_done=_emit_sse_done,
+                )
+                return
+            payload_dict = payload.model_dump() if hasattr(payload, "model_dump") else dict(payload)
+            gen = start_or_get_generation(
+                db,
+                user=current_user,
+                request=request,
+                payload=payload_dict,
+                llm_gate=llm_gate,
+                feature_key=feature_key,
+            )
+            yield from sse_bridge_generation(
+                db,
+                generation_id=gen.generation_id,
+                user=current_user,
+                after_seq=0,
+                emit_delta=_emit_sse_delta,
+                emit_replace=_emit_sse_replace_html,
+                emit_wc=_emit_sse_word_count_meta,
+                emit_ping=_emit_sse_ping,
+                emit_error=_emit_sse_error_payload,
+                emit_done=_emit_sse_done,
+            )
+            return
         yield from _sse_content_live()
 
     return StreamingResponse(
@@ -4377,6 +4686,104 @@ def content_ai_suggest_stream(
     )
 
 
+@router.get("/content-ai/generations/{generation_id}")
+def content_ai_generation_status(
+    generation_id: str,
+    current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Poll async generation status (reconnect / F5 recovery)."""
+    from app.services.content_ai_generation_service import generation_status_payload
+    from app.services.content_ai_generation_store import get_generation_for_user
+
+    gen = get_generation_for_user(db, generation_id, user_id=int(current_user.id))
+    if gen is None:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    return JSONResponse(content=generation_status_payload(gen))
+
+
+@router.get("/content-ai/generations/{generation_id}/stream")
+def content_ai_generation_stream_reconnect(
+    generation_id: str,
+    request: Request,
+    current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Reconnect SSE stream for an in-flight or completed generation."""
+    from app.services.content_ai_generation_service import sse_bridge_generation
+
+    def _emit_sse_delta(delta: str) -> str:
+        return f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
+
+    def _emit_sse_done() -> str:
+        return "data: [DONE]\n\n"
+
+    def _emit_sse_error_payload(*, internal: str = "", exc: Any = None) -> str:
+        mapped = exc if isinstance(exc, HTTPException) else None
+        if isinstance(mapped, HTTPException):
+            detail = mapped.detail
+            if isinstance(detail, dict):
+                payload_err = dict(detail)
+                payload_err["ok"] = False
+                return f"data: {json.dumps(payload_err, ensure_ascii=False)}\n\n"
+        return f"data: {json.dumps({'ok': False, 'message': str(internal or 'error')[:800]}, ensure_ascii=False)}\n\n"
+
+    def _emit_sse_ping() -> str:
+        return f"data: {json.dumps({'ping': True}, ensure_ascii=False)}\n\n"
+
+    def _emit_sse_replace_html(html: str) -> str:
+        return f"data: {json.dumps({'replace_html': html}, ensure_ascii=False)}\n\n"
+
+    def _emit_sse_word_count_meta(meta: dict[str, Any]) -> str:
+        payload_wc = {
+            "word_count_target": meta.get("word_count_target") or meta.get("validated_word_count"),
+            "word_count_actual": meta.get("word_count_actual") or meta.get("actual_word_count"),
+            "word_count_ok": bool(meta.get("word_count_ok")),
+        }
+        return f"data: {json.dumps(payload_wc, ensure_ascii=False)}\n\n"
+
+    after_seq = 0
+    try:
+        after_seq = int(request.query_params.get("after_seq") or 0)
+    except ValueError:
+        after_seq = 0
+
+    def _sse_reconnect():
+        yield from sse_bridge_generation(
+            db,
+            generation_id=generation_id,
+            user=current_user,
+            after_seq=after_seq,
+            emit_delta=_emit_sse_delta,
+            emit_replace=_emit_sse_replace_html,
+            emit_wc=_emit_sse_word_count_meta,
+            emit_ping=_emit_sse_ping,
+            emit_error=_emit_sse_error_payload,
+            emit_done=_emit_sse_done,
+        )
+
+    return StreamingResponse(
+        _sse_reconnect(),
+        media_type="text/event-stream; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/content-ai/generations/{generation_id}/cancel")
+def content_ai_generation_cancel(
+    generation_id: str,
+    current_user: User = Depends(require_active_trial),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    from app.services.content_ai_generation_service import cancel_user_generation
+
+    return JSONResponse(content=cancel_user_generation(db, generation_id=generation_id, user=current_user))
+
+
 class OutlineReferenceRequest(BaseModel):
     competitor_url: str = ""
     url: str = ""  # alias tương thích modal CAU
@@ -4387,13 +4794,16 @@ class OutlineRefreshRequest(BaseModel):
 
 
 class WordpressDraftPublishRequest(BaseModel):
-    wp_url: str
-    username: str
-    app_password: str
+    site_id: str | None = None
+    wp_site_id: str | None = None
+    wp_url: str | None = ""
+    username: str | None = ""
+    app_password: str | None = ""
     draft_payload: dict
     seo_plugin: str | None = "auto"
     primary_keyword: str | None = None
     publish_mode: str | None = "draft"  # "draft" | "publish"
+    project_id: str | None = None
 
 
 _OUTLINE_SYNONYM_GROUPS: list[tuple[str, tuple[str, ...]]] = [
@@ -4537,7 +4947,12 @@ def content_ai_outline_reference(
     from app.services.cost_control.types import ExternalApiProvider
 
     def _fetch_competitor() -> requests.Response:
-        return requests.get(
+        from app.services.url_safety import safe_requests_get, validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            raise ValueError(blocked)
+        return safe_requests_get(
             url,
             timeout=18,
             headers={
@@ -4614,6 +5029,35 @@ def _normalize_wp_base_url(wp_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
 
 
+def _wp_viewable_post_link(
+    *,
+    wp_base: str,
+    post_id: Any,
+    status: Any,
+    public_link: Any = None,
+) -> str:
+    """Public permalink for published posts; wp-admin edit URL for draft/future/private.
+
+    Draft/future public URLs (`?p=ID`) redirect guests to the homepage — never use those
+    as the user-facing “Xem bài” link.
+    """
+    base = str(wp_base or "").rstrip("/")
+    try:
+        pid = int(post_id or 0)
+    except (TypeError, ValueError):
+        pid = 0
+    st = str(status or "").strip().lower()
+    public = str(public_link or "").strip()
+    if pid > 0 and st in {"draft", "future", "pending", "private", "auto-draft"}:
+        if base:
+            return f"{base}/wp-admin/post.php?post={pid}&action=edit"
+    if public:
+        return public
+    if pid > 0 and base:
+        return f"{base}/?p={pid}"
+    return ""
+
+
 def _wp_request(
     *,
     session: requests.Session,
@@ -4623,16 +5067,20 @@ def _wp_request(
     step: str,
     **kwargs,
 ) -> requests.Response:
+    from app.services.wp_connect import wp_http_status_note
+
     try:
         resp = session.request(method, url, timeout=25, **kwargs)
     except requests.RequestException as exc:
-        logs.append(f"[{step}] Network error: {exc}")
+        logs.append(f"[{step}] timeout/network: {exc.__class__.__name__}")
         raise HTTPException(status_code=502, detail={"message": "Lỗi kết nối WordPress.", "logs": logs}) from exc
-    logs.append(f"[{step}] HTTP {resp.status_code} {url}")
+    logs.append(f"[{step}] {wp_http_status_note(resp)} url={url}")
     return resp
 
 
 def _build_wp_session(username: str, app_password: str, *, strip_spaces: bool) -> requests.Session:
+    from app.services.wp_connect import DEFAULT_WP_HEADERS
+
     user = (username or "").strip()
     pwd = (app_password or "").strip()
     if strip_spaces:
@@ -4640,10 +5088,10 @@ def _build_wp_session(username: str, app_password: str, *, strip_spaces: bool) -
     token = base64.b64encode(f"{user}:{pwd}".encode("utf-8")).decode("ascii")
     session = requests.Session()
     session.auth = (user, pwd)
-    # Some hosts/proxies drop implicit auth; send explicit Authorization too.
+    # Hosting/WAF drops python-requests UA — use browser headers like Settings.
     session.headers.update(
         {
-            "Accept": "application/json",
+            **DEFAULT_WP_HEADERS,
             "Authorization": f"Basic {token}",
         }
     )
@@ -4752,18 +5200,23 @@ def _read_image_payload(featured_image: str, logs: list[str]) -> tuple[bytes, st
         ctype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
         return blob, filename, ctype
 
+    from app.services.url_safety import safe_http_get_bytes, validate_public_http_url
+
+    if validate_public_http_url(src):
+        logs.append("[featured-image] blocked unsafe URL")
+        return None
     try:
-        r = requests.get(src, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
-    except requests.RequestException as exc:
+        blob, err, meta = safe_http_get_bytes(src, timeout_s=20, max_bytes=15 * 1024 * 1024)
+    except Exception as exc:
         logs.append(f"[featured-image] fetch failed: {exc}")
         return None
-    if r.status_code >= 400:
-        logs.append(f"[featured-image] fetch HTTP {r.status_code}: {src}")
+    if err or not blob:
+        logs.append(f"[featured-image] fetch error: {err or 'empty'}: {src}")
         return None
     parsed = urlparse(src)
     filename = Path(parsed.path or "").name or f"featured-{uuid4().hex[:8]}.jpg"
-    ctype = r.headers.get("Content-Type") or mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    return r.content, filename, ctype
+    ctype = str(meta.get("content_type") or "") or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return blob, filename, ctype
 
 
 def _upload_featured_media(
@@ -5187,7 +5640,7 @@ def content_ai_wordpress_categories(
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Liệt kê category (wp/v2/categories) — dùng cho dropdown khi viết bulk / đăng bài."""
-    from app.services.wp_categories import fetch_wordpress_categories
+    from app.services.wp_categories import load_wordpress_categories
 
     url, username, app_password = _resolve_wp_category_credentials(
         user_id=int(current_user.id),
@@ -5196,10 +5649,13 @@ def content_ai_wordpress_categories(
         username=payload.username,
         app_password=payload.app_password,
     )
-    result = fetch_wordpress_categories(
+    result = load_wordpress_categories(
+        user_id=int(current_user.id),
+        site_id=str(payload.wp_site_id or "").strip(),
         url=url,
         username=username,
         app_password=app_password,
+        refresh=bool(payload.refresh),
     )
     return JSONResponse(content=result)
 
@@ -5255,11 +5711,36 @@ def content_ai_publish_draft(
     db: Session = Depends(get_db),
 ) -> JSONResponse:
     assert_content_ai_feature(db, current_user, "wp_publish", quantity=1)
-    wp_base = _normalize_wp_base_url(payload.wp_url)
-    username = (payload.username or "").strip()
-    app_password = (payload.app_password or "").strip()
-    if not username or not app_password:
-        raise HTTPException(status_code=400, detail="Vui lòng nhập username và app password.")
+    from app.services.content_ai_wp_publish_executor import guard_wp_publish_project_duplicate
+    from app.services.wordpress_connection import resolve_wordpress_connection
+
+    project_id = str(
+        payload.project_id
+        or (payload.draft_payload or {}).get("project_id")
+        or ""
+    ).strip()
+    dup_resp = guard_wp_publish_project_duplicate(
+        db,
+        user_id=int(current_user.id),
+        project_id=project_id or None,
+    )
+    if dup_resp is not None:
+        return JSONResponse(content=dup_resp)
+
+    cred = resolve_wordpress_connection(
+        user_id=int(current_user.id),
+        site_id=str(payload.site_id or payload.wp_site_id or "").strip() or None,
+        site_url=str(payload.wp_url or "").strip() or None,
+    )
+    wp_base = _normalize_wp_base_url(cred["url"])
+    username = cred["username"]
+    app_password = cred["app_password"]
+    logs: list[str] = []
+    logs.append(
+        f"[auth-check] site_id={cred['site_id']} url={wp_base} user_len={len(username)} pass_len={len(app_password)}"
+    )
+    from app.services.wp_connect import wp_get_json, wp_http_status_note
+
     draft = payload.draft_payload if isinstance(payload.draft_payload, dict) else {}
     title_raw = str(draft.get("title") or "").strip()
     content = str(draft.get("content") or "").strip()
@@ -5280,37 +5761,61 @@ def content_ai_publish_draft(
     if not title or not content:
         raise HTTPException(status_code=400, detail="Draft payload thiếu title hoặc content.")
 
-    logs: list[str] = []
     session: requests.Session | None = None
     me: requests.Response | None = None
+    last_http = 0
     auth_attempts = [
-        ("raw", False),
         ("strip-spaces", True),
+        ("raw", False),
     ]
     for label, strip_spaces in auth_attempts:
         candidate = _build_wp_session(username, app_password, strip_spaces=strip_spaces)
-        attempt_logs: list[str] = []
-        resp = _wp_request(
-            session=candidate,
-            method="GET",
-            url=f"{wp_base}/wp-json/wp/v2/users/me",
-            logs=attempt_logs,
-            step=f"auth-check:{label}",
-        )
+        try:
+            resp, working = wp_get_json(
+                "/wp-json/wp/v2/users/me",
+                url=wp_base,
+                headers=dict(candidate.headers),
+                auth=candidate.auth,
+                timeout=20,
+            )
+        except requests.RequestException as exc:
+            logs.append(f"[auth-check:{label}] {exc.__class__.__name__}: {exc}")
+            continue
+        last_http = int(resp.status_code or 0)
+        logs.append(f"[auth-check:{label}@{working}] {wp_http_status_note(resp)}")
         if resp.status_code < 400:
-            logs.extend(attempt_logs)
-            logs.append(f"[auth-check] success via mode={label}")
+            wp_base = working
             session = candidate
             me = resp
+            logs.append(f"[auth-check] success via mode={label}")
             break
-        attempt_logs.append(f"[auth-check:{label}] response: {(resp.text or '')[:600]}")
-        logs.extend(attempt_logs)
+        if resp.status_code in (401, 403, 404):
+            logs.append(f"[auth-check:{label}] WordPress từ chối ({resp.status_code}).")
     if session is None or me is None:
-        logs.append("[auth-check] tip: dùng Application Password (không dùng mật khẩu đăng nhập thường).")
-        logs.append("[auth-check] tip: kiểm tra plugin bảo mật/CDN có chặn Authorization header không.")
+        logs.append("[auth-check] Dùng Application Password đã lưu tại Cài đặt — không gửi mật khẩu từ trình duyệt.")
+        if any("timeout" in x.lower() or "timed out" in x.lower() for x in logs):
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "message": (
+                        "Xác thực WordPress thất bại (timeout). "
+                        "Server không kết nối được WordPress REST."
+                    ),
+                    "logs": logs,
+                },
+            )
+        code = last_http if last_http in (401, 403, 404) else 401
+        hint = {
+            401: "HTTP 401 — Application Password sai hoặc tài khoản không được phép REST.",
+            403: "HTTP 403 — plugin bảo mật/CDN chặn, hoặc user không đủ quyền.",
+            404: "HTTP 404 — REST API không tìm thấy (permalink Plain hoặc URL sai).",
+        }.get(code, "Không kết nối được WordPress REST (/users/me).")
         raise HTTPException(
-            status_code=401,
-            detail={"message": "Xác thực WordPress thất bại. Kiểm tra username/app password.", "logs": logs},
+            status_code=401 if code in (401, 403) else (404 if code == 404 else 502),
+            detail={
+                "message": f"Xác thực WordPress thất bại. {hint}",
+                "logs": logs,
+            },
         )
 
     detected_plugin = _detect_wp_seo_plugin(session=session, wp_base=wp_base, logs=logs)
@@ -5406,100 +5911,161 @@ def content_ai_publish_draft(
     else:
         logs.append(f"[schedule] mode={mode} scheduled_at empty")
 
-    created = _wp_request(
-        session=session,
-        method="POST",
-        url=f"{wp_base}/wp-json/wp/v2/posts",
-        logs=logs,
-        step="create-draft",
-        json=post_body,
+    from app.services.credits import (
+        commit_reservation,
+        cost_wordpress_publish,
+        credits_enforced,
+        release_reservation,
+        reserve_credits,
     )
-    if created.status_code >= 400:
-        logs.append(f"[create-draft] response: {(created.text or '')[:1200]}")
-        raise HTTPException(
-            status_code=502,
-            detail={"message": "Tạo bản nháp WordPress thất bại.", "logs": logs},
+    from app.services.saas_gate import build_job_id
+
+    _wp_job = build_job_id("wp_publish_http", current_user.id, project_id or slug)
+    _wp_hold: dict | None = None
+    if credits_enforced():
+        _wp_hold = reserve_credits(
+            db,
+            user_id=int(current_user.id),
+            amount=cost_wordpress_publish(db=db),
+            feature_code="wp_publish",
+            job_id=_wp_job,
+            idempotency_key=_wp_job,
+            reason="reserve:wp_publish",
         )
     try:
-        data = created.json()
-    except ValueError as exc:
-        logs.append("[create-draft] Invalid JSON response from WordPress")
-        raise HTTPException(
-            status_code=502,
-            detail={"message": "WordPress trả dữ liệu không hợp lệ.", "logs": logs},
-        ) from exc
-
-    try:
-        created_post_id = int(data.get("id"))
-    except (TypeError, ValueError):
-        created_post_id = 0
-    if created_post_id > 0:
-        # Ensure snippet core fields are persisted even when SEO plugin meta is restricted.
-        _wp_request(
+        created = _wp_request(
             session=session,
             method="POST",
-            url=f"{wp_base}/wp-json/wp/v2/posts/{created_post_id}",
+            url=f"{wp_base}/wp-json/wp/v2/posts",
             logs=logs,
-            step="post-snippet-core-sync",
-            json={"title": title, "excerpt": meta_description},
+            step="create-draft",
+            json=post_body,
         )
-        focus_keyword = _derive_focus_keyword(
-            explicit_primary_keyword=str(payload.primary_keyword or ""),
-            draft=draft,
-        )
-        _update_post_seo_meta(
-            session=session,
-            wp_base=wp_base,
-            post_id=created_post_id,
-            meta_description=meta_description,
-            seo_title=title,
-            focus_keyword=focus_keyword,
-            seo_plugin_mode=seo_plugin_mode,
-            detected_plugin=detected_plugin,
-            logs=logs,
-        )
-        # Extra fallback for sites where Rank Math meta is blocked on wp/v2 posts route.
-        if (seo_plugin_mode == "rankmath") or (seo_plugin_mode == "auto" and detected_plugin == "rankmath"):
-            _update_rankmath_via_plugin_endpoint(
+        if created.status_code >= 400:
+            raise HTTPException(
+                status_code=502,
+                detail={"message": "Tạo bản nháp WordPress thất bại.", "logs": logs},
+            )
+        try:
+            data = created.json()
+        except ValueError as exc:
+            logs.append("[create-draft] Invalid JSON response from WordPress")
+            raise HTTPException(
+                status_code=502,
+                detail={"message": "WordPress trả dữ liệu không hợp lệ.", "logs": logs},
+            ) from exc
+
+        try:
+            created_post_id = int(data.get("id"))
+        except (TypeError, ValueError):
+            created_post_id = 0
+        if created_post_id > 0:
+            _wp_request(
+                session=session,
+                method="POST",
+                url=f"{wp_base}/wp-json/wp/v2/posts/{created_post_id}",
+                logs=logs,
+                step="post-snippet-core-sync",
+                json={"title": title, "excerpt": meta_description},
+            )
+            focus_keyword = _derive_focus_keyword(
+                explicit_primary_keyword=str(payload.primary_keyword or ""),
+                draft=draft,
+            )
+            _update_post_seo_meta(
                 session=session,
                 wp_base=wp_base,
                 post_id=created_post_id,
-                seo_title=title,
                 meta_description=meta_description,
+                seo_title=title,
                 focus_keyword=focus_keyword,
+                seo_plugin_mode=seo_plugin_mode,
+                detected_plugin=detected_plugin,
                 logs=logs,
             )
+            if (seo_plugin_mode == "rankmath") or (seo_plugin_mode == "auto" and detected_plugin == "rankmath"):
+                _update_rankmath_via_plugin_endpoint(
+                    session=session,
+                    wp_base=wp_base,
+                    post_id=created_post_id,
+                    seo_title=title,
+                    meta_description=meta_description,
+                    focus_keyword=focus_keyword,
+                    logs=logs,
+                )
 
-    log_audit_event(
-        action="publish.wordpress",
-        user_id=current_user.id,
-        resource_type="wordpress",
-        resource_id=str(data.get("id") or ""),
-        detail={"url": wp_base, "status": data.get("status")},
-        request=request,
-    )
-    record_content_ai_usage(
-        db,
-        current_user,
-        "wp_publish",
-        quantity=1,
-        metadata={"post_id": data.get("id"), "wp_url": wp_base},
-        idempotency_key=f"wp-publish:{data.get('id')}",
-    )
-    db.commit()
-    return JSONResponse(
-        content={
-            "ok": True,
-            "post_id": data.get("id"),
-            "status": data.get("status"),
-            "link": data.get("link"),
-            "edit_link": (data.get("_links", {}).get("self", [{}])[0] or {}).get("href", ""),
-            "normalized_slug": slug,
-            "fixed_meta_description": meta_description,
-            "seo_title": title,
-            "featured_media": media_id,
-            "seo_plugin_mode": seo_plugin_mode,
-            "seo_plugin_detected": detected_plugin,
-            "logs": logs,
-        }
-    )
+        log_audit_event(
+            action="publish.wordpress",
+            user_id=current_user.id,
+            resource_type="wordpress",
+            resource_id=str(data.get("id") or ""),
+            detail={"url": wp_base, "status": data.get("status"), "project_id": project_id or None},
+            request=request,
+        )
+        idem_key = f"wp-publish-project:{project_id}" if project_id else f"wp-publish:{data.get('id')}"
+        record_content_ai_usage(
+            db,
+            current_user,
+            "wp_publish",
+            quantity=1,
+            metadata={"post_id": data.get("id"), "wp_url": wp_base, "project_id": project_id or None},
+            idempotency_key=idem_key,
+        )
+        if project_id:
+            from app.services.content_ai_project_store import update_content_ai_project_fields
+
+            update_content_ai_project_fields(
+                project_id,
+                {"wp_publish_status": str(data.get("status") or "published")},
+                user_id=int(current_user.id),
+            )
+        if _wp_hold and not _wp_hold.get("already_committed"):
+            commit_reservation(
+                db,
+                reservation_id=int(_wp_hold["reservation_id"]),
+                user_id=int(current_user.id),
+            )
+        db.commit()
+        post_id = data.get("id")
+        post_status = data.get("status")
+        view_link = _wp_viewable_post_link(
+            wp_base=wp_base,
+            post_id=post_id,
+            status=post_status,
+            public_link=data.get("link"),
+        )
+        edit_link = ""
+        try:
+            pid_i = int(post_id or 0)
+        except (TypeError, ValueError):
+            pid_i = 0
+        if pid_i > 0 and wp_base:
+            edit_link = f"{str(wp_base).rstrip('/')}/wp-admin/post.php?post={pid_i}&action=edit"
+        return JSONResponse(
+            content={
+                "ok": True,
+                "post_id": post_id,
+                "status": post_status,
+                "link": view_link,
+                "edit_link": edit_link or view_link,
+                "normalized_slug": slug,
+                "fixed_meta_description": meta_description,
+                "seo_title": title,
+                "featured_media": media_id,
+                "seo_plugin_mode": seo_plugin_mode,
+                "seo_plugin_detected": detected_plugin,
+                "logs": logs,
+            }
+        )
+    except Exception:
+        if _wp_hold and not _wp_hold.get("already_committed"):
+            try:
+                release_reservation(
+                    db,
+                    reservation_id=int(_wp_hold["reservation_id"]),
+                    user_id=int(current_user.id),
+                    reason="wp_publish_failed",
+                )
+            except Exception:
+                pass
+        raise

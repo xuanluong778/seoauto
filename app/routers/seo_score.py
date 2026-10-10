@@ -13,17 +13,14 @@ from app.schemas.seo_score_ai_fix import SeoScoreAiFixRequest, SeoScoreAiFixResp
 from app.schemas.seo_score_apply_fix import SeoScoreApplyFixRequest, SeoScoreApplyFixResponse
 from app.services.seo_score_ai_fix import (
     SeoScoreAiFixError,
-    finalize_seo_score_ai_fix_credit,
+    execute_seo_score_ai_fix_billed,
     normalize_page_field,
-    run_seo_score_ai_fix,
     validate_seo_score_ai_fix_input,
 )
 from app.services.seo_score_wp_apply import SeoScoreApplyError, apply_seo_score_fix_to_wordpress
 from app.services.trial_access import require_active_trial
 from app.services.url_safety import assert_public_http_url
-from app.services.cost_control.module_gates import seo_score_ai_fix_gate
 from app.services.user_api_access import load_llm_config_for_request
-from app.services.llm_content_writer import load_llm_config
 
 router = APIRouter(tags=["seo-score"])
 _LOG = logging.getLogger(__name__)
@@ -37,7 +34,7 @@ def api_seo_score_ai_fix(
 ) -> SeoScoreAiFixResponse:
     """
     Đề xuất sửa đúng một trường SEO (title, meta, heading, image alt, …).
-    Credit hook: seo_score/ai_fix — chỉ trừ khi AI thành công và billing được bật.
+    Billing: seo_score_ai_fix_billing_session (reserve → commit / release).
     """
     url = str(payload.url or "").strip()
     assert_public_http_url(url, label="URL")
@@ -56,31 +53,27 @@ def api_seo_score_ai_fix(
 
     llm_cfg = load_llm_config_for_request(db, current_user)
     try:
-        with seo_score_ai_fix_gate(db, current_user, action="ai_fix", llm_cfg=llm_cfg):
-            result = run_seo_score_ai_fix(
-                user_id=current_user.id,
-                url=url,
-                keyword=(payload.keyword or "").strip(),
-                group_key=(payload.group_key or "").strip(),
-                issue_id=(payload.issue_id or "").strip(),
-                page_field=page_field,
-                current_value=payload.current_value,
-                evidence=payload.evidence,
-            )
+        result, credit_info = execute_seo_score_ai_fix_billed(
+            db,
+            current_user,
+            url=url,
+            keyword=(payload.keyword or "").strip(),
+            group_key=(payload.group_key or "").strip(),
+            issue_id=(payload.issue_id or "").strip(),
+            page_field=page_field,
+            current_value=payload.current_value,
+            evidence=payload.evidence,
+            llm_cfg=llm_cfg,
+        )
     except SeoScoreAiFixError as exc:
         _LOG.info("seo_score_ai_fix failed user=%s field=%s: %s", current_user.id, page_field, exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         _LOG.exception("seo_score_ai_fix unexpected error user=%s field=%s", current_user.id, page_field)
         raise HTTPException(status_code=502, detail="Không thể tạo đề xuất AI. Vui lòng thử lại.") from exc
 
-    credit_info = finalize_seo_score_ai_fix_credit(
-        db,
-        current_user,
-        success=True,
-        url=url,
-        issue_id=(payload.issue_id or "").strip(),
-    )
     db.commit()
 
     return SeoScoreAiFixResponse(

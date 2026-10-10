@@ -58,15 +58,20 @@ def publish_update(
 
     url = f"{base}/wp-json/wp/v2/{resource}/{int(wp_id)}"
     try:
-        r = requests.post(url, headers=headers, auth=auth, json=body, timeout=60)
+        from app.services.url_safety import validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            raise HTTPException(status_code=400, detail=f"URL site không an toàn ({blocked}).")
+        # Follow one hop (www/https) — Application Password must survive redirect.
+        r = requests.post(url, headers=headers, auth=auth, json=body, timeout=90, allow_redirects=True)
+    except HTTPException:
+        raise
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f"Không gọi được WordPress: {exc}") from exc
 
     if r.status_code >= 400:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Publish thất bại HTTP {r.status_code}: {(r.text or '')[:400]}",
-        )
+        raise _wp_publish_http_error(r)
 
     try:
         data = r.json()
@@ -94,6 +99,41 @@ def publish_update(
     }
 
 
+def _wp_publish_http_error(resp: requests.Response) -> HTTPException:
+    """Map WordPress REST failures to actionable API errors (keep 401/403 semantics)."""
+    code = int(resp.status_code or 0)
+    raw = (resp.text or "")[:500]
+    wp_msg = ""
+    wp_code = ""
+    try:
+        payload = resp.json()
+        if isinstance(payload, dict):
+            wp_msg = str(payload.get("message") or "").strip()
+            wp_code = str(payload.get("code") or "").strip()
+    except Exception:
+        pass
+    hint = wp_msg or raw or f"HTTP {code}"
+    if code in (401, 403) or wp_code in {"rest_forbidden", "rest_cannot_edit", "invalid_username", "incorrect_password"}:
+        return HTTPException(
+            status_code=401 if code in (401, 403) else 502,
+            detail=(
+                "WordPress từ chối xác thực (HTTP "
+                f"{code}). Kiểm tra Application Password tại Cài đặt → Xuất bản "
+                "(tạo lại App Password, đúng username, user có quyền sửa bài). "
+                f"Chi tiết: {hint[:280]}"
+            ),
+        )
+    if code == 404:
+        return HTTPException(
+            status_code=404,
+            detail=f"Không tìm thấy bài trên WordPress (HTTP 404). Chi tiết: {hint[:280]}",
+        )
+    return HTTPException(
+        status_code=502,
+        detail=f"Publish thất bại HTTP {code}: {hint[:400]}",
+    )
+
+
 def restore_from_backup(*, user_id: int, backup_id: str) -> dict[str, Any]:
     backup = get_backup(backup_id, user_id)
     if not backup:
@@ -116,15 +156,19 @@ def restore_from_backup(*, user_id: int, backup_id: str) -> dict[str, Any]:
     }
     url = f"{base}/wp-json/wp/v2/{resource}/{wp_id}"
     try:
-        r = requests.post(url, headers=headers, auth=auth, json=body, timeout=60)
+        from app.services.url_safety import validate_public_http_url
+
+        blocked = validate_public_http_url(url)
+        if blocked:
+            raise HTTPException(status_code=400, detail=f"URL site không an toàn ({blocked}).")
+        r = requests.post(url, headers=headers, auth=auth, json=body, timeout=90, allow_redirects=True)
+    except HTTPException:
+        raise
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f"Restore thất bại: {exc}") from exc
 
     if r.status_code >= 400:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Restore HTTP {r.status_code}: {(r.text or '')[:400]}",
-        )
+        raise _wp_publish_http_error(r)
 
     try:
         data = r.json()

@@ -20,6 +20,7 @@ from app.services.chatbot_kb_cache import (
     make_search_key,
     set_cached_search,
 )
+from app.services import shared_knowledge as shared_kb
 
 MAP_STATUSES = frozenset({"draft", "active", "disabled"})
 NODE_TYPES = frozenset({"group", "node"})
@@ -184,43 +185,21 @@ def _sync_meta(
 
 
 def _touch_kb_cache(bot_id: int) -> None:
+    if int(bot_id or 0) <= 0:
+        from app.services.chatbot_kb_cache import _bot_versions, _lock, _search_cache
+
+        with _lock:
+            _search_cache.clear()
+            for k in list(_bot_versions):
+                _bot_versions[k] = int(_bot_versions.get(k, 0)) + 1
+        return
     invalidate_bot_kb_cache(int(bot_id))
 
 
 def get_kb_for_bot(db: Session, user_id: int, bot_id: int) -> dict[str, Any]:
     _get_user_bot(db, user_id, bot_id)
-    kb_map = _get_user_map_for_bot(db, user_id, bot_id)
-    if kb_map is None:
-        meta = _sync_meta(None, [], bot_id=int(bot_id))
-        return {
-            "map": None,
-            "bot_id": int(bot_id),
-            "nodes": [],
-            "edges": [],
-            "node_count": 0,
-            "active_node_count": 0,
-            **meta,
-        }
-    nodes = db.execute(
-        select(ChatbotKbNode)
-        .where(ChatbotKbNode.map_id == kb_map.id)
-        .order_by(ChatbotKbNode.priority.desc(), ChatbotKbNode.id.asc())
-    ).scalars().all()
-    edges = db.execute(
-        select(ChatbotKbEdge).where(ChatbotKbEdge.map_id == kb_map.id)
-    ).scalars().all()
-    node_dicts = [_node_to_dict(n) for n in nodes]
-    edge_dicts = [_edge_to_dict(e) for e in edges]
-    meta = _sync_meta(kb_map, node_dicts, bot_id=int(bot_id))
-    return {
-        "map": _map_to_dict(kb_map, nodes=node_dicts, edges=edge_dicts),
-        "bot_id": int(bot_id),
-        "nodes": node_dicts,
-        "edges": edge_dicts,
-        "node_count": len(node_dicts),
-        "active_node_count": sum(1 for n in node_dicts if n.get("is_active")),
-        **meta,
-    }
+    shared_kb.migrate_legacy_chatbot_kb(db, user_id)
+    return shared_kb.get_shared_kb_payload(user_id, int(bot_id))
 
 
 def _ensure_parent_in_map(db: Session, map_id: int, parent_id: int | None) -> None:
@@ -285,148 +264,82 @@ def create_kb_node(
     title: str,
     content: str = "",
     node_type: str = "node",
-    parent_id: int | None = None,
+    parent_id: int | str | None = None,
     tags: list[str] | None = None,
     priority: int = 0,
     is_active: bool = True,
-    target_node_id: int | None = None,
+    target_node_id: int | str | None = None,
     relation_type: str = "child",
 ) -> dict[str, Any]:
-    kb_map = get_or_create_map(db, user_id, bot_id)
-    nt = str(node_type or "node").strip().lower()
-    if nt not in NODE_TYPES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="node_type không hợp lệ.")
-    title_clean = str(title or "").strip()
-    if not title_clean:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tiêu đề node bắt buộc.")
-    _ensure_parent_in_map(db, kb_map.id, parent_id)
-    tag_list = [t.lower() for t in (tags or []) if str(t).strip()]
-    row = ChatbotKbNode(
-        map_id=kb_map.id,
-        parent_id=int(parent_id) if parent_id else None,
-        node_type=nt,
-        title=title_clean[:200],
-        content=str(content or "").strip()[:100_000] or None,
-        tags=_tags_to_storage(tag_list),
-        priority=int(priority or 0),
-        is_active=bool(is_active),
-    )
-    db.add(row)
-    db.flush()
-    _sync_parent_edge(db, kb_map, row)
-    if target_node_id and relation_type in RELATION_TYPES:
-        target = db.execute(
-            select(ChatbotKbNode).where(
-                ChatbotKbNode.id == int(target_node_id),
-                ChatbotKbNode.map_id == kb_map.id,
-            )
-        ).scalar_one_or_none()
-        if target and target.id != row.id:
-            dup = db.execute(
-                select(ChatbotKbEdge).where(
-                    ChatbotKbEdge.map_id == kb_map.id,
-                    ChatbotKbEdge.source_node_id == row.id,
-                    ChatbotKbEdge.target_node_id == target.id,
-                    ChatbotKbEdge.relation_type == relation_type,
-                )
-            ).scalar_one_or_none()
-            if not dup:
-                db.add(
-                    ChatbotKbEdge(
-                        map_id=kb_map.id,
-                        source_node_id=row.id,
-                        target_node_id=target.id,
-                        relation_type=relation_type,
-                    )
-                )
-    _refresh_map_status(db, kb_map)
-    db.commit()
-    db.refresh(row)
-    _touch_kb_cache(kb_map.bot_id)
-    return _node_to_dict(row)
+    _get_user_bot(db, user_id, bot_id)
+    shared_kb.migrate_legacy_chatbot_kb(db, user_id)
+    try:
+        node = shared_kb.create_node(
+            user_id,
+            title=title,
+            content=content,
+            node_type=node_type,
+            parent_id=parent_id,
+            tags=tags,
+            priority=priority,
+            is_active=is_active,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    _touch_kb_cache(int(bot_id))
+    return node
 
 
 def update_kb_node(
     db: Session,
     user_id: int,
-    node_id: int,
+    node_id: int | str,
     *,
     title: str | None = None,
     content: str | None = None,
     node_type: str | None = None,
-    parent_id: int | None = None,
+    parent_id: int | str | None = None,
     parent_id_set: bool = False,
     tags: list[str] | None = None,
     priority: int | None = None,
     is_active: bool | None = None,
 ) -> dict[str, Any]:
-    row = _get_user_node(db, user_id, node_id)
-    kb_map = db.get(ChatbotKbMap, row.map_id)
-    if kb_map is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy sơ đồ tri thức.")
-    if title is not None:
-        title_clean = str(title).strip()
-        if not title_clean:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tiêu đề node bắt buộc.")
-        row.title = title_clean[:200]
-    if content is not None:
-        row.content = str(content).strip()[:100_000] or None
-    if node_type is not None:
-        nt = str(node_type).strip().lower()
-        if nt not in NODE_TYPES:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="node_type không hợp lệ.")
-        row.node_type = nt
-    if parent_id_set:
-        if parent_id is not None and int(parent_id) == row.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Node không thể là cha của chính nó.")
-        _ensure_parent_in_map(db, kb_map.id, parent_id)
-        row.parent_id = int(parent_id) if parent_id else None
-        _sync_parent_edge(db, kb_map, row)
-    if tags is not None:
-        row.tags = _tags_to_storage([t.lower() for t in tags if str(t).strip()])
-    if priority is not None:
-        row.priority = int(priority)
-    if is_active is not None:
-        row.is_active = bool(is_active)
-    _refresh_map_status(db, kb_map)
-    db.commit()
-    db.refresh(row)
-    _touch_kb_cache(kb_map.bot_id)
-    return _node_to_dict(row)
+    try:
+        node = shared_kb.update_node(
+            user_id,
+            node_id,
+            title=title,
+            content=content,
+            node_type=node_type,
+            parent_id=parent_id,
+            parent_id_set=parent_id_set,
+            tags=tags,
+            priority=priority,
+            is_active=is_active,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    _touch_kb_cache(0)
+    return node
 
 
-def delete_kb_node(db: Session, user_id: int, node_id: int) -> None:
-    row = _get_user_node(db, user_id, node_id)
-    kb_map = db.get(ChatbotKbMap, row.map_id)
-    children = db.execute(
-        select(ChatbotKbNode).where(ChatbotKbNode.parent_id == row.id)
-    ).scalars().all()
-    for child in children:
-        child.parent_id = row.parent_id
-        if kb_map:
-            _sync_parent_edge(db, kb_map, child)
-    db.delete(row)
-    if kb_map:
-        _refresh_map_status(db, kb_map)
-        bot_id = int(kb_map.bot_id)
-    else:
-        bot_id = 0
-    db.commit()
-    if bot_id:
-        _touch_kb_cache(bot_id)
+def delete_kb_node(db: Session, user_id: int, node_id: int | str) -> None:
+    try:
+        shared_kb.delete_node(user_id, node_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    _touch_kb_cache(0)
 
 
-def toggle_kb_node(db: Session, user_id: int, node_id: int) -> dict[str, Any]:
-    row = _get_user_node(db, user_id, node_id)
-    kb_map = db.get(ChatbotKbMap, row.map_id)
-    row.is_active = not bool(row.is_active)
-    if kb_map:
-        _refresh_map_status(db, kb_map)
-    db.commit()
-    db.refresh(row)
-    if kb_map:
-        _touch_kb_cache(kb_map.bot_id)
-    return _node_to_dict(row)
+def toggle_kb_node(db: Session, user_id: int, node_id: int | str) -> dict[str, Any]:
+    try:
+        node = shared_kb.toggle_node(user_id, node_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    _touch_kb_cache(0)
+    return node
 
 
 def import_kb_from_sources(
@@ -453,7 +366,14 @@ def import_kb_from_sources(
         if not content:
             continue
         tag = _SOURCE_TAG_MAP.get(str(src.source_type or "").lower(), "faq")
-        items.append({"title": title[:200], "content": content[:100_000], "tags": [tag]})
+        items.append(
+            {
+                "title": title[:200],
+                "content": content[:100_000],
+                "tags": [tag],
+                "source_key": f"cskh_src:{int(user_id)}:{int(src.id)}",
+            }
+        )
     if not items:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -471,15 +391,10 @@ def import_kb_from_sources(
 
 def list_import_sources(db: Session, user_id: int, bot_id: int) -> list[dict[str, Any]]:
     _get_user_bot(db, user_id, bot_id)
-    kb_map = _get_user_map_for_bot(db, user_id, bot_id)
-    existing_titles: set[str] = set()
-    if kb_map is not None:
-        existing_titles = {
-            n.title.strip().lower()
-            for n in db.execute(
-                select(ChatbotKbNode).where(ChatbotKbNode.map_id == kb_map.id)
-            ).scalars().all()
-        }
+    shared_kb.migrate_legacy_chatbot_kb(db, user_id)
+    nodes = shared_kb.list_user_nodes(user_id)
+    existing_titles = {n["title"].strip().lower() for n in nodes if n.get("title")}
+    existing_keys = {str(n.get("source_key") or "") for n in nodes}
     rows = db.execute(
         select(ChatbotKnowledgeSource)
         .where(
@@ -493,6 +408,7 @@ def list_import_sources(db: Session, user_id: int, bot_id: int) -> list[dict[str
     for row in rows:
         content = (row.content or "").strip()
         title_key = (row.title or "").strip().lower()
+        src_key = f"cskh_src:{int(user_id)}:{int(row.id)}"
         out.append(
             {
                 "source_id": row.id,
@@ -500,7 +416,7 @@ def list_import_sources(db: Session, user_id: int, bot_id: int) -> list[dict[str
                 "source_type": row.source_type,
                 "content_preview": content[:200],
                 "has_content": bool(content),
-                "already_imported": title_key in existing_titles if title_key else False,
+                "already_imported": src_key in existing_keys or (title_key in existing_titles if title_key else False),
             }
         )
     return out
@@ -606,114 +522,26 @@ def import_kb_items(
     bot_id: int,
     *,
     items: list[dict[str, Any]],
-    parent_id: int | None = None,
+    parent_id: int | str | None = None,
     on_duplicate: str = "update",
 ) -> dict[str, Any]:
     """
-    Import KB nodes.
+    Import KB nodes into the shared AI Knowledge Base.
     on_duplicate: update | skip | rename
     """
     _get_user_bot(db, user_id, bot_id)
-    kb_map = get_or_create_map(db, user_id, bot_id)
-    if parent_id is not None:
-        _ensure_parent_in_map(db, kb_map.id, parent_id)
-    mode = str(on_duplicate or "update").strip().lower()
-    if mode not in ("update", "skip", "rename"):
-        mode = "update"
-
-    existing_rows = db.execute(
-        select(ChatbotKbNode).where(ChatbotKbNode.map_id == kb_map.id)
-    ).scalars().all()
-    existing_by_title: dict[str, ChatbotKbNode] = {}
-    for n in existing_rows:
-        key = (n.title or "").strip().lower()
-        if key and key not in existing_by_title:
-            existing_by_title[key] = n
-    seen_in_batch: set[str] = set()
-
-    imported = 0
-    updated = 0
-    skipped = 0
-    skipped_empty = 0
-    skipped_dup = 0
-
-    for item in items:
-        title = str(item.get("title") or "").strip()
-        content = str(item.get("content") or "").strip()
-        if not title or not content or len(content) < 2:
-            skipped += 1
-            skipped_empty += 1
-            continue
-        title_key = title.lower()
-        tags = item.get("tags") or []
-        if isinstance(tags, str):
-            tags = _parse_tags(tags)
-        tag_storage = _tags_to_storage([str(t).lower() for t in tags if str(t).strip()])
-        node_type = str(item.get("node_type") or "node").strip().lower()
-        if node_type not in NODE_TYPES:
-            node_type = "node"
-        priority = int(item.get("priority") or 0)
-        is_active = bool(item.get("is_active", True))
-
-        existing = existing_by_title.get(title_key)
-        if existing is not None or title_key in seen_in_batch:
-            if mode == "skip":
-                skipped += 1
-                skipped_dup += 1
-                continue
-            if mode == "rename":
-                n = 2
-                new_title = f"{title} ({n})"
-                while new_title.lower() in existing_by_title or new_title.lower() in seen_in_batch:
-                    n += 1
-                    new_title = f"{title} ({n})"
-                title = new_title
-                title_key = title.lower()
-                existing = None
-            elif existing is not None:
-                existing.content = content[:100_000]
-                if tag_storage:
-                    existing.tags = tag_storage
-                existing.is_active = is_active
-                existing.priority = priority
-                existing.updated_at = datetime.now(timezone.utc)
-                if parent_id is not None and existing.parent_id != int(parent_id):
-                    existing.parent_id = int(parent_id)
-                updated += 1
-                seen_in_batch.add(title_key)
-                continue
-            else:
-                # Duplicate within same import batch — skip extra copies.
-                skipped += 1
-                skipped_dup += 1
-                continue
-
-        db.add(
-            ChatbotKbNode(
-                map_id=kb_map.id,
-                parent_id=int(parent_id) if parent_id else None,
-                node_type=node_type,
-                title=title[:200],
-                content=content[:100_000],
-                tags=tag_storage,
-                priority=priority,
-                is_active=is_active,
-            )
+    shared_kb.migrate_legacy_chatbot_kb(db, user_id)
+    try:
+        result = shared_kb.import_items(
+            user_id,
+            items=items,
+            parent_id=parent_id,
+            on_duplicate=on_duplicate,
         )
-        seen_in_batch.add(title_key)
-        imported += 1
-
-    _refresh_map_status(db, kb_map)
-    db.commit()
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     _touch_kb_cache(int(bot_id))
-    return {
-        "imported": imported,
-        "updated": updated,
-        "skipped": skipped,
-        "skipped_empty": skipped_empty,
-        "skipped_duplicate": skipped_dup,
-        "map_id": kb_map.id,
-    }
+    return result
 
 
 def import_kb_text(
@@ -882,53 +710,19 @@ def _search_kb_nodes_db(
     bot_id: int,
     user_id: int,
     query: str,
-    limit: int = 5,
+    limit: int = 12,
 ) -> list[dict[str, Any]]:
-    tokens = _tokenize(query)
-    if not tokens:
-        return []
-    kb_map = db.execute(
-        select(ChatbotKbMap)
-        .where(
-            ChatbotKbMap.bot_id == int(bot_id),
-            ChatbotKbMap.user_id == int(user_id),
-            ChatbotKbMap.status.in_(("active", "draft")),
-        )
-        .order_by(ChatbotKbMap.id.desc())
-        .limit(1)
-    ).scalar_one_or_none()
-    if kb_map is None or kb_map.status == "disabled":
-        return []
-    rows = db.execute(
-        select(ChatbotKbNode)
-        .where(
-            ChatbotKbNode.map_id == kb_map.id,
-            ChatbotKbNode.is_active.is_(True),
-            ChatbotKbNode.node_type == "node",
-        )
-        .limit(200)
-    ).scalars().all()
-    scored: list[tuple[int, ChatbotKbNode]] = []
-    for row in rows:
-        content = row.content or ""
-        if not content.strip():
-            continue
-        tag_text = " ".join(_parse_tags(row.tags))
-        hay = f"{row.title} {content} {tag_text}".lower()
-        score = sum(2 if t in (row.title or "").lower() else 1 for t in tokens if t in hay)
-        score += int(row.priority or 0)
-        if score > 0:
-            scored.append((score, row))
-    scored.sort(key=lambda x: (-x[0], -len(x[1].content or "")))
+    shared_kb.migrate_legacy_chatbot_kb(db, user_id)
+    hits = shared_kb.search_user_knowledge(user_id, query, limit=limit)
     out: list[dict[str, Any]] = []
-    for score, row in scored[: max(1, limit)]:
+    for h in hits:
         out.append(
             {
-                "node_id": row.id,
-                "title": row.title,
-                "content": (row.content or "")[:4000],
-                "tags": _parse_tags(row.tags),
-                "score": score,
+                "node_id": h.get("id"),
+                "title": h.get("title"),
+                "content": h.get("content") or "",
+                "tags": h.get("tags") or [],
+                "score": h.get("score") or 0,
                 "source": "kb_map",
             }
         )
@@ -941,7 +735,7 @@ def search_kb_nodes(
     bot_id: int,
     user_id: int,
     query: str,
-    limit: int = 5,
+    limit: int = 12,
 ) -> list[dict[str, Any]]:
     bid = int(bot_id)
     key = make_search_key(user_id=int(user_id), query=query, limit=limit)

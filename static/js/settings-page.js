@@ -44,6 +44,14 @@
         const known = new Set(sections.map((s) => "#" + s.id));
         const sync = () => {
             let hash = (window.location.hash || "#account").split("?")[0] || "#account";
+            if (hash === "#api-keys" && !document.getElementById("navApiKeysLink")) {
+                window.location.replace("/settings#account");
+                return;
+            }
+            if (hash === "#chatbot-knowledge") {
+                window.location.replace("/settings#ai-knowledge-base");
+                return;
+            }
             if (hash === "#affiliate") {
                 window.location.replace("/account-billing?tab=affiliate");
                 return;
@@ -74,6 +82,37 @@
     const apiKeysSection = document.getElementById("api-keys");
     const apiKeysNav = document.getElementById("navApiKeysLink");
     if (!apiKeysSection || !apiKeysNav) return;
+
+    const hideApiKeysTab = () => {
+        apiKeysNav.hidden = true;
+        apiKeysNav.style.display = "none";
+        apiKeysSection.hidden = true;
+        if ((window.location.hash || "").split("?")[0] === "#api-keys") {
+            window.location.replace("/settings#account");
+        }
+    };
+
+    const applyApiKeysTabByRole = (role) => {
+        const r = String(role || "user").toLowerCase();
+        if (r === "admin" || r === "super_admin") return true;
+        hideApiKeysTab();
+        return false;
+    };
+
+    (async () => {
+        try {
+            const r = await __settingsFetch("/auth/me");
+            if (!r.ok) {
+                hideApiKeysTab();
+                return;
+            }
+            const u = await r.json();
+            if (!applyApiKeysTabByRole(u && u.role)) return;
+        } catch (_e) {
+            hideApiKeysTab();
+            return;
+        }
+    })();
 
     const PROVIDER_DEFAULT_LIMITS = {
         google_gemini: 1500,
@@ -863,6 +902,18 @@
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     })[c]);
 
+    const notifySharedKb = () => {
+        const payload = { type: "kb_changed", bot_id: 0, at: Date.now() };
+        try {
+            const ch = new BroadcastChannel("seoauto_chatbot_kb_v1");
+            ch.postMessage(payload);
+            ch.close();
+        } catch (_e) {}
+        try {
+            window.dispatchEvent(new CustomEvent("seoauto-kb-changed", { detail: payload }));
+        } catch (_e2) {}
+    };
+
     const showLoadErr = (t, kind) => {
         if (!errBox) return;
         if (!t) {
@@ -1084,6 +1135,7 @@
                     });
                     if (!r.ok) throw new Error(await parseKbApiError(r, "Sao chép thất bại"));
                     await refresh();
+                    notifySharedKb();
                     showLoadErr("Đã tạo bản sao — bạn có thể sửa KB riêng của mình.", "ok");
                 } catch (e) {
                     alert(String(e.message || e));
@@ -1120,6 +1172,7 @@
                 });
                 if (!r.ok) throw new Error("Xóa thất bại");
                 await refresh();
+                notifySharedKb();
             } catch (e) {
                 alert(String(e.message || e));
             }
@@ -1227,6 +1280,7 @@
             closeModal();
             if (wasCreate) kbViewMode = "list";
             await refresh();
+            notifySharedKb();
             if (wasCreate) {
                 showLoadErr("Đã tạo Knowledge Base. Bấm Import trên thẻ để thêm tài liệu.", "ok");
                 setTimeout(() => showLoadErr(""), 6000);
@@ -1498,6 +1552,7 @@
             }
             closeImportModal();
             await refresh();
+            notifySharedKb();
         } catch (e) {
             if (importErr) importErr.textContent = String(e.message || e);
         } finally {
@@ -1514,6 +1569,7 @@
             });
             if (!r.ok) throw new Error("Reindex thất bại");
             await refresh();
+            notifySharedKb();
         } catch (e) {
             alert(String(e.message || e));
         }
@@ -1660,6 +1716,10 @@
     const passHint = document.getElementById("pubPassHint");
     const wpUserBlock = document.getElementById("pubFormWpUserBlock");
     const wpStatusBlock = document.getElementById("pubFormStatusBlock");
+    const pubCategoryBlock = document.getElementById("pubFormCategoryBlock");
+    const pubCategorySel = document.getElementById("pubFormCategory");
+    const pubLabelCategory = document.getElementById("pubLabelCategory");
+    const pubCategoryHint = document.getElementById("pubCategoryHint");
     const hrvIntro = document.getElementById("pubFormHrvIntro");
     const shopifyIntro = document.getElementById("pubFormShopifyBlock");
     const shopifyCreds = document.getElementById("pubFormShopifyCreds");
@@ -1669,6 +1729,7 @@
     const shopifyApiVersion = document.getElementById("pubShopifyApiVersion");
     const shopifySecretReq = document.getElementById("pubShopifySecretReq");
     const shopifyTipToggle = document.getElementById("pubShopifyTipToggle");
+    const hrvTipToggle = document.getElementById("pubHrvTipToggle");
     const toggleShopifyClientId = document.getElementById("pubToggleShopifyClientId");
     const toggleShopifySecret = document.getElementById("pubToggleShopifySecret");
     const webcakeIntro = document.getElementById("pubFormWebcakeBlock");
@@ -1692,6 +1753,141 @@
         shopify: "Shopify",
         haravan: "Haravan",
         webcake: "Webcake",
+    };
+    const CATEGORY_PLATFORMS = ["wordpress", "haravan", "shopify", "webcake"];
+    const platformCategoryLabel = (pf) => {
+        const key = String(pf || "").toLowerCase();
+        const known = PLATFORM_LABEL[key];
+        const name = known || (key ? key.charAt(0).toUpperCase() + key.slice(1) : "");
+        return name ? ("Danh mục " + name) : "Danh mục";
+    };
+    const notifyPubCategoriesChanged = (detail) => {
+        try {
+            window.dispatchEvent(new CustomEvent("seoauto-pub-categories-changed", { detail: detail || {} }));
+        } catch (_) {}
+        try {
+            localStorage.setItem("seoauto_pub_categories_bump", JSON.stringify({ t: Date.now(), ...(detail || {}) }));
+        } catch (_) {}
+    };
+    const fillModalCategorySelect = (items, selectedId) => {
+        if (!pubCategorySel) return;
+        const cur = String(selectedId || pubCategorySel.value || "").trim();
+        pubCategorySel.innerHTML = '<option value="">-- Chọn danh mục --</option>';
+        (items || []).forEach((it) => {
+            const id = it && it.id != null ? String(it.id) : "";
+            const name = it && it.name ? String(it.name) : id;
+            if (!id) return;
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = name;
+            pubCategorySel.appendChild(opt);
+        });
+        if (cur && ![...pubCategorySel.options].some((o) => o.value === cur)) {
+            const opt = document.createElement("option");
+            opt.value = cur;
+            opt.textContent = "Danh mục #" + cur;
+            pubCategorySel.appendChild(opt);
+        }
+        if (cur && [...pubCategorySel.options].some((o) => o.value === cur)) {
+            pubCategorySel.value = cur;
+        }
+    };
+    const setModalCategoryMode = (pf) => {
+        const supported = CATEGORY_PLATFORMS.indexOf(pf) >= 0;
+        if (pubLabelCategory) pubLabelCategory.textContent = platformCategoryLabel(pf);
+        if (pubCategoryBlock) pubCategoryBlock.hidden = !supported;
+        if (pubCategorySel) {
+            pubCategorySel.disabled = !supported;
+            if (!supported) pubCategorySel.innerHTML = '<option value="">-- Chọn danh mục --</option>';
+        }
+        if (pubCategoryHint && !supported) pubCategoryHint.textContent = "";
+    };
+    const categoriesPreviewBody = () => {
+        const pf = modalPlatform;
+        const body = {
+            site_id: editingId || "",
+            platform: pf,
+            url: inputUrl ? inputUrl.value.trim() : "",
+            refresh: true,
+            selected_id: pubCategorySel ? String(pubCategorySel.value || "") : "",
+        };
+        if (pf === "wordpress") {
+            const b = wordpressPreviewBody();
+            body.url = b.url;
+            body.username = b.username;
+            body.app_password = b.app_password;
+        } else if (pf === "haravan") {
+            body.private_token = inputPass ? inputPass.value.trim() : "";
+            body.app_password = body.private_token;
+        } else if (pf === "shopify") {
+            const b = shopifyPreviewBody();
+            body.store_url = b.store_url;
+            body.url = b.store_url;
+            body.client_id = b.client_id;
+            body.username = b.client_id;
+            body.client_secret = b.client_secret;
+            body.api_version = b.api_version;
+        } else if (pf === "webcake") {
+            const b = webcakePreviewBody();
+            body.site_url = b.site_url;
+            body.url = b.site_url;
+            body.access_token = b.access_token;
+            body.refresh_token = b.refresh_token;
+        }
+        return body;
+    };
+    const loadModalCategories = async (opts) => {
+        const refresh = !!(opts && opts.refresh);
+        const pf = modalPlatform;
+        setModalCategoryMode(pf);
+        if (CATEGORY_PLATFORMS.indexOf(pf) < 0) return;
+        if (pubCategoryHint) pubCategoryHint.textContent = refresh ? "Đang tải danh mục…" : (pubCategoryHint.textContent || "");
+        try {
+            let data = {};
+            if (editingId && !refresh) {
+                const r = await __settingsFetch("/api/settings/publishing-sites/" + encodeURIComponent(editingId) + "/categories");
+                data = await r.json().catch(() => ({}));
+                if (r.ok && data && data.unsupported) {
+                    if (pubCategoryBlock) pubCategoryBlock.hidden = true;
+                    if (pubCategorySel) pubCategorySel.disabled = true;
+                    if (pubCategoryHint) pubCategoryHint.textContent = "";
+                    return;
+                }
+                if (r.ok && Array.isArray(data.items) && data.items.length) {
+                    fillModalCategorySelect(data.items, data.selected_id);
+                    if (pubCategoryHint) {
+                        pubCategoryHint.textContent = data.message || ("Đã tải " + data.items.length + " danh mục.");
+                    }
+                    return;
+                }
+            }
+            const r = await __settingsFetch("/api/settings/publishing-sites/categories/preview", {
+                method: "POST",
+                headers: pubAuthJsonHeaders(),
+                body: JSON.stringify(Object.assign({}, categoriesPreviewBody(), { refresh: refresh || !editingId })),
+            });
+            data = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                if (pubCategoryHint) pubCategoryHint.textContent = "";
+                return;
+            }
+            if (data && data.unsupported) {
+                if (pubCategoryBlock) pubCategoryBlock.hidden = true;
+                if (pubCategorySel) pubCategorySel.disabled = true;
+                if (pubCategoryHint) pubCategoryHint.textContent = "";
+                return;
+            }
+            const items = Array.isArray(data.items) ? data.items : [];
+            fillModalCategorySelect(items, data.selected_id);
+            if (pubCategoryHint) {
+                pubCategoryHint.textContent = items.length
+                    ? (data.message || ("Đã tải " + items.length + " danh mục."))
+                    : (data.pending ? "Kiểm tra kết nối để tải danh mục." : "");
+            }
+            notifyPubCategoriesChanged({ site_id: editingId || "", platform: pf });
+        } catch (_) {
+            if (pubCategoryHint) pubCategoryHint.textContent = "";
+        }
     };
     const PLATFORM_LEAD = {
         wordpress: "Quản lý các website WordPress dùng để xuất bản bài.",
@@ -1994,6 +2190,7 @@
         if (inputPass.type !== "password") {
             inputPass.type = "password";
         }
+        setModalCategoryMode(pf);
     };
 
     const showModal = (mode, site) => {
@@ -2026,10 +2223,16 @@
                 : "Tạo trong WP → Users → Profile → Application Passwords";
         }
         inputStatus.value = (site && site.default_status) || "draft";
+        fillModalCategorySelect([], "");
+        if (pubCategoryHint) pubCategoryHint.textContent = editingId ? "" : "Tự tải sau khi kết nối thành công.";
         renderPubDatalists(pf);
         if (!editingId) applyPubHistToEmptyFields(pf);
         modal.classList.add("is-open");
+        [hrvTipToggle, shopifyTipToggle, webcakeTipToggle].forEach((btn) => {
+            if (btn) btn.setAttribute("aria-expanded", "false");
+        });
         setTimeout(() => inputName.focus(), 30);
+        if (editingId) void loadModalCategories({ refresh: false });
     };
 
     const hideModal = () => {
@@ -2071,6 +2274,25 @@
         client_secret: shopifyClientSecret ? shopifyClientSecret.value.trim() : "",
         api_version: shopifyApiVersion ? shopifyApiVersion.value : "2025-01",
     });
+
+    if (pubCategorySel) {
+        pubCategorySel.addEventListener("change", () => {
+            const selectedId = String(pubCategorySel.value || "");
+            if (editingId) {
+                void __settingsFetch("/api/settings/publishing-sites/" + encodeURIComponent(editingId) + "/categories", {
+                    method: "POST",
+                    headers: pubAuthJsonHeaders(),
+                    body: JSON.stringify({ refresh: false, selected_id: selectedId }),
+                }).then(() => notifyPubCategoriesChanged({ site_id: editingId, platform: modalPlatform })).catch(() => {});
+                return;
+            }
+            void __settingsFetch("/api/settings/publishing-sites/categories/preview", {
+                method: "POST",
+                headers: pubAuthJsonHeaders(),
+                body: JSON.stringify(Object.assign({}, categoriesPreviewBody(), { refresh: false, selected_id: selectedId })),
+            }).catch(() => {});
+        });
+    }
 
     const renderTabs = () => {
         tabsRoot.querySelectorAll(".pub-tab").forEach((btn) => {
@@ -2271,6 +2493,12 @@
             shopifyTipToggle.setAttribute("aria-expanded", open ? "false" : "true");
         });
     }
+    if (hrvTipToggle) {
+        hrvTipToggle.addEventListener("click", () => {
+            const open = hrvTipToggle.getAttribute("aria-expanded") !== "false";
+            hrvTipToggle.setAttribute("aria-expanded", open ? "false" : "true");
+        });
+    }
     if (toggleWebcakeAccess && webcakeAccess) {
         toggleWebcakeAccess.addEventListener("click", () => {
             webcakeAccess.type = webcakeAccess.type === "password" ? "text" : "password";
@@ -2342,7 +2570,10 @@
                     const msg = data.message || (data.ok ? "Connection OK." : "Connection failed.");
                     showFormFeedback(msg, kind);
                     setMsg(msg, kind);
-                    if (data.ok) rememberPubFormFields("webcake");
+                    if (data.ok) {
+                        rememberPubFormFields("webcake");
+                        void loadModalCategories({ refresh: true });
+                    }
                     return;
                 }
                 if (pf === "shopify") {
@@ -2367,7 +2598,10 @@
                     const msg = data.message || (data.ok ? "Connection OK." : "Connection failed.");
                     showFormFeedback(msg, kind);
                     setMsg(msg, kind);
-                    if (data.ok) rememberPubFormFields("shopify");
+                    if (data.ok) {
+                        rememberPubFormFields("shopify");
+                        void loadModalCategories({ refresh: true });
+                    }
                     return;
                 }
                 if (pf === "haravan") {
@@ -2392,7 +2626,10 @@
                     const msg = data.message || (data.ok ? "Connection OK." : "Connection failed.");
                     showFormFeedback(msg, kind);
                     setMsg(msg, kind);
-                    if (data.ok) rememberPubFormFields("haravan");
+                    if (data.ok) {
+                        rememberPubFormFields("haravan");
+                        void loadModalCategories({ refresh: true });
+                    }
                     return;
                 }
                 if (pf === "wordpress") {
@@ -2417,7 +2654,10 @@
                     const msg = data.message || (data.ok ? "Kết nối WordPress thành công." : "Không kết nối được.");
                     showFormFeedback(msg, kind);
                     setMsg(msg, kind);
-                    if (data.ok) rememberPubFormFields("wordpress");
+                    if (data.ok) {
+                        rememberPubFormFields("wordpress");
+                        void loadModalCategories({ refresh: true });
+                    }
                 }
             } catch (_) {
                 showFormFeedback("Lỗi mạng khi kiểm tra kết nối.", "err");
@@ -2718,6 +2958,14 @@
             const result = data.result || (data.item || {});
             if (result.verified) {
                 setMsg(result.message || "Đã xác minh kết nối site.", "ok");
+                try {
+                    await __settingsFetch("/api/settings/publishing-sites/" + encodeURIComponent(id) + "/categories", {
+                        method: "POST",
+                        headers: pubAuthJsonHeaders(),
+                        body: JSON.stringify({ refresh: true }),
+                    });
+                    notifyPubCategoriesChanged({ site_id: id, platform: pf });
+                } catch (_) {}
             } else {
                 setMsg((data.item && data.item.last_message) || result.message || "Không xác minh được kết nối.", "err");
             }
@@ -3299,4 +3547,121 @@
     };
     window.addEventListener("hashchange", maybeLoad);
     if ((window.location.hash || "").split("?")[0] === "#system") loadPrefs();
+})();
+
+/* ====================== Chatbot CSKH email notifications ====================== */
+(() => {
+    const section = document.getElementById("email-notifications");
+    if (!section) return;
+    const enabledEl = document.getElementById("cskhNotifyEnabled");
+    const emailEl = document.getElementById("cskhNotifyEmail");
+    const delayGrid = document.getElementById("cskhNotifyDelayGrid");
+    const msgEl = document.getElementById("cskhNotifySaveMsg");
+    const DELAYS = [0, 120, 300, 600];
+    let prefs = { enabled: true, notify_email: "", delay_seconds: 120, account_email: "" };
+    let saveTimer = null;
+    let loaded = false;
+
+    const setMsg = (text, kind) => {
+        if (!msgEl) return;
+        msgEl.textContent = text || "";
+        msgEl.classList.toggle("ok", kind === "ok");
+        msgEl.classList.toggle("err", kind === "err");
+    };
+
+    const render = () => {
+        if (enabledEl) {
+            enabledEl.classList.toggle("is-on", !!prefs.enabled);
+            enabledEl.setAttribute("aria-pressed", prefs.enabled ? "true" : "false");
+        }
+        if (emailEl && document.activeElement !== emailEl) {
+            emailEl.value = prefs.notify_email || prefs.account_email || "";
+            emailEl.placeholder = prefs.account_email || "";
+        }
+        if (delayGrid) {
+            delayGrid.querySelectorAll("[data-cskh-delay]").forEach((btn) => {
+                const on = String(prefs.delay_seconds) === String(btn.getAttribute("data-cskh-delay"));
+                btn.classList.toggle("is-active", on);
+                btn.setAttribute("aria-pressed", on ? "true" : "false");
+            });
+        }
+    };
+
+    const save = async () => {
+        const body = {
+            enabled: !!prefs.enabled,
+            notify_email: ((emailEl && emailEl.value) || "").trim(),
+            delay_seconds: DELAYS.includes(prefs.delay_seconds) ? prefs.delay_seconds : 120,
+        };
+        try {
+            const r = await __settingsFetch("/api/settings/chatbot-email-notify", {
+                method: "PATCH",
+                headers: window.__settingsAuthJson(),
+                body: JSON.stringify(body),
+            });
+            if (r.status === 401 || r.status === 403) {
+                setMsg("Vui lòng đăng nhập để lưu cài đặt.", "err");
+                return;
+            }
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                setMsg((data && data.detail) || "Không lưu được cài đặt.", "err");
+                return;
+            }
+            if (data.settings) prefs = { ...prefs, ...data.settings };
+            render();
+            setMsg("Đã lưu.", "ok");
+        } catch (_) {
+            setMsg("Không lưu được cài đặt.", "err");
+        }
+    };
+
+    const scheduleSave = () => {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(save, 400);
+    };
+
+    const load = async () => {
+        try {
+            const r = await __settingsFetch("/api/settings/chatbot-email-notify", {
+                headers: window.__settingsAuthHeaders(),
+            });
+            if (r.ok) {
+                const data = await r.json();
+                if (data.settings) prefs = { ...prefs, ...data.settings };
+            }
+        } catch (_) {}
+        loaded = true;
+        render();
+    };
+
+    if (enabledEl) {
+        enabledEl.addEventListener("click", () => {
+            prefs.enabled = !prefs.enabled;
+            render();
+            scheduleSave();
+        });
+    }
+    if (emailEl) {
+        emailEl.addEventListener("change", scheduleSave);
+        emailEl.addEventListener("blur", scheduleSave);
+    }
+    if (delayGrid) {
+        delayGrid.addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-cskh-delay]");
+            if (!btn) return;
+            const n = parseInt(btn.getAttribute("data-cskh-delay"), 10);
+            if (!DELAYS.includes(n)) return;
+            prefs.delay_seconds = n;
+            render();
+            scheduleSave();
+        });
+    }
+
+    const maybeLoad = () => {
+        if ((window.location.hash || "").split("?")[0] === "#email-notifications") load();
+    };
+    window.addEventListener("hashchange", maybeLoad);
+    if ((window.location.hash || "").split("?")[0] === "#email-notifications") load();
+    else if (!loaded) load();
 })();

@@ -24,9 +24,11 @@ body.ab-page.au-users-page {
 }
 
 .au-wrap {
-    max-width: 1440px;
+    width: 90%;
+    max-width: 90%;
     margin: 0 auto;
     padding: 20px 18px 48px;
+    box-sizing: border-box;
 }
 
 #adminMsg {

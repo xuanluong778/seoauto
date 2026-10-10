@@ -445,14 +445,9 @@ const TECH_NAV_KEYS = (window.TechSidebarV2 && window.TechSidebarV2.NAV_ORDER
     ? window.TechSidebarV2.NAV_ORDER.filter((k) => k !== "overview" && k !== "history")
     : null) || [
     "priority",
-    "indexability",
-    "crawlability",
+    "index_crawl",
     "onpage",
-    "internal_links",
-    "performance",
-    "structured_data",
-    "security_http",
-    "ux_mobile",
+    "perf_security",
     "gsc",
 ];
 
@@ -747,7 +742,7 @@ function updateTechContentHeader() {
     if (subEl) {
         const groupUi = window.TechSidebarV2 && window.TechSidebarV2.GROUP_UI;
         if (tab === "overview") {
-            subEl.textContent = "Health score, lỗi ưu tiên và tóm tắt GSC.";
+            subEl.textContent = "Điểm sức khỏe, lỗi cần sửa và Core Web Vitals.";
         } else if (tab === "priority") {
             const n = countIssuesForTab("priority", cachedNormalizedIssues);
             subEl.textContent = n + " lỗi cần xử lý trước theo mức ưu tiên.";
@@ -767,6 +762,18 @@ function updateTechContentHeader() {
         }
     }
     hdr.hidden = !cachedTechnicalPayload;
+    if (tab === "gsc") {
+        titleEl.textContent = "Google Search Console";
+        if (subEl) {
+            const n = countIssuesForTab("gsc", cachedNormalizedIssues);
+            subEl.textContent =
+                "Search Analytics, URL Inspection, quota và dữ liệu hybrid." +
+                (n ? " — " + n + " lỗi GSC." : "");
+        }
+        hdr.hidden = !cachedTechnicalPayload;
+        return;
+    }
+    hdr.hidden = true;
 }
 
 function syncMobileNavSelect() {
@@ -783,14 +790,9 @@ function populateMobileNavSelect() {
     const order = (window.TechSidebarV2 && window.TechSidebarV2.NAV_ORDER) || [
         "overview",
         "priority",
-        "indexability",
-        "crawlability",
+        "index_crawl",
         "onpage",
-        "internal_links",
-        "performance",
-        "structured_data",
-        "security_http",
-        "ux_mobile",
+        "perf_security",
         "gsc",
         "history",
     ];

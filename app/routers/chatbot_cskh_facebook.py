@@ -23,6 +23,7 @@ from app.services.chatbot_cskh_facebook_service import (
     oauth_start_url,
     process_messenger_webhook,
     set_ai_enabled,
+    verify_facebook_webhook_signature,
     webhook_verify_token,
 )
 
@@ -152,7 +153,10 @@ def facebook_webhook_verify(
     hub_verify_token: str = Query(default="", alias="hub.verify_token"),
     hub_challenge: str = Query(default="", alias="hub.challenge"),
 ) -> PlainTextResponse:
-    if hub_mode == "subscribe" and hub_verify_token == webhook_verify_token():
+    expected = webhook_verify_token()
+    if not expected:
+        raise HTTPException(status_code=403, detail="Webhook verify token not configured.")
+    if hub_mode == "subscribe" and hub_verify_token == expected:
         return PlainTextResponse(content=str(hub_challenge or ""))
     raise HTTPException(status_code=403, detail="Webhook verify failed.")
 
@@ -162,8 +166,14 @@ async def facebook_webhook_receive(
     request: Request,
     db: Session = Depends(get_db),
 ) -> JSONResponse:
+    raw = await request.body()
+    sig = request.headers.get("X-Hub-Signature-256") or request.headers.get("x-hub-signature-256")
+    if not verify_facebook_webhook_signature(raw_body=raw, signature_header=sig):
+        raise HTTPException(status_code=403, detail="Invalid Facebook webhook signature.")
     try:
-        payload = await request.json()
+        import json as _json
+
+        payload = _json.loads(raw.decode("utf-8") or "{}")
     except Exception:
         payload = {}
     if isinstance(payload, dict):

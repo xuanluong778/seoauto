@@ -14,10 +14,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
-from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy import desc, inspect as sqla_inspect, insert as sqla_insert
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session, class_mapper, load_only
 
-from app.db import get_db
+from app.db import ensure_db_alive, get_db, release_db_before_long_io
 from app.models.keyword_cluster_project import KeywordClusterProject
 from app.models.keyword_research_project import KeywordResearchProject
 from app.models.user import User
@@ -26,19 +27,24 @@ from app.services.api_payload_optimizer import (
     shape_keyword_research_response,
 )
 from app.services.auth import get_billing_user, get_current_user
+from app.services.circuit_breaker import CircuitOpenError
 from app.services.trial_access import require_active_trial
 from app.services.rbac import normalize_role
+from app.services.job_store import get_job_for_user
 from app.services.user_scope import assert_job_access
 from app.services.async_task_registry import assert_task_owner, register_task_owner
 from app.services.credits import (
-    consume_credits,
     cost_cluster_async,
     cost_cluster_save,
     cost_cluster_sync,
     cost_import_excel,
+    cost_keyword_suggest,
     cost_research_run,
+    credits_enforced,
     volume_batch_charge,
 )
+from app.services.permissions import PERM_WORKSPACE_WRITE, assert_permission
+from app.services.tenant_org import personal_organization_id, resolve_organization_id, user_belongs_to_organization
 from app.services.cost_control import CostGateRequest, ExternalApiProvider, cost_gate_session
 from app.services.plan_quota_registry import feature_key_for
 from app.services.plan_quota_service import record_quota_usage
@@ -53,6 +59,118 @@ import uuid
 
 router = APIRouter(prefix="/keywords", tags=["keywords"])
 templates = Jinja2Templates(directory="templates")
+
+
+def _kw_org_id(db: Session, user: User, organization_id: int | None = None) -> int:
+    from app.services.tenant_org import OrganizationForbiddenError
+
+    try:
+        return resolve_organization_id(int(user.id), organization_id, db=db)
+    except OrganizationForbiddenError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+def _project_org_id(row: KeywordResearchProject | KeywordClusterProject) -> int:
+    try:
+        state = sqla_inspect(row)
+        if "organization_id" in set(getattr(state, "unloaded", ()) or ()):
+            oid = None
+        else:
+            oid = getattr(row, "organization_id", None)
+    except Exception:
+        oid = getattr(row, "organization_id", None)
+    if oid is not None and int(oid) > 0:
+        return int(oid)
+    uid = getattr(row, "user_id", None)
+    return personal_organization_id(int(uid)) if uid else 0
+
+
+def _assert_org_project_access(
+    db: Session,
+    user: User,
+    row: KeywordResearchProject | KeywordClusterProject | None,
+    *,
+    require_result: bool = False,
+) -> KeywordResearchProject | KeywordClusterProject:
+    if row is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    org_id = _project_org_id(row)
+    if not user_belongs_to_organization(db, user_id=int(user.id), organization_id=org_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    if require_result and not getattr(row, "result_json", None):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return row
+
+
+def _assert_workspace_write(db: Session, user: User, org_id: int) -> None:
+    assert_permission(user, PERM_WORKSPACE_WRITE, db=db, organization_id=org_id)
+
+
+_PHYS_COL_CACHE: dict[tuple[int, str], set[str]] = {}
+
+
+def _physical_columns(db: Session, table: str) -> set[str]:
+    bind = db.get_bind()
+    key = (id(bind), table)
+    hit = _PHYS_COL_CACHE.get(key)
+    if hit is not None:
+        return hit
+    try:
+        insp = sqla_inspect(bind)
+        if table not in set(insp.get_table_names() or []):
+            cols: set[str] = set()
+        else:
+            cols = {str(c["name"]) for c in insp.get_columns(table)}
+    except Exception:
+        cols = set()
+    _PHYS_COL_CACHE[key] = cols
+    return cols
+
+
+def _orm_load_only_physical(db: Session, model):
+    phys = _physical_columns(db, str(model.__table__.name))
+    mapper = class_mapper(model)
+    if phys:
+        cols = [getattr(model, attr.key) for attr in mapper.column_attrs if attr.key in phys]
+    else:
+        cols = [getattr(model, attr.key) for attr in mapper.column_attrs if attr.key != "organization_id"]
+    return load_only(*cols) if cols else None
+
+
+def _insert_kw_project(db: Session, model, fields: dict[str, Any]) -> int:
+    """INSERT only columns that exist in the live DB (PG may lack organization_id)."""
+    table = model.__table__
+    phys = _physical_columns(db, str(table.name))
+    if phys:
+        values = {k: v for k, v in fields.items() if k in phys and k in table.c}
+    else:
+        values = {k: v for k, v in fields.items() if k in table.c and k != "organization_id"}
+    result = db.execute(sqla_insert(table).values(**values).returning(table.c.id))
+    pid = result.scalar()
+    if pid is None:
+        raise RuntimeError(f"insert {table.name} returned no id")
+    return int(pid)
+
+
+def _get_kw_project(db: Session, model, project_id: int):
+    q = db.query(model).filter(model.id == int(project_id))
+    opts = _orm_load_only_physical(db, model)
+    if opts is not None:
+        q = q.options(opts)
+    return q.first()
+
+
+def _list_kw_projects(db: Session, model, *, user: User, org_id: int, limit: int):
+    phys = _physical_columns(db, str(model.__table__.name))
+    q = db.query(model)
+    opts = _orm_load_only_physical(db, model)
+    if opts is not None:
+        q = q.options(opts)
+    if phys and "organization_id" in phys:
+        q = q.filter(model.organization_id == org_id)
+    else:
+        q = q.filter(model.user_id == user.id)
+    return q.order_by(desc(model.created_at)).limit(limit).all()
 
 
 def _country_label(code: str) -> str:
@@ -98,6 +216,13 @@ class VolumeBatchBody(BaseModel):
     language: str = Field(default="vi", max_length=8)
 
 
+class SuggestBody(BaseModel):
+    seeds: list[str] = Field(..., min_length=1, max_length=10)
+    country: str = Field(default="vn", max_length=8)
+    language: str = Field(default="vi", max_length=8)
+    max_keywords: int = Field(default=120, ge=10, le=300)
+
+
 @router.post("/volume/batch")
 def api_keyword_volume_batch(
     body: VolumeBatchBody,
@@ -106,7 +231,7 @@ def api_keyword_volume_batch(
 ) -> JSONResponse:
     from app.services.dataforseo_billing_service import (
         DataforseoStats,
-        log_dataforseo_usage,
+        maybe_log_dataforseo_usage,
         preview_volume_batch_billing,
         user_may_use_dataforseo_live,
     )
@@ -181,22 +306,144 @@ def api_keyword_volume_batch(
         sgate.commit()
         dfs_stats = DataforseoStats()
         dfs_stats.merge(stats)
-        log_dataforseo_usage(
+        maybe_log_dataforseo_usage(
             db,
+            stats=dfs_stats,
             user_id=billing_user.id,
             action="volume_batch",
             endpoint="search_volume/live",
-            api_mode="live" if dfs_stats.api_tasks > 0 else "cache",
-            tasks_count=dfs_stats.api_tasks,
+            api_mode="live",
             credit_charged=credit_cost,
             cache_hit=int(preview.cache_hits),
-            api_called=dfs_stats.api_tasks,
             keyword_count=len(kws),
             plan_slug=plan_slug,
         )
         db.commit()
 
     return JSONResponse(content={"items": out, "billing": preview.to_dict() if preview else None})
+
+
+@router.post("/suggest")
+def api_keyword_suggest(
+    body: SuggestBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_active_trial),
+) -> JSONResponse:
+    """Keyword Suggestion — Google Ads primary, DataForSEO fallback (auth + credit + tenant)."""
+    from app.services.dataforseo_billing_service import (
+        DataforseoStats,
+        maybe_log_dataforseo_usage,
+        preview_research_billing,
+        user_may_use_dataforseo_live,
+    )
+    from app.services.keyword_ads_expand import expand_keyword_ideas
+
+    seeds = [str(s).strip() for s in body.seeds if str(s).strip()][:10]
+    if not seeds:
+        raise HTTPException(status_code=400, detail="At least one seed keyword required")
+
+    org_id = _kw_org_id(db, current_user)
+    _assert_workspace_write(db, current_user, org_id)
+
+    feature = feature_key_for("keyword_research")
+    enforce_saas_access(
+        db,
+        current_user,
+        feature_code=feature,
+        quantity=max(1, len(seeds)),
+        organization_id=org_id,
+    )
+    allow_live = user_may_use_dataforseo_live(db, current_user)
+    preview = preview_research_billing(
+        db,
+        current_user,
+        seeds=seeds,
+        country=body.country,
+        language=body.language,
+    )
+    from_cache = int(preview.cache_hits or 0) >= len(seeds) and int(preview.api_tasks or 0) == 0
+    credit_cost = cost_keyword_suggest(db=db, from_cache=from_cache) if credits_enforced() else 0
+    job_id = build_job_id("keyword_suggest", current_user.id, org_id, uuid.uuid4().hex[:10])
+    gate_req = CostGateRequest(
+        db=db,
+        user=current_user,
+        provider=ExternalApiProvider.DATAFORSEO,
+        action="keyword_suggest",
+        credit_cost=0,
+        feature_key=feature,
+        quota_units=max(1, len(seeds)),
+        require_paid_plan=True,
+        skip_credit_check=True,
+        single_flight_key=f"keyword_suggest:{current_user.id}",
+    )
+    with saas_action_gate(
+        db,
+        current_user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=max(1, len(seeds)),
+        job_id=job_id,
+        idempotency_key=job_id,
+        organization_id=org_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            with cost_gate_session(gate_req):
+                stats: dict[str, Any] = {}
+                rows = expand_keyword_ideas(
+                    seeds,
+                    country=body.country,
+                    language=body.language,
+                    total_cap=body.max_keywords,
+                    allow_api=allow_live,
+                    stats=stats,
+                )
+        except Exception:
+            sgate.release(reason="job_failed")
+            raise
+
+        keywords = [
+            {
+                "keyword": str(r.get("keyword") or "").strip(),
+                "search_volume": int(r.get("search_volume") or 0),
+                "source": str(r.get("source") or "dataforseo"),
+                "cpc_avg": r.get("cpc_avg"),
+                "competition_index": r.get("competition_index"),
+            }
+            for r in (rows or [])
+            if str(r.get("keyword") or "").strip()
+        ]
+        sgate.commit()
+        sgate.record_usage(metadata={"seeds": len(seeds), "keywords": len(keywords), "organization_id": org_id})
+        dfs_stats = DataforseoStats()
+        dfs_stats.merge(stats)
+        from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
+
+        maybe_log_dataforseo_usage(
+            db,
+            stats=dfs_stats,
+            user_id=current_user.id,
+            action="keyword_suggest",
+            endpoint="keywords_for_keywords/live",
+            api_mode=preview.api_mode,
+            credit_charged=credit_cost,
+            cache_hit=dfs_stats.cache_hits,
+            keyword_count=len(seeds),
+            plan_slug=resolve_cau_ai_plan_slug(db, current_user),
+        )
+        db.commit()
+
+    return JSONResponse(
+        content={
+            "keywords": keywords,
+            "meta": {
+                "seeds": seeds,
+                "count": len(keywords),
+                "organization_id": org_id,
+                "billing": preview.to_dict() if preview else None,
+            },
+        }
+    )
 
 
 def _cluster_label(keywords: list[str]) -> str:
@@ -234,41 +481,60 @@ def api_cluster_save(
         strict = "normal"
     payload = body.result if isinstance(body.result, dict) else {}
     pname = _normalize_cluster_project_name(body.project_name, len(kws))
-    row = KeywordClusterProject(
-        user_id=current_user.id,
-        project_name=pname,
-        keywords_label=pname,
-        keywords_json=json.dumps(kws, ensure_ascii=False),
-        language=(body.language or "vi").strip()[:16],
-        country=(body.country or "vn").strip()[:16],
-        device=(body.device or "desktop").strip()[:16],
-        cluster_strictness=strict[:16],
-        fetch_serp=1 if bool(body.fetch_serp) else 0,
-        brand_url=(body.url or "").strip()[:2000],
-        result_json=json.dumps(payload, ensure_ascii=False),
-    )
-    db.add(row)
-    if billing_user:
-        c = cost_cluster_save()
-        if c > 0:
-            consume_credits(db, user_id=billing_user.id, amount=c, reason="cluster_save", note=f"kw={len(kws)}")
-    db.commit()
-    db.refresh(row)
-    return JSONResponse(content={"ok": True, "project_id": row.id, "project_name": pname})
+    org_id = _kw_org_id(db, current_user)
+    _assert_workspace_write(db, current_user, org_id)
+    credit_cost = cost_cluster_save(db=db) if credits_enforced() else 0
+    job_id = build_job_id("cluster_save", billing_user.id, org_id, uuid.uuid4().hex[:10])
+    with saas_action_gate(
+        db,
+        billing_user,
+        feature_code="keyword_cluster",
+        credit_cost=credit_cost,
+        quota_units=1,
+        job_id=job_id,
+        idempotency_key=job_id,
+        organization_id=org_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            pid = _insert_kw_project(
+                db,
+                KeywordClusterProject,
+                {
+                    "user_id": current_user.id,
+                    "organization_id": org_id,
+                    "project_name": pname,
+                    "keywords_label": pname,
+                    "keywords_json": json.dumps(kws, ensure_ascii=False),
+                    "language": (body.language or "vi").strip()[:16],
+                    "country": (body.country or "vn").strip()[:16],
+                    "device": (body.device or "desktop").strip()[:16],
+                    "cluster_strictness": strict[:16],
+                    "fetch_serp": 1 if bool(body.fetch_serp) else 0,
+                    "brand_url": (body.url or "").strip()[:2000],
+                    "result_json": json.dumps(payload, ensure_ascii=False),
+                },
+            )
+            sgate.commit()
+            sgate.record_usage(metadata={"kw_count": len(kws)})
+            db.commit()
+            return JSONResponse(content={"ok": True, "project_id": pid, "project_name": pname})
+        except Exception:
+            sgate.release(reason="cluster_save_failed")
+            db.rollback()
+            raise
 
 
 @router.get("/cluster/history")
 def api_cluster_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    organization_id: int | None = Query(default=None),
     limit: int = Query(50, ge=1, le=200),
 ) -> JSONResponse:
-    rows = (
-        db.query(KeywordClusterProject)
-        .filter(KeywordClusterProject.user_id == current_user.id)
-        .order_by(desc(KeywordClusterProject.created_at))
-        .limit(limit)
-        .all()
+    org_id = _kw_org_id(db, current_user, organization_id)
+    rows = _list_kw_projects(
+        db, KeywordClusterProject, user=current_user, org_id=org_id, limit=limit
     )
     out: list[dict] = []
     for r in rows:
@@ -303,9 +569,8 @@ def api_cluster_history_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    r = db.get(KeywordClusterProject, project_id)
-    if not r or r.user_id != current_user.id or not r.result_json:
-        raise HTTPException(status_code=404, detail="Project not found")
+    r = _get_kw_project(db, KeywordClusterProject, project_id)
+    r = _assert_org_project_access(db, current_user, r, require_result=True)
     payload = {
         "project": {
             "id": r.id,
@@ -331,9 +596,8 @@ def api_cluster_history_delete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    r = db.get(KeywordClusterProject, project_id)
-    if not r or r.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
+    r = _get_kw_project(db, KeywordClusterProject, project_id)
+    _assert_org_project_access(db, current_user, r)
     db.delete(r)
     db.commit()
     return JSONResponse(content={"ok": True})
@@ -358,7 +622,7 @@ def api_keyword_research(
     from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
     from app.services.dataforseo_billing_service import (
         DataforseoStats,
-        log_dataforseo_usage,
+        maybe_log_dataforseo_usage,
         preview_research_billing,
         user_may_use_dataforseo_live,
     )
@@ -399,6 +663,7 @@ def api_keyword_research(
         try:
             with cost_gate_session(gate_req):
                 stats: dict[str, Any] = {}
+                release_db_before_long_io(db)
                 payload = build_keyword_research_api_response(
                     seed_keyword=seed_keyword,
                     domain=domain,
@@ -414,6 +679,19 @@ def api_keyword_research(
                     allow_dataforseo_live=allow_live,
                     billing_stats=stats,
                 )
+        except CircuitOpenError as exc:
+            sgate.release(reason="provider_circuit")
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "keyword_provider_busy",
+                    "message": (
+                        "Dịch vụ nghiên cứu từ khóa đang quá tải / hết hạn mức tạm thời. "
+                        f"Thử lại sau khoảng {int(getattr(exc, 'retry_after_sec', 30) or 30)} giây."
+                    ),
+                    "retry_after_sec": float(getattr(exc, "retry_after_sec", 30) or 30),
+                },
+            ) from exc
         except Exception:
             sgate.release(reason="job_failed")
             raise
@@ -422,19 +700,30 @@ def api_keyword_research(
             sgate.release(reason="bad_request")
             return JSONResponse(status_code=400, content=payload)
 
+        try:
+            ensure_db_alive(db)
+        except Exception as exc:
+            sgate.release(reason="db_reconnect_failed")
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "db_temporarily_unavailable",
+                    "message": "Kết nối dữ liệu tạm thời gián đoạn sau khi gọi API ngoài. Vui lòng thử lại.",
+                },
+            ) from exc
+
         sgate.commit()
         dfs_stats = DataforseoStats()
         dfs_stats.merge(stats)
-        log_dataforseo_usage(
+        maybe_log_dataforseo_usage(
             db,
+            stats=dfs_stats,
             user_id=billing_user.id,
             action="keyword_research_get",
             endpoint="keywords_for_keywords/live",
             api_mode=preview.api_mode,
-            tasks_count=dfs_stats.api_tasks,
             credit_charged=credit_cost,
             cache_hit=dfs_stats.cache_hits,
-            api_called=dfs_stats.api_tasks,
             keyword_count=1,
             plan_slug=resolve_cau_ai_plan_slug(db, billing_user),
         )
@@ -452,7 +741,7 @@ def api_keyword_research_run(
     from app.services.cau_ai_fix_entitlement import resolve_cau_ai_plan_slug
     from app.services.dataforseo_billing_service import (
         DataforseoStats,
-        log_dataforseo_usage,
+        maybe_log_dataforseo_usage,
         preview_research_billing,
         user_may_use_dataforseo_live,
     )
@@ -498,6 +787,8 @@ def api_keyword_research_run(
     ) as sgate:
         try:
             with cost_gate_session(gate_req):
+                # Release PgBouncer server conn before long Google Ads / DFS I/O.
+                release_db_before_long_io(db)
                 payload = build_keyword_research_api_response(
                     seed_keywords=seeds,
                     domain=body.domain,
@@ -525,6 +816,19 @@ def api_keyword_research_run(
                     "cost": (exc.stats or stats),
                 },
             ) from exc
+        except CircuitOpenError as exc:
+            sgate.release(reason="provider_circuit")
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "keyword_provider_busy",
+                    "message": (
+                        "Dịch vụ nghiên cứu từ khóa đang quá tải / hết hạn mức tạm thời. "
+                        f"Thử lại sau khoảng {int(getattr(exc, 'retry_after_sec', 30) or 30)} giây."
+                    ),
+                    "retry_after_sec": float(getattr(exc, "retry_after_sec", 30) or 30),
+                },
+            ) from exc
         except Exception:
             sgate.release(reason="job_failed")
             raise
@@ -533,47 +837,79 @@ def api_keyword_research_run(
             sgate.release(reason="bad_request")
             return JSONResponse(status_code=400, content=payload)
 
-        sgate.commit()
-        dfs_stats = DataforseoStats()
-        dfs_stats.merge(stats)
-        record_quota_usage(
-            db,
-            charge_user.id,
-            feature,
-            quantity=max(1, len(seeds)),
-            credits_used=credit_cost,
-        )
-        log_dataforseo_usage(
-            db,
-            user_id=charge_user.id,
-            action="keyword_research",
-            endpoint="keywords_for_keywords/live",
-            api_mode=preview.api_mode,
-            tasks_count=dfs_stats.api_tasks,
-            credit_charged=credit_cost,
-            cache_hit=dfs_stats.cache_hits,
-            api_called=dfs_stats.api_tasks,
-            keyword_count=len(seeds),
-            plan_slug=resolve_cau_ai_plan_slug(db, charge_user),
-        )
-        label = " + ".join(seeds[:10])
-        if len(seeds) > 10:
-            label += " + …"
-        row = KeywordResearchProject(
-            user_id=current_user.id,
-            keywords_label=label[:2000],
-            seeds_json=json.dumps(seeds, ensure_ascii=False),
-            language=body.language,
-            country=body.country,
-            engine=body.engine,
-            location_label=_country_label(body.country),
-            status="completed",
-            result_json=json.dumps(payload, ensure_ascii=False),
-        )
-        db.add(row)
-        db.commit()
-        db.refresh(row)
-        payload["meta"]["project_id"] = row.id
+        try:
+            ensure_db_alive(db)
+        except Exception as exc:
+            sgate.release(reason="db_reconnect_failed")
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "db_temporarily_unavailable",
+                    "message": "Kết nối dữ liệu tạm thời gián đoạn sau khi gọi API ngoài. Vui lòng thử lại.",
+                },
+            ) from exc
+
+        def _persist_success() -> None:
+            sgate.commit()
+            dfs_stats = DataforseoStats()
+            dfs_stats.merge(stats)
+            record_quota_usage(
+                db,
+                charge_user.id,
+                feature,
+                quantity=max(1, len(seeds)),
+                credits_used=credit_cost,
+            )
+            maybe_log_dataforseo_usage(
+                db,
+                stats=dfs_stats,
+                user_id=charge_user.id,
+                action="keyword_research",
+                endpoint="keywords_for_keywords/live",
+                api_mode=preview.api_mode,
+                credit_charged=credit_cost,
+                cache_hit=dfs_stats.cache_hits,
+                keyword_count=len(seeds),
+                plan_slug=resolve_cau_ai_plan_slug(db, charge_user),
+            )
+            label = " + ".join(seeds[:10])
+            if len(seeds) > 10:
+                label += " + …"
+            project_id = _insert_kw_project(
+                db,
+                KeywordResearchProject,
+                {
+                    "user_id": current_user.id,
+                    "organization_id": _kw_org_id(db, current_user),
+                    "keywords_label": label[:2000],
+                    "seeds_json": json.dumps(seeds, ensure_ascii=False),
+                    "language": body.language,
+                    "country": body.country,
+                    "engine": body.engine,
+                    "location_label": _country_label(body.country),
+                    "status": "completed",
+                    "result_json": json.dumps(payload, ensure_ascii=False),
+                },
+            )
+            db.commit()
+            payload["meta"]["project_id"] = project_id
+
+        try:
+            _persist_success()
+        except OperationalError:
+            # One reconnect retry after long provider call.
+            try:
+                ensure_db_alive(db)
+                _persist_success()
+            except Exception as exc:
+                sgate.release(reason="persist_failed")
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "code": "db_temporarily_unavailable",
+                        "message": "Không lưu được kết quả research vì lỗi kết nối DB. Vui lòng thử lại.",
+                    },
+                ) from exc
     return JSONResponse(content=payload)
 
 
@@ -581,14 +917,12 @@ def api_keyword_research_run(
 def api_research_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    organization_id: int | None = Query(default=None),
     limit: int = Query(50, ge=1, le=200),
 ) -> JSONResponse:
-    rows = (
-        db.query(KeywordResearchProject)
-        .filter(KeywordResearchProject.user_id == current_user.id)
-        .order_by(desc(KeywordResearchProject.created_at))
-        .limit(limit)
-        .all()
+    org_id = _kw_org_id(db, current_user, organization_id)
+    rows = _list_kw_projects(
+        db, KeywordResearchProject, user=current_user, org_id=org_id, limit=limit
     )
     out: list[dict] = []
     for r in rows:
@@ -616,9 +950,8 @@ def api_research_history_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    r = db.get(KeywordResearchProject, project_id)
-    if not r or r.user_id != current_user.id or not r.result_json:
-        raise HTTPException(status_code=404, detail="Project not found")
+    r = _get_kw_project(db, KeywordResearchProject, project_id)
+    r = _assert_org_project_access(db, current_user, r, require_result=True)
     payload = json.loads(r.result_json)
     shaped = shape_keyword_research_response(
         payload,
@@ -637,9 +970,8 @@ def api_research_history_delete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    r = db.get(KeywordResearchProject, project_id)
-    if not r or r.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
+    r = _get_kw_project(db, KeywordResearchProject, project_id)
+    _assert_org_project_access(db, current_user, r)
     db.delete(r)
     db.commit()
     return JSONResponse(content={"ok": True})
@@ -654,9 +986,8 @@ def api_research_history_delete_post(
     """
     Backward-compatible delete endpoint for clients/proxies that block DELETE.
     """
-    r = db.get(KeywordResearchProject, project_id)
-    if not r or r.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
+    r = _get_kw_project(db, KeywordResearchProject, project_id)
+    _assert_org_project_access(db, current_user, r)
     db.delete(r)
     db.commit()
     return JSONResponse(content={"ok": True})
@@ -671,9 +1002,8 @@ def api_research_delete_alias(
     """
     Extra alias for compatibility with legacy clients.
     """
-    r = db.get(KeywordResearchProject, project_id)
-    if not r or r.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
+    r = _get_kw_project(db, KeywordResearchProject, project_id)
+    _assert_org_project_access(db, current_user, r)
     db.delete(r)
     db.commit()
     return JSONResponse(content={"ok": True})
@@ -733,6 +1063,7 @@ def api_keyword_research_run_async(
         quota_units=max(1, len(seeds)),
         job_id=job_id,
         idempotency_key=job_id,
+        organization_id=_kw_org_id(db, billing_user),
         charge_mode="reserve",
     ) as sgate:
         try:
@@ -742,7 +1073,14 @@ def api_keyword_research_run_async(
             payload["_credit_reservation_id"] = sgate.reservation_id
             payload["_credit_job_id"] = job_id
             task = run_keyword_research_task.delay(payload)
-            register_task_owner(task.id, owner_id)
+            from app.services.tenant_org import personal_organization_id
+
+            register_task_owner(
+                task.id,
+                owner_id,
+                organization_id=personal_organization_id(owner_id),
+                db=db,
+            )
             # Keep reservation status=reserved until worker success; persist hold only.
             db.commit()
         except Exception:
@@ -803,7 +1141,7 @@ async def api_keyword_cluster(
     strict = body.get("cluster_strictness")
     strict_s = str(strict).strip().lower() if strict is not None else None
     feature = "keyword_cluster"
-    credit_cost = cost_cluster_sync()
+    credit_cost = cost_cluster_sync(db=db, keyword_count=len(strings), fetch_serp=fetch_on)
     job_id = build_job_id("keyword_cluster", billing_user.id, uuid.uuid4().hex[:10])
     with saas_action_gate(
         db,
@@ -868,8 +1206,10 @@ async def api_keyword_cluster_async(
     mark_stale_jobs_failed(stale_seconds=int(os.getenv("JOB_WATCHDOG_SECONDS", "300")))
     mark_stale_queued_failed(stale_seconds=int(os.getenv("JOB_QUEUE_STALE_SECONDS", "90")))
 
+    org_id = _kw_org_id(db, billing_user)
     job_payload = {
         "user_id": current_user.id,
+        "organization_id": org_id,
         "keywords": strings,
         "fetch_serp": fetch_on,
         "brand_host_hint": brand_hint,
@@ -878,9 +1218,15 @@ async def api_keyword_cluster_async(
         "serp_device": serp_device,
         "cluster_strictness": strict_s,
     }
-    job = create_job(job_type="keyword_cluster", message="Queued", payload=job_payload)
+    job = create_job(
+        job_type="keyword_cluster",
+        message="Queued",
+        payload=job_payload,
+        organization_id=org_id,
+        user_id=int(current_user.id),
+    )
     feature = "keyword_cluster"
-    credit_cost = cost_cluster_async()
+    credit_cost = cost_cluster_async(db=db, keyword_count=len(strings), fetch_serp=fetch_on)
     job_credit_id = build_job_id("keyword_cluster_async", billing_user.id, job.job_id)
     with saas_action_gate(
         db,
@@ -890,9 +1236,12 @@ async def api_keyword_cluster_async(
         quota_units=1,
         job_id=job_credit_id,
         idempotency_key=job_credit_id,
+        organization_id=org_id,
         charge_mode="reserve",
     ) as sgate:
-        sgate.commit()
+        job_payload["credit_job_id"] = job_credit_id
+        job_payload["billing_user_id"] = int(billing_user.id)
+        job_payload["reservation_id"] = sgate.reservation_id
         db.commit()
 
     inline = os.getenv("KEYWORD_CLUSTER_INLINE", "1").lower() in ("1", "true", "yes")
@@ -928,10 +1277,9 @@ def api_keyword_cluster_job(
     cleanup_expired(ttl_seconds=int(os.getenv("JOB_TTL_SECONDS", "1800")))
     mark_stale_jobs_failed(stale_seconds=int(os.getenv("JOB_WATCHDOG_SECONDS", "300")))
     mark_stale_queued_failed(stale_seconds=int(os.getenv("JOB_QUEUE_STALE_SECONDS", "90")))
-    st = get_job(job_id)
+    st = get_job_for_user(job_id, user_id=current_user.id)
     if not st:
-        raise HTTPException(status_code=404, detail="Job not found")
-    assert_job_access(st.payload, current_user.id)
+        raise HTTPException(status_code=404, detail="Không tìm thấy job.")
     out = {
         "job_id": st.job_id,
         "state": st.state,
@@ -974,69 +1322,83 @@ async def api_import_keywords_excel(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid xlsx: {exc}") from exc
 
-    def norm(x: str) -> str:
-        return (x or "").strip().lower()
+    credit_cost = cost_import_excel(db=db) if credits_enforced() else 0
+    feature = feature_key_for("keyword_research")
+    job_id = build_job_id("import_excel", billing_user.id, uuid.uuid4().hex[:10])
+    with saas_action_gate(
+        db,
+        billing_user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=1,
+        job_id=job_id,
+        idempotency_key=job_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            def norm(x: str) -> str:
+                return (x or "").strip().lower()
 
-    header_row_idx: int | None = None
-    kw_col_idx: int | None = None  # 1-based
-    header_needles = ("keyword", "từ khóa", "tu khoa", "query", "kw")
+            header_row_idx: int | None = None
+            kw_col_idx: int | None = None  # 1-based
+            header_needles = ("keyword", "từ khóa", "tu khoa", "query", "kw")
 
-    for r_idx in range(1, 6):
-        row = [ws.cell(row=r_idx, column=c).value for c in range(1, min(30, ws.max_column or 1) + 1)]
-        vals = [norm(str(v)) for v in row if v is not None]
-        if not vals:
-            continue
-        for c_idx in range(1, len(row) + 1):
-            v = row[c_idx - 1]
-            if v is None:
-                continue
-            nv = norm(str(v))
-            if any(n in nv for n in header_needles):
-                header_row_idx = r_idx
-                kw_col_idx = c_idx
-                break
-        if kw_col_idx is not None:
-            break
+            for r_idx in range(1, 6):
+                row = [ws.cell(row=r_idx, column=c).value for c in range(1, min(30, ws.max_column or 1) + 1)]
+                vals = [norm(str(v)) for v in row if v is not None]
+                if not vals:
+                    continue
+                for c_idx in range(1, len(row) + 1):
+                    v = row[c_idx - 1]
+                    if v is None:
+                        continue
+                    nv = norm(str(v))
+                    if any(n in nv for n in header_needles):
+                        header_row_idx = r_idx
+                        kw_col_idx = c_idx
+                        break
+                if kw_col_idx is not None:
+                    break
 
-    if kw_col_idx is None:
-        kw_col_idx = 1
-        header_row_idx = 1
+            if kw_col_idx is None:
+                kw_col_idx = 1
+                header_row_idx = 1
 
-    out: list[str] = []
-    seen: set[str] = set()
-    max_rows = 5000
-    start_row = (header_row_idx or 1) + 1
+            out: list[str] = []
+            seen: set[str] = set()
+            max_rows = 5000
+            start_row = (header_row_idx or 1) + 1
 
-    for r_idx in range(start_row, min(start_row + max_rows, (ws.max_row or start_row) + 1)):
-        v = ws.cell(row=r_idx, column=kw_col_idx).value
-        if v is None:
-            continue
-        s = str(v).strip()
-        if not s:
-            continue
-        if len(s) > 250:
-            s = s[:250].strip()
-        low = s.lower()
-        if r_idx == start_row and any(n in low for n in header_needles):
-            continue
-        if low in seen:
-            continue
-        seen.add(low)
-        out.append(s)
-        if len(out) >= 2000:
-            break
+            for r_idx in range(start_row, min(start_row + max_rows, (ws.max_row or start_row) + 1)):
+                v = ws.cell(row=r_idx, column=kw_col_idx).value
+                if v is None:
+                    continue
+                s = str(v).strip()
+                if not s:
+                    continue
+                if len(s) > 250:
+                    s = s[:250].strip()
+                low = s.lower()
+                if r_idx == start_row and any(n in low for n in header_needles):
+                    continue
+                if low in seen:
+                    continue
+                seen.add(low)
+                out.append(s)
+                if len(out) >= 2000:
+                    break
 
-    if billing_user:
-        c = cost_import_excel()
-        if c > 0:
-            consume_credits(db, user_id=billing_user.id, amount=c, reason="import_excel", note=f"rows={len(out)}")
-            db.commit()
-    return JSONResponse(
-        content={
-            "keywords": out,
-            "meta": {"count": len(out), "truncated": len(out) >= 2000, "column_index": kw_col_idx},
-        }
-    )
+            sgate.commit()
+            sgate.record_usage(metadata={"rows": len(out)})
+            return JSONResponse(
+                content={
+                    "keywords": out,
+                    "meta": {"count": len(out), "truncated": len(out) >= 2000, "column_index": kw_col_idx},
+                }
+            )
+        except Exception:
+            sgate.release(reason="import_excel_failed")
+            raise
 
 
 @router.post("/export/excel")

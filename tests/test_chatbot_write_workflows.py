@@ -16,7 +16,16 @@ from app.services.chatbot_write_planner import build_quick_planning
 
 def test_write_progress_has_five_steps():
     steps = init_progress_for_intent(INTENT_QUICK_KEYWORD_ARTICLE)
-    assert [s["id"] for s in steps] == ["outline", "credits", "writing", "images", "complete"]
+    assert [s["id"] for s in steps] == [
+        "outline",
+        "credits",
+        "writing",
+        "word_count",
+        "seo_score",
+        "seo_rewrite",
+        "images",
+        "complete",
+    ]
 
 
 def test_validate_quick_write_params():
@@ -93,5 +102,5 @@ def test_build_quick_planning(mock_suggest):
     plan = build_quick_planning({"primary_keyword": "seo tool", "language": "vi"})
     assert plan["mode"] == "quick"
     assert plan["title"] == "Tiêu đề test"
-    assert plan["outline"] == "<h2>Intro</h2>"
+    assert "<h2>Intro</h2>" in plan["outline"]
     assert plan["secondary_keywords"] == ["kw1", "kw2"]

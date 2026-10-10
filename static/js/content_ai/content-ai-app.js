@@ -46,7 +46,19 @@
             typeof window.DigiSeoIsTokenInvalid401 === "function"
                 ? window.DigiSeoIsTokenInvalid401(data)
                 : true;
-        if (shouldClear) clearAuthToken();
+        if (!shouldClear) return false;
+        if (typeof window.DigiSeoRefreshSessionFromCookie === "function") {
+            window.DigiSeoRefreshSessionFromCookie().then(function (tok) {
+                if (!tok) {
+                    clearAuthToken();
+                    if (typeof window.DigiSeoOpenLoginModal === "function") {
+                        window.DigiSeoOpenLoginModal();
+                    }
+                }
+            });
+            return true;
+        }
+        clearAuthToken();
         const detail = parseApiDetail(data) || "Invalid token";
         const msg =
             detail.toLowerCase().includes("invalid token") || detail.toLowerCase().includes("đăng nhập")
@@ -60,6 +72,9 @@
         return true;
     };
     const apiFetch = (url, opts = {}) => {
+        if (typeof window.DigiSeoAuthFetch === "function") {
+            return window.DigiSeoAuthFetch(url, opts);
+        }
         const o = { credentials: "same-origin", ...opts };
         o.headers = authHeaders({ ...(opts.headers || {}) });
         return fetch(url, o).then(async (res) => {
@@ -328,13 +343,18 @@
             String(byId("wpUrl")?.value || "").trim() ||
             String(byId("targetWebsite")?.value || "").trim();
         const sk = _getWpCategoriesSiteKey(site);
-        const cached = sk ? _bulkWpCategoriesBySiteKey[sk] : null;
+        let cached = sk ? _bulkWpCategoriesBySiteKey[sk] : null;
+        if ((!cached || !cached.length) && typeof _hydrateWpCategoriesFromCache === "function") {
+            const row = _hydrateWpCategoriesFromCache(sk, site);
+            cached = row && row.items;
+        }
         if (sel) fillBulkCategorySelectEl(sel, cached || [], savedId);
         if (pubSel) fillBulkCategorySelectEl(pubSel, cached || [], savedId);
     };
     let allProjects = [];
     /** Site từ Cài đặt → Xuất bản (server), đồng bộ gợi ý / danh sách kết nối */
     let settingsPublishingSitesFlat = [];
+    let settingsDefaultWpSiteId = "";
     let projectPage = 1;
     /** Chuẩn hóa https://host — lọc danh sách dự án theo target_website đã lưu */
     let _projectsSiteFilterBase = "";
@@ -392,7 +412,14 @@
     const OUTPUT_ACCORDION_KEY = "content_ai_output_accordion_open_v1";
     const setHint = (field, text) => {
         const el = byId(`hint-${field}`);
-        if (el) el.textContent = text || "";
+        if (!el) return;
+        const msg = text || "";
+        el.textContent = msg;
+        // #hint-google-images stays hidden unless we have an active web-image message
+        if (field === "google-images") {
+            if (String(msg).trim()) el.removeAttribute("hidden");
+            else el.setAttribute("hidden", "");
+        }
     };
 
     const _stripText = (html) => {
@@ -560,14 +587,14 @@
         setContentValue(outHtml.join("\n"));
         refreshPreview();
     };
-    const refreshPreview = () => {
-        const contentHtml = getContentValue();
+    const updateContentStatsFromHtml = (html) => {
+        const contentHtml = html != null ? String(html) : String(getContentValue() || "");
         const text = _stripText(contentHtml);
         const words = _countWords(text);
         const chars = text.length;
         const sentences = _countSentences(text);
         const paragraphs = _countParagraphs(contentHtml);
-        const pages = words ? (words / 260) : 0; // ~260 words/page
+        const pages = words ? (words / 260) : 0;
         if (statWords) statWords.textContent = String(words);
         if (statChars) statChars.textContent = String(chars);
         if (statSentences) statSentences.textContent = String(sentences);
@@ -579,6 +606,11 @@
         if (caEdW) caEdW.textContent = String(words);
         if (caEdC) caEdC.textContent = String(chars);
         if (caStickyW) caStickyW.textContent = String(words);
+        return { words, chars, sentences, paragraphs, pages };
+    };
+    const refreshPreview = () => {
+        const contentHtml = getContentValue();
+        updateContentStatsFromHtml(contentHtml);
         const element = byId("contentRender");
         const content = withImageAuthTokensForHtml(String(contentHtml || ""));
         const isEditing = element && document.activeElement === element;
@@ -870,8 +902,14 @@
             }
         } catch (_) {}
     };
+    const stripCorruptTargetWebsiteFromAppMedia = (html) =>
+        String(html || "")
+            // Customer site wrongly prefixed onto private app media
+            .replace(/https?:\/\/[^/"'\s>]+(\/api\/user-files\/[^"'\s?#]+)/gi, "$1")
+            .replace(/https?:\/\/[^/"'\s>]+(\/static\/uploads\/[^"'\s?#]+)/gi, "$1");
     const setContentValue = (html) => {
-        const v = stripImageAuthTokensFromHtml(decodeHtmlEntitiesDeep(String(html || "")));
+        const cleaned = stripCorruptTargetWebsiteFromAppMedia(String(html || ""));
+        const v = stripImageAuthTokensFromHtml(decodeHtmlEntitiesDeep(cleaned));
         const displayHtml = withImageAuthTokensForHtml(v);
         const ta = byId("content");
         if (ta) ta.value = v;
@@ -887,6 +925,11 @@
         }
         syncPreviewFallback();
         schedulePublishChecklist();
+        try {
+            if (typeof updateContentStatsFromHtml === "function") {
+                updateContentStatsFromHtml(v);
+            }
+        } catch (_) {}
     };
     const refreshEditorModeUi = () => {
         const cr = byId("contentRender");
@@ -1285,35 +1328,46 @@
         const row = byId("wordCountPresetRow");
         const input = byId("targetWordCount");
         if (!row || !input) return;
-        row.addEventListener("click", (e) => {
-            const btn = e.target && e.target.closest(".wc-preset-btn");
-            if (!btn) return;
-            const preset = String(btn.dataset.wc || "");
-            if (preset === "auto") {
-                row.querySelectorAll(".wc-preset-btn").forEach((b) => b.classList.remove("active"));
-                btn.classList.add("active");
+        const activatePresetBtn = (btn) => {
+            row.querySelectorAll(".wc-preset-btn").forEach((b) => {
+                b.classList.remove("active");
+                b.disabled = false;
+            });
+            btn.classList.add("active");
+        };
+        if (row.dataset.wcBound !== "1") {
+            row.dataset.wcBound = "1";
+            row.addEventListener("click", (e) => {
+                const btn = e.target && e.target.closest(".wc-preset-btn");
+                if (!btn || !row.contains(btn)) return;
+                e.preventDefault();
+                const preset = String(btn.dataset.wc || "");
+                activatePresetBtn(btn);
+                if (preset === "auto") {
+                    syncTargetWordCountInputUi();
+                    saveFormState();
+                    try { updateAutoInsertImagePreview(); } catch (_) {}
+                    return;
+                }
+                if (preset === "custom") {
+                    syncTargetWordCountInputUi();
+                    try { input.focus(); } catch (_) {}
+                    saveFormState();
+                    try { updateAutoInsertImagePreview(); } catch (_) {}
+                    return;
+                }
+                const n = parseInt(preset, 10);
+                if (Number.isFinite(n)) input.value = String(n);
                 syncTargetWordCountInputUi();
                 saveFormState();
                 try { updateAutoInsertImagePreview(); } catch (_) {}
-                return;
-            }
-            if (preset === "custom") {
-                input.disabled = false;
-                input.hidden = false;
-                input.focus();
+            });
+            input.addEventListener("input", () => {
+                if (isAutoWordCountMode()) return;
                 syncWordCountPresetActive();
-                return;
-            }
-            const n = parseInt(preset, 10);
-            if (Number.isFinite(n)) input.value = String(n);
-            syncWordCountPresetActive();
-            saveFormState();
-            try { updateAutoInsertImagePreview(); } catch (_) {}
-        });
-        input.addEventListener("input", () => {
-            syncWordCountPresetActive();
-            try { updateAutoInsertImagePreview(); } catch (_) {}
-        });
+                try { updateAutoInsertImagePreview(); } catch (_) {}
+            });
+        }
         syncWordCountPresetActive();
     };
     initWordCountPresets();
@@ -1676,6 +1730,46 @@
     const LEGACY_WP_PROFILES_KEY = "content_ai_wp_profiles_v1";
     const MAX_SITE_PROFILES = 32;
     const PUB_PLATFORM_LABELS = { wordpress: "WordPress", shopify: "Shopify", haravan: "Haravan", webcake: "Webcake" };
+    const PUB_CATEGORY_PLATFORMS = { wordpress: 1, shopify: 1, haravan: 1, webcake: 1 };
+    const platformCategoryDisplayName = (platform) => {
+        const p = String(platform || "").toLowerCase().trim();
+        if (PUB_PLATFORM_LABELS[p]) return PUB_PLATFORM_LABELS[p];
+        if (!p) return "";
+        return p.charAt(0).toUpperCase() + p.slice(1);
+    };
+    const platformCategoryLabel = (platform) => {
+        const name = platformCategoryDisplayName(platform);
+        return name ? ("Danh mục " + name) : "Danh mục";
+    };
+    const applyPubCategoryLabels = (platform) => {
+        const text = platformCategoryLabel(platform);
+        document.querySelectorAll(".js-pub-cat-label").forEach((el) => {
+            el.textContent = text;
+        });
+    };
+    const applyPubCategoryBlockVisibility = (visible, disabled) => {
+        document.querySelectorAll(".js-pub-cat-block").forEach((el) => {
+            el.hidden = !visible;
+        });
+        ["singleWpCategoryId", "singleWpCategoryIdPublish"].forEach((id) => {
+            const el = byId(id);
+            if (el) el.disabled = !!disabled || !visible;
+        });
+        document.querySelectorAll("select[data-field=\"wp_category_id\"]").forEach((el) => {
+            el.disabled = !!disabled || !visible;
+        });
+    };
+    const findPublishingSiteMatch = (siteId, siteUrlRaw) => {
+        const sid = String(siteId || "").trim();
+        if (sid) {
+            const hit = settingsPublishingSitesFlat.find((s) => String(s.id || "") === sid);
+            if (hit) return hit;
+        }
+        const site = String(siteUrlRaw || "").trim();
+        if (!site) return null;
+        const key = connectedSiteKey(site);
+        return settingsPublishingSitesFlat.find((s) => connectedSiteKey(s.url) === key) || null;
+    };
     const newSiteProfileId = () =>
         typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `site_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const normalizeWpProfileSiteUrl = (v) => normalizeWpUrl(v) || normalizeTargetBase(v) || "";
@@ -1714,8 +1808,50 @@
                 });
             });
             settingsPublishingSitesFlat = flat;
+            settingsDefaultWpSiteId = String((data && data.default_site_id) || "").trim();
+            fillSharedWpSiteSelect();
         } catch (_) {
             settingsPublishingSitesFlat = [];
+            settingsDefaultWpSiteId = "";
+        }
+    };
+    const fillSharedWpSiteSelect = () => {
+        const sel = byId("wpSiteSelect");
+        const hidden = byId("wpUrl");
+        const hint = byId("wpSiteSelectHint");
+        const wpSites = settingsPublishingSitesFlat.filter((s) => normalizePlatform(s.platform) === "wordpress");
+        if (!sel) return;
+        const prev = String(sel.value || hidden && hidden.value || "").trim();
+        sel.innerHTML = "";
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = wpSites.length ? "— Chọn website đã kết nối —" : "— Chưa có website —";
+        sel.appendChild(empty);
+        wpSites.forEach((s) => {
+            const opt = document.createElement("option");
+            opt.value = s.id;
+            opt.textContent = (s.name && s.name !== s.url) ? `${s.name} — ${s.url}` : s.url;
+            opt.dataset.url = s.url || "";
+            sel.appendChild(opt);
+        });
+        let pick = "";
+        if (prev && wpSites.some((s) => s.id === prev)) pick = prev;
+        if (!pick && prev) {
+            const key = connectedSiteKey(prev);
+            const hit = wpSites.find((s) => connectedSiteKey(s.url) === key);
+            if (hit) pick = hit.id;
+        }
+        if (!pick && settingsDefaultWpSiteId && wpSites.some((s) => s.id === settingsDefaultWpSiteId)) {
+            pick = settingsDefaultWpSiteId;
+        }
+        if (!pick && wpSites.length === 1) pick = wpSites[0].id;
+        sel.value = pick;
+        const chosen = wpSites.find((s) => s.id === pick);
+        if (hidden) hidden.value = chosen ? chosen.url : "";
+        if (hint) {
+            hint.innerHTML = wpSites.length
+                ? 'Website lấy từ <a href="/settings#publishing">Cài đặt → Xuất bản</a>.'
+                : 'Chưa có website. Kết nối một lần tại <a href="/settings#publishing">Cài đặt → Xuất bản</a>.';
         }
     };
     const profileSiteUrl = (p) => normalizeWpProfileSiteUrl(String((p && (p.site_url || p.wp_url)) || "").trim());
@@ -1779,21 +1915,6 @@
         } catch (e) {
             console.error("persistSiteProfiles failed", e);
             return false;
-        }
-    };
-    const fetchPublishingSiteWithSecrets = async (siteId) => {
-        const sid = String(siteId || "").trim();
-        if (!sid) return null;
-        try {
-            const r = await fetch(
-                `/api/settings/publishing-sites/${encodeURIComponent(sid)}?reveal_password=1&ts=${Date.now()}`,
-                { headers: authHeaders() }
-            );
-            const data = await r.json().catch(() => ({}));
-            if (!r.ok) return null;
-            return data.item && typeof data.item === "object" ? data.item : null;
-        } catch (_) {
-            return null;
         }
     };
     const syncPublishingSiteToServer = async (entry) => {
@@ -1956,69 +2077,33 @@
         return { wpUrl: c.wpUrl, username: c.username, app_password: c.app_password };
     };
     /**
-     * Resolve WP credentials for publish: local profile first, then Settings API (reveal_password).
-     * localStorage intentionally strips app_password — must fall back to server.
+     * Resolve selected WordPress site from Settings (siteId only — no client secrets).
      */
     const resolveWpPublishCredentialsAsync = async (siteUrlRaw) => {
-        let cred = resolveWpPublishCredentialsLocal(siteUrlRaw);
-        if (cred.username && cred.app_password) {
-            return {
-                wpUrl: cred.wpUrl,
-                username: cred.username,
-                app_password: cred.app_password,
-                seo_plugin: cred.seo_plugin,
-            };
-        }
-        const key = cred.siteKey || connectedSiteKey(cred.wpUrl);
-        if (key && _wpCredSessionCache.has(key)) {
-            const cached = _wpCredSessionCache.get(key);
-            if (cached && cached.username && cached.app_password) {
-                return {
-                    wpUrl: cached.wpUrl || cred.wpUrl,
-                    username: cached.username,
-                    app_password: cached.app_password,
-                    seo_plugin: cached.seo_plugin || cred.seo_plugin || "auto",
-                };
-            }
-        }
         try {
             await fetchSettingsPublishingSites();
         } catch (_) {}
-        const hit = settingsPublishingSitesFlat.find(
-            (s) =>
-                normalizePlatform(s.platform) === "wordpress" &&
-                key &&
-                connectedSiteKey(s.url) === key,
-        );
-        if (hit) {
-            if (!cred.username && hit.username) {
-                cred.username = String(hit.username || "").trim();
-            }
-            if (hit.id) {
-                const full = await fetchPublishingSiteWithSecrets(hit.id);
-                if (full) {
-                    const u = String(full.username || hit.username || cred.username || "").trim();
-                    const p = String(full.app_password || "").trim().replace(/\s+/g, "");
-                    const url = normalizeWpUrl(full.url || hit.url || cred.wpUrl) || cred.wpUrl;
-                    if (u) cred.username = u;
-                    if (p) cred.app_password = p;
-                    if (url) cred.wpUrl = url;
-                }
-            }
+        const wpSites = settingsPublishingSitesFlat.filter((s) => normalizePlatform(s.platform) === "wordpress");
+        const sel = byId("wpSiteSelect");
+        let siteId = sel ? String(sel.value || "").trim() : "";
+        if (!siteId && siteUrlRaw) {
+            const key = connectedSiteKey(siteUrlRaw);
+            const hitByUrl = wpSites.find((s) => connectedSiteKey(s.url) === key);
+            if (hitByUrl) siteId = hitByUrl.id;
         }
-        if (key && cred.username && cred.app_password) {
-            _wpCredSessionCache.set(key, {
-                wpUrl: cred.wpUrl,
-                username: cred.username,
-                app_password: cred.app_password,
-                seo_plugin: cred.seo_plugin || "auto",
-            });
-        }
+        if (!siteId && settingsDefaultWpSiteId) siteId = settingsDefaultWpSiteId;
+        if (!siteId && wpSites.length === 1) siteId = wpSites[0].id;
+        const hit = wpSites.find((s) => s.id === siteId) || null;
+        const wpUrl = hit ? hit.url : "";
+        const hidden = byId("wpUrl");
+        if (hidden && wpUrl) hidden.value = wpUrl;
+        if (sel && siteId && sel.value !== siteId) sel.value = siteId;
         return {
-            wpUrl: cred.wpUrl,
-            username: cred.username,
-            app_password: cred.app_password,
-            seo_plugin: cred.seo_plugin || "auto",
+            site_id: hit ? hit.id : "",
+            wpUrl,
+            username: "",
+            app_password: "",
+            seo_plugin: "auto",
         };
     };
     const applyWpProfileToForm = (p) => {
@@ -2202,39 +2287,14 @@
             }
         }
         if (serverHit && serverHit.id) {
-            showWpProfileFeedback("Đang tải thông tin đăng nhập đã lưu…", "info");
-            const full = await fetchPublishingSiteWithSecrets(serverHit.id);
-            if (full) {
-                const merged = normalizeStoredProfile({
-                    id: full.id || serverHit.id,
-                    platform: full.platform || plat,
-                    site_url: full.url || serverHit.url,
-                    name: full.name || serverHit.name,
-                    username: full.username || serverHit.username || "",
-                    app_password: full.app_password || "",
-                    seo_plugin: "auto",
-                });
-                if (merged) {
-                    applyProfileToPubModal(merged);
-                    showWpProfileFeedback(
-                        merged.username && merged.app_password
-                            ? "Đã tải username và Application password từ Cài đặt."
-                            : "Site có trên server — nhập username và Application password rồi bấm «Lưu & áp dụng».",
-                        merged.username && merged.app_password ? "ok" : "info"
-                    );
-                } else {
-                    showWpProfileFeedback("", "");
-                }
-            } else if (serverHit.username) {
+            if (serverHit.username) {
                 const unEl = byId("inpWpProfileUsername");
                 if (unEl) unEl.value = serverHit.username;
-                showWpProfileFeedback(
-                    "Đã tải username. Nhập Application password (server không trả lại mật khẩu cũ) rồi lưu.",
-                    "info"
-                );
-            } else {
-                showWpProfileFeedback("", "");
             }
+            showWpProfileFeedback(
+                "Website đã lưu tại Cài đặt → Xuất bản. Application Password không tải ra trình duyệt — sửa tại Cài đặt.",
+                "info"
+            );
         }
         setPubModalTitle("Chỉnh sửa site đăng bài");
     };
@@ -3262,8 +3322,18 @@
             });
         };
 
-        let res = await postSuggest(preferSync);
-        let data = await res.json().catch(() => ({}));
+        let res;
+        let data;
+        try {
+            res = await postSuggest(preferSync);
+            data = await res.json().catch(() => ({}));
+        } catch (e) {
+            if (e && e.name === "AbortError") {
+                if (_contentWriteSession && _contentWriteSession.userAborted) throw e;
+                throw new Error("Kết nối viết bài bị đóng.");
+            }
+            throw e;
+        }
         if (!res.ok) {
             if (window.ContentAiUsage && window.ContentAiUsage.handleQuotaResponse(res, data)) {
                 throw new Error("Đã hết quota — vui lòng nâng cấp gói.");
@@ -3306,7 +3376,12 @@
             let poll404 = false;
             const pollMs = 600;
             for (let i = 0; i < 600; i++) {
-                if (options.signal && options.signal.aborted) throw new Error("Đã hủy.");
+                if (options.signal && options.signal.aborted) {
+                    if (_contentWriteSession && _contentWriteSession.userAborted) {
+                        throw new DOMException("Aborted", "AbortError");
+                    }
+                    throw new Error("Kết nối viết bài bị đóng.");
+                }
                 await new Promise((r) => setTimeout(r, pollMs));
                 const pr = await fetch(pollUrl, { headers: authJsonHeaders(), signal: options.signal });
                 const st = await pr.json().catch(() => ({}));
@@ -3367,7 +3442,14 @@
     const caEditorWriteError = byId("caEditorWriteError");
     const btnStopContentWrite = byId("btnStopContentWrite");
     const caStickyCreateBtn = byId("caStickyCreateContent");
-    const _contentWriteSession = { controller: null, reader: null, progressTimer: null, active: false, contentVisible: false };
+    const _contentWriteSession = {
+        controller: null,
+        reader: null,
+        progressTimer: null,
+        active: false,
+        contentVisible: false,
+        userAborted: false,
+    };
     const _CREATE_CONTENT_LABEL = "Tạo content";
     const _CREATE_CONTENT_BUSY_LABEL = "Đang viết...";
 
@@ -3383,8 +3465,9 @@
         _setCreateContentButtonsBusy(false);
         _hideEditorWriteBar();
     };
-    const _stopContentWrite = () => {
+    const _stopContentWrite = (fromUser) => {
         const s = _contentWriteSession;
+        if (fromUser) s.userAborted = true;
         s.active = false;
         s.contentVisible = false;
         if (s.progressTimer) {
@@ -3403,11 +3486,20 @@
         _hideEditorWriteBar();
     };
     const _beginContentWriteSession = () => {
-        _stopContentWrite();
+        if (
+            _contentWriteSession.active
+            && _contentWriteSession.controller
+            && !_contentWriteSession.controller.signal.aborted
+            && !_contentWriteSession.userAborted
+        ) {
+            return _contentWriteSession.controller.signal;
+        }
+        _stopContentWrite(false);
         const controller = new AbortController();
         _contentWriteSession.controller = controller;
         _contentWriteSession.active = true;
         _contentWriteSession.contentVisible = false;
+        _contentWriteSession.userAborted = false;
         return controller.signal;
     };
     const _getContentWriteSignal = () => {
@@ -3415,14 +3507,30 @@
         return c ? c.signal : null;
     };
     const _assertContentWriteActive = (signal) => {
-        if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
-        if (!_contentWriteSession.active) throw new DOMException("Aborted", "AbortError");
+        if (_contentWriteSession.userAborted) throw new DOMException("Aborted", "AbortError");
+        if (signal && signal.aborted) {
+            if (_contentWriteSession.userAborted) throw new DOMException("Aborted", "AbortError");
+            throw new Error("Kết nối viết bài bị đóng.");
+        }
+        if (!_contentWriteSession.active) {
+            throw new Error("WRITE_SESSION_ENDED");
+        }
     };
     const _raceAbort = (signal, promise) => {
         if (!signal) return promise;
-        if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+        if (signal.aborted) {
+            return Promise.reject(
+                _contentWriteSession.userAborted
+                    ? new DOMException("Aborted", "AbortError")
+                    : new Error("Kết nối viết bài bị đóng.")
+            );
+        }
         return new Promise((resolve, reject) => {
-            const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
+            const onAbort = () => reject(
+                _contentWriteSession.userAborted
+                    ? new DOMException("Aborted", "AbortError")
+                    : new Error("Kết nối viết bài bị đóng.")
+            );
             signal.addEventListener("abort", onAbort, { once: true });
             promise.then(
                 (v) => { signal.removeEventListener("abort", onAbort); resolve(v); },
@@ -3447,11 +3555,74 @@
         if (signal) {
             signal.addEventListener("abort", () => {
                 window.clearTimeout(t);
-                reject(new DOMException("Aborted", "AbortError"));
+                reject(
+                    _contentWriteSession.userAborted
+                        ? new DOMException("Aborted", "AbortError")
+                        : new Error("Kết nối viết bài bị đóng.")
+                );
             }, { once: true });
         }
     });
 
+    const _scrollToContentWriteFrame = () => {
+        const el = byId("caContentEditorStage") || byId("contentRender") || byId("previewShell");
+        if (!el) return;
+        const html = document.documentElement;
+        const body = document.body;
+        const prevHtml = html && html.style ? html.style.scrollBehavior : "";
+        const prevBody = body && body.style ? body.style.scrollBehavior : "";
+        if (html && html.style) html.style.scrollBehavior = "auto";
+        if (body && body.style) body.style.scrollBehavior = "auto";
+        const jump = (node, top) => {
+            if (!node) return;
+            const t = Math.max(0, top);
+            try { node.scrollTop = t; } catch (_) {}
+            try {
+                if (typeof node.scrollTo === "function") node.scrollTo(0, t);
+            } catch (_) {}
+        };
+        try {
+            void el.offsetHeight;
+            let parent = el.parentElement;
+            while (parent && parent !== body && parent !== html) {
+                const st = window.getComputedStyle(parent);
+                const oy = String(st.overflowY || st.overflow || "");
+                if ((oy === "auto" || oy === "scroll" || oy === "overlay") && parent.scrollHeight > parent.clientHeight + 4) {
+                    const prect = parent.getBoundingClientRect();
+                    const erect = el.getBoundingClientRect();
+                    const next = parent.scrollTop + (erect.top - prect.top) - Math.max(12, (parent.clientHeight - erect.height) / 2);
+                    jump(parent, next);
+                }
+                parent = parent.parentElement;
+            }
+            const rect = el.getBoundingClientRect();
+            const viewH = window.innerHeight || (html && html.clientHeight) || 0;
+            const y = (window.pageYOffset || (html && html.scrollTop) || (body && body.scrollTop) || 0)
+                + rect.top
+                - Math.max(16, (viewH - rect.height) / 2);
+            jump(html, y);
+            jump(body, y);
+            try { window.scrollTo(0, Math.max(0, y)); } catch (_) {}
+            try {
+                el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+            } catch (_) {
+                try { el.scrollIntoView(true); } catch (_) {}
+            }
+        } catch (_) {}
+        if (html && html.style) html.style.scrollBehavior = prevHtml;
+        if (body && body.style) body.style.scrollBehavior = prevBody;
+    };
+    const _revealContentWriteLoadingNow = () => {
+        try {
+            _showContentWriteOverlay("AI đang viết bài…");
+            if (caEditorWriteBar) caEditorWriteBar.hidden = false;
+            if (caEditorWriteStatus) caEditorWriteStatus.textContent = "AI đang viết bài…";
+        } catch (_) {}
+        _scrollToContentWriteFrame();
+        if (typeof requestAnimationFrame === "function") {
+            requestAnimationFrame(() => _scrollToContentWriteFrame());
+        }
+    };
     const _setCreateContentButtonsBusy = (busy) => {
         window.__caCreateContentBusy = !!busy;
         const dupBlocked = !!(window.ContentAiDuplicate && window.ContentAiDuplicate.isBlocked());
@@ -3476,7 +3647,7 @@
         if (lab) lab.textContent = String(text || "Đang viết bài…");
         if (stage) stage.classList.add("is-writing");
     };
-    const _hideContentWriteOverlay = () => {
+    const _hideContentWriteOverlay = (markContentVisible) => {
         const ov = byId("caContentWriteOverlay");
         const stage = byId("caContentEditorStage");
         if (ov) {
@@ -3484,7 +3655,7 @@
             ov.setAttribute("aria-hidden", "true");
         }
         if (stage) stage.classList.remove("is-writing");
-        _contentWriteSession.contentVisible = true;
+        if (markContentVisible) _contentWriteSession.contentVisible = true;
     };
     const _showEditorWriteBar = (text) => {
         if (caEditorWriteBar) caEditorWriteBar.hidden = false;
@@ -3496,14 +3667,14 @@
             low.startsWith("hoàn thành") ||
             low.startsWith("đang hiển thị");
         if (revealContent) {
-            _hideContentWriteOverlay();
-        } else {
+            _hideContentWriteOverlay(true);
+        } else if (!_contentWriteSession.userAborted) {
             _showContentWriteOverlay(label);
         }
     };
     const _hideEditorWriteBar = () => {
         if (caEditorWriteBar) caEditorWriteBar.hidden = true;
-        _hideContentWriteOverlay();
+        _hideContentWriteOverlay(false);
     };
     const _clearEditorWriteError = () => {
         if (caEditorWriteError) {
@@ -3534,17 +3705,27 @@
             } catch (_) {}
         }
         syncPreviewFallback();
+        try {
+            if (typeof updateContentStatsFromHtml === "function") {
+                updateContentStatsFromHtml(v);
+            }
+        } catch (_) {}
     };
     const _sleepMs = (ms, signal) => new Promise((resolve, reject) => {
+        const fail = () => reject(
+            _contentWriteSession.userAborted
+                ? new DOMException("Aborted", "AbortError")
+                : new Error("Kết nối viết bài bị đóng.")
+        );
         if (signal && signal.aborted) {
-            reject(new DOMException("Aborted", "AbortError"));
+            fail();
             return;
         }
         const t = window.setTimeout(resolve, ms);
         if (signal) {
             signal.addEventListener("abort", () => {
                 window.clearTimeout(t);
-                reject(new DOMException("Aborted", "AbortError"));
+                fail();
             }, { once: true });
         }
     });
@@ -3639,7 +3820,7 @@
         for (let i = 0; i < s.length; i++) _contentTypingQueue.push(s[i]);
         _pumpContentTypingQueue(signal);
     };
-    const _parseDeltaSseBuffer = (buffer, handlers) => {
+    const _parseDeltaSseBuffer = async (buffer, handlers) => {
         let buf = buffer;
         if (buf.indexOf("\r") >= 0) buf = buf.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
         while (true) {
@@ -3654,7 +3835,8 @@
             }
             if (!data) continue;
             if (data === "[DONE]") {
-                handlers.onDone();
+                if (handlers.onOfficialDone) handlers.onOfficialDone();
+                else handlers.onDone();
                 continue;
             }
             try {
@@ -3667,7 +3849,7 @@
                 else if (obj && obj.ping) {
                     if (handlers.onPing) handlers.onPing();
                 } else if (obj && obj.replace_html) {
-                    if (handlers.onReplaceHtml) handlers.onReplaceHtml(String(obj.replace_html));
+                    if (handlers.onReplaceHtml) await handlers.onReplaceHtml(String(obj.replace_html));
                 } else if (
                     obj
                     && obj.word_count_target != null
@@ -3681,38 +3863,99 @@
         return buf;
     };
     const _readContentSuggestStream = async (ctx, signal, handlers, opts = {}) => {
-        // Prompt 2.4: SSE stream disabled on API — poll LLM worker job (same UX end-state).
-        _caStreamLog("poll suggest job (stream detached)");
-        const result = await fetchSuggestion("content", ctx, { signal, skipConfirm: true });
-        const html = String((result && result.value) || "");
-        if (handlers.onReplaceHtml) {
-            await handlers.onReplaceHtml(html);
-        } else if (handlers.onDelta && html) {
-            handlers.onDelta(html);
-        }
-        if (handlers.onWordCountMeta) {
-            handlers.onWordCountMeta({
-                ...(result || {}),
-                word_count_target: (result && (result.word_count_target ?? result.validated_word_count)) ?? null,
-                word_count_actual: (result && (result.word_count_actual ?? result.actual_word_count)) ?? null,
-                word_count_ok: result && result.word_count_ok,
-                word_count_status: result && result.word_count_status,
+        const billing = buildContentAiBillingFlags(ctx);
+        const reqId = "cas_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+        const runPollFallback = async () => {
+            _caStreamLog("poll suggest job fallback");
+            const result = await fetchSuggestion("content", ctx, { signal, skipConfirm: true });
+            const html = String((result && result.value) || "");
+            if (handlers.onReplaceHtml) {
+                await handlers.onReplaceHtml(html);
+            } else if (handlers.onDelta && html) {
+                handlers.onDelta(html);
+            }
+            if (handlers.onWordCountMeta) {
+                handlers.onWordCountMeta({
+                    ...(result || {}),
+                    word_count_target: (result && (result.word_count_target ?? result.validated_word_count)) ?? null,
+                    word_count_actual: (result && (result.word_count_actual ?? result.actual_word_count)) ?? null,
+                    word_count_ok: result && result.word_count_ok,
+                    word_count_status: result && result.word_count_status,
+                });
+            }
+            if (handlers.onDone) handlers.onDone();
+            if (window.ContentAiUsage && window.ContentAiUsage.refresh) {
+                void window.ContentAiUsage.refresh();
+            }
+            return Boolean(html);
+        };
+        let res;
+        try {
+            res = await fetch(`/content-ai/suggest-stream?ts=${Date.now()}&llm=1`, {
+                method: "POST",
+                headers: Object.assign({}, authJsonHeaders(), {
+                    "X-Request-Id": reqId,
+                    Accept: "text/event-stream",
+                }),
+                body: JSON.stringify({ field: "content", ...ctx, billing }),
+                signal,
             });
+        } catch (e) {
+            if (e && e.name === "AbortError") {
+                if (_contentWriteSession.userAborted) throw e;
+                throw new Error("Kết nối viết bài bị đóng.");
+            }
+            return runPollFallback();
         }
-        if (handlers.onDone) handlers.onDone();
+        const ctype = String((res && res.headers && res.headers.get("content-type")) || "");
+        if (!res.ok || !res.body || ctype.indexOf("text/event-stream") < 0) {
+            if (res && res.body) {
+                try { await res.body.cancel(); } catch (_) {}
+            }
+            if (res && res.status >= 400 && res.status !== 404 && res.status !== 405) {
+                const data = await res.json().catch(() => ({}));
+                const errMsg = _contentAiErrMessage(data, res);
+                if (handlers.onError) handlers.onError(errMsg);
+                throw new Error(errMsg);
+            }
+            return runPollFallback();
+        }
+        const reader = res.body.getReader();
+        _contentWriteSession.reader = reader;
+        const decoder = new TextDecoder();
+        let buffer = "";
+        try {
+            while (true) {
+                _assertContentWriteActive(signal);
+                const chunk = await reader.read();
+                if (chunk.done) break;
+                buffer += decoder.decode(chunk.value, { stream: true });
+                buffer = await _parseDeltaSseBuffer(buffer, handlers);
+            }
+            if (buffer) buffer = await _parseDeltaSseBuffer(buffer + "\n\n", handlers);
+        } finally {
+            _contentWriteSession.reader = null;
+            try { reader.releaseLock(); } catch (_) {}
+        }
+        // Do NOT call onDone here — only explicit SSE [DONE] marks a valid complete stream.
+        if (handlers.onStreamClosed) handlers.onStreamClosed();
         if (window.ContentAiUsage && window.ContentAiUsage.refresh) {
             void window.ContentAiUsage.refresh();
         }
-        return Boolean(html);
+        return true;
     };
     const writeContentToEditor = async (ctx, options = {}) => {
         const signal = options.signal || _beginContentWriteSession();
+        _setCreateContentButtonsBusy(true);
+        _showEditorWriteBar("Đang kiểm tra yêu cầu…");
+        _revealContentWriteLoadingNow();
 
         await confirmContentAiCredit("content", ctx);
 
         _clearEditorWriteError();
         _setCreateContentButtonsBusy(true);
         _showEditorWriteBar("Đang kiểm tra yêu cầu…");
+        _startWriteProgressPulse(signal);
         editorMode = "visual";
         refreshEditorModeUi();
         _contentEditorAcc = "";
@@ -3722,6 +3965,7 @@
         let streamErrorMsg = "";
         let streamDone = false;
         let sawDelta = false;
+        let sawReplaceHtml = false;
         let suggestMeta = null;
         const _applyStreamHtml = (html) => {
             const s = String(html || "");
@@ -3734,17 +3978,23 @@
             _showEditorWriteBar("Đang viết nội dung…");
             try {
                 sawDelta = await _readContentSuggestStream(ctx, signal, {
-                    onPing: () => { sawDelta = true; },
+                    onPing: () => {
+                        sawDelta = true;
+                        if (!_contentWriteSession.contentVisible && !_contentWriteSession.userAborted) {
+                            _showContentWriteOverlay(
+                                (caEditorWriteStatus && caEditorWriteStatus.textContent) || "Đang viết nội dung…"
+                            );
+                        }
+                    },
                     onDelta: (delta) => {
                         sawDelta = true;
-                        _hideContentWriteOverlay();
                         _enqueueStreamDelta(delta, signal);
                         if (caEditorWriteBar) caEditorWriteBar.hidden = false;
                         if (caEditorWriteStatus) caEditorWriteStatus.textContent = "Đang viết nội dung…";
                     },
                     onReplaceHtml: async (html) => {
                         sawDelta = true;
-                        _hideContentWriteOverlay();
+                        sawReplaceHtml = true;
                         _contentEditorAcc = "";
                         _contentTypingQueue.length = 0;
                         _setContentHtmlLive("");
@@ -3762,33 +4012,56 @@
                         suggestMeta = meta;
                         updateWordCountStatus(meta);
                     },
+                    onOfficialDone: () => {
+                        streamDone = true;
+                        _caStreamLog("stream done");
+                    },
                     onDone: () => {
                         streamDone = true;
                         _caStreamLog("stream done");
+                    },
+                    onStreamClosed: () => {
+                        _caStreamLog("stream connection closed", { streamDone, sawReplaceHtml, sawDelta });
                     },
                     onError: (err) => {
                         streamErrorMsg = String(err || "Unknown error");
                         _caStreamLog("stream error", streamErrorMsg);
                     },
-                }, { firstChunkMs: 120000 });
+                });
             } catch (e) {
-                if (e && e.name === "AbortError") throw e;
-                if (!_contentWriteSession.active) throw new DOMException("Aborted", "AbortError");
-                streamErrorMsg = streamErrorMsg || String(e.message || e);
+                if (_contentWriteSession.userAborted || (e && e.name === "AbortError" && _contentWriteSession.userAborted)) {
+                    throw e;
+                }
+                if (e && e.name === "AbortError" && !_contentWriteSession.userAborted) {
+                    streamErrorMsg = streamErrorMsg || "Kết nối viết bài bị đóng.";
+                } else {
+                    streamErrorMsg = streamErrorMsg || String((e && e.message) || e);
+                }
                 _caStreamLog("stream exception", streamErrorMsg);
             }
 
             await _flushContentTypingQueue(signal);
             let finalValue = String(_contentEditorAcc || "");
 
+            if (_contentWriteSession.userAborted) {
+                throw new DOMException("Aborted", "AbortError");
+            }
+
             if (streamErrorMsg) {
                 throw new Error(streamErrorMsg);
             }
 
+            // Chỉ chấp nhận bài khi stream kết thúc hợp lệ ([DONE]) hoặc đã nhận replace_html hoàn chỉnh.
+            if (!streamDone && !sawReplaceHtml) {
+                throw new Error(
+                    sawDelta
+                        ? "Kết nối viết bài bị ngắt trước khi hoàn tất. Vui lòng thử lại để tránh bài bị cắt giữa câu."
+                        : "Không nhận được nội dung. Vui lòng thử lại."
+                );
+            }
+
             if (!String(finalValue || "").trim()) {
-                const errMsg = (window.ContentAiErrors && window.ContentAiErrors.MESSAGE) ||
-                    "Hệ thống đang nâng cấp tính năng, mong bạn thông cảm chúng tôi sẽ quay trở lại sớm nhất !";
-                throw new Error(errMsg);
+                throw new Error("Không nhận được nội dung. Vui lòng thử lại.");
             }
 
             _assertContentWriteActive(signal);
@@ -3828,10 +4101,26 @@
                 void window.ContentAiUsage.refresh();
             }
             _showEditorWriteBar("Hoàn thành");
+            try {
+                const el = byId("contentRender");
+                const html = el
+                    ? String(el.innerHTML || el.textContent || "")
+                    : String(finalValue || "");
+                const ta = byId("content");
+                if (ta) {
+                    ta.value = html;
+                    try { ta.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+                }
+                if (typeof updateContentStatsFromHtml === "function") updateContentStatsFromHtml(html);
+                else refreshPreview();
+                if (el) {
+                    try { el.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+                }
+            } catch (_) {}
             _caStreamLog("write complete", { chars: finalValue.length, sawDelta, streamDone });
             return finalValue;
         } catch (e) {
-            if (e && e.name === "AbortError") {
+            if (_contentWriteSession.userAborted) {
                 await _flushContentTypingQueue(signal).catch(() => {});
                 _showEditorWriteError("Đã dừng viết.");
                 saveFormState();
@@ -3844,6 +4133,13 @@
                     setContentValue(preserved);
                     editorMode = "visual";
                     refreshEditorModeUi();
+                    try {
+                        if (typeof updateContentStatsFromHtml === "function") {
+                            updateContentStatsFromHtml(preserved);
+                        } else {
+                            refreshPreview();
+                        }
+                    } catch (_) {}
                     saveFormState();
                     _showEditorWriteBar("Hoàn thành (giữ nội dung đã viết)");
                 } catch (_) {}
@@ -3867,7 +4163,7 @@
         btnStopContentWrite.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            _stopContentWrite();
+            _stopContentWrite(true);
             _showEditorWriteError("Đã dừng viết.");
             saveFormState();
         });
@@ -3927,6 +4223,59 @@
         const ts = new Date().toLocaleTimeString("vi-VN");
         const old = publishLog.value ? `${publishLog.value}\n` : "";
         publishLog.value = `${old}[${ts}] ${line}`;
+    };
+    const setPublishNotice = (text, kind, link, linkLabel) => {
+        const el = byId("caPublishNotice");
+        if (!el) return;
+        const t = String(text || "").trim();
+        el.replaceChildren();
+        el.classList.remove("ca-publish-notice--ok", "ca-publish-notice--err", "ca-publish-notice--info");
+        if (!t) {
+            el.hidden = true;
+            return;
+        }
+        el.hidden = false;
+        if (kind === "ok" || kind === "err" || kind === "info") {
+            el.classList.add(`ca-publish-notice--${kind}`);
+        }
+        const span = document.createElement("strong");
+        span.textContent = t;
+        el.appendChild(span);
+        const href = String(link || "").trim();
+        if (href && /^https?:\/\//i.test(href)) {
+            el.appendChild(document.createTextNode(" "));
+            const a = document.createElement("a");
+            a.href = href;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.textContent = String(linkLabel || "Xem bài").trim() || "Xem bài";
+            el.appendChild(a);
+        }
+        try {
+            el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } catch (_) {}
+    };
+    const wpAdminEditHref = (wpBase, postId) => {
+        const base = String(wpBase || "").replace(/\/+$/, "");
+        const pid = Number(postId || 0);
+        if (!base || !Number.isFinite(pid) || pid <= 0) return "";
+        return `${base}/wp-admin/post.php?post=${pid}&action=edit`;
+    };
+    const resolvePublishViewLink = ({ link, status, postId, wpUrl, publishMode }) => {
+        const st = String(status || publishMode || "").toLowerCase();
+        const nonPublic = ["draft", "future", "pending", "private", "auto-draft"];
+        if (nonPublic.includes(st)) {
+            const edit = String(link || "").includes("/wp-admin/post.php")
+                ? String(link || "").trim()
+                : wpAdminEditHref(wpUrl, postId);
+            if (edit) {
+                return {
+                    href: edit,
+                    label: st === "draft" ? "Mở bản nháp trên WP" : "Mở trên WordPress",
+                };
+            }
+        }
+        return { href: String(link || "").trim(), label: "Xem bài" };
     };
     const setPublishLogLines = (lines) => {
         if (!Array.isArray(lines) || !lines.length) return;
@@ -4138,7 +4487,10 @@
             if (outputFormat) outputFormat.value = (s.outputFormat === "json") ? "json" : "text";
             uploadedImages.length = 0;
             for (const u of (s.uploadedImages || [])) {
-                if (u) uploadedImages.push(u);
+                const sUrl = String(u || "").trim().split("?")[0];
+                if (sUrl && (sUrl.startsWith("/api/user-files/") || sUrl.startsWith("/static/"))) {
+                    uploadedImages.push(sUrl);
+                }
             }
             activeProjectId = s.activeProjectId || "";
             const wpcSaved = String(s.singleWpCategoryId || "").trim();
@@ -4147,6 +4499,7 @@
                 _draftWpCategoryIds = !Number.isNaN(n) && n > 0 ? [n] : null;
             }
             fillSingleWpCategorySelect(wpcSaved);
+            try { scheduleSingleWpCategoriesLoad(); } catch (_) {}
             renderUploadList();
             toggleAiAvailability();
             syncSlugFromPrimary(true);
@@ -4187,29 +4540,108 @@
         box.hidden = false;
         box.textContent = msg;
         box.classList.toggle("warn", !!warn);
-        const statsEl = byId("mediaInsertedStatsText");
-        if (statsEl) statsEl.textContent = msg;
+        // Do NOT mirror identical text into #mediaInsertedStatsText (double green/grey banners).
     };
     const switchMediaToInsertedTab = () => {
         const root = byId("contentAiMediaPanel");
         if (root && window.__caSwitchModalTab) window.__caSwitchModalTab(root, 2);
+        // Refresh demo payload so "Xem demo" reflects just-inserted figures.
+        try {
+            if (window.__caRefreshContentDemo) {
+                window.__caRefreshContentDemo("caMediaDemoPreview", "media");
+            }
+        } catch (_) {}
     };
     window.__caSwitchMediaInsertedTab = switchMediaToInsertedTab;
     let _mediaContentBeforeInsert = "";
+    const normalizeMediaUrlClient = (u) =>
+        String(u || "")
+            .trim()
+            .replace(/[?&]token=[^&"']*/gi, "")
+            .replace(/[?&]$/, "")
+            .split("#")[0]
+            .split("?")[0];
+    const isStoredMediaUrlClient = (u) => {
+        const s = normalizeMediaUrlClient(u);
+        return s.startsWith("/api/user-files/") || s.startsWith("/static/");
+    };
+    const mediaThumbSrc = (u) => {
+        const raw = String(u || "").trim();
+        if (!raw) return "";
+        if (!isStoredMediaUrlClient(raw)) return normalizeMediaUrlClient(raw);
+        try {
+            const wrapped = withImageAuthTokensForHtml(
+                `<img src="${normalizeMediaUrlClient(raw).replace(/"/g, "")}" alt="" />`,
+            );
+            const m = wrapped.match(/src=(["'])([^"']+)\1/i);
+            if (m && m[2]) return m[2];
+        } catch (_) {}
+        return normalizeMediaUrlClient(raw);
+    };
+    const extractStoredMediaUrlsFromHtml = (html) => {
+        const out = [];
+        const re = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi;
+        let m;
+        while ((m = re.exec(String(html || "")))) {
+            const s = normalizeMediaUrlClient(m[1]);
+            if (s && isStoredMediaUrlClient(s) && !out.includes(s)) out.push(s);
+        }
+        return out;
+    };
+    /** Rebuild Đã chèn list: only local/app-hosted URLs. Drops dead external links. */
+    const rebuildUploadedImagesList = (opts = {}) => {
+        const prefer = [];
+        const add = (u) => {
+            const s = normalizeMediaUrlClient(u);
+            if (!s || !isStoredMediaUrlClient(s) || prefer.includes(s)) return;
+            prefer.push(s);
+        };
+        if (opts.featured) add(opts.featured);
+        if (opts.url) add(opts.url);
+        (opts.extra || []).forEach(add);
+        extractStoredMediaUrlsFromHtml(
+            typeof getContentValue === "function" ? getContentValue() : "",
+        ).forEach(add);
+        // Keep previous stored entries (feature order) after content scan
+        (uploadedImages || []).forEach(add);
+        uploadedImages.length = 0;
+        prefer.forEach((u) => uploadedImages.push(u));
+        renderUploadList();
+        return uploadedImages.slice();
+    };
+    window.__caRebuildUploadedImagesList = rebuildUploadedImagesList;
     const renderUploadList = () => {
         if (!uploadList) return;
         uploadList.innerHTML = "";
+        // Drop broken remote leftovers from older drafts
+        const clean = [];
+        (uploadedImages || []).forEach((u) => {
+            const s = normalizeMediaUrlClient(u);
+            if (s && isStoredMediaUrlClient(s) && !clean.includes(s)) clean.push(s);
+        });
+        if (clean.length !== uploadedImages.length) {
+            uploadedImages.length = 0;
+            clean.forEach((u) => uploadedImages.push(u));
+        }
         if (!uploadedImages.length) {
-            uploadList.innerHTML = '<p class="ca-il-empty">Chưa có ảnh đã chọn.</p>';
+            uploadList.innerHTML = '<p class="ca-il-empty">Chưa có ảnh đã chọn (chỉ hiện ảnh đã lưu trên hệ thống).</p>';
             return;
         }
         uploadedImages.forEach((url, idx) => {
             const div = document.createElement("div");
             div.className = "ca-media-selected-item upload-item";
             const thumb = document.createElement("img");
-            thumb.src = url;
+            thumb.src = mediaThumbSrc(url);
             thumb.alt = idx === 0 ? "Featured" : "Inline";
             thumb.loading = "lazy";
+            thumb.onerror = () => {
+                thumb.style.display = "none";
+                const ph = document.createElement("div");
+                ph.className = "hint";
+                ph.style.cssText = "width:72px;height:54px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;border:1px dashed rgba(255,255,255,0.2);border-radius:6px;";
+                ph.textContent = "Lỗi";
+                if (thumb.parentNode) thumb.parentNode.insertBefore(ph, thumb);
+            };
             const meta = document.createElement("div");
             meta.className = "u-meta";
             meta.style.flex = "1";
@@ -4534,33 +4966,114 @@
             bImport.className = "mini-btn";
             bImport.textContent = "Chọn";
             bImport.addEventListener("click", async (ev) => {
+                ev.preventDefault();
                 ev.stopPropagation();
                 try {
                     if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
                         const ok = await window.DigiSeoConfirmCredit(window.DigiSeoCreditActions.googleImage);
-                        if (!ok) return;
+                        if (!ok) {
+                            setHint("google-images", "Đã hủy hoặc không đủ credit để import ảnh web.");
+                            return;
+                        }
                     }
-                    setHint("google-images", "Đang import ảnh...");
                     bImport.disabled = true;
-                    const res = await fetch(`/content-ai/google-images/import?ts=${Date.now()}`, {
-                        method: "POST",
-                        headers: authJsonHeaders(),
-                        body: JSON.stringify({ url: it.link }),
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error((data && data.detail) ? data.detail : "Import ảnh thất bại");
-                    if (data.url) {
-                        if (!_mediaContentBeforeInsert) _mediaContentBeforeInsert = getContentValue();
-                        uploadedImages.push(data.url);
-                        renderUploadList();
-                        insertImageIntoEditor(data.url);
-                        saveFormState();
-                        const undoBtn = byId("btnMediaUndo");
-                        if (undoBtn) undoBtn.hidden = false;
-                        showMediaInsertSummary("Đã chèn 1 ảnh web — ALT từ tiêu đề ảnh, vị trí sau H2.");
-                        switchMediaToInsertedTab();
+                    const fullUrl = String(it.link || "").trim();
+                    const thumbUrl = String(it.thumbnail || "").trim();
+                    if (!fullUrl && !thumbUrl) {
+                        throw new Error("Thiếu URL ảnh web.");
                     }
-                    setHint("google-images", "Đã import và chèn ảnh vào Content.");
+
+                    // 1) Chọn vị trí trước (thấy rõ popup). Chỉ import sau khi đã chọn heading.
+                    setHint("google-images", "Chọn vị trí chèn ảnh (H2/H3)…");
+                    let place = null;
+                    if (typeof window.__caOpenMediaHeadingPicker === "function") {
+                        place = await window.__caOpenMediaHeadingPicker();
+                    }
+                    if (!place) {
+                        setHint("google-images", "Đã hủy — chưa chọn vị trí chèn.");
+                        return;
+                    }
+
+                    // 2) Import về server (thử full link rồi fallback thumbnail)
+                    setHint("google-images", "Đang tải ảnh về server…");
+                    const tryImport = async (remoteUrl) => {
+                        const res = await fetch(`/content-ai/google-images/import?ts=${Date.now()}`, {
+                            method: "POST",
+                            headers: authJsonHeaders(),
+                            body: JSON.stringify({ url: remoteUrl }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                            const d = data.detail;
+                            throw new Error(typeof d === "string" ? d : "Import ảnh thất bại");
+                        }
+                        return String((data && data.url) || "").trim();
+                    };
+                    let localUrl = "";
+                    let importErr = "";
+                    const candidates = [];
+                    if (fullUrl) candidates.push(fullUrl);
+                    if (thumbUrl && thumbUrl !== fullUrl) candidates.push(thumbUrl);
+                    for (const cand of candidates) {
+                        try {
+                            localUrl = await tryImport(cand);
+                            if (localUrl) break;
+                        } catch (e1) {
+                            importErr = String((e1 && e1.message) || e1);
+                        }
+                    }
+                    if (!localUrl) {
+                        throw new Error(importErr || "Không tải được ảnh về server.");
+                    }
+
+                    if (!_mediaContentBeforeInsert) _mediaContentBeforeInsert = getContentValue();
+                    // 3) Chèn dưới heading đã chọn
+                    setHint("google-images", "Đang chèn ảnh vào bài…");
+                    const placeOpts = {
+                        placement: place.placement || "after_heading",
+                        section_heading: place.section_heading || "",
+                        h2_index: place.level === "h3" ? null : place.h2_index,
+                        h3_index: place.level === "h3" ? place.h3_index : null,
+                    };
+                    let insertedOk = false;
+                    if (typeof window.__caStudioInsertWithPlacement === "function") {
+                        const result = await window.__caStudioInsertWithPlacement(
+                            { url: localUrl, alt: it.title || "" },
+                            placeOpts,
+                        );
+                        insertedOk = !!(result && result.ok);
+                    } else {
+                        insertImageIntoEditor(localUrl);
+                        insertedOk = true;
+                        if (typeof window.__caRebuildUploadedImagesList === "function") {
+                            window.__caRebuildUploadedImagesList({ url: localUrl });
+                        } else if (!uploadedImages.includes(localUrl)) {
+                            uploadedImages.push(localUrl);
+                            renderUploadList();
+                        }
+                        if (typeof switchMediaToInsertedTab === "function") switchMediaToInsertedTab();
+                    }
+                    if (!insertedOk) {
+                        throw new Error("Ảnh đã import nhưng chưa chèn vào editor. Thử lại.");
+                    }
+                    // Ensure list only has durable local images (avoid broken external leftovers)
+                    if (typeof window.__caRebuildUploadedImagesList === "function") {
+                        window.__caRebuildUploadedImagesList({ url: localUrl });
+                    }
+                    setHint("google-images", "Đã import và chèn ảnh vào Content — mở tab Xem demo hoặc đóng modal để kiểm tra editor.");
+                    if (typeof showMediaInsertSummary === "function") {
+                        showMediaInsertSummary(
+                            `1 ảnh web — vị trí: ${place.section_heading || place.placement || "đã chọn"}.`,
+                        );
+                    }
+                    try {
+                        if (window.__caRefreshContentDemo) {
+                            window.__caRefreshContentDemo("caMediaDemoPreview", "media");
+                        }
+                    } catch (_) {}
+                    saveFormState();
+                    const undoBtn = byId("btnMediaUndo");
+                    if (undoBtn) undoBtn.hidden = false;
                 } catch (e) {
                     setHint("google-images", String(e.message || e));
                 } finally {
@@ -5034,6 +5547,7 @@
         fillSingleWpCategorySelect(
             _draftWpCategoryIds && _draftWpCategoryIds[0] ? String(_draftWpCategoryIds[0]) : ""
         );
+        try { scheduleSingleWpCategoriesLoad(); } catch (_) {}
         byId("primaryKeyword").value = p.primary_keyword || "";
         byId("secondaryKeywords").value = (p.secondary_keywords || []).join(", ");
         byId("outlineContent").value = p.outline_content || "";
@@ -5045,9 +5559,17 @@
         setContentValue(p.content || "");
         byId("scheduledAt").value = p.scheduled_at || "";
         uploadedImages.length = 0;
-        for (const u of (p.gallery_images || [])) uploadedImages.push(u);
-        if ((p.featured_image || "").trim() && !uploadedImages.includes(p.featured_image)) {
-            uploadedImages.unshift(p.featured_image);
+        for (const u of (p.gallery_images || [])) {
+            const sUrl = String(u || "").trim().split("?")[0];
+            if (sUrl && (sUrl.startsWith("/api/user-files/") || sUrl.startsWith("/static/"))) {
+                uploadedImages.push(sUrl);
+            }
+        }
+        if ((p.featured_image || "").trim()) {
+            const f = String(p.featured_image).trim().split("?")[0];
+            if (f && (f.startsWith("/api/user-files/") || f.startsWith("/static/")) && !uploadedImages.includes(f)) {
+                uploadedImages.unshift(f);
+            }
         }
         renderUploadList();
         if (getOutputFormat() === "json") {
@@ -7185,13 +7707,49 @@
 
 
     /* AI Visual Content Studio */
-    const studioGallery = byId("studioGallery");
+    const getStudioGalleryEl = () => byId("studioGallery");
+    let studioGallery = getStudioGalleryEl();
     const studioIncludeText = byId("studioIncludeText");
     const studioTextHintWrap = byId("studioTextHintWrap");
     let studioPreviews = [];
     let studioSelectedIndex = 0;
     let studioCatalogCache = null;
     let _pendingMediaPanelRestore = null;
+
+    const setGoogleImageHint = (text) => {
+        const msg = String(text || "").trim();
+        const el = byId("hint-google-images");
+        if (!el) return;
+        el.textContent = msg;
+        if (msg) el.removeAttribute("hidden");
+        else el.setAttribute("hidden", "");
+    };
+
+    const clearConflictingMediaHints = ({ keepStudio = false } = {}) => {
+        // Stale web-import errors used to remain under AI success ("Không tải được ảnh: fetch_error").
+        setGoogleImageHint("");
+        if (!keepStudio) {
+            const vs = byId("hint-visual-studio");
+            if (vs) {
+                vs.textContent = "";
+                vs.setAttribute("hidden", "");
+            }
+        }
+    };
+
+    const updateMediaResultsLabel = (n, kind) => {
+        const label = byId("mediaResultsLabel");
+        if (!label) return;
+        const count = Math.max(0, parseInt(n || 0, 10) || 0);
+        if (count <= 0) {
+            label.setAttribute("hidden", "");
+            label.textContent = "Kết quả ảnh";
+            return;
+        }
+        const kindLabel = kind === "web" ? "ảnh web" : "ảnh preview AI";
+        label.textContent = `Kết quả: ${count} ${kindLabel} — chọn ảnh rồi bấm Chèn / Featured.`;
+        label.removeAttribute("hidden");
+    };
 
     const _mediaPanelVal = (id) => {
         const el = byId(id);
@@ -7289,7 +7847,13 @@
         if (card && !card.classList.contains("active")) card.click();
 
         if (s.hintImage) setHint("image", s.hintImage);
-        if (s.hintGoogleImages) setHint("google-images", s.hintGoogleImages);
+        // Don't resurrect stale web-import errors under AI previews.
+        if (s.hintGoogleImages) {
+            const g = String(s.hintGoogleImages || "").trim();
+            const staleImportErr =
+                studioPreviews.length > 0 && /Không tải được ảnh|fetch_error/i.test(g);
+            setHint("google-images", staleImportErr ? "" : g);
+        }
         if (s.hintVisualStudio) setStudioHint(s.hintVisualStudio);
         if (s.mediaInsertSummary && typeof showMediaInsertSummary === "function") {
             showMediaInsertSummary(s.mediaInsertSummary);
@@ -7435,7 +7999,11 @@
     const setStudioHint = (text) => {
         const msg = String(text || "").trim();
         const h = byId("hint-visual-studio");
-        if (h) h.textContent = msg;
+        if (h) {
+            h.textContent = msg;
+            // Keep dual channel off-screen; user-facing copy is #hint-image
+            h.setAttribute("hidden", "");
+        }
         if (msg) setHint("image", msg);
     };
 
@@ -7475,9 +8043,47 @@
         return { ...base, ...overrides };
     };
 
+    const getMediaModalScroller = () => {
+        // Media modal scrolls on #caStepModalBody (not nested .ca-modal-body-scroll).
+        const body = byId("caStepModalBody");
+        if (body && body.querySelector(".ca-media-workspace")) return body;
+        const panel = byId("contentAiMediaPanel");
+        return (panel && panel.querySelector(".ca-modal-body-scroll")) || null;
+    };
+
+    const scrollStudioGalleryIntoView = () => {
+        try {
+            const scroller = getMediaModalScroller();
+            const label = byId("mediaResultsLabel");
+            const gal = getStudioGalleryEl() || byId("googleImageResults");
+            const target = (label && !label.hasAttribute("hidden") && label) || gal;
+            if (!target) return;
+            if (scroller && scroller.contains(target)) {
+                const tRect = target.getBoundingClientRect();
+                const sRect = scroller.getBoundingClientRect();
+                const nextTop = scroller.scrollTop + (tRect.top - sRect.top) - 10;
+                scroller.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+            } else {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        } catch (_) {}
+    };
+
+    const resolveMediaImageUrl = (raw) => {
+        let u = String(raw || "").trim();
+        if (!u) return "";
+        // Relative private user-files: cookie/HttpOnly handles same-origin; cache-bust for re-generate.
+        if (u.startsWith("/api/user-files/") || u.startsWith("/static/")) {
+            u += (u.includes("?") ? "&" : "?") + "v=" + Date.now();
+        }
+        return u;
+    };
+
     const renderStudioGallery = () => {
+        studioGallery = getStudioGalleryEl();
         if (!studioGallery) return;
         studioGallery.innerHTML = "";
+        updateMediaResultsLabel(studioPreviews.length, "ai");
         if (!studioPreviews.length) return;
         studioPreviews.forEach((p, idx) => {
             const card = document.createElement("article");
@@ -7488,11 +8094,18 @@
             thumbBtn.className = "ca-media-thumb-wrap";
             thumbBtn.setAttribute("aria-label", "Xem ảnh lớn");
             const img = document.createElement("img");
-            img.src = p.url;
+            const src = resolveMediaImageUrl(p.url);
+            img.src = src;
             img.alt = p.alt || "Preview AI";
-            img.loading = "lazy";
+            img.loading = "eager";
+            img.decoding = "async";
             img.className = "ca-media-thumb-img studio-thumb-click";
             img.draggable = false;
+            img.onerror = () => {
+                img.alt = "Không hiển thị được preview";
+                img.style.opacity = "0.35";
+                setStudioHint("Không hiển thị được preview (URL private hoặc lỗi mạng). Thử tạo lại.");
+            };
             thumbBtn.addEventListener("click", (ev) => {
                 ev.preventDefault();
                 ev.stopPropagation();
@@ -7525,15 +8138,20 @@
                 b.textContent = label;
                 b.addEventListener("click", (ev) => {
                     ev.preventDefault();
+                    ev.stopPropagation();
                     studioSelectedIndex = idx;
-                    renderStudioGallery();
-                    handler(p, idx);
+                    // Do NOT re-render gallery before async handlers — wipes listener mid-click.
+                    try {
+                        handler(p, idx);
+                    } catch (err) {
+                        setStudioHint(String((err && err.message) || err));
+                    }
                 });
                 return b;
             };
-            btns.appendChild(mk("Chọn", () => {}));
-            btns.appendChild(mk("Chèn", () => studioInsertSelected(p, "inline")));
-            btns.appendChild(mk("Featured", () => studioInsertSelected(p, "featured")));
+            btns.appendChild(mk("Chọn", () => { void pickHeadingAndInsertStudio(p); }));
+            btns.appendChild(mk("Chèn", () => { void studioInsertSelected(p, "inline"); }));
+            btns.appendChild(mk("Featured", () => { void studioInsertSelected(p, "featured"); }));
             body.appendChild(meta);
             body.appendChild(altLine);
             body.appendChild(posLine);
@@ -7547,71 +8165,193 @@
             });
             studioGallery.appendChild(card);
         });
+        // After cards render, ensure gallery is within the scrollable area
+        requestAnimationFrame(() => scrollStudioGalleryIntoView());
     };
 
-    const studioInsertSelected = async (preview, mode) => {
-        const pk = byId("primaryKeyword").value.trim();
-        if (!pk) {
-            setStudioHint("Cần từ khóa chính.");
-            return;
+    const studioInsertSelected = async (preview, mode, placeOpts = null) => {
+        const pk = String(byId("primaryKeyword")?.value || "").trim();
+        if (!pk && mode !== "featured") {
+            if (!(placeOpts && placeOpts.placement)) {
+                setStudioHint("Cần từ khóa chính.");
+                return { ok: false, reason: "need_keyword" };
+            }
         }
         const payload = buildStudioGeneratePayload();
-        const insertH2 = preview.section_heading || payload.section_heading || "";
-        const insertIdx = preview.h2_index != null ? preview.h2_index : payload.h2_index;
+        // Always prefer live editor HTML (not a stale draft snapshot).
+        const liveHtml = String(
+            (typeof getContentValue === "function" ? getContentValue() : "") ||
+                payload.content_html ||
+                "",
+        );
+        let insertH2 = preview.section_heading || payload.section_heading || "";
+        let insertIdx = preview.h2_index != null ? preview.h2_index : payload.h2_index;
+        let insertH3 = null;
+        let placement = "";
+        if (placeOpts && typeof placeOpts === "object") {
+            if (placeOpts.section_heading != null) insertH2 = String(placeOpts.section_heading || "");
+            if (placeOpts.h2_index !== undefined) insertIdx = placeOpts.h2_index;
+            if (placeOpts.h3_index !== undefined) insertH3 = placeOpts.h3_index;
+            if (placeOpts.placement) placement = String(placeOpts.placement);
+        }
+        const cleanUrl = String(preview.url || "").trim().split("?")[0];
+        if (!cleanUrl) {
+            setStudioHint("Thiếu URL ảnh.");
+            return { ok: false, reason: "no_url" };
+        }
         setStudioHint(mode === "featured" ? "Đang đặt featured…" : "Đang chèn vào bài…");
         try {
+            const body = {
+                url: cleanUrl,
+                mode,
+                project_id: activeProjectId || null,
+                content_html: liveHtml,
+                title: payload.title || String(byId("title")?.value || "").trim(),
+                primary_keyword: pk || String(byId("primaryKeyword")?.value || "").trim(),
+                section_heading: insertH2 || "",
+                alt: preview.alt || "",
+            };
+            if (insertIdx !== null && insertIdx !== undefined && insertIdx !== "") {
+                body.h2_index = insertIdx;
+            }
+            if (insertH3 !== null && insertH3 !== undefined && insertH3 !== "") {
+                body.h3_index = insertH3;
+            }
+            if (placement) body.placement = placement;
+
             const res = await fetch("/content-ai/images/insert-selected?ts=" + Date.now(), {
                 method: "POST",
                 headers: authJsonHeaders(),
-                body: JSON.stringify({
-                    url: preview.url,
-                    mode,
-                    project_id: activeProjectId || null,
-                    content_html: payload.content_html,
-                    title: payload.title,
-                    primary_keyword: pk,
-                    section_heading: insertH2,
-                    h2_index: insertIdx,
-                    alt: preview.alt || "",
-                }),
+                body: JSON.stringify(body),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 const d = data.detail;
                 throw new Error(typeof d === "string" ? d : "Chèn ảnh thất bại");
             }
-            if (data.content) {
-                if (typeof _mediaContentBeforeInsert !== "undefined" && !_mediaContentBeforeInsert) {
-                    _mediaContentBeforeInsert = getContentValue();
-                }
-                setContentValue(data.content);
+            if (data.skipped_duplicate) {
+                setStudioHint(data.message || "Ảnh đã có trong bài — không chèn trùng.");
+                setHint("image", data.message || "Không chèn trùng.");
+                return { ok: false, reason: "duplicate", data };
             }
-            if (data.featured_image) {
-                if (!uploadedImages.includes(data.featured_image)) uploadedImages.unshift(data.featured_image);
-                renderUploadList();
-            }
-            if (data.gallery_images && Array.isArray(data.gallery_images)) {
-                data.gallery_images.forEach((u) => {
-                    const s = String(u || "").trim();
-                    if (s && !uploadedImages.includes(s)) uploadedImages.push(s);
+
+            // Prefer API content; fall back to client-side figure inject under the chosen heading.
+            let nextHtml = String(data.content || "");
+            const finalUrlBase = String(data.url || cleanUrl)
+                .trim()
+                .split("?")[0]
+                .split("#")[0];
+            const urlIn = (html) => {
+                const h = String(html || "");
+                if (!h) return false;
+                if (finalUrlBase && h.includes(finalUrlBase)) return true;
+                if (cleanUrl && h.includes(cleanUrl)) return true;
+                // TinyMCE may expand relative → absolute host URL
+                try {
+                    if (finalUrlBase && h.includes(encodeURI(finalUrlBase))) return true;
+                    if (finalUrlBase && window.location && h.includes(window.location.origin + finalUrlBase)) {
+                        return true;
+                    }
+                } catch (_) {}
+                return false;
+            };
+            if (mode === "inline" && !urlIn(nextHtml)) {
+                nextHtml = clientInjectImageUnderHeading(liveHtml, {
+                    url: finalUrlBase || cleanUrl,
+                    alt: data.alt || preview.alt || "",
+                    placement: placement || "after_heading",
+                    section_heading: insertH2,
+                    h2_index: insertIdx,
+                    h3_index: insertH3,
                 });
+            }
+            if (mode === "inline" && !urlIn(nextHtml)) {
+                throw new Error("Chèn ảnh thất bại — không tìm thấy ảnh trong nội dung sau khi chèn.");
+            }
+
+            if (typeof _mediaContentBeforeInsert !== "undefined" && !_mediaContentBeforeInsert) {
+                _mediaContentBeforeInsert = liveHtml;
+            }
+
+            // Write into editor (textarea + contentRender + TinyMCE). Avoid wiping via applyProjectToForm.
+            if (nextHtml) {
+                setContentValue(nextHtml);
+            }
+
+            // Force second path: if editor still missing image after TinyMCE quirks, inject client HTML again.
+            const confirmEditorHasImage = () => {
+                const after0 = String(
+                    (typeof getContentValue === "function" ? getContentValue() : "") || "",
+                );
+                if (mode !== "inline") return true;
+                if (urlIn(after0)) return true;
+                setContentValue(nextHtml);
+                const after1 = String(getContentValue() || "");
+                if (urlIn(after1)) return true;
+                // Last resort: append figure via insertImageIntoEditor (end of content)
+                if (typeof insertImageIntoEditor === "function" && finalUrlBase) {
+                    insertImageIntoEditor(finalUrlBase);
+                }
+                const after2 = String(getContentValue() || "");
+                if (urlIn(after2)) return true;
+                // Hard-append into raw HTML
+                const forced =
+                    after2 +
+                    `<figure class="editor-image content-ai-inline-image"><img src="${String(finalUrlBase).replace(/"/g, "&quot;")}" alt="${String(data.alt || preview.alt || "Ảnh minh họa").replace(/"/g, "&quot;")}" loading="lazy" style="max-width:100%;height:auto;" /></figure>`;
+                setContentValue(forced);
+                return urlIn(String(getContentValue() || ""));
+            };
+            if (mode === "inline" && !confirmEditorHasImage()) {
+                throw new Error("Ảnh chưa hiện trong editor sau khi đồng bộ. Thử lại.");
+            }
+
+            // Rebuild "Đã chèn" from editor + this insert only (no dead external URLs).
+            const finalUrl = finalUrlBase || cleanUrl;
+            if (typeof window.__caRebuildUploadedImagesList === "function") {
+                window.__caRebuildUploadedImagesList({
+                    url: mode === "inline" ? finalUrl : "",
+                    featured: mode === "featured" ? (data.featured_image || finalUrl) : (data.featured_image || ""),
+                    extra: Array.isArray(data.gallery_images) ? data.gallery_images : [],
+                });
+            } else {
+                if (mode === "featured" && (data.featured_image || finalUrl)) {
+                    const f = String(data.featured_image || finalUrl).split("?")[0];
+                    if (f && !uploadedImages.includes(f)) uploadedImages.unshift(f);
+                } else if (finalUrl && !uploadedImages.includes(finalUrl)) {
+                    uploadedImages.push(finalUrl);
+                }
                 renderUploadList();
             }
-            if (data.project && activeProjectId) applyProjectToForm(data.project);
-            else if (mode === "inline" && preview.url) {
-                try { insertImageIntoEditor(preview.url); } catch (_) {}
-            }
+
             try { refreshPreview(); } catch (_) {}
+            try {
+                if (window.__caRefreshContentDemo) {
+                    window.__caRefreshContentDemo("caMediaDemoPreview", "media");
+                }
+            } catch (_) {}
             saveFormState();
-            setStudioHint(data.ok ? (mode === "featured" ? "Đã đặt ảnh đại diện." : "Đã chèn ảnh vào bài.") : "Xong.");
-            setHint("image", mode === "featured" ? "Featured từ AI Studio." : "Đã chèn ảnh từ AI Studio.");
+
+            const placeMeta = data.placement || {};
+            const placeLabel =
+                placeMeta.placement === "start"
+                    ? "đầu bài"
+                    : placeMeta.placement === "end"
+                      ? "cuối bài"
+                      : insertH2 ||
+                        (placeMeta.h3_index != null ? `H3 #${placeMeta.h3_index + 1}` : "sau heading");
+            setStudioHint(data.message || (mode === "featured" ? "Đã đặt ảnh đại diện." : "Đã chèn ảnh vào bài."));
+            setHint(
+                "image",
+                mode === "featured" ? "Featured từ AI Studio." : `Đã chèn ảnh — ${placeLabel}. Kiểm tra editor / tab Xem demo.`,
+            );
             if (typeof showMediaInsertSummary === "function") {
                 showMediaInsertSummary(
                     mode === "featured"
                         ? "1 ảnh featured — ALT từ ngữ cảnh H2."
-                        : `1 ảnh inline — vị trí: ${insertH2 || "sau H2"}.`,
+                        : `1 ảnh inline — vị trí: ${placeLabel}.`,
                 );
             }
+            // Only switch tab after verified insert
             if (typeof window.__caSwitchMediaInsertedTab === "function") {
                 window.__caSwitchMediaInsertedTab();
             } else if (window.__caSwitchModalTab) {
@@ -7619,19 +8359,327 @@
             }
             const undoBtn = byId("btnMediaUndo");
             if (undoBtn) undoBtn.hidden = false;
+            return { ok: true, data };
         } catch (e) {
             setStudioHint(String(e.message || e));
+            setHint("image", String(e.message || e));
+            return { ok: false, reason: "error", error: e };
         }
+    };
+
+    const clientInjectImageUnderHeading = (html, opts) => {
+        const src = String(opts.url || "").trim();
+        if (!src) return String(html || "");
+        const alt = String(opts.alt || "Ảnh minh họa").replace(/"/g, "&quot;");
+        const fig =
+            `<figure class="editor-image content-ai-inline-image">` +
+            `<img src="${src.replace(/"/g, "&quot;")}" alt="${alt}" loading="lazy" ` +
+            `style="max-width:100%;height:auto;" /></figure>`;
+        const placement = String(opts.placement || "after_heading");
+        let raw = String(html || "");
+        if (raw.includes(src)) return raw;
+        if (placement === "start") return fig + raw;
+        if (placement === "end") return raw + fig;
+        try {
+            const doc = new DOMParser().parseFromString(
+                raw || "<div></div>",
+                "text/html",
+            );
+            const body = doc.body;
+            const heads = Array.from(body.querySelectorAll("h2, h3"));
+            let target = null;
+            if (opts.h3_index != null && Number.isFinite(Number(opts.h3_index))) {
+                const h3s = Array.from(body.querySelectorAll("h3"));
+                target = h3s[Number(opts.h3_index)] || null;
+            } else if (opts.h2_index != null && Number.isFinite(Number(opts.h2_index))) {
+                const h2s = Array.from(body.querySelectorAll("h2"));
+                target = h2s[Number(opts.h2_index)] || null;
+            }
+            if (!target && opts.section_heading) {
+                const want = String(opts.section_heading).replace(/\s+/g, " ").trim().toLowerCase();
+                target =
+                    heads.find(
+                        (el) =>
+                            String(el.textContent || "")
+                                .replace(/\s+/g, " ")
+                                .trim()
+                                .toLowerCase() === want,
+                    ) || null;
+            }
+            if (!target) {
+                return raw + fig;
+            }
+            const holder = doc.createElement("div");
+            holder.innerHTML = fig;
+            const node = holder.firstChild;
+            if (target.nextSibling) target.parentNode.insertBefore(node, target.nextSibling);
+            else target.parentNode.appendChild(node);
+            return body.innerHTML;
+        } catch (_) {
+            return raw + fig;
+        }
+    };
+
+    const listContentHeadingsForInsert = () => {
+        const html = String(
+            (typeof getContentValue === "function" ? getContentValue() : "") ||
+                byId("content")?.value ||
+                "",
+        );
+        if (!html.trim()) return [];
+        try {
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const out = [];
+            let h2i = -1;
+            let h3i = -1;
+            doc.body.querySelectorAll("h2, h3").forEach((el) => {
+                const level = String(el.tagName || "").toLowerCase();
+                const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
+                if (!text) return;
+                if (level === "h2") {
+                    h2i += 1;
+                    out.push({ level: "h2", text, h2_index: h2i, h3_index: null });
+                } else if (level === "h3") {
+                    h3i += 1;
+                    out.push({
+                        level: "h3",
+                        text,
+                        h2_index: Math.max(0, h2i),
+                        h3_index: h3i,
+                    });
+                }
+            });
+            return out;
+        } catch (_) {
+            return [];
+        }
+    };
+
+    let _headingPickerResolve = null;
+    const closeMediaHeadingPicker = (result) => {
+        const modal = byId("mediaHeadingPickerModal");
+        const backdrop = byId("mediaHeadingPickerBackdrop");
+        if (modal) {
+            modal.classList.remove("open");
+            modal.setAttribute("aria-hidden", "true");
+        }
+        if (backdrop) {
+            backdrop.classList.remove("open");
+            backdrop.setAttribute("aria-hidden", "true");
+        }
+        const r = _headingPickerResolve;
+        _headingPickerResolve = null;
+        // Preserve falsy-but-valid results only when object is passed; null = cancelled
+        if (r) r(result == null ? null : result);
+    };
+
+    const openMediaHeadingPicker = () =>
+        new Promise((resolve) => {
+            const modal = byId("mediaHeadingPickerModal");
+            const backdrop = byId("mediaHeadingPickerBackdrop");
+            const list = byId("mediaHeadingPickerList");
+            const empty = byId("mediaHeadingPickerEmpty");
+            if (!modal || !list) {
+                resolve(null);
+                return;
+            }
+            if (_headingPickerResolve) closeMediaHeadingPicker(null);
+            _headingPickerResolve = resolve;
+            list.innerHTML = "";
+            const headings = listContentHeadingsForInsert();
+            const mkBtn = (label, tag, onClick, extraClass) => {
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "ca-media-heading-pick-btn" + (extraClass ? " " + extraClass : "");
+                b.setAttribute("role", "option");
+                b.style.pointerEvents = "auto";
+                if (tag) {
+                    const t = document.createElement("span");
+                    t.className = "tag";
+                    t.textContent = tag;
+                    t.style.pointerEvents = "none";
+                    b.appendChild(t);
+                }
+                b.appendChild(document.createTextNode(label));
+                const fire = (ev) => {
+                    if (ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                    }
+                    onClick();
+                };
+                // pointerup beats overlay/backdrop race better than click alone
+                b.addEventListener("pointerup", fire);
+                b.addEventListener("click", fire);
+                return b;
+            };
+            if (!headings.length) {
+                if (empty) empty.hidden = false;
+                list.appendChild(
+                    mkBtn("Đầu bài", "↑", () => closeMediaHeadingPicker({ placement: "start" }), "is-anchor"),
+                );
+                list.appendChild(
+                    mkBtn("Cuối bài", "↓", () => closeMediaHeadingPicker({ placement: "end" }), "is-anchor"),
+                );
+            } else {
+                if (empty) empty.hidden = true;
+                headings.forEach((h) => {
+                    const tag = h.level === "h3" ? "H3" : "H2";
+                    const indent = h.level === "h3" ? " — " : "";
+                    list.appendChild(
+                        mkBtn(indent + h.text, tag, () =>
+                            closeMediaHeadingPicker({
+                                placement: "after_heading",
+                                section_heading: h.text,
+                                h2_index: h.h2_index,
+                                h3_index: h.h3_index,
+                                level: h.level,
+                            }),
+                        ),
+                    );
+                });
+            }
+            // Ensure floating above media step modal (body-level fixed)
+            try {
+                if (modal.parentElement !== document.body) document.body.appendChild(modal);
+                if (backdrop && backdrop.parentElement !== document.body) {
+                    document.body.appendChild(backdrop);
+                }
+                // Backdrop must paint under modal in DOM + CSS z-index
+                if (backdrop && modal.compareDocumentPosition(backdrop) & Node.DOCUMENT_POSITION_FOLLOWING) {
+                    document.body.insertBefore(backdrop, modal);
+                }
+            } catch (_) { /* ignore */ }
+            if (backdrop) {
+                backdrop.classList.add("open");
+                backdrop.setAttribute("aria-hidden", "false");
+                backdrop.style.zIndex = "100700";
+            }
+            modal.classList.add("open");
+            modal.setAttribute("aria-hidden", "false");
+            modal.style.zIndex = "100710";
+            modal.style.pointerEvents = "none";
+            const card = modal.querySelector(".modal-card");
+            if (card) card.style.pointerEvents = "auto";
+        });
+
+    const pickHeadingAndInsertStudio = async (preview) => {
+        const place = await openMediaHeadingPicker();
+        if (!place) {
+            setStudioHint("Đã hủy chọn vị trí chèn.");
+            return;
+        }
+        const opts = {
+            placement: place.placement || "after_heading",
+            section_heading: place.section_heading || "",
+            h2_index: place.level === "h3" ? null : place.h2_index,
+            h3_index: place.level === "h3" ? place.h3_index : null,
+        };
+        if (place.level === "h3") {
+            opts.h2_index = null;
+            opts.h3_index = place.h3_index;
+        } else if (place.placement === "after_heading") {
+            opts.h2_index = place.h2_index;
+            opts.h3_index = null;
+        }
+        const result = await studioInsertSelected(preview, "inline", opts);
+        if (result && result.ok) {
+            // Highlight selected after success
+            renderStudioGallery();
+        }
+        return result;
+    };
+
+    // Expose for google-image "Chọn" path (editor.js)
+    window.__caOpenMediaHeadingPicker = openMediaHeadingPicker;
+    window.__caStudioInsertWithPlacement = (preview, placeOpts) =>
+        studioInsertSelected(preview, "inline", placeOpts || null);
+    window.__caPickHeadingAndInsertImage = async (img) => {
+        const place = await openMediaHeadingPicker();
+        if (!place) return null;
+        const preview = typeof img === "string" ? { url: img, alt: "" } : { ...img };
+        const opts = {
+            placement: place.placement || "after_heading",
+            section_heading: place.section_heading || "",
+            h2_index: place.level === "h3" ? null : place.h2_index,
+            h3_index: place.level === "h3" ? place.h3_index : null,
+        };
+        const result = await studioInsertSelected(preview, "inline", opts);
+        return result && result.ok ? place : null;
+    };
+
+    // Bind heading picker close once
+    (() => {
+        const closeBtn = byId("mediaHeadingPickerClose");
+        const cancelBtn = byId("mediaHeadingPickerCancel");
+        const backdrop = byId("mediaHeadingPickerBackdrop");
+        const onClose = (e) => {
+            if (e) e.preventDefault();
+            closeMediaHeadingPicker(null);
+        };
+        if (closeBtn && !closeBtn.dataset.bound) {
+            closeBtn.dataset.bound = "1";
+            closeBtn.addEventListener("click", onClose);
+        }
+        if (cancelBtn && !cancelBtn.dataset.bound) {
+            cancelBtn.dataset.bound = "1";
+            cancelBtn.addEventListener("click", onClose);
+        }
+        if (backdrop && !backdrop.dataset.bound) {
+            backdrop.dataset.bound = "1";
+            backdrop.addEventListener("click", onClose);
+        }
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && byId("mediaHeadingPickerModal")?.classList.contains("open")) {
+                closeMediaHeadingPicker(null);
+            }
+        });
+    })();
+
+    const getStudioModelCreditCost = (count) => {
+        const modelId = (byId("studioImageModel") && byId("studioImageModel").value) || "";
+        const models = (studioCatalogCache && studioCatalogCache.image_models) || [];
+        const m = models.find((x) => x && x.id === modelId) || models[0] || {};
+        const cpi = Number(m.credits_per_image != null ? m.credits_per_image : 52) || 52;
+        const n = Math.max(1, Math.min(4, parseInt(count || 1, 10) || 1));
+        return {
+            modelId: m.id || modelId,
+            label: m.label_vi || modelId || "Ảnh AI",
+            creditsPerImage: cpi,
+            total: cpi * n,
+            count: n,
+        };
+    };
+
+    const confirmStudioImageCredits = async (count) => {
+        const info = getStudioModelCreditCost(count);
+        if (!(window.DigiSeoConfirmCredit && window.DigiSeoCreditActions)) return true;
+        const base = window.DigiSeoCreditActions.aiImage || {
+            module: "content_ai",
+            action: "ai_image",
+            quotaKey: "ai_articles",
+        };
+        return window.DigiSeoConfirmCredit({
+            module: base.module,
+            action: base.action,
+            quotaKey: base.quotaKey,
+            quantity: 1,
+            creditCost: info.total,
+            label: `Ảnh AI · ${info.label} × ${info.count}`,
+        });
     };
 
     const studioRegenerateOne = async (idx) => {
         setStudioHint("Đang tạo lại…");
         const btn = byId("btnStudioGenerate");
+        const findBtn = byId("btnMediaFindOrCreate");
         if (btn) btn.disabled = true;
+        if (findBtn) findBtn.disabled = true;
         try {
-            if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
-                const ok = await window.DigiSeoConfirmCredit(window.DigiSeoCreditActions.aiImage);
-                if (!ok) return;
+            const ok = await confirmStudioImageCredits(1);
+            if (!ok) {
+                setStudioHint("Đã hủy xác nhận credit.");
+                return;
             }
             const prev = studioPreviews[idx] || {};
             const payload = buildStudioGeneratePayload({
@@ -7666,6 +8714,7 @@
             setStudioHint(String(e.message || e));
         } finally {
             if (btn) btn.disabled = false;
+            if (findBtn) findBtn.disabled = false;
         }
     };
 
@@ -7675,18 +8724,37 @@
             setStudioHint("Cần từ khóa chính trước khi tạo ảnh AI.");
             return;
         }
+        if (studioCatalogCache && studioCatalogCache.openrouter_key_configured === false) {
+            setStudioHint(
+                "Chưa cấu hình OPENROUTER_API_KEY trên server — không thể tạo ảnh AI. Liên hệ admin.",
+            );
+            setHint("image", "Thiếu OPENROUTER_API_KEY trên server.");
+            return;
+        }
         const btn = byId("btnStudioGenerate");
         const findBtn = byId("btnMediaFindOrCreate");
         if (btn) btn.disabled = true;
         if (findBtn) findBtn.disabled = true;
-        setStudioHint("Đang tạo ảnh AI (OpenRouter)…");
+        const count = Math.max(
+            1,
+            Math.min(4, parseInt(byId("studioImageCount")?.value || "3", 10) || 3),
+        );
+        const info = getStudioModelCreditCost(count);
+        clearConflictingMediaHints();
+        setStudioHint(`Đang tạo ${count} ảnh AI (${info.label})…`);
         studioPreviews = [];
+        // Hide leftover web results so AI previews are not mixed/confused with old lists.
+        const webBox = byId("googleImageResults");
+        if (webBox) webBox.innerHTML = "";
+        window.__caGoogleImageResultsCache = [];
         renderStudioGallery();
         try {
-            if (window.DigiSeoConfirmCredit && window.DigiSeoCreditActions) {
-                const ok = await window.DigiSeoConfirmCredit(window.DigiSeoCreditActions.aiImage);
-                if (!ok) return;
+            const ok = await confirmStudioImageCredits(count);
+            if (!ok) {
+                setStudioHint("Đã hủy xác nhận credit.");
+                return;
             }
+            setStudioHint(`Đang gọi OpenRouter · ${info.label}…`);
             const payload = buildStudioGeneratePayload();
             const res = await fetch("/content-ai/images/generate-professional?ts=" + Date.now(), {
                 method: "POST",
@@ -7706,7 +8774,17 @@
             studioPreviews = Array.isArray(data.previews) ? data.previews : [];
             studioSelectedIndex = 0;
             renderStudioGallery();
+            if (!studioPreviews.length) {
+                throw new Error("OpenRouter không trả về ảnh preview.");
+            }
+            clearConflictingMediaHints({ keepStudio: true });
             setStudioHint(data.message || `Đã tạo ${studioPreviews.length} ảnh preview.`);
+            // Force scroll after paint — gallery sits below the H2 form and used to be clipped.
+            requestAnimationFrame(() => {
+                scrollStudioGalleryIntoView();
+                setTimeout(() => scrollStudioGalleryIntoView(), 120);
+                setTimeout(() => scrollStudioGalleryIntoView(), 400);
+            });
             saveFormState();
         } catch (e) {
             const err = String(e.message || e);
@@ -8815,14 +9893,112 @@
     const BULK_LAST_JOB_KEY = () => userStorageKey("content_ai_bulk_last_job_id_v1");
     const BULK_STATE_KEY = () => userStorageKey("content_ai_bulk_state_v1");
     const _bulkWpCategoriesBySiteKey = Object.create(null);
-    const _getWpCategoriesSiteKey = (siteUrlRaw) => {
+    const WP_CATEGORIES_CACHE_KEY = () => userStorageKey("content_ai_wp_categories_cache_v2");
+    const _sanitizeWpCategoryItems = (items) => {
+        const out = [];
+        (items || []).forEach((it) => {
+            if (!it || it.id == null) return;
+            const id = String(it.id).trim();
+            if (!id) return;
+            out.push({
+                id: it.id,
+                name: String(it.name || id),
+                parent: it.parent != null ? it.parent : 0,
+            });
+        });
+        return out;
+    };
+    const _wpCategoryCacheLookupKeys = (siteUrlRaw, siteId) => {
+        const keys = [];
+        const sid = String(siteId || "").trim();
+        if (sid) keys.push("id:" + sid);
         let site = siteUrlRaw != null ? String(siteUrlRaw).trim() : "";
         if (!site) {
-            const tw = byId("bulkTargetWebsite");
+            const tw = byId("targetWebsite") || byId("bulkTargetWebsite");
             site = tw ? String(tw.value || "").trim() : "";
         }
         const cred = resolveWpPublishCredentialsForSite(site);
-        return String(cred.wpUrl || "").trim().toLowerCase() || "";
+        const url = String(cred.wpUrl || connectedSiteKey(site) || site || "").trim().toLowerCase();
+        if (url) keys.push("url:" + url);
+        return keys;
+    };
+    const _readWpCategoriesCacheStore = () => {
+        try {
+            const raw = localStorage.getItem(WP_CATEGORIES_CACHE_KEY());
+            const all = raw ? JSON.parse(raw) : {};
+            return all && typeof all === "object" && !Array.isArray(all) ? all : {};
+        } catch (_) {
+            return {};
+        }
+    };
+    const _readWpCategoriesCache = (keys) => {
+        const all = _readWpCategoriesCacheStore();
+        for (const key of keys || []) {
+            const row = all[key];
+            if (!row || !Array.isArray(row.items) || !row.items.length) continue;
+            const items = _sanitizeWpCategoryItems(row.items);
+            if (!items.length) continue;
+            return {
+                items,
+                message: String(row.message || ""),
+                selectedId: String(row.selectedId || "").trim(),
+            };
+        }
+        return null;
+    };
+    const _writeWpCategoriesCache = (keys, items, message, selectedId) => {
+        const clean = _sanitizeWpCategoryItems(items);
+        if (!keys || !keys.length || !clean.length) return;
+        try {
+            const all = _readWpCategoriesCacheStore();
+            const prevSel = String(selectedId || "").trim();
+            keys.forEach((key) => {
+                const prev = all[key] && typeof all[key] === "object" ? all[key] : {};
+                all[key] = {
+                    items: clean,
+                    message: String(message || prev.message || ""),
+                    selectedId: prevSel || String(prev.selectedId || "").trim(),
+                    fetchedAt: Date.now(),
+                };
+            });
+            localStorage.setItem(WP_CATEGORIES_CACHE_KEY(), JSON.stringify(all));
+        } catch (_) {}
+    };
+    const _rememberWpCategorySelection = (siteUrlRaw, siteId, selectedId) => {
+        const keys = _wpCategoryCacheLookupKeys(siteUrlRaw, siteId);
+        if (!keys.length) return;
+        try {
+            const all = _readWpCategoriesCacheStore();
+            const sel = String(selectedId || "").trim();
+            keys.forEach((key) => {
+                const prev = all[key] && typeof all[key] === "object" ? all[key] : {};
+                if (!Array.isArray(prev.items) || !prev.items.length) return;
+                all[key] = Object.assign({}, prev, { selectedId: sel });
+            });
+            localStorage.setItem(WP_CATEGORIES_CACHE_KEY(), JSON.stringify(all));
+        } catch (_) {}
+    };
+    const _hydrateWpCategoriesFromCache = (sk, siteUrlRaw, siteId) => {
+        const keys = [];
+        if (sk) keys.push(sk);
+        _wpCategoryCacheLookupKeys(siteUrlRaw, siteId).forEach((k) => {
+            if (keys.indexOf(k) < 0) keys.push(k);
+        });
+        for (const key of keys) {
+            if (_bulkWpCategoriesBySiteKey[key] && _bulkWpCategoriesBySiteKey[key].length) {
+                return { items: _bulkWpCategoriesBySiteKey[key], fromMemory: true };
+            }
+        }
+        const row = _readWpCategoriesCache(keys);
+        if (!row) return null;
+        keys.forEach((key) => {
+            _bulkWpCategoriesBySiteKey[key] = row.items;
+        });
+        return row;
+    };
+    const _getWpCategoriesSiteKey = (siteUrlRaw, siteId) => {
+        const keys = _wpCategoryCacheLookupKeys(siteUrlRaw, siteId);
+        return keys[0] || "";
     };
     const _getBulkWpCategoriesSiteKey = () => _getWpCategoriesSiteKey("");
     const fillBulkCategorySelectEl = (selectEl, items, savedId) => {
@@ -8849,94 +10025,137 @@
         }
     };
     const resolveWpCredentialsForBulk = async (siteUrlRaw) => {
-        const site = String(siteUrlRaw || "").trim();
-        let cred = resolveWpPublishCredentialsForSite(site);
-        if (cred.username && cred.app_password) {
-            return cred;
-        }
-        const local = findProfilesForSiteUrl(site).find((p) => normalizePlatform(p.platform) === "wordpress");
-        if (local) {
-            cred = {
-                wpUrl: profileSiteUrl(local) || cred.wpUrl,
-                username: String(local.username || "").trim(),
-                app_password: String(local.app_password || "").trim().replace(/\s+/g, ""),
-            };
-            if (cred.username && cred.app_password) return cred;
-        }
-        await fetchSettingsPublishingSites();
-        const key = connectedSiteKey(site);
-        const hit = settingsPublishingSitesFlat.find(
-            (s) => normalizePlatform(s.platform) === "wordpress" && connectedSiteKey(s.url) === key
-        );
-        if (hit && hit.id) {
-            const full = await fetchPublishingSiteWithSecrets(hit.id);
-            if (full) {
-                cred = {
-                    wpUrl: normalizeWpUrl(full.url || hit.url) || cred.wpUrl,
-                    username: String(full.username || hit.username || "").trim(),
-                    app_password: String(full.app_password || "").trim().replace(/\s+/g, ""),
-                };
-            }
-        }
-        return cred;
+        const cred = await resolveWpPublishCredentialsAsync(siteUrlRaw);
+        return {
+            site_id: cred.site_id,
+            wpUrl: cred.wpUrl,
+            username: "",
+            app_password: "",
+        };
     };
-    const loadWpCategoriesForSite = async ({ siteUrlRaw, selectEl, hintEl, savedId = "" }) => {
-        const site = String(siteUrlRaw ?? "").trim();
-        if (!site) {
-            if (hintEl) hintEl.textContent = "Nhập Target website trước.";
-            return false;
-        }
-        const cred = await resolveWpCredentialsForBulk(site);
-        if (!cred.username || !cred.app_password) {
-            const msg =
-                "Chưa có username / Application Password — mở «Thêm site đăng bài», nhập đủ và bấm «Lưu & áp dụng».";
-            if (hintEl) hintEl.textContent = msg;
-            return false;
-        }
-        const sk = _getWpCategoriesSiteKey(site);
-        if (!sk) return false;
-        if (hintEl) hintEl.textContent = "Đang tải danh mục…";
+    const loadWpCategoriesForSite = async ({
+        siteUrlRaw,
+        selectEl,
+        hintEl,
+        savedId = "",
+        siteId = "",
+        forceRefresh = false,
+        ignoreLocalCache = false,
+    }) => {
         try {
-            const body = {
-                url: cred.wpUrl || normalizeWpUrl(site) || site,
-                username: cred.username,
-                app_password: cred.app_password,
-            };
-            const paths = pubApiPaths.wordpress.categories || ["/content-ai/wordpress/categories"];
-            let data = {};
-            let lastStatus = 0;
-            for (const path of paths) {
-                const res = await fetch(path, {
-                    method: "POST",
-                    headers: authHeaders({ "Content-Type": "application/json" }),
-                    body: JSON.stringify(body),
-                });
-                lastStatus = res.status;
-                data = await res.json().catch(() => ({}));
-                if (res.status !== 404) break;
+            await fetchSettingsPublishingSites();
+        } catch (_) {}
+        let sid = String(siteId || "").trim();
+        const site = String(siteUrlRaw ?? "").trim();
+        let chosen = findPublishingSiteMatch(sid, site);
+        if (!sid && chosen) sid = String(chosen.id || "").trim();
+        if (!sid && !site && settingsPublishingSitesFlat.length === 1) {
+            chosen = settingsPublishingSitesFlat[0];
+            sid = String(chosen.id || "").trim();
+        }
+        const pf = String((chosen && chosen.platform) || "").toLowerCase();
+        applyPubCategoryLabels(pf);
+        if (chosen && pf && !PUB_CATEGORY_PLATFORMS[pf]) {
+            applyPubCategoryBlockVisibility(false, true);
+            fillBulkCategorySelectEl(selectEl, [], "");
+            if (hintEl) hintEl.textContent = "";
+            return true;
+        }
+        applyPubCategoryBlockVisibility(true, false);
+        if (!sid) {
+            if (hintEl) hintEl.textContent = "Chọn website đã kết nối tại Cài đặt → Xuất bản.";
+            return false;
+        }
+        const siteUrl = (chosen && chosen.url) || site;
+        const cacheKeys = _wpCategoryCacheLookupKeys(siteUrl || sid, sid);
+        const sk = cacheKeys[0] || _getWpCategoriesSiteKey(siteUrl || sid, sid);
+        if (!sk) return false;
+        const cachedRow = (forceRefresh || ignoreLocalCache) ? null : _hydrateWpCategoriesFromCache(sk, siteUrl, sid);
+        let wantId = String(savedId || "").trim();
+        if (!wantId && cachedRow && cachedRow.selectedId) wantId = String(cachedRow.selectedId).trim();
+        if (cachedRow && cachedRow.items && cachedRow.items.length) {
+            cacheKeys.forEach((key) => {
+                _bulkWpCategoriesBySiteKey[key] = cachedRow.items;
+            });
+            fillBulkCategorySelectEl(selectEl, cachedRow.items, wantId);
+            if (hintEl) hintEl.textContent = cachedRow.message || `Đã tải ${cachedRow.items.length} danh mục.`;
+            _rememberWpCategorySelection(siteUrl, sid, wantId || String(selectEl && selectEl.value || ""));
+            return true;
+        }
+        if (hintEl) hintEl.textContent = "Đang tải danh mục…";
+        const ac = new AbortController();
+        const abortAt = window.setTimeout(() => ac.abort(), 16000);
+        const applyItems = (items, message, selected) => {
+            const clean = _sanitizeWpCategoryItems(items || []);
+            const pick = String(selected || wantId || "").trim();
+            cacheKeys.forEach((key) => {
+                _bulkWpCategoriesBySiteKey[key] = clean;
+            });
+            if (clean.length) _writeWpCategoriesCache(cacheKeys, clean, message || "", pick);
+            fillBulkCategorySelectEl(selectEl, clean, pick);
+            if (hintEl) {
+                hintEl.textContent = clean.length
+                    ? (message || `Đã tải ${clean.length} danh mục.`)
+                    : "";
             }
-            if (lastStatus === 404) {
-                throw new Error(
-                    "API tải danh mục chưa có (404). Khởi động lại run.bat / uvicorn, rồi Ctrl+F5 trang này."
-                );
+            if (clean.length) {
+                _rememberWpCategorySelection(siteUrl, sid, pick || String(selectEl && selectEl.value || ""));
             }
-            if (lastStatus === 401 || lastStatus === 403) {
+            return true;
+        };
+        try {
+            const qs = forceRefresh ? "?refresh=1" : "";
+            const res = await fetch(
+                "/api/settings/publishing-sites/" + encodeURIComponent(sid) + "/categories" + qs,
+                { headers: authHeaders(), signal: ac.signal }
+            );
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 401 || res.status === 403) {
                 throw new Error("Vui lòng đăng nhập rồi thử lại.");
             }
-            if (lastStatus >= 400 && !data.ok) {
-                throw new Error(fmtApiDetail(data.detail) || data.message || `HTTP ${lastStatus}`);
+            if (res.ok && data && data.unsupported) {
+                applyPubCategoryBlockVisibility(false, true);
+                fillBulkCategorySelectEl(selectEl, [], "");
+                if (hintEl) hintEl.textContent = "";
+                return true;
             }
-            if (!data.ok) {
-                if (hintEl) hintEl.textContent = data.message || "Không tải được danh mục.";
-                return false;
+            if (res.ok) {
+                if (data.label) applyPubCategoryLabels(data.platform || pf);
+                return applyItems(data.items || [], data.message || "", data.selected_id || wantId);
             }
-            _bulkWpCategoriesBySiteKey[sk] = data.items || [];
-            fillBulkCategorySelectEl(selectEl, _bulkWpCategoriesBySiteKey[sk], savedId);
-            if (hintEl) hintEl.textContent = data.message || `Đã tải ${(data.items || []).length} danh mục.`;
+            if (pf === "wordpress" || !pf) {
+                const body = { wp_site_id: sid, refresh: !!forceRefresh };
+                const paths = pubApiPaths.wordpress.categories || ["/content-ai/wordpress/categories"];
+                let wpData = {};
+                let lastStatus = 0;
+                for (const path of paths) {
+                    const wpRes = await fetch(path, {
+                        method: "POST",
+                        headers: authHeaders({ "Content-Type": "application/json" }),
+                        body: JSON.stringify(body),
+                        signal: ac.signal,
+                    });
+                    lastStatus = wpRes.status;
+                    wpData = await wpRes.json().catch(() => ({}));
+                    if (wpRes.status !== 404) break;
+                }
+                if (lastStatus === 404) {
+                    if (hintEl) hintEl.textContent = "";
+                    return false;
+                }
+                if (wpData && wpData.ok) {
+                    return applyItems(wpData.items || [], wpData.message || "", wantId);
+                }
+            }
+            if (hintEl) hintEl.textContent = "";
+            fillBulkCategorySelectEl(selectEl, [], wantId);
             return true;
         } catch (e) {
-            if (hintEl) hintEl.textContent = String((e && e.message) || e);
+            const aborted = e && (e.name === "AbortError" || /abort/i.test(String(e.message || e)));
+            if (hintEl) hintEl.textContent = aborted ? "" : String((e && e.message) || "");
             return false;
+        } finally {
+            window.clearTimeout(abortAt);
         }
     };
     const loadBulkWpCategoriesForRow = async (rowId, selectEl, hintEl) => {
@@ -8951,31 +10170,60 @@
         });
         if (ok) scheduleSaveBulkState();
     };
-    const loadSingleWpCategories = async () => {
+    const loadSingleWpCategories = async (opts = {}) => {
+        const forceRefresh = !!(opts && opts.forceRefresh);
+        const ignoreLocalCache = !!(opts && opts.ignoreLocalCache);
         const site = String(byId("targetWebsite")?.value || "").trim();
         const sel = byId("singleWpCategoryId");
         const hint = byId("hint-singleWpCategory");
-        const saved =
-            (_draftWpCategoryIds && _draftWpCategoryIds[0]) ||
-            String(sel?.value || "").trim() ||
-            "";
+        if (!site) {
+            if (sel) fillBulkCategorySelectEl(sel, [], "");
+            if (hint) hint.textContent = "Nhập Target website trùng site đã lưu — danh mục sẽ tự tải.";
+            return false;
+        }
+        const cachedKeys = _wpCategoryCacheLookupKeys(site);
+        const cachedRow = forceRefresh ? null : _readWpCategoriesCache(cachedKeys);
+        const cachedItems = (cachedRow && cachedRow.items) || [];
+        const cur = String(sel?.value || "").trim();
+        const curOk = !!(cur && cachedItems.some((it) => String(it.id) === cur));
+        const saved = curOk
+            ? cur
+            : String((cachedRow && cachedRow.selectedId) || "").trim()
+                || (!cachedItems.length
+                    ? (cur || ((_draftWpCategoryIds && _draftWpCategoryIds[0]) || "") )
+                    : "");
         const ok = await loadWpCategoriesForSite({
             siteUrlRaw: site,
             selectEl: sel,
             hintEl: hint,
             savedId: saved,
+            forceRefresh,
+            ignoreLocalCache,
         });
         if (ok) {
             syncSingleWpCategoryFromSelect();
+            _rememberWpCategorySelection(site, "", String(sel && sel.value || ""));
             saveFormState();
         }
+        return ok;
+    };
+    let _singleWpCatTimer = null;
+    const scheduleSingleWpCategoriesLoad = () => {
+        if (_singleWpCatTimer) clearTimeout(_singleWpCatTimer);
+        _singleWpCatTimer = setTimeout(() => {
+            const site = String(byId("targetWebsite")?.value || "").trim();
+            if (!site || site.length < 4) return;
+            void loadSingleWpCategories({ forceRefresh: false });
+        }, 400);
     };
     let _publishWpCatTimer = null;
-    const loadPublishWpCategories = async () => {
+    const loadPublishWpCategories = async (opts = {}) => {
+        const selSite = byId("wpSiteSelect");
+        const siteId = selSite ? String(selSite.value || "").trim() : "";
         const site = String(byId("wpUrl")?.value || "").trim();
         const pubSel = byId("singleWpCategoryIdPublish");
         const hint = byId("hint-wp");
-        if (!site) {
+        if (!siteId && !site) {
             if (hint) hint.textContent = "";
             return false;
         }
@@ -8985,9 +10233,11 @@
             "";
         const ok = await loadWpCategoriesForSite({
             siteUrlRaw: site,
+            siteId,
             selectEl: pubSel,
             hintEl: hint,
             savedId: saved,
+            ignoreLocalCache: !!(opts && opts.ignoreLocalCache),
         });
         if (ok) {
             const sk = _getWpCategoriesSiteKey(site);
@@ -9002,12 +10252,22 @@
     const schedulePublishWpCategoriesLoad = () => {
         if (_publishWpCatTimer) clearTimeout(_publishWpCatTimer);
         _publishWpCatTimer = setTimeout(() => {
+            const siteId = String(byId("wpSiteSelect")?.value || "").trim();
             const site = String(byId("wpUrl")?.value || "").trim();
-            if (!site || site.length < 4) return;
+            if (!siteId && (!site || site.length < 4)) return;
             void loadPublishWpCategories();
         }, 500);
     };
+    const reloadSharedPubCategories = () => {
+        try { void loadSingleWpCategories({ ignoreLocalCache: true }); } catch (_) {}
+        try { void loadPublishWpCategories({ ignoreLocalCache: true }); } catch (_) {}
+    };
+    window.addEventListener("seoauto-pub-categories-changed", () => reloadSharedPubCategories());
+    window.addEventListener("storage", (ev) => {
+        if (ev && ev.key === "seoauto_pub_categories_bump") reloadSharedPubCategories();
+    });
     let _bulkPollTimer = null;
+    let _bulkPollJobId = "";
     const bulkWritePanel = byId("bulkWritePanel");
     const contentAiSinglePanel = byId("contentAiSinglePanel");
     const contentAiSidebar = byId("contentAiSidebar");
@@ -9211,10 +10471,41 @@
         const wc = item.target_word_count == null ? null : Number(item.target_word_count) || 0;
         return !!(title && desc && outline && (wc == null || wc >= 200));
     };
+    const getBulkSelectedKeywordSet = () => {
+        let ids = [];
+        let selected = [];
+        try {
+            if (window.ContentAiBulkUi && typeof window.ContentAiBulkUi.getSelectedIds === "function") {
+                ids = window.ContentAiBulkUi.getSelectedIds() || [];
+            }
+        } catch (_) {}
+        try {
+            if (window.ContentAiBulkUi && typeof window.ContentAiBulkUi.getSelectedKeywords === "function") {
+                selected = window.ContentAiBulkUi.getSelectedKeywords() || [];
+            }
+        } catch (_) {}
+        const idSet = new Set((ids || []).map((x) => String(x || "")).filter(Boolean));
+        const fromIds = new Set(
+            (bulkKeywordRows || [])
+                .filter((r) => idSet.has(String(r.id || "")))
+                .map((r) => String(r.keyword || "").trim().toLowerCase())
+                .filter(Boolean)
+        );
+        (selected || []).forEach((k) => {
+            const kw = String(k || "").trim().toLowerCase();
+            if (kw) fromIds.add(kw);
+        });
+        return fromIds;
+    };
     const filterBulkItemsByWriteMode = (items, mode) => {
         const list = items || [];
         if (mode === "setup") {
             return list.filter(isBulkItemSetupComplete);
+        }
+        if (mode === "selected") {
+            const picked = getBulkSelectedKeywordSet();
+            if (!picked.size) return [];
+            return list.filter((it) => picked.has(String((it && it.keyword) || "").trim().toLowerCase()));
         }
         return list;
     };
@@ -9749,7 +11040,10 @@
             catHead.className = "field-head";
             catHead.style.marginTop = "12px";
             const catLb = document.createElement("label");
-            catLb.textContent = "Danh mục WordPress khi đăng";
+            catLb.className = "js-pub-cat-label";
+            const bulkTw = byId("bulkTargetWebsite");
+            const bulkSite = findPublishingSiteMatch("", bulkTw ? bulkTw.value : "");
+            catLb.textContent = platformCategoryLabel(bulkSite && bulkSite.platform);
             catHead.appendChild(catLb);
             const catRow = document.createElement("div");
             catRow.className = "row";
@@ -9772,7 +11066,7 @@
             catHint.className = "hint";
             catHint.style.marginTop = "6px";
             catHint.textContent =
-                "Nhập Target website trùng site đã lưu (Thêm site đăng bài), rồi bấm Tải danh mục — gắn category khi publish.";
+                "Danh mục tự tải theo website đã kết nối. Đổi website để xem đúng danh mục, không cần tải lại.";
             btnLoadCat.addEventListener("click", () => {
                 btnLoadCat.disabled = true;
                 void loadBulkWpCategoriesForRow(row.id, catSel, catHint).finally(() => {
@@ -10428,10 +11722,33 @@
         scheduleSaveBulkState();
     };
     let _bulkJobItemsCache = [];
+    const BULK_STATUS_RANK = { success: 40, written: 40, ok: 40, error: 30, cancelled: 20, running: 10, pending: 0 };
+    const bulkStatusRank = (s) => BULK_STATUS_RANK[String(s || "").toLowerCase()] || 0;
+    const mergeBulkJobItemNoDowngrade = (prev, incoming) => {
+        const a = prev && typeof prev === "object" ? prev : {};
+        const b = incoming && typeof incoming === "object" ? incoming : {};
+        const merged = { ...a, ...b };
+        if (bulkStatusRank(a.status) > bulkStatusRank(b.status)) {
+            merged.status = a.status;
+            if (a.project_id && !String(merged.project_id || "").trim()) merged.project_id = a.project_id;
+            if (a.word_count != null && merged.word_count == null) merged.word_count = a.word_count;
+            if (a.actual_word_count != null && merged.actual_word_count == null) {
+                merged.actual_word_count = a.actual_word_count;
+            }
+            if (a.seo_score != null && merged.seo_score == null) merged.seo_score = a.seo_score;
+        }
+        if (a.project_id && !String(b.project_id || "").trim()) merged.project_id = a.project_id;
+        merged.keyword = b.keyword || a.keyword || "";
+        return merged;
+    };
     const renderBulkJobItems = (items, opts) => {
         const incoming = items || [];
+        const wipe = !!(opts && opts.mode === "replace" && !incoming.length);
         let rows;
-        if (opts && opts.mode === "merge" && _bulkJobItemsCache.length) {
+        if (wipe) {
+            rows = [];
+            _bulkJobItemsCache = [];
+        } else if (_bulkJobItemsCache.length) {
             const byKw = Object.create(null);
             _bulkJobItemsCache.forEach((it) => {
                 const kw = String(it.keyword || "").trim().toLowerCase();
@@ -10440,16 +11757,21 @@
             incoming.forEach((it) => {
                 const kw = String(it.keyword || "").trim().toLowerCase();
                 if (!kw) return;
-                byKw[kw] = { ...(byKw[kw] || {}), ...it, keyword: it.keyword || (byKw[kw] && byKw[kw].keyword) || kw };
+                byKw[kw] = mergeBulkJobItemNoDowngrade(byKw[kw], it);
             });
             rows = Object.values(byKw);
         } else {
             rows = incoming.slice();
         }
-        _bulkJobItemsCache = rows.slice();
+        if (!wipe) _bulkJobItemsCache = rows.slice();
         try {
             if (window.ContentAiBulkUi && typeof window.ContentAiBulkUi.refreshJob === "function") {
-                window.ContentAiBulkUi.refreshJob(rows);
+                window.ContentAiBulkUi.refreshJob(wipe ? [] : incoming.length ? incoming : rows, {
+                    replace: wipe,
+                });
+                if (!wipe && typeof window.ContentAiBulkUi.getJobItems === "function") {
+                    _bulkJobItemsCache = window.ContentAiBulkUi.getJobItems();
+                }
             }
         } catch (_) {}
         if (bulkJobItems) bulkJobItems.innerHTML = "";
@@ -10507,7 +11829,17 @@
             if (!kw) return;
             let pid = String(j.project_id || "").trim();
             if (!pid && byKw[kw]) pid = byKw[kw];
-            mergedByKw[kw] = { ...j, project_id: pid || j.project_id || "" };
+            const st = String(j.status || "").toLowerCase();
+            const keep = st === "success" || st === "written" || st === "ok" || st === "error";
+            let nextSt = j.status || "pending";
+            if (st === "running") nextSt = "running";
+            else if (keep) nextSt = j.status;
+            else if (pid || byKw[kw]) nextSt = "success";
+            mergedByKw[kw] = {
+                ...j,
+                project_id: pid || j.project_id || "",
+                status: nextSt,
+            };
         });
         rows.forEach((r) => {
             const kw = String(r.keyword || "").trim().toLowerCase();
@@ -10548,6 +11880,54 @@
         const rows = (keywords || []).map((kw) => ({ keyword: String(kw || "").trim(), status: "pending" })).filter((x) => x.keyword);
         if (rows.length) renderBulkJobItems(rows);
     };
+    const applyOptimisticBulkWriteStart = (keywords) => {
+        const kws = (keywords || []).map((kw) => String(kw || "").trim()).filter(Boolean);
+        if (!kws.length) return;
+        try {
+            hydrateBulkStatusFromProjects();
+        } catch (_) {}
+        const existing = Object.create(null);
+        const ingest = (list) => {
+            (list || []).forEach((it) => {
+                const kw = String((it && it.keyword) || "").trim().toLowerCase();
+                if (!kw) return;
+                existing[kw] = mergeBulkJobItemNoDowngrade(existing[kw], it);
+            });
+        };
+        ingest(_bulkJobItemsCache);
+        try {
+            if (window.ContentAiBulkUi && typeof window.ContentAiBulkUi.getJobItems === "function") {
+                ingest(window.ContentAiBulkUi.getJobItems());
+            }
+        } catch (_) {}
+        const isDone = (it) => {
+            const st = String((it && it.status) || "").toLowerCase();
+            return st === "success" || st === "written" || st === "ok";
+        };
+        const rows = [];
+        let markedRunning = false;
+        kws.forEach((kw) => {
+            const prev = existing[String(kw).toLowerCase()];
+            if (isDone(prev)) return;
+            if (prev && String(prev.project_id || "").trim() && String(prev.status || "").toLowerCase() !== "error") {
+                return;
+            }
+            if (!markedRunning) {
+                rows.push({
+                    keyword: kw,
+                    status: "running",
+                    word_count: null,
+                    actual_word_count: null,
+                });
+                markedRunning = true;
+                return;
+            }
+            if (String((prev && prev.status) || "").toLowerCase() === "running") return;
+            rows.push({ keyword: kw, status: "pending" });
+        });
+        if (rows.length) renderBulkJobItems(rows, { mode: "merge" });
+        if (bulkJobStatus) bulkJobStatus.textContent = "Đang viết...";
+    };
     const resetBulkWriteForm = () => {
         stopBulkPoll();
         try {
@@ -10567,7 +11947,7 @@
         if (bulkImportFileHint) bulkImportFileHint.textContent = "";
         if (bulkJobLog) bulkJobLog.value = "";
         if (bulkJobItems) bulkJobItems.innerHTML = "";
-        renderBulkJobItems([]);
+        renderBulkJobItems([], { mode: "replace" });
         if (bulkJobProgress) bulkJobProgress.hidden = true;
         if (bulkJobProgressFill) bulkJobProgressFill.style.width = "0%";
         if (bulkJobPct) bulkJobPct.textContent = "0%";
@@ -11201,6 +12581,7 @@
             steps.forEach((nav) => { nav.hidden = showAutoUpdate; });
         }
         if (contentAiSidebar) contentAiSidebar.classList.remove("sidebar-collapsed");
+        if (btnCreateContent) btnCreateContent.hidden = v !== "single";
         syncContentAiMainTabs(v);
         syncCaSidebarNav(v);
         if (showProjects) {
@@ -11215,11 +12596,21 @@
             const pub = byId("contentAiPublishBar");
             if (pub) pub.scrollIntoView({ behavior: "smooth", block: "start" });
         } else if (showAutoUpdate) {
-            if (typeof window.__cauLoadSites === "function") {
+            if (window.ContentAiTabLoader && typeof window.ContentAiTabLoader.ensureAutoUpdateTab === "function") {
+                window.ContentAiTabLoader.ensureAutoUpdateTab().then(() => {
+                    if (typeof window.__cauLoadSites === "function") {
+                        window.__cauLoadSites().catch(() => {});
+                    } else if (typeof window.__cauSyncUi === "function") {
+                        window.__cauSyncUi();
+                    }
+                }).catch(() => {});
+            } else if (typeof window.__cauLoadSites === "function") {
                 window.__cauLoadSites().catch(() => {});
             } else if (typeof window.__cauSyncUi === "function") {
                 window.__cauSyncUi();
             }
+        } else if (showBulk) {
+            try { reconnectActiveBulkJob(); } catch (_) {}
         }
         if (!showProjects) {
             if (showBulk) _contentAiActiveStep = "bulk-import";
@@ -11439,21 +12830,25 @@
         syncBulkStepButtons,
         startWriteSelected: async (keywords) => {
             const list = (keywords || []).map((k) => String(k || "").trim().toLowerCase()).filter(Boolean);
-            if (!list.length) return;
+            if (!list.length) {
+                appendBulkLog("Chưa tích chọn bài nào trong bảng. Hãy tích checkbox các bài cần viết.");
+                return;
+            }
             const rows = bulkKeywordRows.filter((r) => list.includes(String(r.keyword || "").trim().toLowerCase()));
             if (!rows.length) return;
-            const prev = bulkKeywordRows.slice();
             try {
-                bulkKeywordRows = rows;
-                const btn = byId("btnBulkWriteStart");
-                if (btn) btn.click();
-                else appendBulkLog("Không tìm thấy nút Bắt đầu viết bài.");
-            } finally {
-                setTimeout(() => {
-                    bulkKeywordRows = prev;
-                    renderBulkKeywordList();
-                    syncBulkV2Ui();
-                }, 800);
+                setBulkWriteRunningUi(true);
+                if (typeof window.__contentAiStartBulkWriteJob === "function") {
+                    await window.__contentAiStartBulkWriteJob("selected");
+                    if (!getActiveBulkJobId()) setBulkWriteRunningUi(false);
+                } else {
+                    const btn = byId("btnBulkWriteStart");
+                    if (btn) btn.click();
+                    else appendBulkLog("Không tìm thấy nút Bắt đầu viết.");
+                }
+            } catch (e) {
+                appendBulkLog(String(e.message || e));
+                setBulkWriteRunningUi(false);
             }
         },
         loadProject: (pid) => {
@@ -11477,6 +12872,8 @@
                 return "";
             }
         },
+        setBulkJobId: (jid) => setActiveBulkJobId(jid),
+        startBulkPoll: (jid) => startBulkPoll(jid),
         rehydrateBulkJobStatus,
         hydrateBulkStatusFromProjects,
     };
@@ -11640,42 +13037,102 @@
             window.setTimeout(() => allArticlesSearchEl.focus(), 120);
         }
     };
-    const stopBulkPoll = () => {
+    const BULK_START_IDLE_LABEL = "Bắt đầu viết";
+    const BULK_START_BUSY_LABEL = "Đang viết...";
+    const countBulkWrittenProgress = (data) => {
+        const result = (data && data.result) || {};
+        const items = Array.isArray(result.items) ? result.items : [];
+        const written = (s) => {
+            const v = String(s || "").toLowerCase();
+            return v === "success" || v === "written" || v === "ok";
+        };
+        const doneFromItems = items.filter((it) => written(it && it.status)).length;
+        let total = Number(result.total);
+        if (!Number.isFinite(total) || total <= 0) total = items.length;
+        let done = doneFromItems;
+        const fieldSuccess = Number(result.success);
+        if (done === 0 && Number.isFinite(fieldSuccess) && fieldSuccess > 0) done = fieldSuccess;
+        return { done, total };
+    };
+    const setBulkSidebarProgressText = (done, total) => {
+        if (!bulkJobStatus) return;
+        const t = Number(total) || 0;
+        const d = Number(done) || 0;
+        bulkJobStatus.textContent = t > 0 ? `Đã viết ${d}/${t} bài` : "Đang viết…";
+    };
+    const setBulkWriteRunningUi = (running, counts) => {
+        const startBtn = byId("btnBulkWriteStart");
+        const stopBtn = byId("btnBulkWriteStopPoll");
+        if (startBtn) {
+            const idle = startBtn.getAttribute("data-idle-label") || BULK_START_IDLE_LABEL;
+            const busy = startBtn.getAttribute("data-busy-label") || BULK_START_BUSY_LABEL;
+            startBtn.disabled = !!running;
+            startBtn.setAttribute("aria-busy", running ? "true" : "false");
+            startBtn.classList.toggle("is-busy", !!running);
+            startBtn.textContent = running ? busy : idle;
+        }
+        if (stopBtn) {
+            stopBtn.hidden = false;
+            stopBtn.disabled = !running;
+        }
+        if (running) {
+            if (bulkJobProgress) bulkJobProgress.hidden = false;
+            if (counts) setBulkSidebarProgressText(counts.done, counts.total);
+        } else if (bulkJobProgress) {
+            bulkJobProgress.hidden = true;
+        }
+    };
+    const stopBulkPollTimer = () => {
         if (_bulkPollTimer) {
             clearInterval(_bulkPollTimer);
             _bulkPollTimer = null;
         }
-        const stopBtn = byId("btnBulkWriteStopPoll");
-        if (stopBtn) stopBtn.hidden = true;
+    };
+    const stopBulkPoll = () => {
+        stopBulkPollTimer();
+        _bulkPollJobId = "";
         const stopBar = byId("btnBulkV2StopWrite");
         if (stopBar) {
             stopBar.disabled = false;
             stopBar.classList.remove("is-busy");
         }
+        setBulkWriteRunningUi(false);
+    };
+    const setActiveBulkJobId = (jobId) => {
+        const jid = String(jobId || "").trim();
+        _bulkPollJobId = jid;
+        try {
+            if (jid) localStorage.setItem(BULK_JOB_STORAGE_KEY(), jid);
+            else localStorage.removeItem(BULK_JOB_STORAGE_KEY());
+        } catch (_) {}
     };
     const getActiveBulkJobId = () => {
+        if (_bulkPollJobId) return _bulkPollJobId;
         try {
             return String(localStorage.getItem(BULK_JOB_STORAGE_KEY()) || "").trim();
         } catch (_) {
             return "";
         }
     };
+    const clearBulkRunningItemStatuses = () => {
+        const rows = (_bulkJobItemsCache || []).map((it) => {
+            const s = String((it && it.status) || "").toLowerCase();
+            if (s === "running") return { ...it, status: "cancelled" };
+            return it;
+        });
+        renderBulkJobItems(rows);
+    };
     const cancelBulkWriteJob = async () => {
-        const jid = getActiveBulkJobId();
+        const jid = getActiveBulkJobId() || getLastBulkJobId();
+        setBulkWriteRunningUi(true);
+        const stopBtn = byId("btnBulkWriteStopPoll");
+        if (stopBtn) stopBtn.disabled = true;
         if (!jid) {
+            clearBulkRunningItemStatuses();
             stopBulkPoll();
             appendBulkLog("Không có job đang chạy trên trình duyệt.");
-            try {
-                if (window.ContentAiBulkUi && window.ContentAiBulkUi.setStep) {
-                    window.ContentAiBulkUi.setStep("setup");
-                }
-            } catch (_) {}
             return;
         }
-        const ok = window.confirm(
-            "Dừng viết hàng loạt?\nBài đang viết có thể hoàn tất; các bài còn lại sẽ không chạy.\nBạn có thể setup lại rồi viết tiếp."
-        );
-        if (!ok) return;
         appendBulkLog("Đang gửi lệnh dừng viết…");
         try {
             const res = await fetch(`/content-ai/bulk-jobs/${encodeURIComponent(jid)}/cancel`, {
@@ -11684,15 +13141,14 @@
                 body: "{}",
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
+            if (!res.ok && res.status !== 404) {
                 throw new Error((data && data.detail) ? String(data.detail) : `Lỗi HTTP ${res.status}`);
             }
             appendBulkLog(String((data && data.message) || "Đã dừng viết hàng loạt."));
             if (data.result && Array.isArray(data.result.items)) {
                 renderBulkJobItems(data.result.items, { mode: "merge" });
-            } else if (bulkJobStatus) {
-                bulkJobStatus.textContent = String((data && data.message) || "Đã dừng");
             }
+            clearBulkRunningItemStatuses();
             // Pull latest items once after cancel.
             try {
                 const pollRes = await fetch(`/content-ai/bulk-jobs/${encodeURIComponent(jid)}?ts=${Date.now()}`, {
@@ -11701,12 +13157,13 @@
                 const pollData = await pollRes.json().catch(() => ({}));
                 if (pollRes.ok && pollData.result && Array.isArray(pollData.result.items)) {
                     renderBulkJobItems(pollData.result.items, { mode: "merge" });
+                    clearBulkRunningItemStatuses();
                 }
             } catch (_) {}
             try {
                 localStorage.setItem(BULK_LAST_JOB_KEY(), jid);
-                localStorage.removeItem(BULK_JOB_STORAGE_KEY());
             } catch (_) {}
+            setActiveBulkJobId("");
             scheduleSaveBulkState();
             stopBulkPoll();
             try {
@@ -11717,56 +13174,76 @@
             if (msg) msg.textContent = "Đã dừng viết — bạn có thể setup lại rồi bấm viết tiếp.";
         } catch (e) {
             appendBulkLog(`Dừng viết thất bại: ${String(e.message || e)}`);
-            // Still stop local polling so UI unlocks.
+            clearBulkRunningItemStatuses();
+            setActiveBulkJobId("");
             stopBulkPoll();
         }
     };
+    let _bulkPollFailCount = 0;
     const pollBulkJob = async (jobId) => {
         const jid = String(jobId || "").trim();
         if (!jid) return;
+        if (_bulkPollJobId && jid !== _bulkPollJobId) return;
         try {
             const res = await fetch(`/content-ai/bulk-jobs/${encodeURIComponent(jid)}?ts=${Date.now()}`, {
                 headers: authHeaders(),
             });
             const data = await res.json().catch(() => ({}));
+            if (_bulkPollJobId && jid !== _bulkPollJobId) return;
             if (res.status === 404) {
+                _bulkPollFailCount += 1;
+                if (_bulkPollFailCount < 4) {
+                    appendBulkLog("Poll 404 tạm thời — sẽ thử lại, không reset bảng.");
+                    return;
+                }
                 appendBulkLog("Job không còn trên server — đã xóa khỏi bộ nhớ trình duyệt.");
-                try {
-                    localStorage.removeItem(BULK_JOB_STORAGE_KEY());
-                    localStorage.removeItem(BULK_LAST_JOB_KEY());
-                } catch (_) {}
+                clearBulkRunningItemStatuses();
+                setActiveBulkJobId("");
                 stopBulkPoll();
                 if (bulkJobStatus) bulkJobStatus.textContent = "Job đã hết hạn hoặc không tồn tại.";
                 return;
             }
-            if (!res.ok) throw new Error((data && data.detail) ? data.detail : "Poll failed");
+            if (!res.ok) {
+                _bulkPollFailCount += 1;
+                appendBulkLog(`Poll HTTP ${res.status} — thử lại, giữ trạng thái hiện tại.`);
+                return;
+            }
+            _bulkPollFailCount = 0;
             const pct = Number(data.progress) || 0;
+            const counts = countBulkWrittenProgress(data);
+            const st = String(data.state || "").toUpperCase();
+            const live = st === "RUNNING" || st === "QUEUED" || st === "PENDING";
+            if (live) {
+                setBulkWriteRunningUi(true);
+                if (counts.done > 0) setBulkSidebarProgressText(counts.done, counts.total || 0);
+                else if (bulkJobStatus) bulkJobStatus.textContent = "Đang viết...";
+            }
             if (bulkJobProgress) bulkJobProgress.hidden = false;
             if (bulkJobProgressFill) bulkJobProgressFill.style.width = `${pct}%`;
             if (bulkJobPct) bulkJobPct.textContent = `${pct}%`;
-            if (bulkJobStatus) bulkJobStatus.textContent = data.message || data.state || "";
+            if (!live && counts.total > 0) setBulkSidebarProgressText(counts.done, counts.total);
             if (data.result && Array.isArray(data.result.items) && data.result.items.length) {
-                // Merge so unselected / previously written rows keep their UI status.
                 renderBulkJobItems(data.result.items, { mode: "merge" });
             }
-            if (data.state === "SUCCESS") {
-                appendBulkLog(`Hoàn tất: ${(data.result && data.result.success) || 0}/${(data.result && data.result.total) || "?"} bài.`);
-                stopBulkPoll();
+            if (st === "SUCCESS") {
+                appendBulkLog(`Hoàn tất: ${(data.result && data.result.success) || counts.done}/${(data.result && data.result.total) || counts.total || "?"} bài.`);
                 try {
                     localStorage.setItem(BULK_LAST_JOB_KEY(), jid);
-                    localStorage.removeItem(BULK_JOB_STORAGE_KEY());
                 } catch (_) {}
+                setActiveBulkJobId("");
+                stopBulkPoll();
                 scheduleSaveBulkState();
                 await refreshProjects(true);
                 return;
             }
-            if (data.state === "CANCELLED") {
+            if (st === "CANCELLED") {
                 appendBulkLog(data.message || data.error || "Đã dừng viết hàng loạt.");
-                stopBulkPoll();
+                clearBulkRunningItemStatuses();
                 try {
                     localStorage.setItem(BULK_LAST_JOB_KEY(), jid);
-                    localStorage.removeItem(BULK_JOB_STORAGE_KEY());
                 } catch (_) {}
+                setActiveBulkJobId("");
+                stopBulkPoll();
                 scheduleSaveBulkState();
                 try {
                     if (window.ContentAiBulkUi && window.ContentAiBulkUi.setStep) {
@@ -11775,31 +13252,47 @@
                 } catch (_) {}
                 return;
             }
-            if (data.state === "ERROR") {
+            if (st === "ERROR") {
                 appendBulkLog(`Lỗi: ${data.error || data.message || "unknown"}`);
-                stopBulkPoll();
+                clearBulkRunningItemStatuses();
                 try {
                     localStorage.setItem(BULK_LAST_JOB_KEY(), jid);
-                    localStorage.removeItem(BULK_JOB_STORAGE_KEY());
                 } catch (_) {}
+                setActiveBulkJobId("");
+                stopBulkPoll();
                 scheduleSaveBulkState();
             }
         } catch (e) {
-            appendBulkLog(String(e.message || e));
+            if (_bulkPollJobId && jid !== _bulkPollJobId) return;
+            _bulkPollFailCount += 1;
+            appendBulkLog(`Poll lỗi tạm thời — thử lại: ${String(e.message || e)}`);
         }
     };
     const startBulkPoll = (jobId) => {
-        stopBulkPoll();
-        const stopBtn = byId("btnBulkWriteStopPoll");
-        if (stopBtn) stopBtn.hidden = false;
+        const jid = String(jobId || "").trim();
+        stopBulkPollTimer();
+        _bulkPollJobId = jid;
+        _bulkPollFailCount = 0;
+        setBulkWriteRunningUi(true);
         const stopBar = byId("btnBulkV2StopWrite");
         if (stopBar) {
             stopBar.disabled = false;
             stopBar.classList.remove("is-busy");
         }
-        pollBulkJob(jobId);
-        _bulkPollTimer = setInterval(() => pollBulkJob(jobId), 2200);
+        pollBulkJob(jid);
+        _bulkPollTimer = setInterval(() => pollBulkJob(jid), 2200);
     };
+    const reconnectActiveBulkJob = () => {
+        const jid = getActiveBulkJobId();
+        if (jid) {
+            if (!_bulkPollTimer || _bulkPollJobId !== jid) startBulkPoll(jid);
+            return;
+        }
+        void rehydrateBulkJobStatus({ skipIfHasResult: true });
+    };
+    try {
+        window.ContentAiBulkCore.reconnectActiveJob = reconnectActiveBulkJob;
+    } catch (_) {}
     if (btnBulkAddKeyword) {
         btnBulkAddKeyword.addEventListener("click", () => void addBulkKeywordFromInput());
     }
@@ -11990,34 +13483,28 @@
         }
     });
     const startBulkWriteJob = async (writeMode) => {
-        const mode = writeMode === "selected" || writeMode === "setup" ? "selected" : "all";
+        const mode = writeMode === "selected" || writeMode === "setup" ? String(writeMode) : "all";
         let bulkItems = filterBulkItemsByWriteMode(mergeBulkItems(), mode);
         if (!bulkItems.length) {
-            appendBulkLog(
+            const emptyMsg =
                 mode === "selected"
                     ? "Chưa tích chọn bài nào trong bảng. Hãy tích checkbox các bài cần viết."
-                    : "Chưa có từ khóa."
-            );
+                    : "Chưa có từ khóa.";
+            appendBulkLog(emptyMsg);
+            try {
+                if (typeof showCaToast === "function") showCaToast(emptyMsg, "warn");
+            } catch (_) {}
+            setBulkWriteRunningUi(false);
             return;
         }
         const keywords = bulkItems.map((x) => x.keyword);
+        setBulkWriteRunningUi(true);
         const twEl = byId("bulkTargetWebsite");
         const bnEl = byId("bulkBrandName");
         const target_website = twEl ? twEl.value.trim() : "";
         const brand_name = bnEl ? bnEl.value.trim() : "";
         const target_word_count = 1000;
         const modeLabel = mode === "selected" ? "đã chọn" : "tất cả";
-        if (window.DigiSeoConfirmCredit) {
-            const ok = await window.DigiSeoConfirmCredit({
-                module: "content_ai",
-                action: "article_short",
-                quantity: keywords.length,
-                wordCount: target_word_count,
-                quotaKey: "ai_articles",
-                label: "Content AI — viết hàng loạt (" + keywords.length + " bài)",
-            });
-            if (!ok) return;
-        }
         appendBulkLog(`Gửi job ${keywords.length} từ khóa (${modeLabel}) lên server…`);
         const res = await fetch("/content-ai/bulk-jobs/start", {
             method: "POST",
@@ -12097,14 +13584,12 @@
                 );
             })
             : keywords;
-        initBulkJobStatusTable(jobKeywords);
-        if (bulkJobProgress) bulkJobProgress.hidden = false;
+        applyOptimisticBulkWriteStart(jobKeywords);
         if (bulkJobProgressFill) bulkJobProgressFill.style.width = "1%";
         if (bulkJobPct) bulkJobPct.textContent = "0%";
-        if (bulkJobStatus) bulkJobStatus.textContent = "Đã xếp hàng — chờ server viết bài…";
-        try {
-            localStorage.setItem(BULK_JOB_STORAGE_KEY(), data.job_id);
-        } catch (_) {}
+        setBulkWriteRunningUi(true);
+        if (bulkJobStatus) bulkJobStatus.textContent = "Đang viết...";
+        setActiveBulkJobId(data.job_id);
         startBulkPoll(data.job_id);
     };
     // Expose for bulk board "Viết bài đã chọn" (avoid racey row-swap hack).
@@ -12113,20 +13598,13 @@
     const btnBulkWriteStart = byId("btnBulkWriteStart");
     if (btnBulkWriteStart) {
         btnBulkWriteStart.addEventListener("click", async () => {
-            const bulkItems = mergeBulkItems();
-            if (!bulkItems.length) {
-                appendBulkLog("Chưa có từ khóa.");
-                return;
-            }
-            const writeMode = await openBulkWriteModeModal();
-            if (!writeMode) return;
-            btnBulkWriteStart.disabled = true;
+            if (btnBulkWriteStart.disabled) return;
             try {
-                await startBulkWriteJob(writeMode);
+                await startBulkWriteJob("selected");
+                if (!getActiveBulkJobId()) setBulkWriteRunningUi(false);
             } catch (e) {
                 appendBulkLog(String(e.message || e));
-            } finally {
-                btnBulkWriteStart.disabled = false;
+                setBulkWriteRunningUi(false);
             }
         });
     }
@@ -12362,9 +13840,11 @@
     if (targetWebsiteEl) {
         targetWebsiteEl.addEventListener("input", () => {
             syncSlugFromPrimary();
+            scheduleSingleWpCategoriesLoad();
         });
         targetWebsiteEl.addEventListener("change", () => {
             rememberTargetWebsite(targetWebsiteEl.value);
+            scheduleSingleWpCategoriesLoad();
         });
     }
     const checkDupBtn = byId("btnCheckDuplicate");
@@ -12713,7 +14193,16 @@
             setContentAiMainView(savedView || "single");
         }
         try {
-            await refreshProjects(!restored);
+            // Auto Update restore must not wait on projects API (session lock / slow DB).
+            const viewNow = String(_contentAiMainView || "");
+            if (viewNow === "autoupdate") {
+                void refreshProjects(!restored);
+            } else {
+                await refreshProjects(!restored);
+            }
+        } catch (_) {}
+        try {
+            scheduleSingleWpCategoriesLoad();
         } catch (_) {}
         try {
             hydrateBulkStatusFromProjects();
@@ -12732,6 +14221,25 @@
             el.addEventListener("change", scheduleSaveBulkState);
         }
     });
+    const bulkTargetWebsiteEl = byId("bulkTargetWebsite");
+    if (bulkTargetWebsiteEl) {
+        const syncBulkCatsFromWebsite = () => {
+            const hit = findPublishingSiteMatch("", bulkTargetWebsiteEl.value);
+            applyPubCategoryLabels(hit && hit.platform);
+            document.querySelectorAll("select[data-field=\"wp_category_id\"]").forEach((sel) => {
+                void loadWpCategoriesForSite({
+                    siteUrlRaw: String(bulkTargetWebsiteEl.value || "").trim(),
+                    selectEl: sel,
+                    savedId: String(sel.value || ""),
+                });
+            });
+        };
+        bulkTargetWebsiteEl.addEventListener("change", syncBulkCatsFromWebsite);
+        bulkTargetWebsiteEl.addEventListener("input", () => {
+            window.clearTimeout(bulkTargetWebsiteEl._catTimer);
+            bulkTargetWebsiteEl._catTimer = window.setTimeout(syncBulkCatsFromWebsite, 400);
+        });
+    }
     window.addEventListener("beforeunload", saveBulkState);
     renderConnectedSitesPanel();
     try {
@@ -12756,6 +14264,7 @@
     });
     document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible") return;
+        try { reconnectActiveBulkJob(); } catch (_) {}
         void fetchSettingsPublishingSites().then(() => {
             renderTargetHistory();
             renderWpUrlHistory();
@@ -12936,27 +14445,36 @@
         }
     });
 
+    if (btnCreateContent) btnCreateContent.addEventListener("click", () => {
+        const pk = byId("primaryKeyword");
+        if (!pk || !String(pk.value || "").trim()) return;
+        _revealContentWriteLoadingNow();
+    }, true);
     if (btnCreateContent) btnCreateContent.addEventListener("click", async () => {
         const primaryKeyword = byId("primaryKeyword").value.trim();
         if (!primaryKeyword) {
             msg.textContent = "Cần nhập từ khóa chính trước.";
             return;
         }
-        if (btnCreateContent.disabled) return;
+        if (btnCreateContent.disabled || window.__caCreateContentBusy || _contentWriteSession.active) {
+            _revealContentWriteLoadingNow();
+            return;
+        }
+        const writeSignal = _beginContentWriteSession();
+        _setCreateContentButtonsBusy(true);
+        _clearEditorWriteError();
+        msg.textContent = "";
+        _revealContentWriteLoadingNow();
         try {
             if (window.ContentAiDuplicate) {
                 const dup = await window.ContentAiDuplicate.runSingleCheck({ toast: false });
                 if (dup && dup.is_duplicate) {
                     msg.textContent = String(dup.message || "Bài viết này đã tồn tại");
+                    _resetContentWriteUi();
                     return;
                 }
             }
         } catch (_) {}
-        const writeSignal = _beginContentWriteSession();
-        _setCreateContentButtonsBusy(true);
-        _clearEditorWriteError();
-        _showEditorWriteBar("Đang chuẩn bị viết bài…");
-        msg.textContent = "";
         try {
             const ctx = buildContext();
             if (!byId("outlineContent").value.trim()) {
@@ -12970,6 +14488,8 @@
                     setDetectedIntentDebug(outlineOut.detected_intent);
                 }
             }
+            _showEditorWriteBar("AI đang viết bài…");
+            _revealContentWriteLoadingNow();
 
             const generated = await streamSuggestion("content", ctx, { signal: writeSignal });
             if (!String(generated || "").trim()) return;
@@ -13040,7 +14560,7 @@
             byId("content").scrollIntoView({ behavior: "smooth", block: "center" });
             saveFormState();
         } catch (e) {
-            if (e && e.name === "AbortError") {
+            if (_contentWriteSession.userAborted) {
                 showCaToast("Đã dừng viết.", "info");
                 msg.textContent = "Đã dừng viết.";
                 saveFormState();
@@ -13125,7 +14645,7 @@
     if (btnSingleLoadWpCategories) {
         btnSingleLoadWpCategories.addEventListener("click", () => {
             btnSingleLoadWpCategories.disabled = true;
-            void loadSingleWpCategories().finally(() => {
+            void loadSingleWpCategories({ forceRefresh: true }).finally(() => {
                 btnSingleLoadWpCategories.disabled = false;
             });
         });
@@ -13133,6 +14653,13 @@
     if (singleWpCategoryIdEl) {
         singleWpCategoryIdEl.addEventListener("change", () => {
             syncSingleWpCategoryFromSelect();
+            try {
+                _rememberWpCategorySelection(
+                    String(byId("targetWebsite")?.value || ""),
+                    "",
+                    String(singleWpCategoryIdEl.value || ""),
+                );
+            } catch (_) {}
             saveFormState();
         });
     }
@@ -13193,24 +14720,17 @@
             if (btnPublishNow.disabled) return;
             const cred = await resolveWpPublishCredentialsAsync();
             const wpUrl = cred.wpUrl;
-            const wpUsername = cred.username;
-            const wpAppPassword = cred.app_password;
+            const wpSiteId = cred.site_id;
             const wpSeoPlugin = cred.seo_plugin;
             const primaryKeyword = byId("primaryKeyword").value.trim();
             const title = byId("title").value.trim();
             const content = getContentValue().trim();
             const publishMode = _getPublishMode();
-            if (!wpUrl || !primaryKeyword || !title || !content) {
-                const miss = "Vui lòng nhập URL WordPress, từ khóa, tiêu đề và nội dung.";
+            if (!wpSiteId || !wpUrl || !primaryKeyword || !title || !content) {
+                const miss = "Chọn website WordPress đã kết nối, rồi nhập từ khóa, tiêu đề và nội dung.";
                 if (msg) msg.textContent = miss;
+                setPublishNotice(miss, "err");
                 appendPublishLog(miss);
-                return;
-            }
-            if (!wpUsername || !wpAppPassword) {
-                const missCred =
-                    "Chưa lấy được username/app password từ site đã lưu. Mở Edit site, kiểm tra đã «Lưu & áp dụng» đủ thông tin trên server, rồi thử lại.";
-                if (msg) msg.textContent = missCred;
-                appendPublishLog(missCred);
                 return;
             }
             if (publishMode === "publish") {
@@ -13229,6 +14749,12 @@
                         ? "Đang đăng bài lên WordPress..."
                         : "Đang đăng bản nháp lên WordPress...";
             }
+            setPublishNotice(
+                publishMode === "publish"
+                    ? "Đang đăng bài lên WordPress..."
+                    : "Đang đăng bản nháp lên WordPress...",
+                "info"
+            );
             const oldPublishText = btnPublishNow.textContent;
             btnPublishNow.disabled = true;
             btnPublishNow.classList.add("loading");
@@ -13240,9 +14766,9 @@
                     method: "POST",
                     headers: authJsonHeaders(),
                     body: JSON.stringify({
+                        site_id: wpSiteId,
+                        wp_site_id: wpSiteId,
                         wp_url: wpUrl,
-                        username: wpUsername,
-                        app_password: wpAppPassword,
                         seo_plugin: wpSeoPlugin,
                         primary_keyword: primaryKeyword,
                         publish_mode: publishMode,
@@ -13264,7 +14790,7 @@
                     } else {
                         appendPublishLog(JSON.stringify(detail || data));
                     }
-                    throw new Error((detail && detail.message) ? detail.message : "Publish thất bại.");
+                    throw new Error(fmtApiDetail(detail) || "Publish thất bại.");
                 }
                 if (window.SeoautoAwaitQueued && data.job_id && data.poll_url) {
                     appendPublishLog("Đã xếp hàng crawl worker — đang chờ publish…");
@@ -13281,12 +14807,27 @@
                             ? "Đăng bài thành công lên WordPress."
                             : "Đăng bản nháp thành công lên WordPress.";
                 }
+                const st = String(data.status || "").toLowerCase();
+                let okText = "Đăng bài thành công lên WordPress.";
+                if (publishMode === "draft" || st === "draft") {
+                    okText = "Đăng bản nháp thành công lên WordPress.";
+                } else if (st === "future" || st === "scheduled") {
+                    okText = "Hẹn giờ đăng bài thành công.";
+                }
+                const view = resolvePublishViewLink({
+                    link: data.edit_link || data.link,
+                    status: st || publishMode,
+                    postId: data.post_id,
+                    wpUrl,
+                    publishMode,
+                });
+                setPublishNotice(okText, "ok", view.href, view.label);
                 rememberTargetWebsite(byId("targetWebsite").value);
                 rememberWpUrl(wpUrl);
-                rememberWpUser(wpUsername);
                 saveFormState();
             } catch (e) {
                 if (msg) msg.textContent = String(e.message || e);
+                setPublishNotice(String(e.message || e), "err");
                 appendPublishLog(`Lỗi: ${String(e.message || e)}`);
             } finally {
                 btnPublishNow.disabled = false;
@@ -13300,16 +14841,9 @@
         btnWpUpdateContent.addEventListener("click", async () => {
             const cred = await resolveWpPublishCredentialsAsync();
             const wpUrl = cred.wpUrl;
-            const wpUsername = cred.username;
-            const wpAppPassword = cred.app_password;
-            if (!wpUrl) {
-                appendPublishLog("Thiếu WP URL.");
-                return;
-            }
-            if (!wpUsername || !wpAppPassword) {
-                appendPublishLog(
-                    "Chưa lấy được username/app password từ site đã lưu — mở Edit / Thêm site đăng bài và «Lưu & áp dụng»."
-                );
+            const wpSiteId = cred.site_id;
+            if (!wpSiteId || !wpUrl) {
+                appendPublishLog("Chọn website WordPress đã kết nối tại Cài đặt.");
                 return;
             }
             const postIdRaw = window.prompt("Nhập Post ID cần cập nhật (ví dụ: 123):", "");
@@ -13327,9 +14861,9 @@
                     method: "POST",
                     headers: authJsonHeaders(),
                     body: JSON.stringify({
+                        site_id: wpSiteId,
+                        wp_site_id: wpSiteId,
                         wp_url: wpUrl,
-                        username: wpUsername,
-                        app_password: wpAppPassword,
                         post_type: "posts",
                         post_id: postId,
                         content_html: getContentValue(),
@@ -13347,17 +14881,17 @@
         });
     }
 
-    // Remember WP URL as user types/leaves field (builds history even before publish).
-    const wpUrlEl = byId("wpUrl");
-    if (wpUrlEl) {
-        const onWpUrlSiteChange = () => {
-            rememberWpUrl(wpUrlEl.value);
-            fillWpCredentialsFromSavedProfile();
+    const wpSiteSelectEl = byId("wpSiteSelect");
+    if (wpSiteSelectEl) {
+        wpSiteSelectEl.addEventListener("change", () => {
+            const opt = wpSiteSelectEl.options[wpSiteSelectEl.selectedIndex];
+            const url = (opt && opt.dataset && opt.dataset.url) || "";
+            const hidden = byId("wpUrl");
+            if (hidden) hidden.value = url;
+            if (url) rememberWpUrl(url);
             schedulePublishWpCategoriesLoad();
-        };
-        wpUrlEl.addEventListener("blur", onWpUrlSiteChange);
-        wpUrlEl.addEventListener("change", onWpUrlSiteChange);
-        wpUrlEl.addEventListener("input", schedulePublishWpCategoriesLoad);
+        });
+        void fetchSettingsPublishingSites();
     }
 
     if (btnModeVisual) {
@@ -14656,6 +16190,11 @@
         contentEditable.addEventListener("input", () => {
             const ta = byId("content");
             if (ta) ta.value = String(contentEditable.innerHTML || "");
+            try {
+                if (typeof updateContentStatsFromHtml === "function") {
+                    updateContentStatsFromHtml(String(contentEditable.innerHTML || ""));
+                }
+            } catch (_) {}
             schedulePreview();
             schedulePublishChecklist();
             scheduleSaveFormState();

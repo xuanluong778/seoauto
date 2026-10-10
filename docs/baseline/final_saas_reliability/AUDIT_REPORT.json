@@ -1,0 +1,33 @@
+{
+  "audit": "FINAL_SAAS_RELIABILITY_SCALE",
+  "snapshot_at": "2026-09-06T08:05:00+00:00",
+  "SAAS_READY": "FAIL",
+  "SAAS_READY_REASON": "ZERO_DOWNTIME_DEPLOY=FAIL (PM2 reload causes ~30-60s connection refused). Other core reliability gates PASS after PgBouncer enable + accuracy fixes.",
+  "gates": {
+    "ROUTE_404": "PASS",
+    "LOAD_100": "PASS",
+    "LOAD_250": "PASS",
+    "LOAD_500": "PASS",
+    "LOAD_1000": "PASS",
+    "DB_POOL": "PASS",
+    "REDIS": "PASS",
+    "QUEUE": "PASS",
+    "CREDIT_ATOMIC": "PASS",
+    "THIRD_PARTY_RESILIENCE": "PASS",
+    "ASSET_CACHE": "PASS",
+    "ZERO_DOWNTIME_DEPLOY": "FAIL",
+    "OBSERVABILITY": "PASS",
+    "OTHER_FEATURES_UNCHANGED": "PASS"
+  },
+  "evidence": {
+    "pgbouncer": "DATABASE_URL :6433, DB_USE_PGBOUNCER=1, pg_stat client_addr=172.19.0.4 (pgbouncer), connections ~9-22 vs budget risk 82-106 before",
+    "load": "docs/baseline/final_saas_reliability/final_load_report.json — all tiers err=0%, server_p95<800ms",
+    "favicon": "GET /favicon.ico → 302 logo",
+    "docs_link": "removed dead /docs href from settings.html",
+    "circuit_breaker": "app/services/circuit_breaker.py wired to cost_control.executor + dataforseo_client",
+    "credit": "reserve_credits IntegrityError → idempotent return via begin_nested",
+    "seo_score": "tests/test_seo_score_accuracy.py 12 passed; SCORING_VERSION 2.0.0 untouched in behavior",
+    "observability": "/metrics SLO+alerts; cron seoauto-wave9-ops-alert every 5m",
+    "deploy_gap": "pm2 reload seoauto-web causes cold-start downtime; deploy_digiseo_safe.sh points to obsolete usr4940 paths"
+  }
+}

@@ -147,6 +147,12 @@ def activate_saas_trial(
     device_fingerprint: str | None = None,
     ip_address: str | None = None,
 ) -> dict[str, Any]:
+    # REQUEST_AUTH_DEDUP may expunge the request user — always mutate a session-bound row.
+    managed = db.get(User, int(getattr(user, "id", 0) or 0))
+    if managed is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tài khoản.")
+    user = managed
+
     if is_admin(user):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tài khoản admin không cần dùng thử.")
     from app.services.free_usage_service import has_active_free_usage
@@ -242,14 +248,17 @@ def trial_status_payload(
     ip_address: str | None = None,
 ) -> dict[str, Any]:
     from app.services import credits as credits_svc
+    from app.services.entitlement_service import resolve_effective_plan_state
     from app.services.free_usage_service import has_active_free_usage
 
-    active = is_saas_trial_active(user)
-    days = trial_days_remaining(user)
+    plan_state = resolve_effective_plan_state(db, user)
+    has_paid = bool(plan_state.get("has_paid_plan"))
+    active = is_saas_trial_active(user) and not has_paid
+    days = trial_days_remaining(user) if active else 0
     balance = int(credits_svc.get_available_balance(db, user.id))
     credit_used = int(getattr(user, "trial_credit_used", 0) or 0)
     credit_remaining = max(0, TRIAL_CREDIT_LIMIT - credit_used)
-    free_usage_active = has_active_free_usage(db, user.id)
+    free_usage_active = bool(plan_state.get("free_usage_active")) or has_active_free_usage(db, user.id)
     claim_blocked = _trial_claim_blocks_activation(
         db,
         user,
@@ -260,10 +269,15 @@ def trial_status_payload(
         not bool(getattr(user, "trial_used", False))
         and not is_admin(user)
         and not free_usage_active
+        and not has_paid
         and not claim_blocked
     )
 
-    if active:
+    # Paid / free-usage users must never see trial-expired upgrade nag.
+    if has_paid or free_usage_active:
+        banner = None
+        need_credit_msg = None
+    elif active:
         banner = (
             f"Bạn còn {days} ngày dùng thử. Credit trial khả dụng tối đa: "
             f"{TRIAL_CREDIT_LIMIT:,} credit.".replace(",", ".")
@@ -282,9 +296,20 @@ def trial_status_payload(
         )
         need_credit_msg = None
 
+    show_upgrade = bool(plan_state.get("show_upgrade_banner")) and not has_paid and not free_usage_active
+    effective_slug = plan_state.get("effective_plan_slug")
+    if has_paid:
+        sub_status = str(plan_state.get("subscription_status") or "active")
+    elif active:
+        sub_status = "trialing"
+    elif bool(getattr(user, "trial_used", False)):
+        sub_status = "expired"
+    else:
+        sub_status = None
+
     return {
-        "plan": TRIAL_PLAN_SLUG,
-        "subscription_status": "trialing" if active else ("expired" if user.trial_used else None),
+        "plan": effective_slug or (TRIAL_PLAN_SLUG if active else None),
+        "subscription_status": sub_status,
         "trial_active": active,
         "trial_used": bool(getattr(user, "trial_used", False)),
         "can_activate": can_activate,
@@ -301,6 +326,12 @@ def trial_status_payload(
         "activate_banner": banner if can_activate else None,
         "free_usage_active": free_usage_active,
         "trial_claim_blocked": claim_blocked,
+        # SSOT fields for UI (do not recompute from trial_expires_at on frontend)
+        "has_paid_plan": has_paid,
+        "effective_plan_slug": effective_slug,
+        "plan_source": plan_state.get("source"),
+        "show_upgrade_banner": show_upgrade,
+        "show_trial_expired_banner": bool(plan_state.get("show_trial_expired_banner")) and not has_paid,
     }
 
 
@@ -354,6 +385,13 @@ def check_trial_feature_allowed(
     quantity: int = 1,
 ) -> dict[str, Any]:
     """Return {allowed, message, code, upgrade_url}."""
+    from app.services.entitlement_service import _has_paid_active_subscription
+    from app.services.free_usage_service import has_active_free_usage
+
+    # Paid / free-usage always win over historical trial_used.
+    if _has_paid_active_subscription(db, user) or has_active_free_usage(db, user.id):
+        return {"allowed": True}
+
     if not is_saas_trial_user(db, user):
         if bool(getattr(user, "trial_used", False)) and not is_saas_trial_active(user):
             return {

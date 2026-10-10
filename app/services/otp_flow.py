@@ -172,5 +172,6 @@ def verify_login_otp(email: str, code: str, db: Session) -> TokenResponse:
     row.used = True
     db.commit()
 
-    token = create_access_token(user_id=user.id)
-    return TokenResponse(access_token=token, token_type="bearer")
+    from app.services.auth import issue_login_tokens
+
+    return issue_login_tokens(db, user)

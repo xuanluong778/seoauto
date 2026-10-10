@@ -542,14 +542,22 @@
                 return;
             }
             var lvl = headingLevel(b);
+            var advancedType = /^(html|shortcode|gutenberg|embed)$/i.test(String(b.block_type || ""));
+            var collapsedAdv = advancedType && !b._forceExpand;
             var cls = "cau-be-block" +
                 (b.changed ? " is-changed" : "") +
                 (b.locked ? " is-locked" : "") +
-                (self.selectedId === b.block_id ? " is-selected" : "");
-            html.push('<article class="' + cls + '" data-block-id="' + esc(b.block_id) + '" draggable="false">');
-            html.push('<header class="cau-be-block__head">');
+                (self.selectedId === b.block_id ? " is-selected" : "") +
+                (collapsedAdv ? " is-advanced-collapsed" : "");
+            html.push('<article class="' + cls + '" data-block-id="' + esc(b.block_id) + '" draggable="false"' +
+                (advancedType ? ' data-cau-be-advanced="1"' : "") + ">");
+            html.push('<header class="cau-be-block__head"' + (advancedType ? ' data-cau-be-toggle-adv="1" title="Bấm để mở/đóng block nâng cao"' : "") + ">");
             html.push('<span class="cau-be-block__type">' + esc(typeLabel(b.block_type)) +
                 (lvl ? (" H" + lvl) : "") + "</span>");
+            if (advancedType) {
+                html.push('<span class="cau-be-collapse-hint">' +
+                    (collapsedAdv ? "Đã thu gọn — bấm để mở" : "Bấm header để thu gọn") + "</span>");
+            }
             if (b.changed) html.push('<span class="cau-be-pill">Đã sửa</span>');
             if (b.locked) html.push('<span class="cau-be-pill cau-be-pill--lock">Khóa AI</span>');
             html.push('<div class="cau-be-block__menu">');
@@ -623,6 +631,22 @@
                     self.onSelect(idx >= 0 ? self.blocks[idx] : null);
                 }
             });
+            var advHead = el.querySelector("[data-cau-be-toggle-adv]");
+            if (advHead) {
+                advHead.addEventListener("click", function (ev) {
+                    if (ev.target && ev.target.closest && ev.target.closest(".cau-be-block__menu")) return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    var idx = self._blockIndex(id);
+                    if (idx < 0) return;
+                    var next = self.blocks.slice();
+                    var b = Object.assign({}, next[idx]);
+                    b._forceExpand = !b._forceExpand;
+                    next[idx] = b;
+                    self.blocks = next;
+                    self.render();
+                });
+            }
             el.querySelectorAll("[data-cau-be-act]").forEach(function (btn) {
                 btn.addEventListener("click", function (ev) {
                     ev.preventDefault();
@@ -998,10 +1022,15 @@
         });
     };
 
-    CauAssistantUI.prototype._bindAsstTabs = function () {
+            CauAssistantUI.prototype._bindAsstTabs = function () {
         document.querySelectorAll("[data-cau-asst-tab]").forEach(function (btn) {
             btn.addEventListener("click", function () {
                 var key = btn.getAttribute("data-cau-asst-tab");
+                if (key === "history") {
+                    var mainHist = document.querySelector('[data-cau-main-tab="history"]');
+                    if (mainHist) mainHist.click();
+                    return;
+                }
                 document.querySelectorAll("[data-cau-asst-tab]").forEach(function (b) {
                     var on = b.getAttribute("data-cau-asst-tab") === key;
                     b.classList.toggle("active", on);
@@ -1096,7 +1125,7 @@
                 });
                 self.renderPatchQueue();
                 self.renderHistory();
-                self.setHint("ok", data.message || "Đã tạo patch (áp dụng không trừ credit thêm).");
+                self.setHint("ok", data.message || "Đã tạo patch.");
             })
             .catch(function (e) {
                 var msg = (e && (e.detail || e.message)) || "Tạo patch thất bại";
@@ -1124,7 +1153,6 @@
                 "<span>+" + (p.words_added || 0) + " / −" + (p.words_removed || 0) + " từ</span>" +
                 "<span>SEO: " + (p.seo_score_before != null ? p.seo_score_before : "—") +
                 " → " + (p.seo_score_after_est != null ? p.seo_score_after_est : "—") + "</span>" +
-                "<span>Credit: " + (p.credit_charged || 0) + " / ước tính " + (p.credit_estimate || 0) + "</span>" +
                 "</div>" +
                 '<div class="cau-patch-card__cols">' +
                 "<div><label>Cũ</label><pre>" + esc(plain(p.old_html).slice(0, 400)) + "</pre></div>" +
@@ -1190,7 +1218,7 @@
                 self.renderChanges();
                 self.renderHistory();
                 self.onContentApplied(data.content_html || "");
-                self.setHint("ok", "Đã áp dụng patch (không trừ credit).");
+                self.setHint("ok", "Đã áp dụng patch.");
             })
             .catch(function (e) {
                 var msg = (e && (e.detail || e.message)) || "Áp dụng thất bại";
@@ -2044,15 +2072,41 @@
 
     const cauFormatApiError = (err, context) => {
         const raw = String((err && err.message) || err || "").trim();
+        const status = err && err.status != null ? Number(err.status) : 0;
         if (context === "fix") {
             return raw || "Không sửa được yếu tố SEO.";
         }
         const lower = raw.toLowerCase();
-        if (
+        const isAuth =
+            status === 401 || status === 403 ||
             lower.includes("401") || lower.includes("403") ||
             lower.includes("application password") || lower.includes("rest_forbidden") ||
-            lower.includes("không có quyền") || lower.includes("unauthorized")
-        ) {
+            lower.includes("rest_cannot_edit") || lower.includes("không có quyền") ||
+            lower.includes("unauthorized") || lower.includes("từ chối xác thực");
+
+        if (context === "update" || context === "publish" || context === "restore") {
+            if (isAuth) {
+                return (
+                    "WordPress từ chối cập nhật (401/403). Vào Cài đặt → Xuất bản, " +
+                    "tạo lại Application Password, kết nối lại site, rồi thử «Cập nhật WordPress». " +
+                    "Bản nháp trong modal vẫn được giữ. " +
+                    (raw ? ("(" + raw.slice(0, 180) + ")") : "")
+                );
+            }
+            if (status === 409 || lower.includes("conflict")) {
+                return raw || "Bài trên WordPress đã đổi — tải lại bản mới trước khi cập nhật.";
+            }
+            if (status === 502 || status === 504 || lower.includes("timeout") || lower.includes("không gọi được")) {
+                return (
+                    "Cập nhật WordPress thất bại (kết nối/timeout). Kiểm tra site còn online và App Password. " +
+                    "Bản nháp trong modal vẫn được giữ. " +
+                    (raw && raw !== "Không thể xử lý yêu cầu. Vui lòng thử lại sau." ? raw.slice(0, 220) : "")
+                ).trim();
+            }
+            return "Cập nhật thất bại — bản nháp trong modal vẫn được giữ. " + (raw || "");
+        }
+
+        if (isAuth) {
             return "Không có quyền truy cập WordPress REST API. Kiểm tra Application Password và quyền tài khoản.";
         }
         if (
@@ -2063,11 +2117,15 @@
         ) {
             return raw || "Lỗi kết nối WordPress — thử quét theo danh mục hoặc kiểm tra Application Password.";
         }
-        if (raw === "Không thể xử lý yêu cầu. Vui lòng thử lại sau." || (err && err.status === 502)) {
+        // Generic 502 only for scan/fetch — never for update (handled above).
+        if (
+            context === "scan" || context === "fetch" ||
+            (raw === "Không thể xử lý yêu cầu. Vui lòng thử lại sau." && status === 502)
+        ) {
             return "Lỗi kết nối WordPress khi quét bài. Thử «Tải danh mục» rồi quét theo 1 danh mục, hoặc kiểm tra Application Password.";
         }
-        if (context === "update") {
-            return "Cập nhật thất bại — bản nháp trong modal vẫn được giữ. " + (raw || "");
+        if (status === 502) {
+            return raw || "Máy chủ WordPress/SEOAuto tạm lỗi (502). Thử lại sau ít phút.";
         }
         return raw || "Lỗi không xác định.";
     };
@@ -2117,6 +2175,23 @@
             }
         }
         return String(obj[field] || "");
+    };
+
+    /** Strip HTML tags from meta/excerpt so the SEO field shows plain text, not <p>… */
+    const cauHtmlToPlainText = (html) => {
+        const raw = String(html == null ? "" : html);
+        if (!raw) return "";
+        if (!/[<&]/.test(raw)) return raw.replace(/\s+/g, " ").trim();
+        try {
+            const d = document.createElement("div");
+            d.innerHTML = raw;
+            return String(d.textContent || d.innerText || "")
+                .replace(/\u00a0/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+        } catch (_) {
+            return raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        }
     };
 
     const cauEsc = (s) => String(s || "")
@@ -2952,6 +3027,8 @@
         ilCandidates: [],
         imageResults: [],
         editorTab: "content",
+        mainTab: "overview",
+        selectedFactorId: "",
         seoFactors: [],
         originalContent: "",
         wpModified: "",
@@ -3293,7 +3370,8 @@
         const id = map[field];
         if (!id) return;
         const el = byId(id);
-        if (el) el.value = value || "";
+        if (!el) return;
+        el.value = field === "meta_description" ? cauHtmlToPlainText(value || "") : (value || "");
     };
 
     const cauModalToggleAiButtons = () => {
@@ -3308,7 +3386,42 @@
         }
     };
 
-    const cauModalSwitchEditorTab = (tabKey) => {
+    const CAU_EDITOR_TO_MAIN = {
+        content: "content",
+        outline: "content",
+        internal: "links",
+        images: "images",
+        changes: "history",
+    };
+    const CAU_MAIN_TO_EDITOR = {
+        content: "content",
+        links: "internal",
+        images: "images",
+        history: "changes",
+    };
+
+    const cauModalSwitchMainTab = (tabKey, opts) => {
+        const key = String(tabKey || "overview");
+        cauModalState.mainTab = key;
+        document.querySelectorAll("[data-cau-main-tab]").forEach((btn) => {
+            const on = btn.getAttribute("data-cau-main-tab") === key;
+            btn.classList.toggle("active", on);
+            btn.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        document.querySelectorAll("[data-cau-main-panel]").forEach((panel) => {
+            const on = panel.getAttribute("data-cau-main-panel") === key;
+            if (on) panel.removeAttribute("hidden");
+            else panel.setAttribute("hidden", "");
+        });
+        if (!(opts && opts.skipEditor)) {
+            const editorKey = CAU_MAIN_TO_EDITOR[key];
+            if (editorKey) cauModalSwitchEditorTab(editorKey, { skipMain: true });
+        }
+        if (key === "history" && cauAssistantUI) cauAssistantUI.renderChanges();
+        if (cauModalState.open && cauModalState.postUrl && !(opts && opts.skipDraft)) cauModalSaveDraft();
+    };
+
+    const cauModalSwitchEditorTab = (tabKey, opts) => {
         const key = String(tabKey || "content");
         cauModalState.editorTab = key;
         document.querySelectorAll("[data-cau-editor-tab]").forEach((btn) => {
@@ -3317,10 +3430,18 @@
             btn.setAttribute("aria-selected", on ? "true" : "false");
         });
         document.querySelectorAll("[data-cau-editor-panel]").forEach((panel) => {
-            const on = panel.getAttribute("data-cau-editor-panel") === key;
+            const p = panel.getAttribute("data-cau-editor-panel");
+            let on = p === key;
+            // Keep outline available inside content accordion; keep content visible with outline.
+            if (key === "content" && p === "outline") on = true;
+            if (key === "outline" && (p === "content" || p === "outline")) on = true;
             if (on) panel.removeAttribute("hidden");
             else panel.setAttribute("hidden", "");
         });
+        if (key === "outline") {
+            const acc = byId("cauStructureAcc");
+            if (acc) acc.open = true;
+        }
         const siteEl = byId("cauModalIlSite");
         const kwEl = byId("cauModalIlKw");
         if (siteEl) siteEl.textContent = cauModalGetTargetWebsite() || "—";
@@ -3331,7 +3452,13 @@
             cauBlockEditor.renderStructure();
         }
         if (key === "changes" && cauAssistantUI) cauAssistantUI.renderChanges();
-        if (cauModalState.open && cauModalState.postUrl) cauModalSaveDraft();
+        if (!(opts && opts.skipMain)) {
+            const mainKey = CAU_EDITOR_TO_MAIN[key];
+            if (mainKey && cauModalState.mainTab !== mainKey) {
+                cauModalSwitchMainTab(mainKey, { skipEditor: true, skipDraft: true });
+            }
+        }
+        if (cauModalState.open && cauModalState.postUrl && !(opts && opts.skipDraft)) cauModalSaveDraft();
     };
 
     // ---- «Thêm nội dung» modal: per-type forms, AI suggest, server preview ----
@@ -4313,10 +4440,7 @@
                         cauModalApplyAiField(field, value);
                         cauModalSaveDraft();
                         if (field !== "outline_content") cauModalScoreLive().catch(() => {});
-                        const creditNote = out.credits_charged > 0
-                            ? " (đã trừ " + out.credits_charged + " credit)"
-                            : "";
-                        cauModalSetFieldHint(field, "Đã cập nhật gợi ý AI." + creditNote);
+                        cauModalSetFieldHint(field, "Đã cập nhật gợi ý AI.");
                     } else {
                         cauModalSetFieldHint(field, "AI không trả nội dung — thử lại.");
                     }
@@ -4344,7 +4468,18 @@
         const kwEl = byId("cauModalKeyword");
         if (kwEl) kwEl.addEventListener("input", () => cauModalToggleAiButtons());
         cauModalToggleAiButtons();
-        cauModalSwitchEditorTab("content");
+        document.querySelectorAll("[data-cau-main-tab]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                cauModalSwitchMainTab(btn.getAttribute("data-cau-main-tab"));
+            });
+        });
+        document.querySelectorAll("[data-cau-goto-tab]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const t = btn.getAttribute("data-cau-goto-tab");
+                if (t) cauModalSwitchMainTab(t);
+            });
+        });
+        cauModalSwitchMainTab("overview", { skipDraft: true });
     };
 
     const cauModalSetLoadState = (key, on, msg) => {
@@ -4420,6 +4555,9 @@
             // Only auto-reopen on F5 when modal was actually open.
             modalOpen: !!cauModalState.open,
             editorTab: String(cauModalState.editorTab || "content"),
+            mainTab: String(cauModalState.mainTab || "overview"),
+            // Cache last SEO snapshot so F5 can paint assistant UI without waiting /modal/score.
+            lastSeo: cauModalState.lastSeo || null,
             savedAt: new Date().toISOString(),
         };
         if (!payload.postUrl) return;
@@ -4454,7 +4592,7 @@
         const focusEl = byId("cauModalFocus");
         if (titleEl) titleEl.value = String(form.title || "");
         if (slugEl) slugEl.value = String(form.slug || "");
-        if (excerptEl) excerptEl.value = String(form.excerpt || "");
+        if (excerptEl) excerptEl.value = cauHtmlToPlainText(form.excerpt || "");
         if (kwEl) kwEl.value = String(form.keyword || "");
         if (secEl) secEl.value = String(form.secondary_keywords || "");
         const olEl = byId("cauModalOutline");
@@ -4519,10 +4657,20 @@
             cauAssistantUI.applied = draft.patches.slice();
             cauAssistantUI.renderChanges();
         }
-        cauModalSwitchEditorTab(String(draft.editorTab || "content"));
+        const restoreMain = String(draft.mainTab || CAU_EDITOR_TO_MAIN[draft.editorTab] || "overview");
+        cauModalSwitchMainTab(restoreMain, { skipDraft: true });
+        if (draft.editorTab && CAU_MAIN_TO_EDITOR[restoreMain] !== draft.editorTab) {
+            cauModalSwitchEditorTab(String(draft.editorTab), { skipMain: true, skipDraft: true });
+        }
+        if (draft.lastSeo) {
+            try { cauModalRenderFactorGroups(draft.lastSeo); } catch (_) {}
+        }
         cauSetStatus("cauModalEditorHint", "ok", "Đã khôi phục phiên chỉnh sửa đã lưu.");
         cauSetStatus("cauModalAssistantHint", "", "");
-        return cauModalScoreLive().catch(() => {});
+        // Paint UI first; refresh SEO score in background (was blocking restore).
+        const deferScore = window.requestIdleCallback || function (cb) { return setTimeout(cb, 0); };
+        deferScore(() => { cauModalScoreLive().catch(() => {}); }, { timeout: 1500 });
+        return Promise.resolve();
     };
 
     const cauModalPromptRestoreDraft = () => {
@@ -4540,9 +4688,8 @@
         if (!draft || !draft.postUrl) return;
         // Closed popup must stay closed after F5 — only reopen if user left it open.
         if (draft.modalOpen !== true) return;
-        const run = () => { cauModalRestoreFromDraft(draft).catch(() => {}); };
-        const idle = window.requestIdleCallback || function (cb) { return setTimeout(cb, 400); };
-        idle(run, { timeout: 2500 });
+        // Restore immediately — do not wait on idle (was up to 2.5s) or /sites.
+        cauModalRestoreFromDraft(draft).catch(() => {});
     };
 
     const cauModalFillForm = (post) => {
@@ -4551,7 +4698,9 @@
         const excerptEl = byId("cauModalExcerpt");
         if (titleEl) titleEl.value = String((post && post.title) || "");
         if (slugEl) slugEl.value = String((post && post.slug) || "");
-        if (excerptEl) excerptEl.value = cauDecodeHtmlField(post, "excerpt") || String((post && post.excerpt) || "");
+        if (excerptEl) excerptEl.value = cauHtmlToPlainText(
+            cauDecodeHtmlField(post, "excerpt") || String((post && post.excerpt) || "")
+        );
         cauModalSetContentHtml(cauDecodeHtmlField(post, "content"));
         cauModalToggleAiButtons();
     };
@@ -4577,8 +4726,10 @@
         const score = seo && seo.score != null ? seo.score : "—";
         const scoreEl = byId("cauModalScore");
         const headerScore = byId("cauSeoModalHeaderScore");
+        const overviewScore = byId("cauOverviewScore");
         if (scoreEl) scoreEl.textContent = String(score);
         if (headerScore) headerScore.textContent = String(score);
+        if (overviewScore) overviewScore.textContent = String(score);
     };
 
     const cauModalDetectApplyType = (groupKey, text, factor) => {
@@ -4689,7 +4840,7 @@
             if (el) el.value = String(prop.title);
         } else if (type === "excerpt" && prop) {
             const el = byId("cauModalExcerpt");
-            if (el) el.value = String(prop.excerpt || prop.meta_description || "");
+            if (el) el.value = cauHtmlToPlainText(prop.excerpt || prop.meta_description || "");
         } else if (type === "slug" && prop && prop.slug) {
             const el = byId("cauModalSlug");
             if (el) el.value = String(prop.slug);
@@ -4798,7 +4949,7 @@
         }
         if (patch.meta_description != null) {
             const el = byId("cauModalExcerpt");
-            if (el) el.value = String(patch.meta_description);
+            if (el) el.value = cauHtmlToPlainText(patch.meta_description);
         }
         if (patch.slug != null) {
             const el = byId("cauModalSlug");
@@ -5151,10 +5302,7 @@
             const rep = data.change_report || {};
             const cacheNote = data.from_cache ? " (từ cache)" : "";
             const srcNote = data.source === "rule" ? " [kiểm tra]" : (data.source === "llm" ? " [LLM]" : "");
-            const creditNote = (data.credit && data.credit.credit_charged)
-                ? " · đã trừ " + (data.credit.credit_cost || 0) + " credit"
-                : "";
-            const msg = (rep.reason || data.message || "Đã tạo bản sửa — xem chi tiết trước khi áp dụng.") + srcNote + cacheNote + creditNote;
+            const msg = (rep.reason || data.message || "Đã tạo bản sửa — xem chi tiết trước khi áp dụng.") + srcNote + cacheNote;
             cauSetStatus("cauModalAssistantHint", data.success ? "ok" : "warn", msg);
             return data;
         }).catch((e) => {
@@ -5183,9 +5331,9 @@
         outline_content: form.outline,
     });
 
-    const cauModalContentAiCreditNote = (credit) => {
-        if (!credit || !credit.credit_charged) return "";
-        return " · đã trừ " + (credit.credit_cost || 0) + " credit";
+    const cauModalContentAiCreditNote = (_credit) => {
+        // Không hiển thị thông báo trừ credit — chỉ giữ success message nghiệp vụ.
+        return "";
     };
 
     const cauModalClearRewriteFieldHints = () => {
@@ -5386,8 +5534,7 @@
         }).then((data) => {
             cauModalQueueFixPreview(data, { batch: true });
             cauLoadQuota();
-            const charged = data.credit && data.credit.charged_total ? (" · đã trừ " + data.credit.charged_total + " credit") : "";
-            cauSetStatus("cauModalAssistantHint", "ok", (data.message || "Đã xử lý — xem chi tiết trước khi áp dụng.") + charged);
+            cauSetStatus("cauModalAssistantHint", "ok", data.message || "Đã xử lý — xem chi tiết trước khi áp dụng.");
             return data;
         }).catch((e) => {
             cauSetStatus("cauModalAssistantHint", "err", cauFormatApiError(e, "fix"));
@@ -5523,6 +5670,7 @@
                 cauModalFillForm(p);
                 cauModalRenderFactorGroups(data.seo_before || {});
                 cauModalState.pendingProposal = null;
+                cauModalSwitchMainTab("overview", { skipDraft: true });
                 const beforeScore = data.seo_before && data.seo_before.score != null
                     ? parseInt(data.seo_before.score, 10) : null;
                 if (beforeScore != null) {
@@ -5615,7 +5763,7 @@
     };
 
     const cauModalViewChanges = () => {
-        cauModalSwitchEditorTab("changes");
+        cauModalSwitchMainTab("history");
         if (cauAssistantUI) cauAssistantUI.renderChanges();
         const oldHtml = cauModalState.originalContent || "";
         const newHtml = cauModalGetContentHtml();
@@ -5625,6 +5773,34 @@
                 ? "Chưa có thay đổi so với bản tải từ WordPress."
                 : "Đang xem thay đổi phiên hiện tại (chưa cập nhật WordPress).";
         }
+    };
+
+    const cauModalOptimizeSelected = () => {
+        const selectedId = String(cauModalState.selectedFactorId || "").trim();
+        if (selectedId) {
+            return cauModalFixFactor(selectedId);
+        }
+        const firstFixBtn = document.querySelector("#cauModalTopIssues [data-cau-fix-factor]");
+        if (firstFixBtn) {
+            const fid = firstFixBtn.getAttribute("data-cau-fix-factor");
+            if (fid) {
+                cauModalState.selectedFactorId = fid;
+                return cauModalFixFactor(fid);
+            }
+        }
+        const ed = cauEnsureBlockEditor();
+        if (ed && ed.selectedId && cauAssistantUI) {
+            const idx = ed._blockIndex(ed.selectedId);
+            const block = idx >= 0 ? ed.blocks[idx] : null;
+            const isHeading = block && (block.block_type === "heading" || /<h[1-6]\b/i.test(block.current_content || ""));
+            return cauAssistantUI.requestPatch(isHeading ? "rewrite_heading" : "expand_1_2", {});
+        }
+        cauSetStatus(
+            "cauModalAssistantHint",
+            "warn",
+            "Chọn một lỗi SEO ở danh sách ưu tiên, hoặc chọn một block trong nội dung, rồi bấm lại."
+        );
+        return Promise.resolve();
     };
 
     const cauModalCloseWpConfirm = () => {
@@ -5722,14 +5898,25 @@
     };
 
     const cauModalUpdate = () => {
-        // Open confirm first — never auto-publish.
-        return cauModalOpenUpdateConfirm();
+        // Skip confirm popup — cập nhật WordPress trực tiếp (giữ status bài gốc).
+        if (!cauModalState.sessionId) {
+            cauSetStatus("cauModalEditorHint", "err", "Chưa có session — tải lại bài.");
+            return Promise.resolve();
+        }
+        const form = cauModalReadForm();
+        if (!form.title.trim() || !form.content.trim()) {
+            cauSetStatus("cauModalEditorHint", "err", "Title/Content không được để trống.");
+            return Promise.resolve();
+        }
+        return cauModalConfirmFinalUpdate();
     };
 
     const cauModalConfirmFinalUpdate = () => {
         if (!cauModalState.sessionId) return Promise.resolve();
         const form = cauModalReadForm();
         const patches = (cauAssistantUI && cauAssistantUI.applied) ? cauAssistantUI.applied.slice() : [];
+        // Close confirm popup immediately on submit; keep closed after success.
+        cauModalCloseWpConfirm();
         cauModalSetLoadState("updateLoading", true, CAU_LOAD_LABELS.modalUpdate);
         cauBeginLoad("modalUpdate");
         return cauApi("POST", "/content-ai/auto-update/modal/update", {
@@ -5941,6 +6128,7 @@
             const aiBlocked = showAiFix && cauAiFixBlocked();
             const canFix = showAiFix && fid && (status === "failed" || status === "warning") && !isFixing && !aiBlocked;
             const fixBtnTitle = aiBlocked ? cauAiFixBlockMessage() : (cauAiFixCreditHint() || "");
+            const selected = showAiFix && fid && fid === String(cauModalState.selectedFactorId || "");
             const fixBtn = (showAiFix && fid && (status === "failed" || status === "warning"))
                 ? '<button type="button" class="cau-btn-ai-fix' + (isFixing ? " cau-btn-ai-fix--loading" : "") + '"' +
                 (isFixing || aiBlocked ? " disabled" : "") +
@@ -5949,7 +6137,10 @@
                 (isFixing ? "Đang sửa…" : "Sửa bằng AI") + "</button>"
                 : "";
             return (
-                '<li class="cau-factor-item">' +
+                '<li class="cau-factor-item' + (selected ? " is-selected" : "") + '"' +
+                (fid ? ' data-cau-factor-id="' + cauEsc(fid) + '"' : "") +
+                (showAiFix && fid ? ' tabindex="0" role="option" aria-selected="' + (selected ? "true" : "false") + '"' : "") +
+                ">" +
                 '<div class="cau-factor-item__body">' +
                 "<strong>" + label + delta + "</strong>" +
                 (detail ? "<span>" + detail + "</span>" : "") +
@@ -5959,10 +6150,25 @@
             );
         }).join("");
         if (showAiFix) {
+            el.querySelectorAll(".cau-factor-item[data-cau-factor-id]").forEach((li) => {
+                li.addEventListener("click", (ev) => {
+                    if (ev.target && ev.target.closest && ev.target.closest("[data-cau-fix-factor]")) return;
+                    const factorId = li.getAttribute("data-cau-factor-id") || "";
+                    cauModalState.selectedFactorId = factorId;
+                    el.querySelectorAll(".cau-factor-item").forEach((node) => {
+                        const on = node.getAttribute("data-cau-factor-id") === factorId;
+                        node.classList.toggle("is-selected", on);
+                        node.setAttribute("aria-selected", on ? "true" : "false");
+                    });
+                });
+            });
             el.querySelectorAll("[data-cau-fix-factor]").forEach((btn) => {
                 btn.addEventListener("click", () => {
                     const factorId = btn.getAttribute("data-cau-fix-factor");
-                    if (factorId) cauModalFixFactor(factorId).catch(() => {});
+                    if (factorId) {
+                        cauModalState.selectedFactorId = factorId;
+                        cauModalFixFactor(factorId).catch(() => {});
+                    }
                 });
             });
         }
@@ -6243,7 +6449,13 @@
                 cauSetStatus(
                     "connect",
                     "",
-                    "Có " + cauState.sites.length + " site đã lưu — chọn trong danh sách hoặc kết nối site mới."
+                    "Có " + cauState.sites.length + " website đã kết nối — chọn trong danh sách."
+                );
+            } else {
+                cauSetStatus(
+                    "connect",
+                    "",
+                    "Chưa có website. Kết nối một lần tại Cài đặt → Xuất bản."
                 );
             }
             cauFinalizeWorkspaceRestore();
@@ -6652,6 +6864,10 @@
         bindModal("btnCauModalAnalyze", cauModalAnalyze);
         bindModal("btnCauModalUpdate", cauModalUpdate);
         bindModal("btnCauModalFixAll", cauModalFixAllFactors);
+        const btnOptimizeSelected = byId("btnCauModalOptimizeSelected");
+        if (btnOptimizeSelected) {
+            btnOptimizeSelected.addEventListener("click", () => { cauModalOptimizeSelected().catch(() => {}); });
+        }
         const btnUndo = byId("btnCauModalUndo");
         if (btnUndo) btnUndo.addEventListener("click", () => cauModalUndoEditor());
         const btnSaveSession = byId("btnCauModalSaveSession");
@@ -6772,10 +6988,10 @@
         cauModalInitEditorTools();
         cauInsertBindUi();
         cauEnsureBlockEditor();
+        // Restore editing modal ASAP from localStorage — do not gate on /sites.
         if (getAuthToken()) {
-            cauLoadSites().then(() => {
-                cauModalPromptRestoreDraft();
-            }).catch(() => {});
+            cauModalPromptRestoreDraft();
+            cauLoadSites().catch(() => {});
             cauLoadQuota();
         }
         const idle = window.requestIdleCallback || function (cb) { return setTimeout(cb, 0); };

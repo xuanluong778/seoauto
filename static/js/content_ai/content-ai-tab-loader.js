@@ -8,9 +8,9 @@
 (function () {
     "use strict";
 
-    var BULK_UI = "/static/js/content_ai/content-ai-bulk-ui.js?v=36";
+    var BULK_UI = "/static/js/content_ai/content-ai-bulk-ui.js?v=45";
     var BULK_PUB = "/static/js/content_ai/content-ai-bulk-publish-center.js?v=5";
-    var AUTO_TAB = "/static/js/content_ai/content-ai-auto-update-tab.js?v=55";
+    var AUTO_TAB = "/static/js/content_ai/content-ai-auto-update-tab.js?v=61";
 
     var loaded = {
         bulk: !!(document.querySelector('script[src*="content-ai-bulk-ui.js"]')),
@@ -50,7 +50,9 @@
         if (window.ContentAiBulkUi) {
             loaded.bulk = true;
             try {
-                if (window.ContentAiBulkCore && typeof window.ContentAiBulkCore.rehydrateBulkJobStatus === "function") {
+                if (window.ContentAiBulkCore && typeof window.ContentAiBulkCore.reconnectActiveJob === "function") {
+                    window.ContentAiBulkCore.reconnectActiveJob();
+                } else if (window.ContentAiBulkCore && typeof window.ContentAiBulkCore.rehydrateBulkJobStatus === "function") {
                     void window.ContentAiBulkCore.rehydrateBulkJobStatus({ skipIfHasResult: true });
                 }
             } catch (_) {}
@@ -62,7 +64,9 @@
                 loaded.bulk = true;
                 inflight.bulk = null;
                 try {
-                    if (window.ContentAiBulkCore && typeof window.ContentAiBulkCore.rehydrateBulkJobStatus === "function") {
+                    if (window.ContentAiBulkCore && typeof window.ContentAiBulkCore.reconnectActiveJob === "function") {
+                        window.ContentAiBulkCore.reconnectActiveJob();
+                    } else if (window.ContentAiBulkCore && typeof window.ContentAiBulkCore.rehydrateBulkJobStatus === "function") {
                         void window.ContentAiBulkCore.rehydrateBulkJobStatus({ skipIfHasResult: true });
                     }
                 } catch (_) {}
@@ -133,8 +137,15 @@
         restoreIfNeeded();
         setTimeout(restoreIfNeeded, 0);
         setTimeout(restoreIfNeeded, 200);
-        var ric = window.requestIdleCallback || function (cb) { return setTimeout(cb, 1200); };
-        ric(function () { prefetch(AUTO_TAB); }, { timeout: 4000 });
+        // Start AU download immediately (not after 4s idle) — F5 restore needs it.
+        prefetch(AUTO_TAB);
+        var ric = window.requestIdleCallback || function (cb) { return setTimeout(cb, 400); };
+        ric(function () {
+            try {
+                var auPanel = document.getElementById("contentAiAutoUpdatePanel");
+                if (auPanel && !auPanel.hidden) ensureAutoUpdateTab().catch(function () {});
+            } catch (_) {}
+        }, { timeout: 800 });
     }
 
     if (document.readyState === "loading") {

@@ -1,12 +1,15 @@
 from pathlib import Path
 import csv
 import io
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
+from app.db import get_db
 from app.models.user import User
 from app.services.api_payload_optimizer import (
     find_audit_issue,
@@ -120,6 +123,21 @@ def api_audit_runs(
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     return JSONResponse(content={"runs": list_audits(limit=limit, user_id=current_user.id)})
+
+
+@router.get("/api/audit/compare")
+def api_audit_compare(
+    base_id: str = Query(..., description="Audit cũ hơn (baseline)"),
+    target_id: str = Query(..., description="Audit mới hơn (so sánh)"),
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    from app.services.audit_compare import compare_technical_audits
+
+    base = get_audit_for_user(base_id, current_user.id)
+    target = get_audit_for_user(target_id, current_user.id)
+    if not base or not target:
+        raise HTTPException(status_code=404, detail="Không tìm thấy audit để so sánh.")
+    return JSONResponse(content=compare_technical_audits(base, target))
 
 
 _AUDIT_ISSUE_CSV_FIELDS = [
@@ -401,10 +419,28 @@ def _technical_audit_issues_csv(run: dict) -> str:
 def api_audit_mine(
     limit: int = Query(8, ge=1, le=20),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
-    return JSONResponse(
-        content={"items": list_mine_recent_by_domain(current_user.id, limit=limit)},
-    )
+    from app.services.business_api_cache import cache_get, cache_set, tenant_cache_key
+    from app.services.business_api_rollout import business_api_cache_enabled
+    from app.services.tenant_org import resolve_organization_id
+
+    org_id = resolve_organization_id(int(current_user.id))
+    if business_api_cache_enabled():
+        key = tenant_cache_key(
+            user_id=int(current_user.id),
+            organization_id=org_id,
+            scope="audit_mine",
+            extra=str(limit),
+        )
+        cached = cache_get(key)
+        if isinstance(cached, list):
+            return JSONResponse(content={"items": cached})
+
+    items = list_mine_recent_by_domain(current_user.id, limit=limit, db=db)
+    if business_api_cache_enabled():
+        cache_set(key, items, ttl=int(os.getenv("BUSINESS_API_AUDIT_TTL", "45")))
+    return JSONResponse(content={"items": items})
 
 
 @router.delete("/api/audit/{audit_id}")
@@ -634,6 +670,7 @@ def api_audit_get_one(
 def get_report(
     group: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     ck_path = technical_checklist_path()
     if not ck_path:

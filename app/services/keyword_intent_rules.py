@@ -83,6 +83,8 @@ def classify_intent_detail(keyword: str) -> dict[str, Any]:
 
     if flags["navigational"] and len(active) == 1:
         return {"intent": "navigational", "confidence": 0.9, "source": "rules"}
+    if flags["transactional"] and set(active) <= {"transactional", "commercial"}:
+        return {"intent": "transactional", "confidence": 0.88, "source": "rules"}
     if len(active) >= 2:
         if flags["education"] and not flags["transactional"] and not flags["local"]:
             return {"intent": "education", "confidence": 0.86, "source": "rules"}

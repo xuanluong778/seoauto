@@ -809,7 +809,7 @@
                 window.DigiSeoSetAuthToken(token);
             } else {
                 sessionStorage.setItem("seo_token", token);
-                document.cookie = "seo_token=" + encodeURIComponent(token) + "; path=/; SameSite=Lax; max-age=2592000";
+                try { localStorage.setItem("seo_token", token); } catch (_) {}
             }
             setModalAuthMsg("");
             authModal.hidden = true;
@@ -866,17 +866,40 @@
 
     (function () {
         const p = new URLSearchParams(window.location.search);
+        if (p.get("login") === "1") {
+            authModal.hidden = false;
+            setAuthTab("login");
+            window.history.replaceState({}, "", window.location.pathname);
+            return;
+        }
         if (p.get("google_login") === "1") {
-            const m = document.cookie.match(/(?:^|;\s*)seo_token=([^;]*)/);
-            if (m) {
-                token = decodeURIComponent(m[1].replace(/\+/g, " ")).trim();
-                if (token) sessionStorage.setItem("seo_token", token);
-            }
-            if (typeof window.DigiSeoAfterLoginSuccess === "function") {
-                window.DigiSeoAfterLoginSuccess();
-            } else if (typeof window.DigiSeoStripAuthCallbackParams === "function") {
-                window.DigiSeoStripAuthCallbackParams();
-            }
+            (async function () {
+                try {
+                    if (typeof window.DigiSeoHydrateSessionFromCookie === "function") {
+                        token = (await window.DigiSeoHydrateSessionFromCookie(true)) || token;
+                    }
+                    if (token && typeof window.DigiSeoSetAuthToken === "function") {
+                        window.DigiSeoSetAuthToken(token);
+                    } else if (token) {
+                        sessionStorage.setItem("seo_token", token);
+                        try { localStorage.setItem("seo_token", token); } catch (_) {}
+                    }
+                } catch (e) { /* ignore */ }
+                applyAuthState();
+                if (typeof window.DigiSeoAfterLoginSuccess === "function") {
+                    window.DigiSeoAfterLoginSuccess();
+                } else if (typeof window.DigiSeoStripAuthCallbackParams === "function") {
+                    window.DigiSeoStripAuthCallbackParams();
+                }
+                if (!token) {
+                    setModalAuthMsg(
+                        "Đăng nhập Google chưa ghi được phiên. Thử lại hoặc dùng email/mật khẩu.",
+                        "error"
+                    );
+                    authModal.hidden = false;
+                    setAuthTab("login");
+                }
+            })();
             return;
         }
         const err = p.get("google_login_error");

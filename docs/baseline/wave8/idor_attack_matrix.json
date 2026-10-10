@@ -1,0 +1,207 @@
+{
+  "gate": "PASS",
+  "blocked": 20,
+  "total": 20,
+  "attacks": [
+    {
+      "method": "GET",
+      "path": "/content-ai/projects/f1dfcafd-25f6-4082-b55b-517fbb3bee6c",
+      "kind": "project_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "DELETE",
+      "path": "/content-ai/projects/f1dfcafd-25f6-4082-b55b-517fbb3bee6c",
+      "kind": "project_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/projects/6d577a16-0eb2-461b-abe7-14f9f68e46e7",
+      "kind": "project_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "DELETE",
+      "path": "/content-ai/projects/6d577a16-0eb2-461b-abe7-14f9f68e46e7",
+      "kind": "project_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/projects/9696fa5d-7862-47aa-8662-e0f8427cd210",
+      "kind": "project_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "DELETE",
+      "path": "/content-ai/projects/9696fa5d-7862-47aa-8662-e0f8427cd210",
+      "kind": "project_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/9490e57e-ac3c-41dc-a255-0f6ca32e777e",
+      "kind": "audit_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/audit/9490e57e-ac3c-41dc-a255-0f6ca32e777e",
+      "kind": "audit_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/dfa861ab-6881-42ea-8427-5ab370d73c84",
+      "kind": "audit_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/audit/dfa861ab-6881-42ea-8427-5ab370d73c84",
+      "kind": "audit_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/f2bd8515-0877-4c88-bef6-6dfb99951f3c",
+      "kind": "audit_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/audit/f2bd8515-0877-4c88-bef6-6dfb99951f3c",
+      "kind": "audit_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/bulk-jobs/7fa3726b927f401ba112cd2bc3ac6b99",
+      "kind": "job_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/bulk-jobs/64bdbbd176c8496780fc02844baa702c",
+      "kind": "job_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/bulk-jobs/237f7b67b1ee443c9fff6cfb7faeecf2",
+      "kind": "job_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/generations/d8fb3d02a2714d49b6e1d41d68a0130c/status",
+      "kind": "generation_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/generations/263802d14d604e6b80497f5767e095a0/status",
+      "kind": "generation_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/generations/f678514008e14e8b8abb64c9cd550831/status",
+      "kind": "generation_id",
+      "status": 404,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/content-ai/projects?organizationId=1&limit=5",
+      "kind": "organizationId",
+      "status": 200,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/mine?organizationId=1&limit=5",
+      "kind": "organizationId",
+      "status": 200,
+      "blocked": true,
+      "leaked": false,
+      "attacker_user": 6,
+      "owner_user": 1
+    }
+  ]
+}

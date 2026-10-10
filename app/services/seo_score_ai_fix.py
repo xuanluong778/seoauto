@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import os
 import re
+import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Iterator
 
 TITLE_LEN = (50, 60)
 META_LEN = (140, 160)
@@ -43,13 +46,117 @@ def normalize_page_field(page_field: str) -> str:
 
 
 def seo_score_ai_fix_billing_enabled() -> bool:
-    """Product policy: off by default → NOT_BILLABLE until flag explicitly enabled."""
-    return os.getenv("SEO_SCORE_AI_FIX_BILLING_ENABLED", "").strip().lower() in ("1", "true", "yes")
+    """
+    Product policy: billable by default.
+    Set SEO_SCORE_AI_FIX_BILLING_ENABLED=0 only for dev/staging override.
+    """
+    raw = os.getenv("SEO_SCORE_AI_FIX_BILLING_ENABLED", "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return True
 
 
 def seo_score_ai_fix_billing_status() -> str:
-    """BILLABLE when SEO_SCORE_AI_FIX_BILLING_ENABLED=1, else NOT_BILLABLE (no credit debit)."""
     return "BILLABLE" if seo_score_ai_fix_billing_enabled() else "NOT_BILLABLE"
+
+
+def seo_score_ai_fix_credit_cost(*, db) -> int:
+    """Credit units when billing is enabled and CREDITS_ENABLED."""
+    from app.services.credits import cost_seo_score_ai_fix, credits_enforced
+
+    if not seo_score_ai_fix_billing_enabled() or not credits_enforced():
+        return 0
+    return max(0, int(cost_seo_score_ai_fix(db=db)))
+
+
+@dataclass
+class SeoScoreAiFixBillingCtx:
+    sgate: Any
+    credit_cost: int
+    billable: bool
+
+
+@contextmanager
+def seo_score_ai_fix_billing_session(
+    db,
+    user,
+    *,
+    page_field: str,
+) -> Iterator[SeoScoreAiFixBillingCtx]:
+    """
+    Reserve credits before LLM call; caller must commit() on success.
+    Releases reservation automatically on uncaught exceptions.
+    """
+    from app.services.plan_quota_registry import feature_key_for
+    from app.services.saas_gate import build_job_id, saas_action_gate
+
+    billable = seo_score_ai_fix_billing_enabled()
+    credit_cost = seo_score_ai_fix_credit_cost(db=db)
+    feature = feature_key_for("seo_score")
+    job_id = build_job_id("seo_score_ai_fix", user.id, page_field, uuid.uuid4().hex[:10])
+    with saas_action_gate(
+        db,
+        user,
+        feature_code=feature,
+        credit_cost=credit_cost,
+        quota_units=1,
+        job_id=job_id,
+        idempotency_key=job_id,
+        charge_mode="reserve",
+    ) as sgate:
+        try:
+            yield SeoScoreAiFixBillingCtx(sgate=sgate, credit_cost=credit_cost, billable=billable)
+        except Exception:
+            if not getattr(sgate, "committed", False):
+                sgate.release(reason="seo_score_ai_fix_failed")
+            raise
+
+
+def execute_seo_score_ai_fix_billed(
+    db,
+    user,
+    *,
+    url: str,
+    keyword: str,
+    group_key: str,
+    issue_id: str,
+    page_field: str,
+    current_value: Any,
+    evidence: dict[str, Any],
+    llm_cfg=None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run AI fix with reserve → commit on success → release on error."""
+    from app.services.cost_control.module_gates import seo_score_ai_fix_gate
+
+    with seo_score_ai_fix_billing_session(db, user, page_field=page_field) as billing:
+        with seo_score_ai_fix_gate(
+            db,
+            user,
+            action="ai_fix",
+            llm_cfg=llm_cfg,
+            skip_credit_check=True,
+        ):
+            result = run_seo_score_ai_fix(
+                user_id=user.id,
+                url=url,
+                keyword=keyword,
+                group_key=group_key,
+                issue_id=issue_id,
+                page_field=page_field,
+                current_value=current_value,
+                evidence=evidence,
+            )
+        billing.sgate.commit()
+        billing.sgate.record_usage(metadata={"page_field": page_field})
+    credit_info = finalize_seo_score_ai_fix_credit(
+        db,
+        user,
+        success=True,
+        url=url,
+        issue_id=issue_id,
+        prepaid_amount=billing.credit_cost if billing.billable else 0,
+    )
+    return result, credit_info
 
 
 def _clip(text: str, max_len: int) -> str:
@@ -549,8 +656,20 @@ def run_seo_score_ai_fix(
         }
 
 
-def finalize_seo_score_ai_fix_credit(db, user, *, success: bool, url: str, issue_id: str) -> dict[str, Any]:
-    """Hook credit: BILLABLE only when flag on; otherwise NOT_BILLABLE (zero charge)."""
+def finalize_seo_score_ai_fix_credit(
+    db,
+    user,
+    *,
+    success: bool,
+    url: str,
+    issue_id: str,
+    prepaid_amount: int | None = None,
+) -> dict[str, Any]:
+    """Hook credit: BILLABLE only when flag on; otherwise NOT_BILLABLE (zero charge).
+
+    When ``prepaid_amount`` is set (central saas_action_gate already reserved/committed),
+    this function only reports — it does not call consume_credits again.
+    """
     from app.services.credits import consume_credits, cost_seo_score_ai_fix, credits_enforced
 
     status = seo_score_ai_fix_billing_status()
@@ -566,13 +685,20 @@ def finalize_seo_score_ai_fix_credit(db, user, *, success: bool, url: str, issue
             "charged": 0,
             "billing_enabled": False,
             "billing_status": "NOT_BILLABLE",
-            "policy": "SEO_SCORE_AI_FIX_BILLING_ENABLED unset/false — no credit debit",
+            "policy": "SEO_SCORE_AI_FIX_BILLING_ENABLED=0 — dev override only",
+        }
+    if prepaid_amount is not None:
+        return {
+            "charged": max(0, int(prepaid_amount)),
+            "billing_enabled": True,
+            "billing_status": "BILLABLE",
+            "prepaid": True,
         }
     cost = cost_seo_score_ai_fix(db=db)
     if cost > 0 and credits_enforced():
         import hashlib
         idem = hashlib.sha256(f"seo_score_ai_fix:{user.id}:{issue_id}:{url}".encode()).hexdigest()[:48]
-        # reserve-first deferred to router when BILLABLE; finalize still supports post-success commit path
+        # Legacy post-success path (direct service callers / tests without saas_action_gate)
         consume_credits(
             db,
             user_id=user.id,

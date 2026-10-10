@@ -114,3 +114,29 @@ body:not(.ab-page) .adm-shell {
     --ab-muted: #94a3b8;
     --ab-accent: #00e676;
 }
+
+/* Unified Admin content width — all tabs (Users, Affiliate, Pricing, …) */
+body.ab-page .adm-wrap,
+body.ab-page .au-wrap,
+body.ab-page .adm-pricing-wrap,
+body.ab-page .adm-eco-wrap,
+body.ab-page .adm-cc-wrap {
+    width: 90%;
+    max-width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+}
+
+@media (max-width: 767px) {
+    body.ab-page .adm-wrap,
+    body.ab-page .au-wrap,
+    body.ab-page .adm-pricing-wrap,
+    body.ab-page .adm-eco-wrap,
+    body.ab-page .adm-cc-wrap {
+        width: 100%;
+        max-width: 100%;
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+}
