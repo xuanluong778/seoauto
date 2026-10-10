@@ -121,3 +121,4 @@ app.db
 :memory:
 celerybeat-schedule*
 *.bak_premerge
+static/downloads/*database*.zip
