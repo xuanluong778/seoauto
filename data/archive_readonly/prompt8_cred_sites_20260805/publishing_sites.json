@@ -1,0 +1,36 @@
+[
+  {
+    "id": "44f3edb0-2363-4b3b-8f04-e79089b676d1",
+    "user_id": 1,
+    "platform": "wordpress",
+    "name": "it siêu việt",
+    "url": "https://itsieuviet.com",
+    "username": "quantri",
+    "app_password": "enc:v1:gAAAAABqcF5AiYccss8hrD_rm7Anmlsqt74XZFcid5QeJBjSGaGCcSTVf-RQpgkp5M5IT07z0-XYjRSk7ToyFlrz3qNKsyAmVQDQvR5715ki5ozAaua5JS0=",
+    "default_status": "draft",
+    "verified": true,
+    "plugin_installed": true,
+    "favicon_url": "",
+    "last_checked_at": "2026-08-03T09:24:16.284492+00:00",
+    "last_message": "Kết nối WordPress thành công. Đã phát hiện SEOAuto SEO Helper.",
+    "created_at": "2026-08-03T09:24:15.655887+00:00",
+    "updated_at": "2026-08-03T09:24:16.285209+00:00"
+  },
+  {
+    "id": "ede6ce2c-2405-47fb-8df6-f6d4b6b42642",
+    "user_id": 1,
+    "platform": "wordpress",
+    "name": "it siêu tốc",
+    "url": "https://itsieutoc.com",
+    "username": "xuanluong",
+    "app_password": "enc:v1:gAAAAABqcEvdQnVZY9xdNStKiA4WV173284XRHd5Wl9zYdlF16q7l0KSVvdvQOtzf13yAlq57j3G3eGyRHRi2DQ0tg_ZoA7vh2MyVcfy3Czi9vYZ1iseZ5Y=",
+    "default_status": "draft",
+    "verified": true,
+    "plugin_installed": true,
+    "favicon_url": "",
+    "last_checked_at": "2026-08-03T08:05:49.120207+00:00",
+    "last_message": "Kết nối WordPress thành công. Đã phát hiện SEOAuto SEO Helper.",
+    "created_at": "2026-08-03T08:05:46.717661+00:00",
+    "updated_at": "2026-08-03T08:05:49.121467+00:00"
+  }
+]

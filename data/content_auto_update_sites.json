@@ -1,0 +1,41 @@
+[
+  {
+    "id": "25dbefa3-1aab-48b4-8b82-f32ea12b15d5",
+    "user_id": 153,
+    "label": "itsieutoc",
+    "url": "https://itsieutoc.com",
+    "username": "xuanluong",
+    "app_password": "enc:v1:gAAAAABqgXXyeWQ_3SQ6qYNLClQvaemQL2H2kM3SJhxgNUUH_aUSUqSLrOZ_fRrKe1qPRCvS2VoAGZ_s9A6ToKgrutn7OYp--yl0q38ZiMnAsZdYt1RO7aE=",
+    "status": "connected",
+    "connected_at": "2026-08-12T13:08:14.454928+00:00",
+    "last_test_at": "2026-08-11T02:32:02.053942+00:00",
+    "last_test_message": "Kết nối WordPress thành công. Đã phát hiện SEOAuto SEO Helper.",
+    "publishing_site_id": "37f45712-6ec3-42ae-ab51-a7558cf88ce2"
+  },
+  {
+    "id": "80b88856-8255-4f63-a353-3c7e236ade1f",
+    "user_id": 1,
+    "label": "it siêu việt",
+    "url": "https://itsieuviet.com",
+    "username": "quantri",
+    "app_password": "enc:v1:gAAAAABqlvUyMMQfXEzkD4LQfbsyDSwjP8ZlSWqGkovqkBiWGYrGjDK0W2rs161w0LK2atv51o89etAPtlcuyvhrDeBPjSFTSI5U3UN_HVzh_iGWzO0iwK4=",
+    "status": "connected",
+    "connected_at": "2026-09-01T13:33:18.282902+00:00",
+    "last_test_at": "2026-08-03T09:24:16.284492+00:00",
+    "last_test_message": "Kết nối WordPress thành công. Đã phát hiện SEOAuto SEO Helper.",
+    "publishing_site_id": "44f3edb0-2363-4b3b-8f04-e79089b676d1"
+  },
+  {
+    "id": "60c0e430-7338-416b-9715-daffafe72e36",
+    "user_id": 1,
+    "label": "it siêu tốc",
+    "url": "https://itsieutoc.com",
+    "username": "xuanluong",
+    "app_password": "enc:v1:gAAAAABqlvUyJdGUO6TkoQEES7pEhsH7I04f0wsbgXlbzO9z8IM6Vtl9jdPBvt3v_msBkvYTY2ymWNNa20s6s5o60dPtRVip2BnHb-GJ9SgMkA4sbPH-mLA=",
+    "status": "connected",
+    "connected_at": "2026-09-01T13:33:18.284671+00:00",
+    "last_test_at": "2026-08-03T08:05:49.120207+00:00",
+    "last_test_message": "Kết nối WordPress thành công. Đã phát hiện SEOAuto SEO Helper.",
+    "publishing_site_id": "ede6ce2c-2405-47fb-8df6-f6d4b6b42642"
+  }
+]
